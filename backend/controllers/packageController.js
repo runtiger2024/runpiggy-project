@@ -5,6 +5,7 @@ const prisma = require("../config/db.js");
 /**
  * @description 包裹預報 (建立新包裹) - (純 JSON 版)
  * @route       POST /api/packages/forecast/json
+ * @route       POST /api/packages/forecast/images
  * @access      Private
  */
 const createPackageForecast = async (req, res) => {
@@ -18,13 +19,24 @@ const createPackageForecast = async (req, res) => {
         .json({ success: false, message: "請提供物流單號和商品名稱" });
     }
 
+    // *** 這是修復的關鍵邏輯 ***
+    // (1) 檢查 req.files (來自 upload.array("images", 5) 中間件)
+    let imagePaths = "[]"; // 預設為空 JSON 陣列
+    if (req.files && req.files.length > 0) {
+      // (2) 將檔案轉換為 URL 路徑
+      const paths = req.files.map((file) => `/uploads/${file.filename}`);
+      // (3) 存成 JSON 字串
+      imagePaths = JSON.stringify(paths);
+    }
+    // *** 修復邏輯結束 ***
+
     const newPackage = await prisma.package.create({
       data: {
         trackingNumber: trackingNumber,
         productName: productName,
         quantity: quantity ? parseInt(quantity) : 1,
         note: note,
-        productImages: "[]", // 預設為空陣列
+        productImages: imagePaths, // (4) 使用新的 imagePaths 變數
         warehouseImages: "[]", // 預設為空陣列
         userId: userId,
       },

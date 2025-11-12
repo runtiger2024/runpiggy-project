@@ -13,11 +13,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       // (1) 我們使用和「會員」一樣的登入 API
-      const response = await fetch("http://localhost:3000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await fetch(
+        "https://runpiggy-api.onrender.com/api/auth/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        }
+      );
 
       const data = await response.json();
 
@@ -27,13 +30,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // (2) (關鍵！) 檢查這個人是不是管理員 (ADMIN)
       //     我們需要呼叫 /api/auth/me 來取得 role
-      const profileResponse = await fetch("http://localhost:3000/api/auth/me", {
-        headers: { Authorization: `Bearer ${data.token}` },
-      });
+      const profileResponse = await fetch(
+        "https://runpiggy-api.onrender.com/api/auth/me",
+        {
+          headers: { Authorization: `Bearer ${data.token}` },
+        }
+      );
       const profileData = await profileResponse.json();
 
-      if (!profileResponse.ok || profileData.user.role !== "ADMIN") {
-        throw new Error("權限不足：您不是管理員");
+      if (
+        !profileResponse.ok ||
+        (profileData.user.role !== "ADMIN" &&
+          profileData.user.role !== "OPERATOR")
+      ) {
+        throw new Error("權限不足：您不是管理員或操作員");
       }
 
       // (3) 登入成功！

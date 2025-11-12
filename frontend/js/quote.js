@@ -32,9 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function fetchQuoteData(id) {
     try {
-      const response = await fetch(
-        `https-runpiggy-api.onrender.com/api/quotes/${id}`
-      );
+      const response = await fetch(`http://localhost:3000/api/quotes/${id}`);
       const result = await response.json();
 
       if (!response.ok) {

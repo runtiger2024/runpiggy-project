@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       // (3) 呼叫我們在 adminRoutes.js 建立的新 API
       const response = await fetch(
-        "https://runpiggy-api.onrender.com/api/admin/users/create",
+        "http://localhost:3000/api/admin/users/create",
         {
           method: "POST",
           headers: {

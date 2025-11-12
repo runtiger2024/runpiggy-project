@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-shipments.js (修復了 ID 錯誤)
+// 這是 frontend/js/admin-shipments.js (修復了 ID 錯誤 和 取消集運單的邏輯)
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 獲取元素 (*** 這是修復 ***) ---
@@ -185,7 +185,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (E) (關鍵!) 提交 "更新集運單" 表單
+  // (E) (關鍵!) 提交 "更新集運單" 表單 (*** Bug 修復版 ***)
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const shipmentId = document.getElementById("edit-shipment-id").value;
@@ -193,27 +193,48 @@ document.addEventListener("DOMContentLoaded", () => {
     submitButton.disabled = true;
     submitButton.textContent = "儲存中...";
 
-    // 收集資料
-    const data = {
-      status: document.getElementById("modal-status").value,
-      totalCost: document.getElementById("modal-totalCost").value || null,
-      trackingNumberTW:
-        document.getElementById("modal-trackingNumberTW").value || null,
-    };
+    const newStatus = document.getElementById("modal-status").value;
 
     try {
-      // 呼叫 API (PUT /api/admin/shipments/:id)
-      const response = await fetch(
-        `http://localhost:3000/api/admin/shipments/${shipmentId}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${adminToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-        }
-      );
+      let response; // 將 response 移到外面
+
+      // *** 這是修復的關鍵邏輯 ***
+      // 如果管理員是要「取消」訂單
+      if (newStatus === "CANCELLED") {
+        // (1) 呼叫「退回」API (這才會釋放包裹)
+        response = await fetch(
+          `http://localhost:3000/api/admin/shipments/${shipmentId}/reject`,
+          {
+            method: "PUT", // 使用 PUT
+            headers: {
+              Authorization: `Bearer ${adminToken}`,
+              "Content-Type": "application/json",
+            },
+            // (不需要 body)
+          }
+        );
+      } else {
+        // (2) 否則，才走原本的「更新」API
+        const data = {
+          status: newStatus,
+          totalCost: document.getElementById("modal-totalCost").value || null,
+          trackingNumberTW:
+            document.getElementById("modal-trackingNumberTW").value || null,
+        };
+
+        response = await fetch(
+          `http://localhost:3000/api/admin/shipments/${shipmentId}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${adminToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data),
+          }
+        );
+      }
+      // *** 修復邏輯結束 ***
 
       if (!response.ok) {
         const errData = await response.json();

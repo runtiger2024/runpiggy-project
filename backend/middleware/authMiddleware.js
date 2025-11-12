@@ -54,7 +54,7 @@ const admin = (req, res, next) => {
   //
   //
   // `protect` 必須先執行，所以我們才能從 `req.user` 讀到資料
-  if (req.user && req.user.role === "ADMIN") {
+  if (req.user && (req.user.role === "ADMIN" || req.user.role === "OPERATOR")) {
     next(); // 通過！
   } else {
     return res
