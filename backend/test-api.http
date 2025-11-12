@@ -1,0 +1,223 @@
+### 測試 (V3) - 會員註冊
+#
+# 第一次執行會成功 (HTTP 201)
+# 第二次執行會失敗 (HTTP 400)，因為 Email 已經存在
+#
+POST http://localhost:3000/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123",
+  "name": "小跑豬會員"
+}
+
+### --------------------------------------
+
+### 測試 (V3) - 會員登入 (成功)
+#
+# 必須使用你 "註冊成功" 的 Email 和密碼
+#
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### --------------------------------------
+
+### 測試 (V3) - 會員登入 (失敗)
+#
+# 使用錯誤的密碼
+#
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "wrongpassword"
+}
+
+### --------------------------------------
+### --------------------------------------
+### 測試海運試算器 (V2 標準)
+#
+# 這是前端 (public/script.js) 會傳送給後端的格式
+# 它包含一個 'items' 陣列 和一個 'deliveryLocationRate'
+#
+# 測試情境：
+# 1. 一個沙發 (重貨, 超重 > 100kg)
+# 2. 一個燈具 (拋貨, 超長 > 300cm)
+# 3. 配送到偏遠地區 (4500/方)
+
+POST http://localhost:3000/api/calculator/sea
+Content-Type: application/json
+
+{
+  "deliveryLocationRate": 4500,
+  "items": [
+    {
+      "name": "客廳三人座沙發",
+      "calcMethod": "dimensions",
+      "length": 200,
+      "width": 90,
+      "height": 80,
+      "cbm": 0,
+      "weight": 110,
+      "quantity": 1,
+      "type": "general"
+    },
+    {
+      "name": "超長型LED燈具",
+      "calcMethod": "dimensions",
+      "length": 310,
+      "width": 10,
+      "height": 10,
+      "cbm": 0,
+      "weight": 5,
+      "quantity": 2,
+      "type": "special_b"
+    }
+  ]
+}
+
+### --------------------------------------
+
+### 測試 (V2 標準) - 觸發最低消費
+POST http://localhost:3000/api/calculator/sea
+Content-Type: application/json
+
+{
+  "deliveryLocationRate": 0,
+  "items": [
+    {
+      "name": "小板凳",
+      "calcMethod": "dimensions",
+      "length": 30,
+      "width": 30,
+      "height": 30,
+      "cbm": 0,
+      "weight": 1,
+      "quantity": 1,
+      "type": "general"
+    }
+  ]
+}
+
+### --------------------------------------
+
+### 測試 (V2 標準) - 錯誤的輸入 (重量為 0)
+POST http://localhost:3000/api/calculator/sea
+Content-Type: application/json
+
+{
+  "deliveryLocationRate": 0,
+  "items": [
+    {
+      "name": "重量是 0",
+      "calcMethod": "dimensions",
+      "length": 30,
+      "width": 30,
+      "height": 30,
+      "cbm": 0,
+      "weight": 0,
+      "quantity": 1,
+      "type": "general"
+    }
+  ]
+}
+### --------------------------------------
+
+### 測試 (V3) - 保護路由 (失敗：沒有 Token)
+#
+# 預期會收到 401 Unauthorized 錯誤
+# "未授權：沒有 Token"
+#
+GET http://localhost:3000/api/auth/me
+
+### --------------------------------------
+
+### 測試 (V3) - 保護路由 (成功：有 Token)
+#
+# 1. 先執行 "會員登入 (成功)" 取得 Token
+# 2. 複製那串 Token
+# 3. 貼到下面的 "Bearer YOUR_TOKEN_HERE"
+#
+GET http://localhost:3000/api/auth/me
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### --------------------------------------
+### --------------------------------------
+
+### 測試 (V3) - 包裹預報 (需要 Token)
+#
+# 記得先登入，然後把 Token 貼在下面
+#
+POST http://localhost:3000/api/packages/forecast
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+  "trackingNumber": "123456789",
+  "productName": "客廳大沙發",
+  "quantity": 1,
+  "note": "請小心搬運，易碎"
+}
+
+### --------------------------------------
+
+### 測試 (V3) - 取得我的所有包裹 (需要 Token)
+#
+# 記得先登入，然後把 Token 貼在下面
+#
+GET http://localhost:3000/api/packages/my
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### --------------------------------------
+### --------------------------------------
+
+### 測試 (V3) - Admin 取得所有包裹 (需要 ADMIN Token)
+#
+# 必須使用 'test@example.com' (ADMIN) 登入取得的 Token
+#
+GET http://localhost:3000/api/admin/packages/all
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### --------------------------------------
+
+### 測試 (V3) - Admin 更新包裹狀態 (需要 ADMIN Token)
+#
+# 1. 先用 "包裹預報" API 建立一個包裹
+# 2. 複製該包裹的 "id"
+# 3. 貼到下面的 URL 中，替換 "YOUR_PACKAGE_ID_HERE"
+# 4. 貼上你的 ADMIN Token
+#
+PUT http://localhost:3000/api/admin/packages/YOUR_PACKAGE_ID_HERE/status
+Content-Type: application/json
+Authorization: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNtaHU0czMxYTAwMDBndjdjd3llbGFuZ3QiLCJpYXQiOjE3NjI4NDMxOTAsImV4cCI6MTc2NTQzNTE5MH0.WcvbG1zsfylDFhb1CrhHUaXdBTKMwcxbKWTK3_SsGrY"
+
+{
+  "status": "ARRIVED"
+}
+
+### --------------------------------------
+### 測試 (V3) - 建立集運單 (含附加服務)
+POST http://localhost:3000/api/shipments/create
+Content-Type: application/json
+Authorization: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImNtaHU0czMxYTAwMDBndjdjd3llbGFuZ3QiLCJpYXQiOjE3NjI5MTY0OTUsImV4cCI6MTc2NTUwODQ5NX0.XTxb1xRyFFyqQhgDNHU5kKQMd8HnFStOvIzSCGQQoOo"
+
+{
+  "packageIds": ["YOUR_PACKAGE_ID_HERE"],
+  "recipientName": "王小明",
+  "phone": "0912345678",
+  "shippingAddress": "台灣省台北市信義區市府路1號",
+  "idNumber": "A123456789",
+  "taxId": "87654321",
+  "additionalServices": {
+    "wooden_crate": true,
+    "inspection": false,
+    "strengthen": true
+  }
+}

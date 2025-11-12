@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>包裹預報管理 - 管理後台</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div class="container" style="max-width: 1400px">
+      <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
+
+      <div class="admin-header">
+        <h1>包裹預報管理</h1>
+        <div class="header-actions">
+        <a href="admin-shipments.html" class="btn btn-secondary">集運單管理</a>
+        <a href="admin-members.html" class="btn btn-secondary">管理會員/操作員</a>
+        <span id="admin-welcome"></span>
+        <button id="logoutBtn" class="btn-danger">登出</button>
+      </div>
+
+      <div class="stats-container">
+        <div class="stat-card">
+          <h3>總預報數</h3>
+          <p id="stats-total">0</p>
+        </div>
+        <div class="stat-card pending">
+          <h3>待確認 (PENDING)</h3>
+          <p id="stats-pending">0</p>
+        </div>
+        <div class="stat-card arrived">
+          <h3>已到倉 (ARRIVED)</h3>
+          <p id="stats-arrived">0</p>
+        </div>
+        <div class="stat-card completed">
+          <h3>已集運 (IN_SHIPMENT)</h3>
+          <p id="stats-completed">0</p>
+        </div>
+      </div>
+
+      <div class="filters">
+        <select id="filter-status">
+          <option value="">所有狀態</option>
+          <option value="PENDING">待確認</option>
+          <option value="ARRIVED">已到倉</option>
+          <option value="IN_SHIPMENT">集運中</option>
+          <option value="COMPLETED">已完成</option>
+          <option value="CANCELLED">已取消</option>
+        </select>
+        <input
+          type="text"
+          id="search-input"
+          placeholder="搜尋單號/商品名稱/會員Email..."
+        />
+        <button class="btn btn-primary" id="filter-btn">搜尋</button>
+      </div>
+
+      <div class="parcel-management">
+        <div class="admin-table-wrapper">
+          <table class="parcel-table">
+            <thead>
+              <tr>
+                <th>操作</th>
+                <th>預報時間</th>
+                <th>會員 Email</th>
+                <th>物流單號</th>
+                <th>商品名稱</th>
+                <th>狀態</th>
+                <th>實重(kg)</th>
+                <th>尺寸(cm)</th>
+                <th>倉庫照片</th>
+              </tr>
+            </thead>
+            <tbody id="parcelsTableBody">
+              <tr>
+                <td
+                  colspan="9"
+                  style="text-align: center; padding: 30px; color: #999"
+                >
+                  載入中...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="parcel-detail-modal" class="modal-overlay" style="display: none">
+      <div class="modal-content modal-lg">
+        <button class="modal-close-btn">&times;</button>
+        <h2>包裹詳細資訊 (管理員)</h2>
+
+        <form id="update-package-form">
+          <input type="hidden" id="modal-pkg-id" />
+
+          <div class="form-section">
+            <h4>會員資訊</h4>
+            <div class="info-grid">
+              <p>
+                <strong>Email:</strong> <span id="modal-user-email">-</span>
+              </p>
+              <p><strong>姓名:</strong> <span id="modal-user-name">-</span></p>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h4>包裹預報資訊</h4>
+            <div class="info-grid">
+              <p>
+                <strong>物流單號:</strong>
+                <span id="modal-trackingNumber">-</span>
+              </p>
+              <p>
+                <strong>商品名稱:</strong> <span id="modal-productName">-</span>
+              </p>
+              <p><strong>數量:</strong> <span id="modal-quantity">-</span></p>
+              <p><strong>會員備註:</strong> <span id="modal-note">-</span></p>
+            </div>
+            <div id="modal-customer-images" class="parcel-images"></div>
+          </div>
+
+          <div class="form-section">
+            <h4>倉庫回填 (入庫作業)</h4>
+            <div class="form-group">
+              <label for="modal-status" class="required">包裹狀態</label>
+              <select id="modal-status" class="form-control">
+                <option value="PENDING">待確認 (PENDING)</option>
+                <option value="ARRIVED">已入庫 (ARRIVED)</option>
+                <option value="IN_SHIPMENT">集運中 (IN_SHIPMENT)</option>
+                <option value="COMPLETED">已完成 (COMPLETED)</option>
+                <option value="CANCELLED">已取消 (CANCELLED)</option>
+              </select>
+            </div>
+            <div class="form-grid-4">
+              <div class="form-group">
+                <label>實際重量 (kg)</label>
+                <input
+                  type="number"
+                  id="modal-actualWeight"
+                  class="form-control"
+                  step="0.1"
+                />
+              </div>
+              <div class="form-group">
+                <label>實際長 (cm)</label>
+                <input
+                  type="number"
+                  id="modal-actualLength"
+                  class="form-control"
+                  step="0.1"
+                />
+              </div>
+              <div class="form-group">
+                <label>實際寬 (cm)</label>
+                <input
+                  type="number"
+                  id="modal-actualWidth"
+                  class="form-control"
+                  step="0.1"
+                />
+              </div>
+              <div class="form-group">
+                <label>實際高 (cm)</label>
+                <input
+                  type="number"
+                  id="modal-actualHeight"
+                  class="form-control"
+                  step="0.1"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>上傳倉庫照片 (可多選)</label>
+              <input
+                type="file"
+                id="modal-warehouseImages"
+                class="form-control"
+                multiple
+                accept="image/*"
+              />
+            </div>
+            <div
+              id="modal-warehouse-images-preview"
+              class="parcel-images"
+            ></div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">儲存更新</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="js/admin-parcels.js"></script>
+  </body>
+</html>
