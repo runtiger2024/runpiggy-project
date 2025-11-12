@@ -527,7 +527,7 @@ select#deliveryLocation optgroup {
 @media (max-width: 768px) {
   .rate-table {
     border: 0;
-    display: block; /* <-- ★★★ 這就是本次的修復 ★★★ */
+    display: block; /* <-- (修復) */
   }
   .rate-table thead {
     border: none;
@@ -1635,4 +1635,79 @@ a.btn-secondary:hover {
   width: 100%;
   color: #888;
   font-size: 14px;
+}
+
+/* --- (新) 方案三：頁尾樣式 (Footer Styles) --- */
+/*
+  這些是您從 index.html 的 style 屬性中搬移過來的樣式
+*/
+.site-footer {
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  color: white;
+  padding: 30px;
+  margin-top: 50px;
+  border-radius: 15px;
+  text-align: center;
+  box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
+}
+
+.site-footer__container {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.site-footer__title {
+  color: white;
+  margin-bottom: 20px;
+  font-size: 24px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+  padding-bottom: 10px;
+  margin-top: 0; /* (新增) 確保標題沒有多餘的上邊距 */
+}
+
+.site-footer__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.site-footer__item {
+  margin: 8px 0;
+}
+
+.site-footer__label {
+  color: #3498db;
+}
+
+.site-footer__value {
+  font-size: 18px;
+}
+
+.site-footer__link {
+  color: white;
+  text-decoration: none;
+  font-size: 18px;
+  transition: color 0.3s;
+}
+
+.site-footer__link--email:hover {
+  color: #3498db;
+}
+
+.site-footer__link--line:hover {
+  color: #00c300;
+}
+
+.site-footer__copyright {
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  padding-top: 15px;
+  margin-top: 20px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.site-footer__copyright-text {
+  margin: 5px 0;
 }
