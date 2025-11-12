@@ -527,6 +527,7 @@ select#deliveryLocation optgroup {
 @media (max-width: 768px) {
   .rate-table {
     border: 0;
+    display: block; /* <-- ★★★ 這就是本次的修復 ★★★ */
   }
   .rate-table thead {
     border: none;
