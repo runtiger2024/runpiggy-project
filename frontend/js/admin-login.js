@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-login.js
+// 這是 frontend/js/admin-login.js (已修復 API_BASE_URL 和 OPERATOR 權限)
 
 document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("admin-login-form");
@@ -13,14 +13,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       // (1) 我們使用和「會員」一樣的登入 API
-      const response = await fetch(
-        "https://runpiggy-api.onrender.com/api/auth/login",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
       const data = await response.json();
 
@@ -30,12 +27,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // (2) (關鍵！) 檢查這個人是不是管理員 (ADMIN)
       //     我們需要呼叫 /api/auth/me 來取得 role
-      const profileResponse = await fetch(
-        "https://runpiggy-api.onrender.com/api/auth/me",
-        {
-          headers: { Authorization: `Bearer ${data.token}` },
-        }
-      );
+      const profileResponse = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${data.token}` },
+      });
       const profileData = await profileResponse.json();
 
       if (

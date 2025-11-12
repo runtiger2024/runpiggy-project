@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-members.js
+// 這是 frontend/js/admin-members.js (已修復 API_BASE_URL)
 // 負責管理 admin-members.html 頁面
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
       '<tr><td colspan="7" class="loading"><div class="spinner"></div><p>載入使用者資料中...</p></td></tr>';
 
     try {
-      const response = await fetch("http://localhost:3000/api/admin/users", {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
 
@@ -163,7 +163,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const response = await fetch(
-        `http://localhost:3000/api/admin/users/${userId}/reset-password`,
+        `${API_BASE_URL}/api/admin/users/${userId}/reset-password`,
         {
           method: "PUT",
           headers: { Authorization: `Bearer ${adminToken}` },
@@ -192,7 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const response = await fetch(
-        `http://localhost:3000/api/admin/users/${userId}/status`,
+        `${API_BASE_URL}/api/admin/users/${userId}/status`,
         {
           method: "PUT",
           headers: {

@@ -1,4 +1,4 @@
-// 這是 frontend/js/quote.js
+// 這是 frontend/js/quote.js (已修復 API_BASE_URL)
 // 負責處理 quote.html 頁面
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function fetchQuoteData(id) {
     try {
-      const response = await fetch(`http://localhost:3000/api/quotes/${id}`);
+      const response = await fetch(`${API_BASE_URL}/api/quotes/${id}`);
       const result = await response.json();
 
       if (!response.ok) {

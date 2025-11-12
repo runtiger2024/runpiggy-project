@@ -1,4 +1,5 @@
-// 這是 frontend/js/dashboard.js (最終完整版，支援「合併集運」)
+// 這是 frontend/js/dashboard.js (已修復 API_BASE_URL)
+// (最終完整版，支援「合併集運」)
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 獲取元素 ---
@@ -82,7 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // (A) 載入會員資料
   async function loadUserProfile() {
     try {
-      const response = await fetch("http://localhost:3000/api/auth/me", {
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -109,7 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // (B) 載入我的包裹 (*** 重大修改 ***)
   async function loadMyPackages() {
     try {
-      const response = await fetch("http://localhost:3000/api/packages/my", {
+      const response = await fetch(`${API_BASE_URL}/api/packages/my`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
@@ -199,7 +200,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadMyShipments() {
     // ( ... 此函式保持不變 ... )
     try {
-      const response = await fetch("http://localhost:3000/api/shipments/my", {
+      const response = await fetch(`${API_BASE_URL}/api/shipments/my`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
@@ -248,7 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     try {
       const response = await fetch(
-        "http://localhost:3000/api/packages/forecast/json",
+        `${API_BASE_URL}/api/packages/forecast/json`,
         {
           method: "POST",
           headers: {
@@ -306,7 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
       defaultAddress: document.getElementById("edit-address").value,
     };
     try {
-      const response = await fetch("http://localhost:3000/api/auth/me", {
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -360,7 +361,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     try {
       const response = await fetch(
-        `http://localhost:3000/api/packages/${packageId}`,
+        `${API_BASE_URL}/api/packages/${packageId}`,
         {
           method: "PUT",
           headers: {
@@ -392,13 +393,10 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     try {
-      const response = await fetch(
-        `http://localhost:3000/api/packages/${pkg.id}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/packages/${pkg.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const result = await response.json();
       if (!response.ok) {
         throw new Error(result.message || "刪除失敗");
@@ -498,17 +496,14 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     try {
-      const response = await fetch(
-        "http://localhost:3000/api/shipments/create",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(requestData),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/shipments/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestData),
+      });
 
       const result = await response.json();
       if (!response.ok) {

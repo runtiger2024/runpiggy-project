@@ -1,4 +1,5 @@
-// 這是 frontend/js/main.js (最終完整版，支援「登入預報」)
+// 這是 frontend/js/main.js (已修復 API_BASE_URL)
+// (最終完整版，支援「登入預報」)
 
 // --- (1) 計數器邏輯 ---
 function initializeUsageCounter() {
@@ -179,7 +180,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     try {
-      const response = await fetch("http://localhost:3000/api/calculator/sea", {
+      const response = await fetch(`${API_BASE_URL}/api/calculator/sea`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestData),
@@ -345,7 +346,7 @@ document.addEventListener("DOMContentLoaded", () => {
     shareButton.disabled = true;
     shareButton.textContent = "產生連結中...";
     try {
-      const response = await fetch("http://localhost:3000/api/quotes", {
+      const response = await fetch(`${API_BASE_URL}/api/quotes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

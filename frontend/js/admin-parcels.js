@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-parcels.js
+// 這是 frontend/js/admin-parcels.js (已修復 API_BASE_URL)
 // 負責管理 admin-parcels.html 頁面
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -57,12 +57,9 @@ document.addEventListener("DOMContentLoaded", () => {
       '<tr><td colspan="9" style="text-align: center;">載入中...</td></tr>';
 
     try {
-      const response = await fetch(
-        "http://localhost:3000/api/admin/packages/all",
-        {
-          headers: { Authorization: `Bearer ${adminToken}` },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/admin/packages/all`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
@@ -178,7 +175,7 @@ document.addEventListener("DOMContentLoaded", () => {
     customerImagesContainer.innerHTML = "<h4>會員上傳的圖片：</h4>";
     if (pkg.productImages.length > 0) {
       pkg.productImages.forEach((imgUrl) => {
-        customerImagesContainer.innerHTML += `<img src="http://localhost:3000${imgUrl}" alt="會員圖片" onclick="window.open('http://localhost:3000${imgUrl}', '_blank')">`;
+        customerImagesContainer.innerHTML += `<img src="${API_BASE_URL}${imgUrl}" alt="會員圖片" onclick="window.open('${API_BASE_URL}${imgUrl}', '_blank')">`;
       });
     } else {
       customerImagesContainer.innerHTML += "<p>會員未上傳圖片</p>";
@@ -201,7 +198,7 @@ document.addEventListener("DOMContentLoaded", () => {
     warehouseImagesContainer.innerHTML = "<h4>倉庫已拍照片：</h4>";
     if (pkg.warehouseImages.length > 0) {
       pkg.warehouseImages.forEach((imgUrl) => {
-        warehouseImagesContainer.innerHTML += `<img src="http://localhost:3000${imgUrl}" alt="倉庫圖片" onclick="window.open('http://localhost:3000${imgUrl}', '_blank')">`;
+        warehouseImagesContainer.innerHTML += `<img src="${API_BASE_URL}${imgUrl}" alt="倉庫圖片" onclick="window.open('${API_BASE_URL}${imgUrl}', '_blank')">`;
       });
     } else {
       warehouseImagesContainer.innerHTML += "<p>倉庫尚未上傳照片</p>";
@@ -261,7 +258,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       // 3. 呼叫我們新的 API (PUT /api/admin/packages/:id/details)
       const response = await fetch(
-        `http://localhost:3000/api/admin/packages/${packageId}/details`,
+        `${API_BASE_URL}/api/admin/packages/${packageId}/details`,
         {
           method: "PUT",
           headers: {

@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-shipments.js (修復了 ID 錯誤 和 取消集運單的邏輯)
+// 這是 frontend/js/admin-shipments.js (修復了 ID 錯誤、取消邏輯 和 API_BASE_URL)
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 獲取元素 (*** 這是修復 ***) ---
@@ -51,12 +51,9 @@ document.addEventListener("DOMContentLoaded", () => {
       '<tr><td colspan="7" class="loading"><div class="spinner"></div><p>載入集運單資料中...</p></td></tr>';
 
     try {
-      const response = await fetch(
-        "http://localhost:3000/api/admin/shipments/all",
-        {
-          headers: { Authorization: `Bearer ${adminToken}` },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/admin/shipments/all`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
@@ -203,7 +200,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (newStatus === "CANCELLED") {
         // (1) 呼叫「退回」API (這才會釋放包裹)
         response = await fetch(
-          `http://localhost:3000/api/admin/shipments/${shipmentId}/reject`,
+          `${API_BASE_URL}/api/admin/shipments/${shipmentId}/reject`,
           {
             method: "PUT", // 使用 PUT
             headers: {
@@ -223,7 +220,7 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         response = await fetch(
-          `http://localhost:3000/api/admin/shipments/${shipmentId}`,
+          `${API_BASE_URL}/api/admin/shipments/${shipmentId}`,
           {
             method: "PUT",
             headers: {

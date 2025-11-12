@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-register.js
+// 這是 frontend/js/admin-register.js (已修復 API_BASE_URL)
 
 document.addEventListener("DOMContentLoaded", () => {
   const registerForm = document.getElementById("register-form");
@@ -27,17 +27,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       // (3) 呼叫我們在 adminRoutes.js 建立的新 API
-      const response = await fetch(
-        "http://localhost:3000/api/admin/users/create",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${adminToken}`, // (重要) 必須帶上管理員 Token
-          },
-          body: JSON.stringify(requestData),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`, // (重要) 必須帶上管理員 Token
+        },
+        body: JSON.stringify(requestData),
+      });
 
       const data = await response.json();
 
