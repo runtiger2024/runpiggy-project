@@ -1,36 +1,45 @@
 // 這是 frontend/js/admin-parcels.js (已修復 API_BASE_URL)
-// (最終完整版：整合照片管理、家具類型選擇、運費自動計算顯示)
+// (最終完整版：包含運費自動試算公式、照片刪除/上傳管理)
+
+// --- 1. 定義費率常數 (需與後端保持一致) ---
+const RATES = {
+  general: { name: "一般家具", weightRate: 22, volumeRate: 125 },
+  special_a: { name: "特殊家具A", weightRate: 32, volumeRate: 184 },
+  special_b: { name: "特殊家具B", weightRate: 40, volumeRate: 224 },
+  special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
+};
+const VOLUME_DIVISOR = 28317;
 
 document.addEventListener("DOMContentLoaded", () => {
-  // --- 1. 獲取元素 ---
+  // --- 2. 獲取 DOM 元素 ---
   const adminWelcome = document.getElementById("admin-welcome");
   const logoutBtn = document.getElementById("logoutBtn");
-
   const filterStatus = document.getElementById("filter-status");
   const searchInput = document.getElementById("search-input");
   const filterBtn = document.getElementById("filter-btn");
-
   const parcelsTableBody = document.getElementById("parcelsTableBody");
-
-  // 統計卡片
   const statsTotal = document.getElementById("stats-total");
   const statsPending = document.getElementById("stats-pending");
   const statsArrived = document.getElementById("stats-arrived");
   const statsCompleted = document.getElementById("stats-completed");
-
-  // 彈窗 (Modal)
   const modal = document.getElementById("parcel-detail-modal");
   const closeModalBtn = modal.querySelector(".modal-close-btn");
   const updateForm = document.getElementById("update-package-form");
 
-  // --- 2. 狀態變數 ---
-  let allParcelsData = []; // 儲存從 API 拿到的所有包裹
-  const adminToken = localStorage.getItem("admin_token"); // 讀取 "admin_token"
+  // 計算相關輸入框元素
+  const elType = document.getElementById("modal-furnitureType");
+  const elWeight = document.getElementById("modal-actualWeight");
+  const elL = document.getElementById("modal-actualLength");
+  const elW = document.getElementById("modal-actualWidth");
+  const elH = document.getElementById("modal-actualHeight");
+  const elFeeDisplay = document.getElementById("modal-shippingFee");
+  const elDetails = document.getElementById("calc-details"); // 顯示公式的區域
 
-  // [核心變數] 用來暫存目前這個包裹的「舊照片列表」 (用於刪除/保留邏輯)
-  let currentExistingImages = [];
+  // --- 3. 狀態變數 ---
+  let allParcelsData = [];
+  const adminToken = localStorage.getItem("admin_token");
+  let currentExistingImages = []; // 暫存舊照片列表 (用於刪除邏輯)
 
-  // 中文翻譯字典
   const packageStatusMap = {
     PENDING: "待確認",
     ARRIVED: "已入庫",
@@ -39,26 +48,24 @@ document.addEventListener("DOMContentLoaded", () => {
     CANCELLED: "已取消",
   };
 
-  // --- 3. 初始化 (檢查登入) ---
+  // --- 4. 初始化檢查 ---
   if (!adminToken) {
     alert("偵測到未登入，將跳轉至管理員登入頁面");
     window.location.href = "admin-login.html";
-    return; // 停止執行
+    return;
   }
 
-  // 顯示歡迎訊息
   const adminName = localStorage.getItem("admin_name");
   if (adminName) {
     adminWelcome.textContent = `你好, ${adminName}`;
   }
 
-  // --- 4. 函式定義 ---
+  // --- 5. 核心功能函式 ---
 
-  // (A) 載入所有包裹 (呼叫 GET /api/admin/packages/all)
+  // (A) 載入所有包裹
   async function loadAllParcels() {
     parcelsTableBody.innerHTML =
       '<tr><td colspan="9" style="text-align: center;">載入中...</td></tr>';
-
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/packages/all`, {
         headers: { Authorization: `Bearer ${adminToken}` },
@@ -66,7 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          alert("登入已過期或權限不足，請重新登入");
+          alert("登入已過期，請重新登入");
           window.location.href = "admin-login.html";
         }
         throw new Error("載入包裹失敗");
@@ -74,20 +81,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const data = await response.json();
       allParcelsData = data.packages || [];
-
-      renderParcels(allParcelsData); // 顯示所有包裹
-      updateStats(allParcelsData); // 更新統計數字
+      renderParcels(allParcelsData);
+      updateStats(allParcelsData);
     } catch (error) {
-      console.error("載入包裹列表失敗:", error);
+      console.error("載入失敗:", error);
       parcelsTableBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: red;">載入失敗: ${error.message}</td></tr>`;
     }
   }
 
   // (B) 渲染包裹列表
   function renderParcels(parcels) {
-    parcelsTableBody.innerHTML = ""; // 清空
-
-    // 篩選邏輯
+    parcelsTableBody.innerHTML = "";
     const status = filterStatus.value;
     const search = searchInput.value.toLowerCase();
 
@@ -109,19 +113,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     filteredParcels.forEach((pkg) => {
       const statusText = packageStatusMap[pkg.status] || pkg.status;
-
-      // 尺寸和重量
-      const dimensions =
-        pkg.actualLength && pkg.actualWidth && pkg.actualHeight
-          ? `${pkg.actualLength}x${pkg.actualWidth}x${pkg.actualHeight}`
-          : "-";
+      const dimensions = pkg.actualLength
+        ? `${pkg.actualLength}x${pkg.actualWidth}x${pkg.actualHeight}`
+        : "-";
       const weight = pkg.actualWeight ? `${pkg.actualWeight}` : "-";
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>
-          <button class="btn btn-secondary btn-sm btn-view-details">查看/編輯</button>
-        </td>
+        <td><button class="btn btn-secondary btn-sm btn-view-details">查看/編輯</button></td>
         <td>${new Date(pkg.createdAt).toLocaleDateString()}</td>
         <td>${pkg.user.email}</td>
         <td>${pkg.trackingNumber}</td>
@@ -133,17 +132,13 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>${dimensions}</td>
         <td>${pkg.warehouseImages.length} 張</td>
       `;
-
-      // 幫 "查看/編輯" 按鈕綁定事件
       tr.querySelector(".btn-view-details").addEventListener("click", () => {
         openPackageModal(pkg);
       });
-
       parcelsTableBody.appendChild(tr);
     });
   }
 
-  // (C) 更新統計卡片
   function updateStats(parcels) {
     statsTotal.textContent = parcels.length;
     statsPending.textContent = parcels.filter(
@@ -157,9 +152,78 @@ document.addEventListener("DOMContentLoaded", () => {
     ).length;
   }
 
-  // (D) 打開包裹彈窗 (Modal) - [資料回填核心]
+  // (C) [核心] 即時運費試算邏輯
+  function updateLiveCalculation() {
+    // 如果頁面上沒有相關元素，直接返回
+    if (!elType || !elWeight || !elL || !elW || !elH || !elFeeDisplay) return;
+
+    const typeKey = elType.value;
+    const w = parseFloat(elWeight.value);
+    const l = parseFloat(elL.value);
+    const w_dim = parseFloat(elW.value);
+    const h = parseFloat(elH.value);
+
+    // 檢查必填欄位是否完整且有效
+    if (
+      !typeKey ||
+      !RATES[typeKey] ||
+      isNaN(w) ||
+      isNaN(l) ||
+      isNaN(w_dim) ||
+      isNaN(h) ||
+      l <= 0 ||
+      w_dim <= 0 ||
+      h <= 0
+    ) {
+      elFeeDisplay.value = "資料不全，無法計算";
+      if (elDetails) elDetails.style.display = "none";
+      return;
+    }
+
+    const rate = RATES[typeKey];
+
+    // 1. 材積重計算 (無條件進位)
+    const cai = Math.ceil((l * w_dim * h) / VOLUME_DIVISOR);
+    const volCost = cai * rate.volumeRate;
+
+    // 2. 實重計算 (無條件進位到小數點後一位)
+    const finalWeight = Math.ceil(w * 10) / 10;
+    const weightCost = finalWeight * rate.weightRate;
+
+    // 3. 最終運費 (取高者)
+    const finalFee = Math.max(volCost, weightCost);
+
+    elFeeDisplay.value = `$ ${finalFee.toLocaleString()}`;
+
+    // 4. 顯示詳細公式給管理員看
+    if (elDetails) {
+      elDetails.style.display = "block";
+      elDetails.innerHTML = `
+          <strong>${rate.name}費率：</strong><br>
+          📦 <strong>材積費：</strong> ${l}x${w_dim}x${h} ÷ 28317 = ${(
+        (l * w_dim * h) /
+        28317
+      ).toFixed(2)} ➜ 進位 <strong>${cai} 材</strong><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;${cai} 材 × $${
+        rate.volumeRate
+      } = <span style="color:#d63031">$${volCost}</span><br>
+          ⚖️ <strong>重量費：</strong> 實重 ${w} kg ➜ 進位 <strong>${finalWeight} kg</strong><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;${finalWeight} kg × $${
+        rate.weightRate
+      } = <span style="color:#d63031">$${Math.round(weightCost)}</span><br>
+          👉 <strong>最終運費：</strong> 取較高者 <span style="color:#d63031; font-weight:bold; font-size:1.2em;">$${finalFee}</span>
+        `;
+    }
+  }
+
+  // 綁定試算監聽器 (輸入變更時自動重算)
+  if (elType) elType.addEventListener("change", updateLiveCalculation);
+  [elWeight, elL, elW, elH].forEach((el) => {
+    if (el) el.addEventListener("input", updateLiveCalculation);
+  });
+
+  // (D) 打開編輯彈窗
   function openPackageModal(pkg) {
-    // 1. 填入基本資料 (唯讀區)
     document.getElementById("modal-pkg-id").value = pkg.id;
     document.getElementById("modal-user-email").textContent = pkg.user.email;
     document.getElementById("modal-user-name").textContent =
@@ -170,198 +234,151 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-quantity").textContent = pkg.quantity;
     document.getElementById("modal-note").textContent = pkg.note || "-";
 
-    // 2. 顯示會員上傳的圖片
+    // 顯示會員上傳圖片
     const customerImagesContainer = document.getElementById(
       "modal-customer-images"
     );
     customerImagesContainer.innerHTML = "<h4>會員上傳的圖片：</h4>";
     if (pkg.productImages.length > 0) {
       pkg.productImages.forEach((imgUrl) => {
-        customerImagesContainer.innerHTML += `<img src="${API_BASE_URL}${imgUrl}" alt="會員圖片" onclick="window.open('${API_BASE_URL}${imgUrl}', '_blank')">`;
+        customerImagesContainer.innerHTML += `<img src="${API_BASE_URL}${imgUrl}" onclick="window.open('${API_BASE_URL}${imgUrl}', '_blank')">`;
       });
     } else {
       customerImagesContainer.innerHTML += "<p>會員未上傳圖片</p>";
     }
 
-    // 3. 填入 "倉庫回填區" 表單 (可編輯區)
     document.getElementById("modal-status").value = pkg.status;
 
-    // [新增] 回填家具類型與運費顯示
-    const furnitureTypeSelect = document.getElementById("modal-furnitureType");
-    if (furnitureTypeSelect) {
-      furnitureTypeSelect.value = pkg.furnitureType || "";
-    }
-    const shippingFeeInput = document.getElementById("modal-shippingFee");
-    if (shippingFeeInput) {
-      shippingFeeInput.value = pkg.shippingFee
-        ? `$ ${pkg.shippingFee.toLocaleString()}`
-        : "尚未計算 (儲存後自動更新)";
-    }
+    // 回填資料並觸發試算
+    if (elType) elType.value = pkg.furnitureType || "";
+    if (elWeight) elWeight.value = pkg.actualWeight || "";
+    if (elL) elL.value = pkg.actualLength || "";
+    if (elW) elW.value = pkg.actualWidth || "";
+    if (elH) elH.value = pkg.actualHeight || "";
 
-    // 回填尺寸重量
-    document.getElementById("modal-actualWeight").value =
-      pkg.actualWeight || "";
-    document.getElementById("modal-actualLength").value =
-      pkg.actualLength || "";
-    document.getElementById("modal-actualWidth").value = pkg.actualWidth || "";
-    document.getElementById("modal-actualHeight").value =
-      pkg.actualHeight || "";
+    // 手動觸發一次計算以顯示目前狀態
+    updateLiveCalculation();
 
-    // 4. [照片管理] 初始化並顯示倉庫照片 (支援刪除與上限判斷)
-    currentExistingImages = [...pkg.warehouseImages]; // 複製一份陣列，避免直接修改原資料
+    // 載入現有照片到暫存區
+    currentExistingImages = [...pkg.warehouseImages];
     renderWarehouseImages();
 
-    // 清空檔案上傳欄位
+    // 清空上傳欄位
     document.getElementById("modal-warehouseImages").value = null;
 
-    // 5. 顯示彈窗
     modal.style.display = "flex";
   }
 
-  // --- (E) 渲染倉庫照片與刪除按鈕 ---
+  // (E) 渲染倉庫照片 (含刪除按鈕)
   function renderWarehouseImages() {
-    const warehouseImagesContainer = document.getElementById(
-      "modal-warehouse-images-preview"
-    );
+    const container = document.getElementById("modal-warehouse-images-preview");
     const fileInput = document.getElementById("modal-warehouseImages");
-
-    warehouseImagesContainer.innerHTML = "<h4>倉庫已拍照片：</h4>";
+    container.innerHTML = "<h4>倉庫已拍照片：</h4>";
 
     if (currentExistingImages.length > 0) {
       currentExistingImages.forEach((imgUrl, index) => {
-        // 建立包裝容器
         const wrapper = document.createElement("div");
-        wrapper.className = "img-wrapper"; // 需配合 CSS 設定樣式
+        wrapper.className = "img-wrapper";
 
-        // 圖片
         const img = document.createElement("img");
         img.src = `${API_BASE_URL}${imgUrl}`;
-        img.alt = "倉庫照片";
-        img.onclick = () => window.open(img.src, "_blank"); // 點擊看大圖
+        img.onclick = () => window.open(img.src, "_blank");
 
-        // 刪除按鈕 (紅色 X)
         const deleteBtn = document.createElement("div");
-        deleteBtn.className = "btn-delete-img"; // 需配合 CSS 設定樣式
+        deleteBtn.className = "btn-delete-img";
         deleteBtn.innerHTML = "&times;";
         deleteBtn.onclick = (e) => {
-          e.stopPropagation(); // 防止觸發圖片點擊
-          removeImage(index); // 呼叫刪除函式
+          e.stopPropagation();
+          removeImage(index);
         };
 
         wrapper.appendChild(img);
         wrapper.appendChild(deleteBtn);
-        warehouseImagesContainer.appendChild(wrapper);
+        container.appendChild(wrapper);
       });
     } else {
-      warehouseImagesContainer.innerHTML += "<p>目前無照片</p>";
+      container.innerHTML += "<p>目前無照片</p>";
     }
 
-    // [限制] 如果總數已達 3 張，禁用上傳欄位
+    // 限制上傳數量
     if (currentExistingImages.length >= 3) {
       fileInput.disabled = true;
-      fileInput.title = "已達 3 張照片上限，請先刪除舊照片";
+      fileInput.title = "已達上限 (3張)";
     } else {
       fileInput.disabled = false;
-      fileInput.title = "可選擇新照片";
+      fileInput.title = "";
     }
   }
 
-  // --- (F) 移除照片函式 (前端暫時移除) ---
+  // 移除照片 (僅前端移除，需儲存才生效)
   function removeImage(index) {
-    if (confirm("確定要移除這張照片嗎？(需按「儲存更新」才會真正生效)")) {
-      currentExistingImages.splice(index, 1); // 從陣列移除
-      renderWarehouseImages(); // 重新渲染畫面
+    if (confirm("確定要移除這張照片嗎？(需按「儲存更新」才會生效)")) {
+      currentExistingImages.splice(index, 1);
+      renderWarehouseImages();
     }
   }
 
-  // (G) 關閉彈窗
   closeModalBtn.addEventListener("click", () => {
     modal.style.display = "none";
   });
   modal.addEventListener("click", (e) => {
-    if (e.target === modal) {
-      modal.style.display = "none";
-    }
+    if (e.target === modal) modal.style.display = "none";
   });
 
-  // (H) [修改重點] 提交 "更新" 表單 (含照片處理與新欄位)
+  // (F) 提交更新表單
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const packageId = document.getElementById("modal-pkg-id").value;
     const submitButton = updateForm.querySelector('button[type="submit"]');
-
-    // 1. 檢查：舊圖 + 新圖 是否超過 3 張
     const newFiles = document.getElementById("modal-warehouseImages").files;
+
     if (currentExistingImages.length + newFiles.length > 3) {
-      alert(
-        `照片總數不能超過 3 張！\n目前舊圖：${currentExistingImages.length} 張\n新上傳：${newFiles.length} 張`
-      );
+      alert("照片總數不能超過 3 張！");
       return;
     }
 
     submitButton.disabled = true;
     submitButton.textContent = "儲存中...";
 
-    // 2. 建立 FormData
     const formData = new FormData();
     formData.append("status", document.getElementById("modal-status").value);
 
-    // [新增] 傳送家具類型 (用於後端計算運費)
-    const furnitureType = document.getElementById("modal-furnitureType");
-    if (furnitureType) {
-      formData.append("furnitureType", furnitureType.value);
-    }
+    if (elType) formData.append("furnitureType", elType.value);
+    if (elWeight) formData.append("actualWeight", elWeight.value);
+    if (elL) formData.append("actualLength", elL.value);
+    if (elW) formData.append("actualWidth", elW.value);
+    if (elH) formData.append("actualHeight", elH.value);
 
+    // [關鍵] 傳送剩餘的舊照片列表 (轉成 JSON 字串)
     formData.append(
-      "actualWeight",
-      document.getElementById("modal-actualWeight").value
-    );
-    formData.append(
-      "actualLength",
-      document.getElementById("modal-actualLength").value
-    );
-    formData.append(
-      "actualWidth",
-      document.getElementById("modal-actualWidth").value
-    );
-    formData.append(
-      "actualHeight",
-      document.getElementById("modal-actualHeight").value
+      "existingImages",
+      JSON.stringify(currentExistingImages || [])
     );
 
-    // [重要] 傳送剩餘的舊照片列表 (轉成 JSON 字串)
-    const existingImagesStr = JSON.stringify(currentExistingImages || []);
-    formData.append("existingImages", existingImagesStr);
-
-    // 3. 傳送新照片檔案
     for (let i = 0; i < newFiles.length; i++) {
       formData.append("warehouseImages", newFiles[i]);
     }
 
     try {
-      // 4. 呼叫 API (PUT /api/admin/packages/:id/details)
       const response = await fetch(
         `${API_BASE_URL}/api/admin/packages/${packageId}/details`,
         {
           method: "PUT",
-          headers: {
-            Authorization: `Bearer ${adminToken}`,
-            // 注意：使用 FormData 時，不要手動設定 Content-Type
-          },
+          headers: { Authorization: `Bearer ${adminToken}` },
           body: formData,
         }
       );
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || "更新失敗");
+        const err = await response.json();
+        throw new Error(err.message || "更新失敗");
       }
 
-      modal.style.display = "none"; // 關閉彈窗
+      modal.style.display = "none";
       alert("包裹更新成功！運費已自動計算。");
-      loadAllParcels(); // 重新載入列表
+      loadAllParcels();
     } catch (error) {
-      console.error("更新包裹失敗:", error);
+      console.error("更新失敗:", error);
       alert(`更新失敗: ${error.message}`);
     } finally {
       submitButton.disabled = false;
@@ -369,7 +386,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (I) 登出
+  // (G) 登出與篩選
   logoutBtn.addEventListener("click", () => {
     if (confirm("確定要登出管理後台吗？")) {
       localStorage.removeItem("admin_token");
@@ -378,11 +395,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (J) 篩選按鈕
   filterBtn.addEventListener("click", () => {
-    renderParcels(allParcelsData);
+    loadAllParcels();
   });
 
-  // --- 5. 初始載入資料 ---
+  // 初始載入
   loadAllParcels();
 });

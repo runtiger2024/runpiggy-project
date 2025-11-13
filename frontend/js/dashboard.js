@@ -1,6 +1,15 @@
 // 這是 frontend/js/dashboard.js (已修復 API_BASE_URL)
 // (最終完整版：支援合併集運、查看倉庫照片、顯示單件運費)
 
+// --- 定義費率 (前端顯示用) ---
+const RATES = {
+  general: { name: "一般家具", weightRate: 22, volumeRate: 125 },
+  special_a: { name: "特殊家具A", weightRate: 32, volumeRate: 184 },
+  special_b: { name: "特殊家具B", weightRate: 40, volumeRate: 224 },
+  special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
+};
+const VOLUME_DIVISOR = 28317;
+
 // --- [全域函式] 開啟圖片彈窗 (掛載到 window 以便 HTML onclick 呼叫) ---
 window.openImages = function (images) {
   const gallery = document.getElementById("images-gallery");
@@ -27,6 +36,58 @@ window.openImages = function (images) {
   } else {
     gallery.innerHTML = "<p>沒有照片</p>";
   }
+
+  modal.style.display = "flex";
+};
+
+// --- [全域函式] 開啟費用詳情 (掛載到 window) ---
+window.openFeeDetails = function (pkgDataStr) {
+  // 解碼並解析包裹資料
+  const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
+  const modal = document.getElementById("fee-details-modal");
+  const content = document.getElementById("fee-details-content");
+
+  if (!pkg.furnitureType || !RATES[pkg.furnitureType]) {
+    alert("資料不完整，無法顯示詳情");
+    return;
+  }
+
+  const rate = RATES[pkg.furnitureType];
+
+  // 前端再次計算以顯示公式 (需與後端邏輯一致)
+  const cai = Math.ceil(
+    (pkg.actualLength * pkg.actualWidth * pkg.actualHeight) / VOLUME_DIVISOR
+  );
+  const volCost = cai * rate.volumeRate;
+
+  const w = Math.ceil(pkg.actualWeight * 10) / 10;
+  const weightCost = w * rate.weightRate;
+
+  content.innerHTML = `
+    <p><strong>商品名稱：</strong>${pkg.productName}</p>
+    <p><strong>家具類型：</strong>${rate.name}</p>
+    <hr style="margin: 10px 0; border-top: 1px dashed #ccc;">
+    <p>📦 <strong>材積計算：</strong><br>
+       尺寸：${pkg.actualLength}x${pkg.actualWidth}x${pkg.actualHeight} cm<br>
+       材數：${(
+         (pkg.actualLength * pkg.actualWidth * pkg.actualHeight) /
+         VOLUME_DIVISOR
+       ).toFixed(2)} ➜ <strong>${cai} 材</strong><br>
+       費用：${cai} × $${
+    rate.volumeRate
+  } = <span style="color:#d63031">$${volCost}</span>
+    </p>
+    <p>⚖️ <strong>重量計算：</strong><br>
+       實重：${pkg.actualWeight} kg ➜ <strong>${w} kg</strong><br>
+       費用：${w} × $${
+    rate.weightRate
+  } = <span style="color:#d63031">$${Math.round(weightCost)}</span>
+    </p>
+    <hr style="margin: 10px 0; border-top: 2px solid #eee;">
+    <p style="text-align:right; font-size:1.2em;">
+      最終運費 (取高者)：<strong style="color:#d63031">$${pkg.shippingFee.toLocaleString()}</strong>
+    </p>
+  `;
 
   modal.style.display = "flex";
 };
@@ -72,6 +133,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 獲取 "查看照片" 彈窗相關元素
   const viewImagesModal = document.getElementById("view-images-modal");
+
+  // 獲取 "運費詳情" 彈窗相關元素
+  const feeDetailsModal = document.getElementById("fee-details-modal");
 
   // --- 2. 狀態變數 ---
   let currentUser = null;
@@ -174,10 +238,14 @@ document.addEventListener("DOMContentLoaded", () => {
             : "-";
         const weight = pkg.actualWeight ? `${pkg.actualWeight} kg` : "-";
 
-        // [新增] 格式化運費顯示
-        const feeDisplay = pkg.shippingFee
-          ? `<span style="color: #d32f2f; font-weight: bold;">$${pkg.shippingFee.toLocaleString()}</span>`
-          : '<span style="color: #999;">-</span>';
+        // [新增] 格式化運費顯示 (若有運費則變成連結，可點擊查看詳情)
+        let feeDisplay = '<span style="color: #999;">-</span>';
+        if (pkg.shippingFee) {
+          // 將 pkg 物件轉為字串，以便傳遞給 onclick
+          // 注意：需 encodeURIComponent 避免引號衝突
+          const pkgStr = encodeURIComponent(JSON.stringify(pkg));
+          feeDisplay = `<a href="javascript:void(0)" onclick="window.openFeeDetails('${pkgStr}')" style="color: #d32f2f; font-weight: bold; text-decoration: underline;">$${pkg.shippingFee.toLocaleString()}</a>`;
+        }
 
         // [新增] 處理照片欄位
         const hasPhotos = pkg.warehouseImages && pkg.warehouseImages.length > 0;
@@ -202,7 +270,9 @@ document.addEventListener("DOMContentLoaded", () => {
           <td>${pkg.productName}</td>
           <td>${dimensions}</td>
           <td>${weight}</td>
-          <td>${feeDisplay}</td> <td>${photosBtn}</td>  <td>
+          <td>${feeDisplay}</td>
+          <td>${photosBtn}</td>
+          <td>
             <button class="btn btn-secondary btn-sm btn-edit" ${
               pkg.status !== "PENDING" ? "disabled" : ""
             }>修改</button>
@@ -212,7 +282,7 @@ document.addEventListener("DOMContentLoaded", () => {
           </td>
         `;
 
-        // 綁定修改與刪除事件
+        // 綁定事件
         const editBtn = tr.querySelector(".btn-edit");
         if (editBtn) {
           editBtn.addEventListener("click", () => {
@@ -553,29 +623,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- (L) 綁定查看照片彈窗的關閉事件 ---
-  if (viewImagesModal) {
-    const btnCloseImagesModal = viewImagesModal.querySelector(".modal-close");
-    const btnCloseImagesModalBtn =
-      viewImagesModal.querySelector(".modal-close-btn");
+  // --- (L) 綁定所有彈窗的關閉事件 ---
+  // 這裡集合處理了「查看照片」和「費用詳情」兩種彈窗
+  [viewImagesModal, feeDetailsModal].forEach((m) => {
+    if (m) {
+      const closeBtn = m.querySelector(".modal-close");
+      const closeBtn2 = m.querySelector(".modal-close-btn"); // 下方按鈕
 
-    if (btnCloseImagesModal) {
-      btnCloseImagesModal.addEventListener("click", () => {
-        viewImagesModal.style.display = "none";
+      if (closeBtn)
+        closeBtn.addEventListener("click", () => (m.style.display = "none"));
+      if (closeBtn2)
+        closeBtn2.addEventListener("click", () => (m.style.display = "none"));
+
+      m.addEventListener("click", (e) => {
+        if (e.target === m) m.style.display = "none";
       });
     }
-    if (btnCloseImagesModalBtn) {
-      btnCloseImagesModalBtn.addEventListener("click", () => {
-        viewImagesModal.style.display = "none";
-      });
-    }
-
-    viewImagesModal.addEventListener("click", (e) => {
-      if (e.target === viewImagesModal) {
-        viewImagesModal.style.display = "none";
-      }
-    });
-  }
+  });
 
   // --- 5. 初始載入資料 ---
   loadUserProfile();
