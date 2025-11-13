@@ -1,4 +1,4 @@
-// 這是 backend/prisma/schema.prisma (最終完整版)
+// 這是 backend/prisma/schema.prisma (最終完整版：Shipment 新增 note 欄位)
 
 generator client {
   provider = "prisma-client-js"
@@ -48,7 +48,7 @@ model Package {
   
   // --- 運費計算相關 ---
   furnitureType   String?   // 家具類型 (general, special_a, etc.)
-  shippingFee     Float?    // [重要] 單件運費 (由後端自動計算存入)
+  shippingFee     Float?    // 單件運費
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now()) @updatedAt
@@ -75,13 +75,14 @@ model Shipment {
   shippingAddress      String
   idNumber             String    // 身分證
   taxId                String?   // 統一編號
+  note                 String?   // [新增] 客戶備註
 
   // 附加服務 & 費用
-  additionalServices   String?   // JSON: {"wooden_crate": true, ...}
+  additionalServices   String?   // JSON (雖然前端拿掉了，但資料庫保留無妨)
   deliveryLocationRate Float?    // 偏遠地區費率
   
   status               String    @default("PENDING_PAYMENT") // PENDING_PAYMENT, PROCESSING, SHIPPED, COMPLETED, CANCELLED
-  totalCost            Float?    // 最終總運費
+  totalCost            Float?    // 最終總運費 (建立時自動計算)
   trackingNumberTW     String?   // 台灣物流單號
 
   createdAt            DateTime  @default(now())

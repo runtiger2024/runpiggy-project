@@ -1,5 +1,5 @@
 // 這是 frontend/js/dashboard.js (已修復 API_BASE_URL)
-// (最終完整版：支援合併集運、查看倉庫照片、顯示單件運費)
+// (最終完整版：支援合併集運費用試算、備註欄位、照片查看、運費詳情)
 
 // --- 定義費率 (前端顯示用) ---
 const RATES = {
@@ -48,7 +48,7 @@ window.openFeeDetails = function (pkgDataStr) {
   const content = document.getElementById("fee-details-content");
 
   if (!pkg.furnitureType || !RATES[pkg.furnitureType]) {
-    alert("資料不完整，無法顯示詳情");
+    alert("資料不完整 (未填寫家具類型)，無法顯示詳情");
     return;
   }
 
@@ -75,13 +75,15 @@ window.openFeeDetails = function (pkgDataStr) {
        ).toFixed(2)} ➜ <strong>${cai} 材</strong><br>
        費用：${cai} × $${
     rate.volumeRate
-  } = <span style="color:#d63031">$${volCost}</span>
+  } = <span style="color:#d63031">$${volCost.toLocaleString()}</span>
     </p>
     <p>⚖️ <strong>重量計算：</strong><br>
        實重：${pkg.actualWeight} kg ➜ <strong>${w} kg</strong><br>
        費用：${w} × $${
     rate.weightRate
-  } = <span style="color:#d63031">$${Math.round(weightCost)}</span>
+  } = <span style="color:#d63031">$${Math.round(
+    weightCost
+  ).toLocaleString()}</span>
     </p>
     <hr style="margin: 10px 0; border-top: 2px solid #eee;">
     <p style="text-align:right; font-size:1.2em;">
@@ -130,11 +132,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnCloseShipmentModal =
     createShipmentModal.querySelector(".modal-close");
   const shipmentPackageList = document.getElementById("shipment-package-list");
+  const shipmentTotalCost = document.getElementById("shipment-total-cost"); // [新增] 總金額顯示
 
-  // 獲取 "查看照片" 彈窗相關元素
+  // 獲取彈窗元素
   const viewImagesModal = document.getElementById("view-images-modal");
-
-  // 獲取 "運費詳情" 彈窗相關元素
   const feeDetailsModal = document.getElementById("fee-details-modal");
 
   // --- 2. 狀態變數 ---
@@ -238,7 +239,7 @@ document.addEventListener("DOMContentLoaded", () => {
             : "-";
         const weight = pkg.actualWeight ? `${pkg.actualWeight} kg` : "-";
 
-        // [新增] 格式化運費顯示 (若有運費則變成連結，可點擊查看詳情)
+        // [格式化運費顯示]
         let feeDisplay = '<span style="color: #999;">-</span>';
         if (pkg.shippingFee) {
           // 將 pkg 物件轉為字串，以便傳遞給 onclick
@@ -247,7 +248,7 @@ document.addEventListener("DOMContentLoaded", () => {
           feeDisplay = `<a href="javascript:void(0)" onclick="window.openFeeDetails('${pkgStr}')" style="color: #d32f2f; font-weight: bold; text-decoration: underline;">$${pkg.shippingFee.toLocaleString()}</a>`;
         }
 
-        // [新增] 處理照片欄位
+        // [處理照片欄位]
         const hasPhotos = pkg.warehouseImages && pkg.warehouseImages.length > 0;
         const photosBtn = hasPhotos
           ? `<button class="btn btn-view-img btn-sm" onclick='window.openImages(${JSON.stringify(
@@ -514,7 +515,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- (K) 合併集運的函式 ---
+  // --- (K) 合併集運的函式 (支援總金額計算與備註) ---
 
   // (K-1) 綁定 "合併打包" 按鈕
   btnCreateShipment.addEventListener("click", () => {
@@ -528,6 +529,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 2. 準備要顯示在彈窗中的資料
     let packageListHtml = "";
     let selectedPackageIds = [];
+    let totalFee = 0; // [新增] 總金額變數
 
     checkedBoxes.forEach((box) => {
       const pkgId = box.dataset.id;
@@ -536,10 +538,14 @@ document.addEventListener("DOMContentLoaded", () => {
       // 從我們儲存的 allPackagesData 中找出完整資料
       const pkg = allPackagesData.find((p) => p.id === pkgId);
       if (pkg) {
+        const fee = pkg.shippingFee || 0;
+        totalFee += fee; // 累加運費
+
+        // [修改] 顯示名稱與運費
         packageListHtml += `
           <div class="shipment-package-item">
             <span>${pkg.productName} (${pkg.trackingNumber})</span>
-            <small>${pkg.actualWeight || "?"} kg</small>
+            <small>運費: $${fee.toLocaleString()}</small>
           </div>
         `;
       }
@@ -547,7 +553,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 3. 填入彈窗
     shipmentPackageList.innerHTML = packageListHtml;
-    // 把 ID 存到表單的 "data-ids" 屬性中
+
+    // [新增] 更新總金額顯示
+    if (shipmentTotalCost) {
+      shipmentTotalCost.textContent = totalFee.toLocaleString();
+    }
+
     createShipmentForm.dataset.ids = JSON.stringify(selectedPackageIds);
 
     // 4. 自動填入會員預設資料
@@ -555,6 +566,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("ship-phone").value = currentUser.phone || "";
     document.getElementById("ship-address").value =
       currentUser.defaultAddress || "";
+
+    // [新增] 清空備註欄位
+    document.getElementById("ship-note").value = "";
 
     // 5. 顯示彈窗
     createShipmentModal.style.display = "flex";
@@ -580,21 +594,16 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const services = {};
-    document
-      .querySelectorAll('#create-shipment-form input[name="services"]:checked')
-      .forEach((input) => {
-        services[input.value] = true;
-      });
+    // 移除了 additionalServices 邏輯
 
     const requestData = {
       packageIds: packageIds,
-      additionalServices: services,
       recipientName: document.getElementById("ship-name").value,
       phone: document.getElementById("ship-phone").value,
       shippingAddress: document.getElementById("ship-address").value,
       idNumber: document.getElementById("ship-idNumber").value,
       taxId: document.getElementById("ship-taxId").value || null,
+      note: document.getElementById("ship-note").value, // [新增] 傳送備註
     };
 
     try {
@@ -628,7 +637,7 @@ document.addEventListener("DOMContentLoaded", () => {
   [viewImagesModal, feeDetailsModal].forEach((m) => {
     if (m) {
       const closeBtn = m.querySelector(".modal-close");
-      const closeBtn2 = m.querySelector(".modal-close-btn"); // 下方按鈕
+      const closeBtn2 = m.querySelector(".modal-close-btn");
 
       if (closeBtn)
         closeBtn.addEventListener("click", () => (m.style.display = "none"));

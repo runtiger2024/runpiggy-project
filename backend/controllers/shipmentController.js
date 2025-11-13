@@ -1,4 +1,4 @@
-// 這是 shipmentController.js (升級版)
+// 這是 backend/controllers/shipmentController.js (最終版：含自動加總運費與備註)
 
 const prisma = require("../config/db.js");
 
@@ -9,7 +9,7 @@ const prisma = require("../config/db.js");
  */
 const createShipment = async (req, res) => {
   try {
-    // 1. 從前端取得 "所有" 資訊
+    // 1. 從前端取得資訊
     const {
       packageIds,
       shippingAddress,
@@ -17,7 +17,8 @@ const createShipment = async (req, res) => {
       phone,
       idNumber,
       taxId,
-      additionalServices, // <-- (新) 接收附加服務
+      note, // [新增] 接收備註
+      // additionalServices (前端已移除，這裡可忽略或保留接收)
     } = req.body;
 
     const userId = req.user.id;
@@ -29,15 +30,13 @@ const createShipment = async (req, res) => {
         .json({ success: false, message: "請至少選擇一個包裹" });
     }
     if (!shippingAddress || !recipientName || !phone || !idNumber) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "請提供完整的收件人姓名、電話、地址 和 身分證字號",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "請提供完整的收件人姓名、電話、地址 和 身分證字號",
+      });
     }
 
-    // 2. 驗證包裹
+    // 2. 驗證包裹並撈取資料 (為了計算運費)
     const packagesToShip = await prisma.package.findMany({
       where: {
         id: { in: packageIds },
@@ -55,9 +54,15 @@ const createShipment = async (req, res) => {
       });
     }
 
-    // 4. 使用資料庫「交易」
+    // 3. [新增] 自動計算總運費
+    // 累加每個包裹的 shippingFee，如果為 null 則視為 0 (代表未報價)
+    const calculatedTotalCost = packagesToShip.reduce((sum, pkg) => {
+      return sum + (pkg.shippingFee || 0);
+    }, 0);
+
+    // 4. 使用資料庫「交易」建立集運單
     const newShipment = await prisma.$transaction(async (tx) => {
-      // A. 建立一張新的集運單 (加入新欄位)
+      // A. 建立集運單
       const createdShipment = await tx.shipment.create({
         data: {
           recipientName: recipientName,
@@ -65,11 +70,10 @@ const createShipment = async (req, res) => {
           shippingAddress: shippingAddress,
           idNumber: idNumber,
           taxId: taxId || null,
+          note: note || null, // [新增] 存入備註
 
-          // (新) 將物件轉為 JSON 字串儲存
-          additionalServices: additionalServices
-            ? JSON.stringify(additionalServices)
-            : null,
+          // [關鍵] 直接寫入計算好的總金額
+          totalCost: calculatedTotalCost,
 
           status: "PENDING_PAYMENT",
           userId: userId,
@@ -118,18 +122,18 @@ const getMyShipments = async (req, res) => {
             id: true,
             productName: true,
             trackingNumber: true,
-            // (新) 把倉庫回填的資料也傳給會員
             actualWeight: true,
             actualLength: true,
             actualWidth: true,
             actualHeight: true,
+            shippingFee: true, // [新增] 讓前端也能看到明細裡的個別運費
             warehouseImages: true,
           },
         },
       },
     });
 
-    // (新) 解析附加服務和包裹圖片
+    // 解析 JSON 資料
     const processedShipments = shipments.map((ship) => ({
       ...ship,
       additionalServices: JSON.parse(ship.additionalServices || "{}"),
