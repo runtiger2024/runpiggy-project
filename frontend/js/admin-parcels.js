@@ -330,7 +330,8 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     // [重要] 傳送剩餘的舊照片列表 (轉成 JSON 字串)
-    formData.append("existingImages", JSON.stringify(currentExistingImages));
+    const existingImagesStr = JSON.stringify(currentExistingImages || []);
+    formData.append("existingImages", existingImagesStr);
 
     // 3. 傳送新照片檔案
     for (let i = 0; i < newFiles.length; i++) {

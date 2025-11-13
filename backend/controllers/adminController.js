@@ -1,4 +1,4 @@
-// 這是 backend/controllers/adminController.js (最終完整無省略版)
+// 這是 backend/controllers/adminController.js (最終完整修復版：含運費計算、照片刪除、防崩潰)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -32,12 +32,12 @@ const getAllPackages = async (req, res) => {
       try {
         productImages = JSON.parse(pkg.productImages || "[]");
       } catch (e) {
-        console.warn(`包裹 ${pkg.id} productImages 格式錯誤`);
+        // 忽略解析錯誤
       }
       try {
         warehouseImages = JSON.parse(pkg.warehouseImages || "[]");
       } catch (e) {
-        console.warn(`包裹 ${pkg.id} warehouseImages 格式錯誤`);
+        // 忽略解析錯誤
       }
 
       return { ...pkg, productImages, warehouseImages };
@@ -84,7 +84,7 @@ const updatePackageStatus = async (req, res) => {
   }
 };
 
-// 3. 更新包裹詳細資料 (含運費計算 & 實體照片刪除)
+// 3. [關鍵修正] 更新包裹詳細資料 (含運費計算 & 實體照片刪除 & 防崩潰)
 const updatePackageDetails = async (req, res) => {
   try {
     const { id } = req.params;
@@ -94,8 +94,8 @@ const updatePackageDetails = async (req, res) => {
       actualLength,
       actualWidth,
       actualHeight,
-      furnitureType,
-      existingImages, // 前端傳來的「要保留的舊照片」JSON 字串
+      furnitureType, // [新增] 接收家具類型
+      existingImages, // [新增] 接收前端傳來的「要保留的舊照片」
     } = req.body;
 
     // (1) 先從資料庫撈出「原始」包裹資料
@@ -157,7 +157,7 @@ const updatePackageDetails = async (req, res) => {
       }
     }
 
-    // (4) 照片處理與檔案刪除邏輯
+    // (4) 照片處理與檔案刪除邏輯 (使用 process.cwd() 確保路徑正確)
 
     // A. 解析原始照片列表
     let originalImagesList = [];
@@ -183,20 +183,24 @@ const updatePackageDetails = async (req, res) => {
       (img) => !keepImagesList.includes(img)
     );
 
-    imagesToDelete.forEach((imgUrl) => {
-      // 將 URL 路徑轉換為絕對路徑
-      const relativePath = imgUrl.replace("/uploads/", "");
-      const absolutePath = path.join(
-        __dirname,
-        "../public/uploads",
-        relativePath
-      );
+    // 使用 process.cwd() 獲取專案根目錄
+    const uploadDir = path.join(process.cwd(), "public", "uploads");
 
-      if (fs.existsSync(absolutePath)) {
-        fs.unlink(absolutePath, (err) => {
-          if (err) console.error(`刪除檔案失敗: ${absolutePath}`, err);
-          else console.log(`成功刪除實體檔案: ${absolutePath}`);
-        });
+    imagesToDelete.forEach((imgUrl) => {
+      try {
+        // imgUrl 範例: "/uploads/filename.png"
+        const filename = imgUrl.split("/").pop();
+        if (filename) {
+          const absolutePath = path.join(uploadDir, filename);
+          if (fs.existsSync(absolutePath)) {
+            fs.unlink(absolutePath, (err) => {
+              if (err)
+                console.warn(`刪除檔案失敗 (不影響流程): ${err.message}`);
+            });
+          }
+        }
+      } catch (err) {
+        console.warn(`處理刪除檔案時發生錯誤: ${err.message}`);
       }
     });
 
@@ -229,10 +233,10 @@ const updatePackageDetails = async (req, res) => {
       package: updatedPackage,
     });
   } catch (error) {
-    console.error("管理員更新包裹細節時發生錯誤:", error);
+    console.error("後端更新包裹錯誤:", error);
     res
       .status(500)
-      .json({ success: false, message: "伺服器發生錯誤或找不到包裹" });
+      .json({ success: false, message: `伺服器錯誤: ${error.message}` });
   }
 };
 
@@ -292,7 +296,7 @@ const getAllShipments = async (req, res) => {
       try {
         services = JSON.parse(ship.additionalServices || "{}");
       } catch (e) {
-        console.warn(`集運單 ${ship.id} additionalServices 格式錯誤`);
+        // 忽略解析錯誤
       }
       return { ...ship, additionalServices: services };
     });
