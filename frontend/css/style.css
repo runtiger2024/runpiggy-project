@@ -1,10 +1,10 @@
-/* frontend/css/style.css - 最終優化版 */
+/* frontend/css/style.css - 最終修復版 (Fix Mobile Overflow) */
 
 /* =========================================
    1. 全域設定 & 基礎樣式 (Global & Reset)
    ========================================= */
 * {
-  box-sizing: border-box; /* 關鍵：解決寬度溢出問題的核心設定 */
+  box-sizing: border-box; /* 關鍵：確保 Padding 不會增加元素寬度 */
 }
 
 body {
@@ -13,6 +13,7 @@ body {
   color: #333;
   padding: 20px;
   margin: 0;
+  overflow-x: hidden; /* 防止整個頁面出現橫向捲軸 */
 }
 
 h1 {
@@ -119,7 +120,7 @@ img {
 }
 
 .btn-secondary {
-  background-color: #f39c12; /* 統一使用橘色作為次要按鈕 */
+  background-color: #f39c12;
   color: white;
   margin-top: 10px;
 }
@@ -474,7 +475,7 @@ textarea {
   width: 100%;
   border-collapse: collapse;
   text-align: center;
-  table-layout: auto; /* 讓內容撐開 */
+  table-layout: auto;
 }
 
 .rate-table th,
@@ -497,16 +498,16 @@ textarea {
 /* 欄位寬度優化 */
 .rate-table th:nth-child(1) {
   width: 15%;
-} /* 類別 */
+}
 .rate-table th:nth-child(2) {
   width: 45%;
-} /* 品項說明 */
+}
 .rate-table th:nth-child(3) {
   width: 20%;
-} /* 重量 */
+}
 .rate-table th:nth-child(4) {
   width: 20%;
-} /* 材積 */
+}
 
 .rate-notes {
   margin-top: 15px;
@@ -912,7 +913,6 @@ tr:hover {
   color: #555;
 }
 
-/* 統計數據卡片 */
 .stats-container {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -953,7 +953,6 @@ tr:hover {
   color: #dc3545;
 }
 
-/* 篩選器 */
 .filters-container,
 .parcel-management {
   background: #f8f9fa;
@@ -991,7 +990,6 @@ tr:hover {
   border-bottom: 2px solid #dee2e6;
 }
 
-/* 彈窗內的圖片 */
 .parcel-images {
   display: flex;
   gap: 10px;
@@ -1111,9 +1109,9 @@ tr:hover {
     width: 100%;
   }
 
-  /* --- 收費標準表格 手機版優化 (解決溢出問題) --- */
+  /* --- 收費標準表格 手機版修復 (強制內容換行，防止溢出) --- */
   .rate-table-container {
-    padding: 10px; /* 減少內距，爭取空間 */
+    padding: 10px;
     width: 100%;
     overflow: hidden;
   }
@@ -1138,18 +1136,22 @@ tr:hover {
     border-radius: 8px;
     background: #fff;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    width: auto; /* [修正] 改為 auto，讓它適應外層 Padding */
+    margin-left: 0;
+    margin-right: 0;
   }
 
   /* 內容排版 */
   .rate-table td {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: center; /* 讓多行文字時垂直置中 */
     text-align: right;
     font-size: 14px;
     border-bottom: 1px solid #eee;
     padding: 10px 12px;
     min-height: 40px;
+    word-break: break-word; /* [修正] 強制長文字換行 */
   }
   .rate-table td:last-child {
     border-bottom: 0;
@@ -1162,9 +1164,9 @@ tr:hover {
     color: #1a73e8;
     text-align: left;
     margin-right: 10px;
-    flex-shrink: 0;
-    max-width: 100px;
-    white-space: nowrap;
+    flex: 0 0 auto; /* [修正] 標題不縮放 */
+    max-width: 40%; /* [修正] 限制標題最大寬度 */
+    white-space: normal; /* 允許標題換行 */
   }
 
   /* 標題欄 (類別) 特殊樣式 */
