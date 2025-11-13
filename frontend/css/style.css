@@ -1,13 +1,40 @@
-/* 這是 frontend/css/style.css */
-/* (這是簡化版的 CSS，參考 public/style.css) */
+/* frontend/css/style.css - 最終優化版 */
+
+/* =========================================
+   1. 全域設定 & 基礎樣式 (Global & Reset)
+   ========================================= */
+* {
+  box-sizing: border-box; /* 關鍵：解決寬度溢出問題的核心設定 */
+}
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background-color: #f4f7f9;
   color: #333;
   padding: 20px;
+  margin: 0;
 }
 
+h1 {
+  text-align: center;
+  color: #1a73e8;
+  margin-bottom: 30px;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #eee;
+  margin: 20px 0;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* =========================================
+   2. 佈局容器 (Layout)
+   ========================================= */
 .container {
   max-width: 800px;
   margin: 0 auto;
@@ -23,120 +50,47 @@ body {
   max-width: 150px;
 }
 
-h1 {
-  text-align: center;
-  color: #1a73e8;
-  margin-bottom: 30px;
-}
+/* =========================================
+   3. 通用元件 (Components)
+   ========================================= */
 
-/* 導航列 */
+/* --- 導航列 (Navigation) --- */
 .main-nav {
   display: flex;
   justify-content: center;
   gap: 15px;
   margin-bottom: 30px;
+  flex-wrap: wrap;
 }
+
 .nav-link {
   padding: 10px 15px;
   text-decoration: none;
   color: #555;
   font-weight: 500;
   border-radius: 5px;
+  transition: background-color 0.3s;
 }
+
 .nav-link.active {
   background-color: #1a73e8;
   color: white;
 }
+
 .nav-link:hover {
   background-color: #f0f0f0;
 }
 
-/* 表單 */
-.calculator-form {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px;
-}
-
-.item-group {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
-  background-color: #fafafa;
-  position: relative;
-}
-
-.item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
-  margin-bottom: 20px;
-}
-.item-header h4 {
-  margin: 0;
-  color: #1a73e8;
-}
-
-.btn-remove-item {
-  background: #e74c3c;
+.nav-link.btn-logout {
+  background-color: #7f8c8d;
   color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 5px;
-  cursor: pointer;
 }
 
-.form-group {
-  margin-bottom: 15px;
-}
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-size: 14px;
-  color: #666;
-}
-.form-group .required {
-  color: #e74c3c;
+.nav-link.btn-logout:hover {
+  background-color: #c0392b;
 }
 
-.form-grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-}
-.form-grid-3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 15px;
-}
-
-.calc-method-toggle label {
-  margin-right: 15px;
-}
-
-input[type="text"],
-input[type="number"],
-input[type="email"],
-input[type="password"],
-select {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 16px;
-  box-sizing: border-box; /* 確保 padding 不會撐爆寬度 */
-}
-
-hr {
-  border: none;
-  border-top: 1px solid #eee;
-  margin: 20px 0;
-}
-
-/* 按鈕 */
+/* --- 按鈕 (Buttons) --- */
 .btn {
   padding: 12px 25px;
   font-size: 16px;
@@ -144,8 +98,18 @@ hr {
   border-radius: 5px;
   cursor: pointer;
   width: 100%;
-  transition: background-color 0.3s;
+  transition: background-color 0.3s, opacity 0.3s;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
 }
+
+.btn:disabled {
+  background-color: #95a5a6 !important;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-primary {
   background-color: #1a73e8;
   color: white;
@@ -153,17 +117,153 @@ hr {
 .btn-primary:hover {
   background-color: #1558b8;
 }
+
 .btn-secondary {
-  background-color: #2ecc71;
+  background-color: #f39c12; /* 統一使用橘色作為次要按鈕 */
   color: white;
   margin-top: 10px;
 }
 .btn-secondary:hover {
-  background-color: #27ae60;
+  background-color: #e67e22;
 }
 
-/* 載入中和錯誤訊息 */
-#loading-spinner {
+.btn-danger {
+  background-color: #e74c3c;
+  color: white;
+}
+.btn-danger:hover {
+  background-color: #c0392b;
+}
+
+/* 分享按鈕 */
+.btn-share {
+  background-color: #f39c12;
+  color: white;
+  margin-top: 15px;
+}
+.btn-share:hover {
+  background-color: #e67e22;
+}
+
+/* 表格內的小按鈕 */
+td .btn {
+  width: auto;
+  padding: 5px 10px;
+  font-size: 14px;
+  margin-right: 5px;
+  margin-top: 0;
+}
+
+/* 操作按鈕群組 */
+.action-buttons {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.btn-action {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: white;
+}
+.btn-reset-password {
+  background: #ffc107;
+  color: #212529;
+}
+.btn-toggle-status {
+  background: #6c757d;
+}
+.btn-toggle-status.activate {
+  background: #28a745;
+}
+
+/* --- 表單元素 (Forms) --- */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 14px;
+  color: #666;
+}
+
+.form-group .required {
+  color: #e74c3c;
+}
+
+.form-control,
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+select,
+textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 16px;
+  background-color: #fff;
+}
+
+input[type="file"] {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  width: 100%;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 15px;
+}
+
+.form-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+/* --- 提示訊息 (Alerts) --- */
+.alert {
+  padding: 15px;
+  border-radius: 5px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  display: none;
+}
+.alert-error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+.alert-success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+/* --- 載入動畫 (Loader) --- */
+#loading-spinner,
+.loading {
   text-align: center;
   padding: 20px;
 }
@@ -185,152 +285,117 @@ hr {
   }
 }
 
-.alert {
-  padding: 15px;
-  border-radius: 5px;
-  margin-top: 20px;
+/* --- 標籤 (Badges) --- */
+.status-badge {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-block;
 }
-.alert-error {
-  background-color: #f8d7da;
+.status-badge.active {
+  background: #d4edda;
+  color: #155724;
+}
+.status-badge.inactive {
+  background: #f8d7da;
   color: #721c24;
-  border: 1px solid #f5c6cb;
 }
-.alert-success {
+.status-PENDING {
+  background-color: #fff3cd;
+  color: #856404;
+}
+.status-ARRIVED {
   background-color: #d4edda;
   color: #155724;
-  border: 1px solid #c3e6cb;
+}
+.status-IN_SHIPMENT {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+.status-PENDING_PAYMENT {
+  background-color: #ffeeba;
+  color: #856404;
+}
+.status-PROCESSING {
+  background-color: #cce5ff;
+  color: #004085;
+}
+.status-SHIPPED {
+  background-color: #e2d9f3;
+  color: #401099;
+}
+.status-COMPLETED {
+  background-color: #d4edda;
+  color: #155724;
+}
+.status-CANCELLED {
+  background-color: #f8d7da;
+  color: #721c24;
 }
 
-/* --- (新) 結果明細卡片樣式 (參考 image_be8c9e.png) --- */
-#results-container {
-  margin-top: 30px;
-  border: none;
-  border-radius: 0;
-  padding: 0;
-  background: none;
+.role-badge {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
 }
-#results-container h2 {
-  text-align: center;
-  color: #1a73e8;
-  margin-top: 0;
-  margin-bottom: 20px;
+.role-USER {
+  background-color: #d1ecf1;
+  color: #0c5460;
 }
-
-.result-detail-card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
-}
-.result-detail-card h3 {
-  font-size: 1.2em;
-  color: #333;
-  padding: 15px 20px;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
-  margin: 0;
+.role-ADMIN {
+  background-color: #fff3cd;
+  color: #856404;
 }
 
-.detail-section {
-  padding: 15px 20px 15px 35px;
-  position: relative;
-  border-bottom: 1px dashed #eee;
-}
-.detail-section:last-child {
-  border-bottom: none;
-}
-.detail-section::before {
-  content: "";
-  position: absolute;
-  left: 15px;
-  top: 15px;
-  bottom: 15px;
-  width: 5px;
-  border-radius: 3px;
-}
-.detail-section.calc-volume::before {
-  background-color: #3498db;
-}
-.detail-section.calc-quantity::before {
-  background-color: #9b59b6;
-}
-.detail-section.calc-cost::before {
-  background-color: #2ecc71;
-}
-.detail-section h4 {
-  margin: 0 0 10px 0;
-  color: #555;
-  font-size: 1em;
-}
-
-.calc-line {
-  font-family: "Courier New", Courier, monospace;
-  font-size: 1.1em;
-  color: #333;
-  margin: 5px 0;
-}
-.calc-line b {
-  color: #e74c3c;
-  font-size: 1.1em;
-}
-.calc-line .formula {
-  color: #888;
-}
-
-/* 總結區 */
-.result-summary-card {
-  background: #fff;
-  border: 2px solid #1a73e8;
-  border-radius: 8px;
-  padding: 20px;
-  margin-top: 20px;
-}
-.result-summary-card h3 {
-  text-align: center;
-  color: #1a73e8;
-  margin-top: 0;
-}
-.summary-row {
+/* --- 彈窗 (Modal) --- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
   display: flex;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px dashed #ccc;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
 }
-.summary-row:last-child {
-  border-bottom: none;
+.modal-content {
+  background-color: #fff;
+  padding: 30px;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
 }
-.summary-total {
-  text-align: center;
-  font-size: 28px;
-  font-weight: bold;
-  color: #e74c3c;
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 2px solid #1a73e8;
+.modal-content.modal-lg {
+  max-width: 800px;
 }
-.summary-total small {
-  display: block;
-  font-size: 14px;
-  color: #555;
-  margin-top: 10px;
-  font-weight: normal;
+.modal-close,
+.modal-close-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  font-size: 2em;
+  cursor: pointer;
+  color: #999;
+  background: none;
+  border: none;
+  line-height: 1;
+}
+.modal-close:hover,
+.modal-close-btn:hover {
+  color: #333;
 }
 
-/* 分享按鈕 */
-.btn-share {
-  background-color: #f39c12;
-  color: white;
-  margin-top: 15px;
-}
-.btn-share:hover {
-  background-color: #e67e22;
-}
-.btn-share:disabled {
-  background-color: #95a5a6;
-}
-/* --- (新) 訪客計數器樣式 --- */
+/* =========================================
+   4. 首頁與試算器樣式 (Home & Calculator)
+   ========================================= */
 .usage-counter {
   text-align: center;
   margin-bottom: 20px;
@@ -341,89 +406,11 @@ hr {
   padding: 10px;
   border-radius: 5px;
 }
-
 .usage-counter span {
   color: #1a73e8;
 }
-/* --- (新) 偏遠地區相關樣式 (來自 public/style.css) --- */
-.delivery-options {
-  background-color: #fafafa;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px;
-  margin-top: 20px;
-  margin-bottom: 20px;
-}
-.delivery-options h3 {
-  margin-top: 0;
-  margin-bottom: 10px;
-  color: #555;
-}
 
-.remote-area-notice {
-  background-color: #fff3cd;
-  border-left: 4px solid #ffc107;
-  padding: 15px;
-  margin-bottom: 15px;
-  border-radius: 4px;
-  color: #856404;
-}
-.remote-area-notice p {
-  margin: 5px 0 0 0;
-}
-
-.remote-area-search {
-  margin-bottom: 15px;
-}
-
-#areaSearch {
-  width: 100%;
-  padding: 10px;
-  border: 2px solid #ddd;
-  border-radius: 5px;
-  font-size: 16px;
-  margin-top: 5px;
-}
-
-#searchResults {
-  margin-top: 10px;
-  max-height: 200px;
-  overflow-y: auto;
-  display: none;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-}
-
-.search-result-item {
-  padding: 8px 12px;
-  margin: 0;
-  background: #f8f9fa;
-  border-bottom: 1px solid #eee;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-.search-result-item:last-child {
-  border-bottom: none;
-}
-.search-result-item:hover {
-  background: #e9ecef;
-}
-
-#remoteAreaInfo {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: #e8f4f8;
-  border-radius: 5px;
-  display: none;
-  border-left: 4px solid #1a73e8;
-}
-
-select#deliveryLocation optgroup {
-  font-weight: bold;
-  color: #495057;
-}
-/* --- (新) 倉庫資訊和費率表樣式 --- */
-
+/* 倉庫資訊 */
 .warehouse-info-section {
   background-color: #f8f9fa;
   border: 1px solid #e9ecef;
@@ -468,6 +455,7 @@ select#deliveryLocation optgroup {
   margin-top: 10px;
 }
 
+/* --- 收費標準表格 (Rate Table) - 電腦版 --- */
 .rate-table-container {
   margin-bottom: 40px;
   padding: 20px;
@@ -481,13 +469,12 @@ select#deliveryLocation optgroup {
   margin-top: 0;
   margin-bottom: 15px;
 }
-/* --- 修改 1：電腦版樣式優化 --- */
+
 .rate-table {
   width: 100%;
   border-collapse: collapse;
   text-align: center;
-  /* 移除 table-layout: fixed; 改用 auto 讓內容自動撐開 */
-  table-layout: auto;
+  table-layout: auto; /* 讓內容撐開 */
 }
 
 .rate-table th,
@@ -496,22 +483,8 @@ select#deliveryLocation optgroup {
   padding: 12px;
   white-space: normal;
   word-wrap: break-word;
-  vertical-align: middle; /* 讓內容垂直置中 */
+  vertical-align: middle;
 }
-
-/* 設定欄位寬度比例，讓「品項說明」有最大空間 */
-.rate-table th:nth-child(1) {
-  width: 15%;
-} /* 類別 */
-.rate-table th:nth-child(2) {
-  width: 45%;
-} /* 品項說明 (最寬) */
-.rate-table th:nth-child(3) {
-  width: 20%;
-} /* 重量收費 */
-.rate-table th:nth-child(4) {
-  width: 20%;
-} /* 材積收費 */
 
 .rate-table th {
   background-color: #1a73e8;
@@ -521,81 +494,223 @@ select#deliveryLocation optgroup {
   background-color: #fff;
 }
 
-/* --- 修改 2：手機版響應式 (卡片式排版) --- */
-/* --- 手機版響應式 (卡片式排版 - 修正溢出問題版) --- */
-@media (max-width: 768px) {
-  /* 1. 強制將表格所有結構轉為區塊元素，並限制寬度 */
-  .rate-table,
-  .rate-table tbody,
-  .rate-table tr,
-  .rate-table td {
-    display: block;
-    width: 100%;
-    box-sizing: border-box; /* ★ 超級關鍵：讓 padding 和 border 算在 100% 寬度內 */
-  }
+/* 欄位寬度優化 */
+.rate-table th:nth-child(1) {
+  width: 15%;
+} /* 類別 */
+.rate-table th:nth-child(2) {
+  width: 45%;
+} /* 品項說明 */
+.rate-table th:nth-child(3) {
+  width: 20%;
+} /* 重量 */
+.rate-table th:nth-child(4) {
+  width: 20%;
+} /* 材積 */
 
-  /* 2. 隱藏原本的表頭 */
-  .rate-table thead {
-    display: none;
-  }
-
-  /* 3. 每一行 (tr) 變成一張卡片 */
-  .rate-table tr {
-    margin-bottom: 15px;
-    border: 2px solid #1a73e8;
-    border-radius: 8px;
-    background: #fff;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    /* 移除可能導致問題的 margin */
-    margin-left: 0;
-    margin-right: 0;
-  }
-
-  /* 4. 每一格 (td) 的樣式調整 */
-  .rate-table td {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    text-align: right;
-    font-size: 14px; /* 手機字體固定大小，避免太大 */
-    border-bottom: 1px solid #eee;
-    padding: 10px 12px; /* 稍微減少內距，避免太擠 */
-    min-height: 40px;
-  }
-
-  .rate-table td:last-child {
-    border-bottom: 0;
-  }
-
-  /* 5. 標籤 (左側文字) */
-  .rate-table td::before {
-    content: attr(data-label);
-    font-weight: bold;
-    color: #1a73e8;
-    text-align: left;
-    margin-right: 10px;
-    flex-shrink: 0; /* 防止標籤被壓縮 */
-    /* 限制標籤最大寬度，避免擠壓右邊內容 */
-    max-width: 100px;
-    white-space: nowrap;
-  }
-
-  /* 6. 第一欄 (標題欄) 特別樣式 */
-  .rate-table td:first-child {
-    background-color: #eaf4ff; /* 淺藍色背景 */
-    color: #1a73e8;
-    border-bottom: 2px solid #b3d9ff;
-    font-weight: bold;
-    font-size: 16px;
-    justify-content: center; /* 文字置中 */
-    text-align: center;
-  }
-
-  .rate-table td:first-child::before {
-    display: none; /* 標題欄不顯示 data-label */
-  }
+.rate-notes {
+  margin-top: 15px;
+  padding: 10px 15px;
+  background-color: #d6eaf8;
+  border-left: 4px solid #1a73e8;
+  border-radius: 0 5px 5px 0;
 }
-/* --- (新) LINE 懸浮按鈕樣式 --- */
+.rate-notes ul {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+  color: #333;
+}
+.rate-notes .highlight {
+  color: #e74c3c;
+  font-weight: bold;
+}
+
+/* 試算表單區塊 */
+.calculator-form {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+}
+.item-group {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  background-color: #fafafa;
+  position: relative;
+}
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+.item-header h4 {
+  margin: 0;
+  color: #1a73e8;
+}
+.btn-remove-item {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.calc-method-toggle label {
+  margin-right: 15px;
+}
+
+/* 配送地區 */
+.delivery-options {
+  background-color: #fafafa;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+.remote-area-notice {
+  background-color: #fff3cd;
+  border-left: 4px solid #ffc107;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+  color: #856404;
+}
+.remote-area-search {
+  margin-bottom: 15px;
+}
+#searchResults {
+  margin-top: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+  display: none;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+.search-result-item {
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+}
+.search-result-item:hover {
+  background: #e9ecef;
+}
+#remoteAreaInfo {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #e8f4f8;
+  border-radius: 5px;
+  display: none;
+  border-left: 4px solid #1a73e8;
+}
+select#deliveryLocation optgroup {
+  font-weight: bold;
+  color: #495057;
+}
+
+/* 試算結果 */
+#results-container {
+  margin-top: 30px;
+}
+#results-container h2 {
+  color: #1a73e8;
+  margin-bottom: 20px;
+}
+.result-detail-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+.result-detail-card h3 {
+  font-size: 1.2em;
+  color: #333;
+  padding: 15px 20px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+  margin: 0;
+}
+.detail-section {
+  padding: 15px 20px 15px 35px;
+  position: relative;
+  border-bottom: 1px dashed #eee;
+}
+.detail-section::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 15px;
+  bottom: 15px;
+  width: 5px;
+  border-radius: 3px;
+}
+.detail-section.calc-volume::before {
+  background-color: #3498db;
+}
+.detail-section.calc-quantity::before {
+  background-color: #9b59b6;
+}
+.detail-section.calc-cost::before {
+  background-color: #2ecc71;
+}
+.detail-section h4 {
+  margin: 0 0 10px 0;
+  color: #555;
+  font-size: 1em;
+}
+.calc-line {
+  font-family: monospace;
+  font-size: 1.1em;
+  margin: 5px 0;
+}
+.calc-line b {
+  color: #e74c3c;
+}
+.calc-line .formula {
+  color: #888;
+}
+
+.result-summary-card {
+  background: #fff;
+  border: 2px solid #1a73e8;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px dashed #ccc;
+}
+.summary-row:last-child {
+  border-bottom: none;
+}
+.summary-total {
+  text-align: center;
+  font-size: 28px;
+  font-weight: bold;
+  color: #e74c3c;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 2px solid #1a73e8;
+}
+.summary-total small {
+  display: block;
+  font-size: 14px;
+  color: #555;
+  margin-top: 10px;
+  font-weight: normal;
+}
+
+/* LINE 懸浮按鈕 */
 .line-fab {
   position: fixed;
   bottom: 25px;
@@ -618,7 +733,10 @@ select#deliveryLocation optgroup {
 .line-fab:hover {
   transform: scale(1.1);
 }
-/* --- (新) 登入/註冊頁面樣式 --- */
+
+/* =========================================
+   5. 會員中心 & 登入樣式 (Dashboard & Auth)
+   ========================================= */
 .auth-container {
   background-color: #fafafa;
   border: 1px solid #ddd;
@@ -626,14 +744,12 @@ select#deliveryLocation optgroup {
   padding: 20px 30px;
   margin-top: 20px;
 }
-
 .auth-tabs {
   display: flex;
   gap: 10px;
   margin-bottom: 25px;
   border-bottom: 1px solid #ddd;
 }
-
 .tab-btn {
   padding: 10px 20px;
   background: none;
@@ -644,37 +760,29 @@ select#deliveryLocation optgroup {
   position: relative;
   transition: color 0.3s;
 }
-
 .tab-btn.active {
   color: #1a73e8;
   font-weight: bold;
 }
-
 .tab-btn.active::after {
   content: "";
   position: absolute;
-  bottom: -1px; /* 貼齊 border-bottom */
+  bottom: -1px;
   left: 0;
   right: 0;
   height: 2px;
   background: #1a73e8;
 }
-
 .auth-form {
   padding: 10px 0;
 }
-/* --- (新) 會員中心 (Dashboard) 樣式 --- */
+
 .user-info-box {
   background: #f8f9fa;
   border: 1px solid #e9ecef;
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 30px;
-}
-.user-info-box h2 {
-  color: #1a73e8;
-  margin-top: 0;
-  margin-bottom: 15px;
 }
 .info-grid {
   display: grid;
@@ -698,11 +806,8 @@ select#deliveryLocation optgroup {
   margin-top: 0;
   margin-bottom: 20px;
 }
-input[type="file"] {
-  padding: 8px;
-}
 
-/* 表格樣式 */
+/* Dashboard 表格 */
 .table-container {
   overflow-x: auto;
   border: 1px solid #ddd;
@@ -711,14 +816,15 @@ input[type="file"] {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 600px; /* 確保在小螢幕上可以滾動 */
+  min-width: 600px;
+  background-color: white;
 }
 th,
 td {
   padding: 12px 15px;
   text-align: left;
   border-bottom: 1px solid #ddd;
-  white-space: nowrap; /* 不換行 */
+  white-space: nowrap;
 }
 th {
   background-color: #f8f9fa;
@@ -727,333 +833,7 @@ th {
 tr:hover {
   background-color: #f1f1f1;
 }
-td .btn {
-  width: auto;
-  padding: 5px 10px;
-  font-size: 14px;
-}
 
-/* 狀態標籤 */
-.status-badge {
-  padding: 3px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.status-PENDING {
-  background-color: #fff3cd;
-  color: #856404;
-}
-.status-ARRIVED {
-  background-color: #d4edda;
-  color: #155724;
-}
-.status-IN_SHIPMENT {
-  background-color: #d1ecf1;
-  color: #0c5460;
-}
-
-/* 彈窗 (Modal) 樣式 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  padding: 20px;
-}
-.modal-content {
-  background-color: #fff;
-  padding: 30px;
-  border-radius: 10px;
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
-}
-.modal-close {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  font-size: 2em;
-  cursor: pointer;
-  color: #999;
-  background: none;
-  border: none;
-  line-height: 1;
-}
-.modal-close:hover {
-  color: #333;
-}
-
-/* 響應式 */
-@media (max-width: 768px) {
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
-  .action-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .action-buttons .btn {
-    width: 100%;
-  }
-}
-/* --- (新) 按鈕禁用樣式 --- */
-.btn:disabled {
-  background-color: #95a5a6; /* 灰色 */
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background-color: #f39c12; /* 改成橘色 */
-  color: white;
-}
-.btn-secondary:hover {
-  background-color: #e67e22;
-}
-
-.btn-danger {
-  background-color: #e74c3c;
-  color: white;
-}
-.btn-danger:hover {
-  background-color: #c0392b;
-}
-
-/* (新) 讓表格中的按鈕小一點 */
-td .btn {
-  width: auto;
-  padding: 5px 10px;
-  font-size: 14px;
-  margin-right: 5px;
-}
-/* --- (新) 導航列的登出按鈕 --- */
-.nav-link.btn-logout {
-  background-color: #7f8c8d;
-  color: white;
-}
-.nav-link.btn-logout:hover {
-  background-color: #e74c3c; /* 登出按鈕 hover 變紅色 */
-}
-/* --- (新) 會員中心 (Dashboard) 樣式 --- */
-.user-info-box {
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 30px;
-}
-.user-info-box h2 {
-  color: #1a73e8;
-  margin-top: 0;
-  margin-bottom: 15px;
-}
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-.info-grid p {
-  margin: 5px 0;
-}
-.action-buttons {
-  display: flex;
-  gap: 10px;
-  margin-top: 20px;
-  flex-wrap: wrap;
-}
-.action-buttons .btn {
-  flex: 1;
-  min-width: 120px;
-}
-
-.form-section {
-  background-color: #fafafa;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px 30px;
-  margin-bottom: 30px;
-}
-.form-section h3 {
-  color: #1a73e8;
-  margin-top: 0;
-  margin-bottom: 20px;
-}
-input[type="file"] {
-  padding: 8px;
-}
-textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-/* 表格樣式 */
-.table-container {
-  overflow-x: auto;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 600px; /* 確保在小螢幕上可以滾動 */
-}
-th,
-td {
-  padding: 12px 15px;
-  text-align: left;
-  border-bottom: 1px solid #ddd;
-  white-space: nowrap; /* 不換行 */
-}
-th {
-  background-color: #f8f9fa;
-  font-weight: 600;
-}
-tr:hover {
-  background-color: #f1f1f1;
-}
-td .btn {
-  width: auto;
-  padding: 5px 10px;
-  font-size: 14px;
-  margin-right: 5px;
-}
-
-/* 狀態標籤 */
-.status-badge {
-  padding: 3px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.status-PENDING {
-  background-color: #fff3cd;
-  color: #856404;
-}
-.status-ARRIVED {
-  background-color: #d4edda;
-  color: #155724;
-}
-.status-IN_SHIPMENT {
-  background-color: #d1ecf1;
-  color: #0c5460;
-}
-.status-PENDING_PAYMENT {
-  background-color: #ffeeba;
-  color: #856404;
-}
-.status-PROCESSING {
-  background-color: #cce5ff;
-  color: #004085;
-}
-.status-SHIPPED {
-  background-color: #e2d9f3;
-  color: #401099;
-}
-.status-COMPLETED {
-  background-color: #d4edda;
-  color: #155724;
-}
-.status-CANCELLED {
-  background-color: #f8d7da;
-  color: #721c24;
-}
-
-/* 彈窗 (Modal) 樣式 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  padding: 20px;
-}
-.modal-content {
-  background-color: #fff;
-  padding: 30px;
-  border-radius: 10px;
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
-}
-.modal-close {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  font-size: 2em;
-  cursor: pointer;
-  color: #999;
-  background: none;
-  border: none;
-  line-height: 1;
-}
-.modal-close:hover {
-  color: #333;
-}
-
-/* 響應式 */
-@media (max-width: 768px) {
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
-  .action-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .action-buttons .btn {
-    width: 100%;
-  }
-}
-/* --- (新) 登入預報按鈕 (在試算結果區) --- */
-.btn-share {
-  background-color: #f39c12;
-  color: white;
-  margin-top: 15px;
-}
-.btn-share:hover {
-  background-color: #e67e22;
-}
-.btn-share:disabled {
-  background-color: #95a5a6;
-}
-
-/* (新) 登入預報按鈕 */
-#btn-login-forecast {
-  margin-top: 10px; /* 和分享按鈕隔開 */
-}
-/* --- (新) 會員中心 - 合併集運樣式 --- */
-
-/* 讓彈窗可以更大 */
-.modal-content.modal-lg {
-  max-width: 800px;
-}
-
-/* 表格中的核取方塊 */
-.package-checkbox {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-/* 合併按鈕的區塊 */
 .shipment-action-bar {
   padding: 15px;
   background-color: #f8f9fa;
@@ -1062,8 +842,26 @@ td .btn {
   border-radius: 0 0 8px 8px;
   text-align: right;
 }
+.package-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
 
-/* 彈窗中的包裹清單 */
+/* 彈窗內的清單 */
+.simple-list {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+.simple-list p {
+  margin: 5px 0;
+  padding-bottom: 5px;
+  border-bottom: 1px dashed #eee;
+}
 #shipment-package-list {
   max-height: 200px;
   overflow-y: auto;
@@ -1079,14 +877,6 @@ td .btn {
   padding: 8px;
   border-bottom: 1px dashed #eee;
 }
-.shipment-package-item:last-child {
-  border-bottom: none;
-}
-.shipment-package-item small {
-  color: #666;
-}
-
-/* 附加服務的核取方塊 */
 .checkbox-label {
   display: flex;
   align-items: center;
@@ -1100,17 +890,10 @@ td .btn {
   width: 18px;
   height: 18px;
 }
-/* --- (新) 管理員登入頁面樣式 --- */
-/* 我們可以沿用 .auth-form 的樣式 */
-/* 確保 .btn-secondary 在 a 標籤上也有效 */
-a.btn-secondary {
-  background-color: #7f8c8d;
-  color: white;
-}
-a.btn-secondary:hover {
-  background-color: #596164;
-}
-/* --- (新) 管理員後台 (Admin) 樣式 --- */
+
+/* =========================================
+   6. 管理員後台樣式 (Admin Dashboard)
+   ========================================= */
 .admin-header {
   display: flex;
   justify-content: space-between;
@@ -1118,11 +901,6 @@ a.btn-secondary:hover {
   margin-bottom: 30px;
   flex-wrap: wrap;
   gap: 15px;
-}
-.admin-header h1 {
-  margin: 0;
-  color: #1a73e8;
-  font-size: 2em;
 }
 .header-actions {
   display: flex;
@@ -1134,7 +912,7 @@ a.btn-secondary:hover {
   color: #555;
 }
 
-/* 統計卡片 */
+/* 統計數據卡片 */
 .stats-container {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -1152,8 +930,8 @@ a.btn-secondary:hover {
 .stat-card h3 {
   color: #666;
   font-size: 0.9em;
-  margin: 0 0 8px 0;
   font-weight: normal;
+  margin-bottom: 8px;
 }
 .stat-card p {
   color: #1a73e8;
@@ -1167,320 +945,7 @@ a.btn-secondary:hover {
 .stat-card.arrived p {
   color: #0984e3;
 }
-.stat-card.completed p {
-  color: #00b894;
-}
-
-/* 篩選器 */
-.filters {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.filters input,
-.filters select {
-  flex: 1;
-  min-width: 200px;
-}
-
-/* 包裹管理 */
-.parcel-management {
-  background-color: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 20px;
-  margin-top: 20px;
-}
-.admin-table-wrapper {
-  overflow-x: auto;
-  margin-top: 15px;
-}
-.parcel-table {
-  width: 100%;
-  border-collapse: collapse;
-  background-color: white;
-}
-.parcel-table th,
-.parcel-table td {
-  padding: 12px;
-  text-align: left;
-  border-bottom: 1px solid #e9ecef;
-}
-.parcel-table th {
-  background-color: #1a73e8;
-  color: white;
-  font-weight: 500;
-}
-
-/* 彈窗內的圖片預覽 */
-.parcel-images {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 15px;
-}
-.parcel-images img {
-  width: 100px;
-  height: 100px;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 2px solid #e9ecef;
-  cursor: pointer;
-}
-
-/* 響應式 */
-@media (max-width: 768px) {
-  .stats-container {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .filters {
-    flex-direction: column;
-  }
-  .filters input,
-  .filters select,
-  .filters button {
-    width: 100%;
-  }
-}
-/* --- (新) 管理員後台 (Admin) 樣式 --- */
-.admin-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-  flex-wrap: wrap;
-  gap: 15px;
-}
-.admin-header h1 {
-  margin: 0;
-  color: #1a73e8;
-  font-size: 2em;
-}
-.header-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-#admin-welcome {
-  font-weight: bold;
-  color: #555;
-}
-
-/* 統計卡片 */
-.stats-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 15px;
-  margin-bottom: 30px;
-}
-.stat-card {
-  background-color: #fff;
-  padding: 15px;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-  text-align: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-.stat-card h3 {
-  color: #666;
-  font-size: 0.9em;
-  margin: 0 0 8px 0;
-  font-weight: normal;
-}
-.stat-card p {
-  color: #1a73e8;
-  font-size: 2em;
-  font-weight: bold;
-  margin: 0;
-}
-.stat-card.pending p {
-  color: #d63031;
-}
-.stat-card.arrived p {
-  color: #0984e3;
-}
-.stat-card.completed p {
-  color: #00b894;
-}
-
-/* 篩選器 */
-.filters {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.filters input,
-.filters select {
-  flex: 1;
-  min-width: 200px;
-}
-
-/* 包裹管理 */
-.parcel-management {
-  background-color: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 20px;
-  margin-top: 20px;
-}
-.admin-table-wrapper {
-  overflow-x: auto;
-  margin-top: 15px;
-}
-.parcel-table {
-  width: 100%;
-  border-collapse: collapse;
-  background-color: white;
-}
-.parcel-table th,
-.parcel-table td {
-  padding: 12px;
-  text-align: left;
-  border-bottom: 1px solid #e9ecef;
-}
-.parcel-table th {
-  background-color: #1a73e8;
-  color: white;
-  font-weight: 500;
-}
-
-/* 彈窗內的圖片預覽 */
-.parcel-images {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 15px;
-}
-.parcel-images h4 {
-  width: 100%;
-  margin: 0 0 5px 0;
-}
-.parcel-images img {
-  width: 100px;
-  height: 100px;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 2px solid #e9ecef;
-  cursor: pointer;
-}
-.parcel-images p {
-  color: #888;
-}
-
-/* 響應式 */
-@media (max-width: 768px) {
-  .stats-container {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .filters {
-    flex-direction: column;
-  }
-  .filters input,
-  .filters select,
-  .filters button {
-    width: 100%;
-  }
-}
-
-/* (新) 會員管理 (Admin Members) 樣式 */
-.filters-container {
-  background: white;
-  padding: 20px;
-  border-radius: 10px;
-  margin-bottom: 20px;
-  border: 1px solid #e0e0e0;
-}
-.members-table-container {
-  background: white;
-  border-radius: 10px;
-  padding: 20px;
-  border: 1px solid #e0e0e0;
-  overflow-x: auto;
-}
-.members-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 800px;
-}
-.members-table thead {
-  background: #f8f9fa;
-  border-bottom: 2px solid #dee2e6;
-}
-.members-table th {
-  padding: 12px;
-  text-align: left;
-  font-weight: 600;
-  color: #495057;
-  font-size: 14px;
-}
-.members-table td {
-  padding: 12px;
-  border-bottom: 1px solid #e9ecef;
-  color: #212529;
-  font-size: 14px;
-}
-.members-table tbody tr:hover {
-  background: #f8f9fa;
-}
-.status-badge.active {
-  background: #d4edda;
-  color: #155724;
-}
-.status-badge.inactive {
-  background: #f8d7da;
-  color: #721c24;
-}
-.role-badge {
-  padding: 3px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.role-USER {
-  background-color: #d1ecf1;
-  color: #0c5460;
-}
-.role-ADMIN {
-  background-color: #fff3cd;
-  color: #856404;
-}
-.btn-action {
-  padding: 5px 10px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: opacity 0.2s;
-}
-.btn-action:hover {
-  opacity: 0.8;
-}
-.btn-reset-password {
-  background: #ffc107;
-  color: #212529;
-}
-.btn-toggle-status {
-  background: #6c757d;
-  color: white;
-}
-.btn-toggle-status.activate {
-  background: #28a745;
-}
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: #666;
-}
-/* --- (新) 會員管理 (Admin Members) 樣式 --- */
-
-/* (統計卡片 - 我們已在 admin-parcels.html 加入) */
-.stat-card.total p {
-  color: #1a73e8;
-}
+.stat-card.completed p,
 .stat-card.active p {
   color: #28a745;
 }
@@ -1489,187 +954,66 @@ a.btn-secondary:hover {
 }
 
 /* 篩選器 */
-.filters-container {
-  background: white;
+.filters-container,
+.parcel-management {
+  background: #f8f9fa;
   padding: 20px;
-  border-radius: 10px;
-  margin-bottom: 20px;
-  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  margin-top: 20px;
+  width: 100%;
+}
+.filters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+.filters input,
+.filters select {
+  flex: 1;
+  min-width: 200px;
 }
 
-/* 會員表格 */
-.members-table-container {
-  background: white;
-  border-radius: 10px;
-  padding: 20px;
-  border: 1px solid #e0e0e0;
+.admin-table-wrapper {
   overflow-x: auto;
+  margin-top: 15px;
 }
-.members-table {
+.members-table,
+.parcel-table {
   width: 100%;
   border-collapse: collapse;
   min-width: 800px;
 }
-.members-table thead {
+.members-table thead,
+.parcel-table thead {
   background: #f8f9fa;
   border-bottom: 2px solid #dee2e6;
 }
-.members-table th {
-  padding: 12px;
-  text-align: left;
-  font-weight: 600;
-  color: #495057;
-  font-size: 14px;
-}
-.members-table td {
-  padding: 12px;
-  border-bottom: 1px solid #e9ecef;
-  color: #212529;
-  font-size: 14px;
-}
-.members-table tbody tr:hover {
-  background: #f8f9fa;
-}
 
-/* (狀態標籤 - 我們已在 style.css 中加入 .status-badge) */
-.status-badge.active {
-  background: #d4edda;
-  color: #155724;
-}
-.status-badge.inactive {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-/* (角色標籤) */
-.role-badge {
-  padding: 3px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.role-USER {
-  background-color: #d1ecf1;
-  color: #0c5460;
-}
-.role-ADMIN {
-  background-color: #fff3cd;
-  color: #856404;
-}
-
-/* (操作按鈕) */
-.action-buttons {
+/* 彈窗內的圖片 */
+.parcel-images {
   display: flex;
-  gap: 5px;
+  gap: 10px;
   flex-wrap: wrap;
+  margin-top: 15px;
 }
-.btn-action {
-  padding: 5px 10px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: opacity 0.2s;
-}
-.btn-action:hover {
-  opacity: 0.8;
-}
-.btn-reset-password {
-  background: #ffc107;
-  color: #212529;
-}
-.btn-toggle-status {
-  background: #6c757d;
-  color: white;
-}
-.btn-toggle-status.activate {
-  background: #28a745;
-}
-
-/* 載入動畫 */
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: #666;
-}
-.spinner {
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #1a73e8;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 20px;
-}
-/* --- (新) Admin 集運單彈窗樣式 --- */
-.modal-content.modal-lg {
-  max-width: 800px;
-}
-
-.simple-list {
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  padding: 10px;
-  max-height: 150px;
-  overflow-y: auto;
-}
-.simple-list p {
-  margin: 5px 0;
-  padding-bottom: 5px;
-  border-bottom: 1px dashed #eee;
-}
-.simple-list p:last-child {
-  border-bottom: none;
-}
-/* --- (新) 修正 admin-parcels.html 排版 --- */
-
-/* (修復) 讓 .parcel-table 的寬度正確 */
-.parcel-table {
-  width: 100%;
-  min-width: 800px; /* 確保在小螢幕上可以滾動 */
-}
-
-/* (新) 讓包裹管理區塊佔滿寬度 */
-.parcel-management {
-  width: 100%;
-  box-sizing: border-box; /* 確保 padding 不會增加寬度 */
-}
-
-/* (新) 修正篩選器 的寬度 */
-.filters {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* (新) 讓彈窗中的 form-control 也套用樣式 */
-.form-control {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 16px;
-  box-sizing: border-box;
-}
-
-/* (新) 修正彈窗中圖片預覽的標題 */
 .parcel-images h4 {
   width: 100%;
-  margin: 0 0 10px 0;
-  color: #333;
+  margin-bottom: 10px;
+}
+.parcel-images img {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+  cursor: pointer;
 }
 
-/* (新) 修正彈窗中圖片預覽的提示文字 */
-.parcel-images p {
-  width: 100%;
-  color: #888;
-  font-size: 14px;
-}
-
-/* --- (新) 方案三：頁尾樣式 (Footer Styles) --- */
-/*
-  這些是您從 index.html 的 style 屬性中搬移過來的樣式
-*/
+/* =========================================
+   7. 頁尾 (Footer)
+   ========================================= */
 .site-footer {
   background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
   color: white;
@@ -1679,21 +1023,18 @@ a.btn-secondary:hover {
   text-align: center;
   box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
 }
-
 .site-footer__container {
   max-width: 600px;
   margin: 0 auto;
 }
-
 .site-footer__title {
   color: white;
-  margin-bottom: 20px;
   font-size: 24px;
+  margin-top: 0;
+  margin-bottom: 20px;
   border-bottom: 2px solid rgba(255, 255, 255, 0.3);
   padding-bottom: 10px;
-  margin-top: 0; /* (新增) 確保標題沒有多餘的上邊距 */
 }
-
 .site-footer__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -1701,34 +1042,25 @@ a.btn-secondary:hover {
   text-align: left;
   margin-bottom: 20px;
 }
-
 .site-footer__item {
   margin: 8px 0;
 }
-
 .site-footer__label {
   color: #3498db;
 }
-
-.site-footer__value {
-  font-size: 18px;
-}
-
+.site-footer__value,
 .site-footer__link {
+  font-size: 18px;
   color: white;
   text-decoration: none;
-  font-size: 18px;
   transition: color 0.3s;
 }
-
 .site-footer__link--email:hover {
   color: #3498db;
 }
-
 .site-footer__link--line:hover {
   color: #00c300;
 }
-
 .site-footer__copyright {
   border-top: 1px solid rgba(255, 255, 255, 0.3);
   padding-top: 15px;
@@ -1736,37 +1068,116 @@ a.btn-secondary:hover {
   font-size: 14px;
   color: rgba(255, 255, 255, 0.8);
 }
-
-.site-footer__copyright-text {
-  margin: 5px 0;
-}
-/* --- [新增] 隱藏式管理員連結樣式 --- */
-
-/* 分隔線 */
 .separator {
-  color: rgba(255, 255, 255, 0.1); /* 非常淡的顏色 */
+  color: rgba(255, 255, 255, 0.1);
   margin: 0 5px;
 }
-
-/* 不明顯的連結 */
 .admin-stealth-link {
-  color: rgba(255, 255, 255, 0.1); /* 設定透明度 0.1，平常幾乎看不見 */
-  text-decoration: none; /* 去除底線 */
-  font-size: 12px; /* 字體稍微小一點 */
-  transition: color 0.3s ease; /* 增加顏色變化的過渡效果 */
+  color: rgba(255, 255, 255, 0.1);
+  text-decoration: none;
+  font-size: 12px;
+  transition: color 0.3s ease;
+}
+.admin-stealth-link:hover {
+  color: #fff;
+  cursor: pointer;
 }
 
-/* 當滑鼠移上去時，讓它變亮顯示 */
-.admin-stealth-link:hover {
-  color: #fff; /* 變回白色 */
-  cursor: pointer; /* 顯示手指游標 */
-}
-/* 針對手機版，減少外層容器的內距，爭取更多空間 */
+/* =========================================
+   8. 響應式設定 (Responsive Design)
+   ========================================= */
 @media (max-width: 768px) {
-  .rate-table-container {
-    padding: 10px; /* 原本可能是 20px，改小一點 */
+  .form-grid-2,
+  .form-grid-3,
+  .form-grid-4,
+  .info-grid,
+  .stats-container {
+    grid-template-columns: 1fr;
+  }
+
+  .filters {
+    flex-direction: column;
+  }
+  .filters input,
+  .filters select,
+  .filters button {
     width: 100%;
-    box-sizing: border-box; /* 關鍵：確保 padding 不會撐大寬度 */
-    overflow: hidden; /* 防止萬一內容溢出時出現橫向捲軸 */
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+  .action-buttons .btn {
+    width: 100%;
+  }
+
+  /* --- 收費標準表格 手機版優化 (解決溢出問題) --- */
+  .rate-table-container {
+    padding: 10px; /* 減少內距，爭取空間 */
+    width: 100%;
+    overflow: hidden;
+  }
+
+  /* 強制所有表格元素變為區塊 */
+  .rate-table,
+  .rate-table tbody,
+  .rate-table tr,
+  .rate-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .rate-table thead {
+    display: none;
+  }
+
+  /* 卡片化 */
+  .rate-table tr {
+    margin-bottom: 15px;
+    border: 2px solid #1a73e8;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+
+  /* 內容排版 */
+  .rate-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: right;
+    font-size: 14px;
+    border-bottom: 1px solid #eee;
+    padding: 10px 12px;
+    min-height: 40px;
+  }
+  .rate-table td:last-child {
+    border-bottom: 0;
+  }
+
+  /* 標籤 (data-label) */
+  .rate-table td::before {
+    content: attr(data-label);
+    font-weight: bold;
+    color: #1a73e8;
+    text-align: left;
+    margin-right: 10px;
+    flex-shrink: 0;
+    max-width: 100px;
+    white-space: nowrap;
+  }
+
+  /* 標題欄 (類別) 特殊樣式 */
+  .rate-table td:first-child {
+    background-color: #eaf4ff;
+    color: #1a73e8;
+    border-bottom: 2px solid #b3d9ff;
+    font-weight: bold;
+    font-size: 16px;
+    justify-content: center;
+    text-align: center;
+  }
+  .rate-table td:first-child::before {
+    display: none;
   }
 }
