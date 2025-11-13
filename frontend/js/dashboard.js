@@ -1,5 +1,35 @@
 // 這是 frontend/js/dashboard.js (已修復 API_BASE_URL)
-// (最終完整版，支援「合併集運」)
+// (最終完整版，支援「合併集運」與「查看倉庫照片」)
+
+// --- [新增] 全域函式：開啟圖片彈窗 (掛載到 window 以便 HTML onclick 呼叫) ---
+window.openImages = function (images) {
+  const gallery = document.getElementById("images-gallery");
+  const modal = document.getElementById("view-images-modal");
+
+  if (!gallery || !modal) return;
+
+  gallery.innerHTML = ""; // 清空舊內容
+
+  if (images && images.length > 0) {
+    images.forEach((imgUrl) => {
+      // 建立圖片元素
+      const img = document.createElement("img");
+      // 確保網址正確 (加上 API_BASE_URL)
+      img.src = `${API_BASE_URL}${imgUrl}`;
+      img.alt = "倉庫照片";
+      img.title = "點擊查看大圖";
+
+      // 點擊圖片可開新視窗看大圖
+      img.onclick = () => window.open(img.src, "_blank");
+
+      gallery.appendChild(img);
+    });
+  } else {
+    gallery.innerHTML = "<p>沒有照片</p>";
+  }
+
+  modal.style.display = "flex";
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 獲取元素 ---
@@ -39,6 +69,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnCloseShipmentModal =
     createShipmentModal.querySelector(".modal-close");
   const shipmentPackageList = document.getElementById("shipment-package-list");
+
+  // (新) 獲取 "查看照片" 彈窗相關元素
+  const viewImagesModal = document.getElementById("view-images-modal");
 
   // --- 2. 狀態變數 ---
   let currentUser = null;
@@ -107,7 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (B) 載入我的包裹 (*** 重大修改 ***)
+  // (B) 載入我的包裹 (*** 重大修改：加入照片欄位 ***)
   async function loadMyPackages() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/packages/my`, {
@@ -122,22 +155,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (allPackagesData.length === 0) {
         packagesTableBody.innerHTML =
-          '<tr><td colspan="7" style="text-align: center;">您尚未預報任何包裹</td></tr>';
+          '<tr><td colspan="8" style="text-align: center;">您尚未預報任何包裹</td></tr>';
         return;
       }
 
       allPackagesData.forEach((pkg) => {
         const statusText = packageStatusMap[pkg.status] || pkg.status;
-        let images = [];
-        try {
-          if (pkg.productImages && typeof pkg.productImages === "string") {
-            images = JSON.parse(pkg.productImages);
-          } else if (Array.isArray(pkg.productImages)) {
-            images = pkg.productImages;
-          }
-        } catch (e) {
-          console.warn(`包裹 ${pkg.id} 的 productImages 格式錯誤`);
-        }
 
         // (新) 檢查是否為 "已入庫"
         const isArrived = pkg.status === "ARRIVED";
@@ -150,6 +173,17 @@ document.addEventListener("DOMContentLoaded", () => {
             ? `${pkg.actualLength} x ${pkg.actualWidth} x ${pkg.actualHeight}`
             : "-";
         const weight = pkg.actualWeight ? `${pkg.actualWeight} kg` : "-";
+
+        // (新) 處理照片欄位
+        // 注意：pkg.warehouseImages 已經在後端解析為陣列了，可以直接用
+        const hasPhotos = pkg.warehouseImages && pkg.warehouseImages.length > 0;
+        const photosBtn = hasPhotos
+          ? `<button class="btn btn-view-img btn-sm" onclick='window.openImages(${JSON.stringify(
+              pkg.warehouseImages
+            )})'>
+               查看 (${pkg.warehouseImages.length})
+             </button>`
+          : '<span style="color:#999; font-size:12px;">無</span>';
 
         tr.innerHTML = `
           <td>
@@ -164,7 +198,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <td>${pkg.productName}</td>
           <td>${dimensions}</td>
           <td>${weight}</td>
-          <td>
+          <td>${photosBtn}</td> <td>
             <button class="btn btn-secondary btn-sm btn-edit" ${
               pkg.status !== "PENDING" ? "disabled" : ""
             }>修改</button>
@@ -198,7 +232,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // (C) 載入我的集運單
   async function loadMyShipments() {
-    // ( ... 此函式保持不變 ... )
     try {
       const response = await fetch(`${API_BASE_URL}/api/shipments/my`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -239,7 +272,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // (D) 提交包裹預報表單
   forecastForm.addEventListener("submit", async (e) => {
-    // ( ... 此函式保持不變 ... )
     e.preventDefault();
     const requestData = {
       trackingNumber: trackingNumber.value,
@@ -408,7 +440,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- (K) (新) 合併集運的函式 ---
+  // --- (K) 合併集運的函式 ---
 
   // (K-1) 綁定 "合併打包" 按鈕
   btnCreateShipment.addEventListener("click", () => {
@@ -441,15 +473,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 3. 填入彈窗
     shipmentPackageList.innerHTML = packageListHtml;
-    // (新) 把 ID 存到表單的 "data-ids" 屬性中，方便提交時抓取
+    // 把 ID 存到表單的 "data-ids" 屬性中
     createShipmentForm.dataset.ids = JSON.stringify(selectedPackageIds);
 
-    // 4. (新) 自動填入會員預設資料
+    // 4. 自動填入會員預設資料
     document.getElementById("ship-name").value = currentUser.name || "";
     document.getElementById("ship-phone").value = currentUser.phone || "";
     document.getElementById("ship-address").value =
       currentUser.defaultAddress || "";
-    // (我們不清空身分證和統編，讓會員自己填)
 
     // 5. 顯示彈窗
     createShipmentModal.style.display = "flex";
@@ -465,18 +496,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (K-3) 提交 "建立集運單" 表單 (呼叫 POST /api/shipments/create)
+  // (K-3) 提交 "建立集運單" 表單
   createShipmentForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    // 1. 取得勾選的包裹 IDs
     const packageIds = JSON.parse(createShipmentForm.dataset.ids || "[]");
     if (packageIds.length === 0) {
       showMessage("發生錯誤：找不到要集運的包裹", "error");
       return;
     }
 
-    // 2. 取得附加服務
     const services = {};
     document
       .querySelectorAll('#create-shipment-form input[name="services"]:checked')
@@ -484,7 +513,6 @@ document.addEventListener("DOMContentLoaded", () => {
         services[input.value] = true;
       });
 
-    // 3. 組合所有資料
     const requestData = {
       packageIds: packageIds,
       additionalServices: services,
@@ -510,18 +538,40 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(result.message || "建立失敗");
       }
 
-      createShipmentModal.style.display = "none"; // 關閉彈窗
-      createShipmentForm.reset(); // 清空表單
+      createShipmentModal.style.display = "none";
+      createShipmentForm.reset();
       showMessage("集運單建立成功！", "success");
 
-      // (重要) 重新載入包裹和集運單列表
       loadMyPackages();
       loadMyShipments();
     } catch (error) {
-      // (新) 在彈窗內顯示錯誤
       showMessage(error.message, "error");
     }
   });
+
+  // --- (L) [新增] 綁定查看照片彈窗的關閉事件 ---
+  if (viewImagesModal) {
+    const btnCloseImagesModal = viewImagesModal.querySelector(".modal-close");
+    const btnCloseImagesModalBtn =
+      viewImagesModal.querySelector(".modal-close-btn");
+
+    if (btnCloseImagesModal) {
+      btnCloseImagesModal.addEventListener("click", () => {
+        viewImagesModal.style.display = "none";
+      });
+    }
+    if (btnCloseImagesModalBtn) {
+      btnCloseImagesModalBtn.addEventListener("click", () => {
+        viewImagesModal.style.display = "none";
+      });
+    }
+
+    viewImagesModal.addEventListener("click", (e) => {
+      if (e.target === viewImagesModal) {
+        viewImagesModal.style.display = "none";
+      }
+    });
+  }
 
   // --- 5. 初始載入資料 ---
   loadUserProfile();

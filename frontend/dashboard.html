@@ -80,6 +80,7 @@
                 <th>商品名稱</th>
                 <th>實際尺寸 (cm)</th>
                 <th>實重 (kg)</th>
+                <th>倉庫照片</th>
                 <th>操作</th>
               </tr>
             </thead>
@@ -228,6 +229,17 @@
 
           <button type="submit" class="btn btn-primary">確認送出集運單</button>
         </form>
+      </div>
+    </div>
+
+    <div id="view-images-modal" class="modal-overlay" style="display: none">
+      <div class="modal-content">
+        <button class="modal-close">&times;</button>
+        <h2>包裹倉庫照片</h2>
+        <div id="images-gallery" class="image-gallery"></div>
+        <div class="text-center" style="margin-top: 20px">
+          <button class="btn btn-primary modal-close-btn">關閉</button>
+        </div>
       </div>
     </div>
 
