@@ -1,7 +1,7 @@
 // 這是 frontend/js/dashboard.js (已修復 API_BASE_URL)
-// (最終完整版，支援「合併集運」與「查看倉庫照片」)
+// (最終完整版：支援合併集運、查看倉庫照片、顯示單件運費)
 
-// --- [新增] 全域函式：開啟圖片彈窗 (掛載到 window 以便 HTML onclick 呼叫) ---
+// --- [全域函式] 開啟圖片彈窗 (掛載到 window 以便 HTML onclick 呼叫) ---
 window.openImages = function (images) {
   const gallery = document.getElementById("images-gallery");
   const modal = document.getElementById("view-images-modal");
@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const editPackageForm = document.getElementById("edit-package-form");
   const btnClosePackageModal = editPackageModal.querySelector(".modal-close");
 
-  // (新) 獲取 "合併集運" 相關元素
+  // 獲取 "合併集運" 相關元素
   const createShipmentModal = document.getElementById("create-shipment-modal");
   const createShipmentForm = document.getElementById("create-shipment-form");
   const btnCreateShipment = document.getElementById("btn-create-shipment");
@@ -70,13 +70,13 @@ document.addEventListener("DOMContentLoaded", () => {
     createShipmentModal.querySelector(".modal-close");
   const shipmentPackageList = document.getElementById("shipment-package-list");
 
-  // (新) 獲取 "查看照片" 彈窗相關元素
+  // 獲取 "查看照片" 彈窗相關元素
   const viewImagesModal = document.getElementById("view-images-modal");
 
   // --- 2. 狀態變數 ---
   let currentUser = null;
   const token = localStorage.getItem("token");
-  let allPackagesData = []; // (新) 用來儲存所有包裹的完整資料
+  let allPackagesData = []; // 用來儲存所有包裹的完整資料
 
   // 中文翻譯字典
   const packageStatusMap = {
@@ -140,7 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (B) 載入我的包裹 (*** 重大修改：加入照片欄位 ***)
+  // (B) 載入我的包裹 (包含運費顯示與照片查看)
   async function loadMyPackages() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/packages/my`, {
@@ -150,32 +150,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!response.ok) throw new Error(data.message || "載入包裹失敗");
 
-      allPackagesData = data.packages; // (新) 儲存完整資料
+      allPackagesData = data.packages; // 儲存完整資料
       packagesTableBody.innerHTML = "";
 
       if (allPackagesData.length === 0) {
         packagesTableBody.innerHTML =
-          '<tr><td colspan="8" style="text-align: center;">您尚未預報任何包裹</td></tr>';
+          '<tr><td colspan="9" style="text-align: center;">您尚未預報任何包裹</td></tr>';
         return;
       }
 
       allPackagesData.forEach((pkg) => {
         const statusText = packageStatusMap[pkg.status] || pkg.status;
 
-        // (新) 檢查是否為 "已入庫"
+        // 檢查是否為 "已入庫"
         const isArrived = pkg.status === "ARRIVED";
 
         const tr = document.createElement("tr");
 
-        // (新) 顯示尺寸和重量，如果管理員還沒填，就顯示 "-"
+        // 顯示尺寸和重量
         const dimensions =
           pkg.actualLength && pkg.actualWidth && pkg.actualHeight
             ? `${pkg.actualLength} x ${pkg.actualWidth} x ${pkg.actualHeight}`
             : "-";
         const weight = pkg.actualWeight ? `${pkg.actualWeight} kg` : "-";
 
-        // (新) 處理照片欄位
-        // 注意：pkg.warehouseImages 已經在後端解析為陣列了，可以直接用
+        // [新增] 格式化運費顯示
+        const feeDisplay = pkg.shippingFee
+          ? `<span style="color: #d32f2f; font-weight: bold;">$${pkg.shippingFee.toLocaleString()}</span>`
+          : '<span style="color: #999;">-</span>';
+
+        // [新增] 處理照片欄位
         const hasPhotos = pkg.warehouseImages && pkg.warehouseImages.length > 0;
         const photosBtn = hasPhotos
           ? `<button class="btn btn-view-img btn-sm" onclick='window.openImages(${JSON.stringify(
@@ -198,7 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <td>${pkg.productName}</td>
           <td>${dimensions}</td>
           <td>${weight}</td>
-          <td>${photosBtn}</td> <td>
+          <td>${feeDisplay}</td> <td>${photosBtn}</td>  <td>
             <button class="btn btn-secondary btn-sm btn-edit" ${
               pkg.status !== "PENDING" ? "disabled" : ""
             }>修改</button>
@@ -208,7 +212,7 @@ document.addEventListener("DOMContentLoaded", () => {
           </td>
         `;
 
-        // 綁定事件
+        // 綁定修改與刪除事件
         const editBtn = tr.querySelector(".btn-edit");
         if (editBtn) {
           editBtn.addEventListener("click", () => {
@@ -549,7 +553,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- (L) [新增] 綁定查看照片彈窗的關閉事件 ---
+  // --- (L) 綁定查看照片彈窗的關閉事件 ---
   if (viewImagesModal) {
     const btnCloseImagesModal = viewImagesModal.querySelector(".modal-close");
     const btnCloseImagesModalBtn =

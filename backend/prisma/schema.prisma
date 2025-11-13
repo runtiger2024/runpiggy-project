@@ -47,7 +47,8 @@ model Package {
   
   // --- (新) 為了讓管理員能自動計算運費 ---
   furnitureType   String?   // 會員預報時填寫的 "家具類型" (例如: general, special_a)
-
+  shippingFee     Float?
+  
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now()) @updatedAt
 

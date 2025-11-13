@@ -1,5 +1,5 @@
 // 這是 frontend/js/admin-parcels.js (已修復 API_BASE_URL)
-// (最終完整版，支援照片刪除、修改與 3 張上限限制)
+// (最終完整版：整合照片管理、家具類型選擇、運費自動計算顯示)
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 獲取元素 ---
@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let allParcelsData = []; // 儲存從 API 拿到的所有包裹
   const adminToken = localStorage.getItem("admin_token"); // 讀取 "admin_token"
 
-  // [新增] 用來暫存目前這個包裹的「舊照片列表」 (用於刪除/保留邏輯)
+  // [核心變數] 用來暫存目前這個包裹的「舊照片列表」 (用於刪除/保留邏輯)
   let currentExistingImages = [];
 
   // 中文翻譯字典
@@ -157,21 +157,20 @@ document.addEventListener("DOMContentLoaded", () => {
     ).length;
   }
 
-  // (D) 打開包裹彈窗 (Modal)
+  // (D) 打開包裹彈窗 (Modal) - [資料回填核心]
   function openPackageModal(pkg) {
-    // 1. 填入基本資料
+    // 1. 填入基本資料 (唯讀區)
     document.getElementById("modal-pkg-id").value = pkg.id;
     document.getElementById("modal-user-email").textContent = pkg.user.email;
     document.getElementById("modal-user-name").textContent =
       pkg.user.name || "-";
-
     document.getElementById("modal-trackingNumber").textContent =
       pkg.trackingNumber;
     document.getElementById("modal-productName").textContent = pkg.productName;
     document.getElementById("modal-quantity").textContent = pkg.quantity;
     document.getElementById("modal-note").textContent = pkg.note || "-";
 
-    // 2. 顯示會員上傳的圖片 (唯讀)
+    // 2. 顯示會員上傳的圖片
     const customerImagesContainer = document.getElementById(
       "modal-customer-images"
     );
@@ -184,8 +183,22 @@ document.addEventListener("DOMContentLoaded", () => {
       customerImagesContainer.innerHTML += "<p>會員未上傳圖片</p>";
     }
 
-    // 3. 填入 "倉庫回填區" 表單
+    // 3. 填入 "倉庫回填區" 表單 (可編輯區)
     document.getElementById("modal-status").value = pkg.status;
+
+    // [新增] 回填家具類型與運費顯示
+    const furnitureTypeSelect = document.getElementById("modal-furnitureType");
+    if (furnitureTypeSelect) {
+      furnitureTypeSelect.value = pkg.furnitureType || "";
+    }
+    const shippingFeeInput = document.getElementById("modal-shippingFee");
+    if (shippingFeeInput) {
+      shippingFeeInput.value = pkg.shippingFee
+        ? `$ ${pkg.shippingFee.toLocaleString()}`
+        : "尚未計算 (儲存後自動更新)";
+    }
+
+    // 回填尺寸重量
     document.getElementById("modal-actualWeight").value =
       pkg.actualWeight || "";
     document.getElementById("modal-actualLength").value =
@@ -194,7 +207,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-actualHeight").value =
       pkg.actualHeight || "";
 
-    // 4. [修改重點] 初始化並顯示倉庫照片 (支援刪除與上限判斷)
+    // 4. [照片管理] 初始化並顯示倉庫照片 (支援刪除與上限判斷)
     currentExistingImages = [...pkg.warehouseImages]; // 複製一份陣列，避免直接修改原資料
     renderWarehouseImages();
 
@@ -205,7 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.style.display = "flex";
   }
 
-  // --- (E) [新增] 渲染倉庫照片與刪除按鈕 ---
+  // --- (E) 渲染倉庫照片與刪除按鈕 ---
   function renderWarehouseImages() {
     const warehouseImagesContainer = document.getElementById(
       "modal-warehouse-images-preview"
@@ -253,7 +266,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- (F) [新增] 移除照片函式 ---
+  // --- (F) 移除照片函式 (前端暫時移除) ---
   function removeImage(index) {
     if (confirm("確定要移除這張照片嗎？(需按「儲存更新」才會真正生效)")) {
       currentExistingImages.splice(index, 1); // 從陣列移除
@@ -271,7 +284,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (H) [修改重點] 提交 "更新" 表單 (含照片處理邏輯)
+  // (H) [修改重點] 提交 "更新" 表單 (含照片處理與新欄位)
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const packageId = document.getElementById("modal-pkg-id").value;
@@ -289,9 +302,16 @@ document.addEventListener("DOMContentLoaded", () => {
     submitButton.disabled = true;
     submitButton.textContent = "儲存中...";
 
-    // 2. 建立 FormData (因為有檔案和文字資料)
+    // 2. 建立 FormData
     const formData = new FormData();
     formData.append("status", document.getElementById("modal-status").value);
+
+    // [新增] 傳送家具類型 (用於後端計算運費)
+    const furnitureType = document.getElementById("modal-furnitureType");
+    if (furnitureType) {
+      formData.append("furnitureType", furnitureType.value);
+    }
+
     formData.append(
       "actualWeight",
       document.getElementById("modal-actualWeight").value
@@ -325,7 +345,7 @@ document.addEventListener("DOMContentLoaded", () => {
           method: "PUT",
           headers: {
             Authorization: `Bearer ${adminToken}`,
-            // 注意：使用 FormData 時，不要手動設定 Content-Type，瀏覽器會自動處理
+            // 注意：使用 FormData 時，不要手動設定 Content-Type
           },
           body: formData,
         }
@@ -337,7 +357,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       modal.style.display = "none"; // 關閉彈窗
-      alert("包裹更新成功！");
+      alert("包裹更新成功！運費已自動計算。");
       loadAllParcels(); // 重新載入列表
     } catch (error) {
       console.error("更新包裹失敗:", error);
@@ -359,7 +379,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // (J) 篩選按鈕
   filterBtn.addEventListener("click", () => {
-    // 重新渲染 (不需重新 fetch，使用已下載的資料)
     renderParcels(allParcelsData);
   });
 

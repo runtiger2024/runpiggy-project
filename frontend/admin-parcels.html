@@ -128,16 +128,47 @@
 
           <div class="form-section">
             <h4>倉庫回填 (入庫作業)</h4>
-            <div class="form-group">
-              <label for="modal-status" class="required">包裹狀態</label>
-              <select id="modal-status" class="form-control">
-                <option value="PENDING">待確認 (PENDING)</option>
-                <option value="ARRIVED">已入庫 (ARRIVED)</option>
-                <option value="IN_SHIPMENT">集運中 (IN_SHIPMENT)</option>
-                <option value="COMPLETED">已完成 (COMPLETED)</option>
-                <option value="CANCELLED">已取消 (CANCELLED)</option>
-              </select>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label for="modal-status" class="required">包裹狀態</label>
+                <select id="modal-status" class="form-control">
+                  <option value="PENDING">待確認 (PENDING)</option>
+                  <option value="ARRIVED">已入庫 (ARRIVED)</option>
+                  <option value="IN_SHIPMENT">集運中 (IN_SHIPMENT)</option>
+                  <option value="COMPLETED">已完成 (COMPLETED)</option>
+                  <option value="CANCELLED">已取消 (CANCELLED)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="modal-furnitureType">家具類型 (計算運費必填)</label>
+                <select id="modal-furnitureType" class="form-control">
+                  <option value="">請選擇類型</option>
+                  <option value="general">一般家具</option>
+                  <option value="special_a">特殊家具A (大理石/馬桶...)</option>
+                  <option value="special_b">特殊家具B (玻璃/建材...)</option>
+                  <option value="special_c">特殊家具C (電器...)</option>
+                </select>
+              </div>
             </div>
+
+            <div
+              class="form-group"
+              style="background: #e8f5e9; padding: 10px; border-radius: 5px"
+            >
+              <label style="color: #2e7d32; font-weight: bold"
+                >系統計算單件運費 (NT$)</label
+              >
+              <input
+                type="text"
+                id="modal-shippingFee"
+                class="form-control"
+                style="font-weight: bold; color: #d32f2f"
+                readonly
+                placeholder="填寫尺寸/重量與類型後，儲存即會自動計算"
+              />
+            </div>
+
             <div class="form-grid-4">
               <div class="form-group">
                 <label>實際重量 (kg)</label>
