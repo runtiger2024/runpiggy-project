@@ -84,6 +84,7 @@ model Shipment {
   status               String    @default("PENDING_PAYMENT") // PENDING_PAYMENT, PROCESSING, SHIPPED, COMPLETED, CANCELLED
   totalCost            Float?    // 最終總運費 (建立時自動計算)
   trackingNumberTW     String?   // 台灣物流單號
+  paymentProof         String?   // [新增] 付款憑證圖片路徑
 
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @default(now()) @updatedAt

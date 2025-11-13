@@ -1,4 +1,4 @@
-// 這是 backend/controllers/shipmentController.js (最終版：含自動加總運費與備註)
+// 這是 backend/controllers/shipmentController.js (最終版：含自動加總運費、備註、付款憑證上傳)
 
 const prisma = require("../config/db.js");
 
@@ -154,6 +154,55 @@ const getMyShipments = async (req, res) => {
   }
 };
 
+/**
+ * @description (新) 客戶上傳付款憑證
+ * @route       PUT /api/shipments/:id/payment
+ * @access      Private (User)
+ */
+const uploadPaymentProof = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // 1. 檢查是否有檔案
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ success: false, message: "請選擇一張圖片上傳" });
+    }
+
+    // 2. 確認該集運單屬於該用戶
+    const shipment = await prisma.shipment.findFirst({
+      where: { id: id, userId: userId },
+    });
+
+    if (!shipment) {
+      return res.status(404).json({ success: false, message: "找不到集運單" });
+    }
+
+    // 3. 更新資料庫
+    const imagePath = `/uploads/${req.file.filename}`;
+
+    const updatedShipment = await prisma.shipment.update({
+      where: { id: id },
+      data: {
+        paymentProof: imagePath,
+        // 可選：上傳憑證後，自動將狀態改為 "PROCESSING" (處理中/已付款待確認)
+        // status: "PROCESSING"
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "付款憑證上傳成功",
+      shipment: updatedShipment,
+    });
+  } catch (error) {
+    console.error("上傳憑證失敗:", error);
+    res.status(500).json({ success: false, message: "伺服器錯誤" });
+  }
+};
+
 // (保留骨架)
 const getShipmentById = (req, res) => {
   res.json({ message: "OK, getShipmentById (尚未實作)" });
@@ -163,4 +212,5 @@ module.exports = {
   createShipment,
   getMyShipments,
   getShipmentById,
+  uploadPaymentProof, // [新增]
 };

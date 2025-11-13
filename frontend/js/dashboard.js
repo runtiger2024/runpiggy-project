@@ -1,7 +1,7 @@
 // 這是 frontend/js/dashboard.js (已修復 API_BASE_URL)
 // (最終完整版：支援合併集運費用試算、備註欄位、照片查看、運費詳情)
 
-// --- 定義費率 (前端顯示用) ---
+// --- 定義費率 (前端顯示用，需與後端一致) ---
 const RATES = {
   general: { name: "一般家具", weightRate: 22, volumeRate: 125 },
   special_a: { name: "特殊家具A", weightRate: 32, volumeRate: 184 },
@@ -95,7 +95,7 @@ window.openFeeDetails = function (pkgDataStr) {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  // --- 1. 獲取元素 ---
+  // --- 1. 獲取 DOM 元素 ---
   const messageBox = document.getElementById("message-box");
   const welcomeMessage = document.getElementById("welcome-message");
   const userEmail = document.getElementById("user-email");
@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const editPackageForm = document.getElementById("edit-package-form");
   const btnClosePackageModal = editPackageModal.querySelector(".modal-close");
 
-  // 獲取 "合併集運" 相關元素
+  // 合併集運相關
   const createShipmentModal = document.getElementById("create-shipment-modal");
   const createShipmentForm = document.getElementById("create-shipment-form");
   const btnCreateShipment = document.getElementById("btn-create-shipment");
@@ -134,7 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const shipmentPackageList = document.getElementById("shipment-package-list");
   const shipmentTotalCost = document.getElementById("shipment-total-cost"); // [新增] 總金額顯示
 
-  // 獲取彈窗元素
+  // 彈窗相關
   const viewImagesModal = document.getElementById("view-images-modal");
   const feeDetailsModal = document.getElementById("fee-details-modal");
 
@@ -159,7 +159,7 @@ document.addEventListener("DOMContentLoaded", () => {
     CANCELLED: "已取消",
   };
 
-  // --- 3. 初始化 (檢查登入) ---
+  // --- 3. 初始化檢查 ---
   if (!token) {
     alert("請先登入會員");
     window.location.href = "login.html";
@@ -168,7 +168,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- 4. 函式定義 ---
 
-  // 顯示訊息
   function showMessage(message, type) {
     messageBox.textContent = message;
     messageBox.className = `alert alert-${type}`;
@@ -205,7 +204,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (B) 載入我的包裹 (包含運費顯示與照片查看)
+  // (B) 載入我的包裹
   async function loadMyPackages() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/packages/my`, {
@@ -215,7 +214,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!response.ok) throw new Error(data.message || "載入包裹失敗");
 
-      allPackagesData = data.packages; // 儲存完整資料
+      allPackagesData = data.packages;
       packagesTableBody.innerHTML = "";
 
       if (allPackagesData.length === 0) {
@@ -226,29 +225,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
       allPackagesData.forEach((pkg) => {
         const statusText = packageStatusMap[pkg.status] || pkg.status;
-
-        // 檢查是否為 "已入庫"
         const isArrived = pkg.status === "ARRIVED";
-
         const tr = document.createElement("tr");
 
-        // 顯示尺寸和重量
         const dimensions =
           pkg.actualLength && pkg.actualWidth && pkg.actualHeight
             ? `${pkg.actualLength} x ${pkg.actualWidth} x ${pkg.actualHeight}`
             : "-";
         const weight = pkg.actualWeight ? `${pkg.actualWeight} kg` : "-";
 
-        // [格式化運費顯示]
+        // [運費顯示邏輯]
         let feeDisplay = '<span style="color: #999;">-</span>';
         if (pkg.shippingFee) {
-          // 將 pkg 物件轉為字串，以便傳遞給 onclick
-          // 注意：需 encodeURIComponent 避免引號衝突
           const pkgStr = encodeURIComponent(JSON.stringify(pkg));
           feeDisplay = `<a href="javascript:void(0)" onclick="window.openFeeDetails('${pkgStr}')" style="color: #d32f2f; font-weight: bold; text-decoration: underline;">$${pkg.shippingFee.toLocaleString()}</a>`;
         }
 
-        // [處理照片欄位]
+        // [照片按鈕邏輯]
         const hasPhotos = pkg.warehouseImages && pkg.warehouseImages.length > 0;
         const photosBtn = hasPhotos
           ? `<button class="btn btn-view-img btn-sm" onclick='window.openImages(${JSON.stringify(
@@ -283,18 +276,14 @@ document.addEventListener("DOMContentLoaded", () => {
           </td>
         `;
 
-        // 綁定事件
+        // 綁定按鈕事件
         const editBtn = tr.querySelector(".btn-edit");
         if (editBtn) {
-          editBtn.addEventListener("click", () => {
-            openEditPackageModal(pkg);
-          });
+          editBtn.addEventListener("click", () => openEditPackageModal(pkg));
         }
         const deleteBtn = tr.querySelector(".btn-delete");
         if (deleteBtn) {
-          deleteBtn.addEventListener("click", () => {
-            handleDeletePackage(pkg);
-          });
+          deleteBtn.addEventListener("click", () => handleDeletePackage(pkg));
         }
 
         packagesTableBody.appendChild(tr);
@@ -313,11 +302,13 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "載入集運單失敗");
+
       if (data.shipments.length === 0) {
         shipmentsTableBody.innerHTML =
           '<tr><td colspan="6" style="text-align: center;">您尚未建立任何集運單</td></tr>';
         return;
       }
+
       shipmentsTableBody.innerHTML = data.shipments
         .map((ship) => {
           const statusText = shipmentStatusMap[ship.status] || ship.status;
@@ -345,7 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (D) 提交包裹預報表單
+  // (D) 提交包裹預報
   forecastForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const requestData = {
@@ -376,7 +367,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (F) 頁籤切換
+  // (E) Tab 切換
   tabPackages.addEventListener("click", () => {
     tabPackages.classList.add("active");
     tabShipments.classList.remove("active");
@@ -390,7 +381,7 @@ document.addEventListener("DOMContentLoaded", () => {
     shipmentsSection.style.display = "block";
   });
 
-  // (G/H) 編輯個人資料 (彈窗 + 提交)
+  // (F) 編輯個人資料
   btnEditProfile.addEventListener("click", () => {
     document.getElementById("edit-name").value = currentUser.name || "";
     document.getElementById("edit-phone").value = currentUser.phone || "";
@@ -398,13 +389,12 @@ document.addEventListener("DOMContentLoaded", () => {
       currentUser.defaultAddress || "";
     editProfileModal.style.display = "flex";
   });
-  btnCloseProfileModal.addEventListener("click", () => {
-    editProfileModal.style.display = "none";
-  });
+  btnCloseProfileModal.addEventListener(
+    "click",
+    () => (editProfileModal.style.display = "none")
+  );
   editProfileModal.addEventListener("click", (e) => {
-    if (e.target === editProfileModal) {
-      editProfileModal.style.display = "none";
-    }
+    if (e.target === editProfileModal) editProfileModal.style.display = "none";
   });
   editProfileForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -423,9 +413,8 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify(data),
       });
       const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.message || "更新失敗");
-      }
+      if (!response.ok) throw new Error(result.message || "更新失敗");
+
       currentUser = result.user;
       welcomeMessage.textContent = `歡迎回來，${
         currentUser.name || currentUser.email
@@ -433,6 +422,7 @@ document.addEventListener("DOMContentLoaded", () => {
       userEmail.textContent = currentUser.email;
       userPhone.textContent = currentUser.phone || "(尚未提供)";
       userAddress.textContent = currentUser.defaultAddress || "(尚未提供)";
+
       editProfileModal.style.display = "none";
       showMessage("個人資料更新成功！", "success");
     } catch (error) {
@@ -440,7 +430,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (I) 編輯包裹 (彈窗 + 提交)
+  // (G) 編輯包裹
   function openEditPackageModal(pkg) {
     document.getElementById("edit-package-id").value = pkg.id;
     document.getElementById("edit-trackingNumber").value = pkg.trackingNumber;
@@ -449,13 +439,12 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("edit-note").value = pkg.note || "";
     editPackageModal.style.display = "flex";
   }
-  btnClosePackageModal.addEventListener("click", () => {
-    editPackageModal.style.display = "none";
-  });
+  btnClosePackageModal.addEventListener(
+    "click",
+    () => (editPackageModal.style.display = "none")
+  );
   editPackageModal.addEventListener("click", (e) => {
-    if (e.target === editPackageModal) {
-      editPackageModal.style.display = "none";
-    }
+    if (e.target === editPackageModal) editPackageModal.style.display = "none";
   });
   editPackageForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -479,9 +468,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       );
       const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.message || "更新失敗");
-      }
+      if (!response.ok) throw new Error(result.message || "更新失敗");
+
       editPackageModal.style.display = "none";
       showMessage("包裹資料更新成功！", "success");
       loadMyPackages();
@@ -490,24 +478,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (J) 刪除包裹
+  // (H) 刪除包裹
   async function handleDeletePackage(pkg) {
-    if (
-      !confirm(
-        `確定要刪除包裹 "${pkg.productName}" (${pkg.trackingNumber}) 嗎？`
-      )
-    ) {
-      return;
-    }
+    if (!confirm(`確定要刪除包裹 "${pkg.productName}" 嗎？`)) return;
     try {
       const response = await fetch(`${API_BASE_URL}/api/packages/${pkg.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.message || "刪除失敗");
-      }
+      if (!response.ok) throw new Error(result.message || "刪除失敗");
+
       showMessage("包裹刪除成功！", "success");
       loadMyPackages();
     } catch (error) {
@@ -515,33 +496,29 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- (K) 合併集運的函式 (支援總金額計算與備註) ---
+  // (I) 合併集運 (核心功能)
 
-  // (K-1) 綁定 "合併打包" 按鈕
+  // 1. 開啟彈窗與試算金額
   btnCreateShipment.addEventListener("click", () => {
-    // 1. 找出所有被勾選的 checkbox
     const checkedBoxes = document.querySelectorAll(".package-checkbox:checked");
     if (checkedBoxes.length === 0) {
       showMessage('請至少勾選一個 "已入庫" 的包裹來合併', "error");
       return;
     }
 
-    // 2. 準備要顯示在彈窗中的資料
     let packageListHtml = "";
     let selectedPackageIds = [];
-    let totalFee = 0; // [新增] 總金額變數
+    let totalFee = 0; // 總金額
 
     checkedBoxes.forEach((box) => {
       const pkgId = box.dataset.id;
       selectedPackageIds.push(pkgId);
 
-      // 從我們儲存的 allPackagesData 中找出完整資料
       const pkg = allPackagesData.find((p) => p.id === pkgId);
       if (pkg) {
         const fee = pkg.shippingFee || 0;
-        totalFee += fee; // 累加運費
+        totalFee += fee;
 
-        // [修改] 顯示名稱與運費
         packageListHtml += `
           <div class="shipment-package-item">
             <span>${pkg.productName} (${pkg.trackingNumber})</span>
@@ -551,40 +528,34 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // 3. 填入彈窗
     shipmentPackageList.innerHTML = packageListHtml;
 
-    // [新增] 更新總金額顯示
     if (shipmentTotalCost) {
       shipmentTotalCost.textContent = totalFee.toLocaleString();
     }
 
     createShipmentForm.dataset.ids = JSON.stringify(selectedPackageIds);
 
-    // 4. 自動填入會員預設資料
     document.getElementById("ship-name").value = currentUser.name || "";
     document.getElementById("ship-phone").value = currentUser.phone || "";
     document.getElementById("ship-address").value =
       currentUser.defaultAddress || "";
-
-    // [新增] 清空備註欄位
     document.getElementById("ship-note").value = "";
 
-    // 5. 顯示彈窗
     createShipmentModal.style.display = "flex";
   });
 
-  // (K-2) 綁定 "建立集運單" 彈窗的關閉按鈕
-  btnCloseShipmentModal.addEventListener("click", () => {
-    createShipmentModal.style.display = "none";
-  });
+  // 2. 關閉彈窗
+  btnCloseShipmentModal.addEventListener(
+    "click",
+    () => (createShipmentModal.style.display = "none")
+  );
   createShipmentModal.addEventListener("click", (e) => {
-    if (e.target === createShipmentModal) {
+    if (e.target === createShipmentModal)
       createShipmentModal.style.display = "none";
-    }
   });
 
-  // (K-3) 提交 "建立集運單" 表單
+  // 3. 提交建立集運單
   createShipmentForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
@@ -594,8 +565,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // 移除了 additionalServices 邏輯
-
+    // 移除了 additionalServices，新增 note
     const requestData = {
       packageIds: packageIds,
       recipientName: document.getElementById("ship-name").value,
@@ -617,9 +587,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.message || "建立失敗");
-      }
+      if (!response.ok) throw new Error(result.message || "建立失敗");
 
       createShipmentModal.style.display = "none";
       createShipmentForm.reset();
@@ -632,8 +600,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- (L) 綁定所有彈窗的關閉事件 ---
-  // 這裡集合處理了「查看照片」和「費用詳情」兩種彈窗
+  // (J) 綁定所有彈窗的關閉事件
   [viewImagesModal, feeDetailsModal].forEach((m) => {
     if (m) {
       const closeBtn = m.querySelector(".modal-close");
@@ -655,7 +622,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadMyPackages();
   loadMyShipments();
 
-  // (K) 檢查是否有來自試算器的草稿
+  // (K) 檢查試算草稿
   function checkForecastDraft() {
     const draftJSON = localStorage.getItem("forecast_draft");
     if (draftJSON) {

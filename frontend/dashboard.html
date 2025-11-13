@@ -281,6 +281,72 @@
       </div>
     </div>
 
+    <div id="bank-info-modal" class="modal-overlay" style="display: none">
+      <div class="modal-content">
+        <button class="modal-close">&times;</button>
+        <h2 style="text-align: center; color: #1a73e8">🎉 集運單建立成功！</h2>
+        <div
+          style="
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            margin-top: 15px;
+          "
+        >
+          <p style="margin-bottom: 10px; font-weight: bold; color: #555">
+            請匯款至以下帳戶：
+          </p>
+          <ul
+            style="
+              list-style: none;
+              padding: 0;
+              line-height: 2;
+              font-size: 1.1em;
+            "
+          >
+            <li>🏦 <strong>銀行：</strong> 第一銀行 (007) 台南分行</li>
+            <li>
+              💰 <strong>帳號：</strong>
+              <span style="color: #d32f2f; font-weight: bold">60110066477</span>
+            </li>
+            <li>👤 <strong>戶名：</strong> 跑得快國際貿易有限公司</li>
+          </ul>
+        </div>
+        <p style="margin-top: 15px; color: #666; font-size: 0.9em">
+          匯款完成後，請至「我的集運單」點擊「上傳憑證」，我們將盡快為您安排出貨。
+        </p>
+        <div class="text-center" style="margin-top: 20px">
+          <button class="btn btn-primary modal-close-btn">我知道了</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="upload-proof-modal" class="modal-overlay" style="display: none">
+      <div class="modal-content">
+        <button class="modal-close">&times;</button>
+        <h2>上傳付款憑證</h2>
+        <input type="hidden" id="upload-proof-id" />
+        <form id="upload-proof-form">
+          <div class="form-group">
+            <label>請上傳匯款截圖或收據照片</label>
+            <input type="file" id="proof-file" accept="image/*" required />
+          </div>
+          <div
+            id="proof-preview"
+            style="margin-top: 10px; text-align: center"
+          ></div>
+          <button
+            type="submit"
+            class="btn btn-primary"
+            style="margin-top: 15px"
+          >
+            確認上傳
+          </button>
+        </form>
+      </div>
+    </div>
+
     <script src="js/apiConfig.js"></script>
     <script src="js/navigation.js"></script>
     <script src="js/dashboard.js"></script>
