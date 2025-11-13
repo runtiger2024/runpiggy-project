@@ -55,42 +55,73 @@ img {
    3. 通用元件 (Components)
    ========================================= */
 
-/* --- 導航列 (Navigation) --- */
+/* --- 導航列 (Navigation) - 優化版 --- */
 .main-nav {
   display: flex;
   justify-content: center;
-  gap: 15px;
+  align-items: center;
+  gap: 10px; /* 按鈕之間的間距 */
   margin-bottom: 30px;
-  flex-wrap: wrap;
+  flex-wrap: wrap; /* 允許換行 */
 }
 
 .nav-link {
-  padding: 10px 15px;
+  padding: 10px 20px; /* 增加左右內距，讓按鈕看起來更飽滿 */
   text-decoration: none;
   color: #555;
   font-weight: 500;
   border-radius: 5px;
-  transition: background-color 0.3s;
+  transition: all 0.3s ease;
+  background-color: #fff; /* 預設給一個白色背景 */
+  border: 1px solid #ddd; /* 預設給一個淡灰色邊框，讓它看起來像按鈕 */
+  text-align: center;
+  white-space: nowrap; /* 防止文字換行 */
 }
 
+/* 讓 "運費試算" (active 狀態) 更明顯 */
 .nav-link.active {
   background-color: #1a73e8;
   color: white;
+  border-color: #1a73e8;
+  box-shadow: 0 2px 5px rgba(26, 115, 232, 0.3); /* 增加一點陰影 */
 }
 
 .nav-link:hover {
   background-color: #f0f0f0;
+  border-color: #ccc;
+}
+
+/* 針對 active 狀態的 hover */
+.nav-link.active:hover {
+  background-color: #1558b8;
+  border-color: #1558b8;
 }
 
 .nav-link.btn-logout {
   background-color: #7f8c8d;
   color: white;
+  border-color: #7f8c8d;
 }
 
 .nav-link.btn-logout:hover {
   background-color: #c0392b;
+  border-color: #c0392b;
 }
 
+/* --- 手機版導航列特別優化 --- */
+@media (max-width: 480px) {
+  .main-nav {
+    flex-direction: column; /* 手機版改成垂直排列 */
+    width: 100%;
+    gap: 10px;
+  }
+
+  .nav-link {
+    width: 100%; /* 讓每個按鈕都佔滿寬度 */
+    padding: 12px; /* 增加點擊區域 */
+    font-size: 16px;
+  }
+}
 /* --- 按鈕 (Buttons) --- */
 .btn {
   padding: 12px 25px;
