@@ -1,4 +1,4 @@
-/* frontend/css/style.css - 最終修復版 (Fix Mobile Overflow) */
+/* frontend/css/style.css - 最終修正版 (保護 LINE 按鈕 + 修復表格溢出) */
 
 /* =========================================
    1. 全域設定 & 基礎樣式 (Global & Reset)
@@ -711,7 +711,7 @@ select#deliveryLocation optgroup {
   font-weight: normal;
 }
 
-/* LINE 懸浮按鈕 */
+/* LINE 懸浮按鈕 (確保這裡存在) */
 .line-fab {
   position: fixed;
   bottom: 25px;
@@ -808,31 +808,41 @@ select#deliveryLocation optgroup {
   margin-bottom: 20px;
 }
 
-/* Dashboard 表格 */
+/* Dashboard 表格設定 */
 .table-container {
   overflow-x: auto;
   border: 1px solid #ddd;
   border-radius: 8px;
 }
-table {
+
+/* [關鍵修正] 一般表格 (如會員中心的訂單列表) 設定 min-width: 600px */
+/* 但要排除 .rate-table (首頁收費表)，避免它在手機上被撐開 */
+table:not(.rate-table) {
   width: 100%;
   border-collapse: collapse;
-  min-width: 600px;
+  min-width: 600px; /* 只應用於資料表格 */
   background-color: white;
 }
+
+/* 通用 th, td 設定 */
+/* .rate-table 會在後面覆寫這些設定 */
 th,
 td {
   padding: 12px 15px;
   text-align: left;
   border-bottom: 1px solid #ddd;
-  white-space: nowrap;
+  /* 注意：這裡的 nowrap 也是針對資料表格 */
 }
-th {
+
+/* 針對一般資料表格的 th */
+table:not(.rate-table) th {
   background-color: #f8f9fa;
   font-weight: 600;
+  white-space: nowrap;
 }
-tr:hover {
-  background-color: #f1f1f1;
+/* 針對一般資料表格的 td */
+table:not(.rate-table) td {
+  white-space: nowrap;
 }
 
 .shipment-action-bar {
@@ -1136,7 +1146,7 @@ tr:hover {
     border-radius: 8px;
     background: #fff;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    width: auto; /* [修正] 改為 auto，讓它適應外層 Padding */
+    width: auto; /* 讓它適應外層 Padding */
     margin-left: 0;
     margin-right: 0;
   }
@@ -1151,7 +1161,7 @@ tr:hover {
     border-bottom: 1px solid #eee;
     padding: 10px 12px;
     min-height: 40px;
-    word-break: break-word; /* [修正] 強制長文字換行 */
+    word-break: break-word; /* 強制長文字換行 */
   }
   .rate-table td:last-child {
     border-bottom: 0;
@@ -1164,8 +1174,8 @@ tr:hover {
     color: #1a73e8;
     text-align: left;
     margin-right: 10px;
-    flex: 0 0 auto; /* [修正] 標題不縮放 */
-    max-width: 40%; /* [修正] 限制標題最大寬度 */
+    flex: 0 0 auto; /* 標題不縮放 */
+    max-width: 40%; /* 限制標題最大寬度 */
     white-space: normal; /* 允許標題換行 */
   }
 
