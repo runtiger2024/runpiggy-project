@@ -481,19 +481,38 @@ select#deliveryLocation optgroup {
   margin-top: 0;
   margin-bottom: 15px;
 }
+/* --- 修改 1：電腦版樣式優化 --- */
 .rate-table {
   width: 100%;
   border-collapse: collapse;
   text-align: center;
-  table-layout: fixed; /* <-- (新) 關鍵！告訴表格不要被內容撐開 */
+  /* 移除 table-layout: fixed; 改用 auto 讓內容自動撐開 */
+  table-layout: auto;
 }
+
 .rate-table th,
 .rate-table td {
   border: 1px solid #b3d9ff;
   padding: 12px;
   white-space: normal;
   word-wrap: break-word;
+  vertical-align: middle; /* 讓內容垂直置中 */
 }
+
+/* 設定欄位寬度比例，讓「品項說明」有最大空間 */
+.rate-table th:nth-child(1) {
+  width: 15%;
+} /* 類別 */
+.rate-table th:nth-child(2) {
+  width: 45%;
+} /* 品項說明 (最寬) */
+.rate-table th:nth-child(3) {
+  width: 20%;
+} /* 重量收費 */
+.rate-table th:nth-child(4) {
+  width: 20%;
+} /* 材積收費 */
+
 .rate-table th {
   background-color: #1a73e8;
   color: white;
@@ -501,69 +520,67 @@ select#deliveryLocation optgroup {
 .rate-table td {
   background-color: #fff;
 }
-.rate-table td:first-child {
-  text-align: left;
-  padding-left: 15px;
-}
 
-.rate-notes {
-  margin-top: 15px;
-  padding: 10px 15px;
-  background-color: #d6eaf8;
-  border-left: 4px solid #1a73e8;
-  border-radius: 0 5px 5px 0;
-}
-.rate-notes ul {
-  margin: 8px 0 0 0;
-  padding-left: 20px;
-  color: #333;
-}
-.rate-notes .highlight {
-  color: #e74c3c;
-  font-weight: bold;
-}
-
-/* --- (新) 費率表的手機版響應式樣式 --- */
+/* --- 修改 2：手機版響應式 (卡片式排版) --- */
 @media (max-width: 768px) {
   .rate-table {
+    display: block;
     border: 0;
-    display: block; /* <-- (修復) */
   }
+
+  /* 隱藏原本的表頭 (thead) */
   .rate-table thead {
-    border: none;
-    clip: rect(0 0 0 0);
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    padding: 0;
-    position: absolute;
-    width: 1px;
+    display: none;
   }
+
+  /* 每一行 (tr) 變成一張卡片 */
   .rate-table tr {
     display: block;
-    margin-bottom: 1em;
-    border: 1px solid #b3d9ff;
-    border-radius: 5px;
+    margin-bottom: 1.5em;
+    border: 2px solid #1a73e8; /* 卡片外框 */
+    border-radius: 8px;
     overflow: hidden;
+    background: #fff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   }
+
+  /* 每一格 (td) 變成一行，使用 Flexbox 對齊 */
   .rate-table td {
-    display: block;
-    text-align: right;
-    font-size: 1em;
-    border-bottom: 1px dotted #ccc;
+    display: flex; /* 啟用彈性佈局 */
+    justify-content: space-between; /* 標籤靠左，內容靠右 */
+    align-items: center; /* 垂直置中 */
+    text-align: right; /* 內容文字靠右 */
+    font-size: 0.95em;
+    border-bottom: 1px solid #eee;
+    padding: 10px 15px;
+    min-height: 40px; /* 確保有足夠高度 */
   }
+
   .rate-table td:last-child {
     border-bottom: 0;
   }
+
+  /* 使用 data-label 屬性來顯示標題 (例如: 類別、品項說明) */
   .rate-table td::before {
-    content: attr(data-label);
-    float: left;
+    content: attr(data-label); /* 抓取 HTML 中的 data-label */
     font-weight: bold;
-    color: #333;
+    color: #1a73e8;
+    text-align: left;
+    margin-right: 15px; /* 標籤與內容的距離 */
+    flex-shrink: 0; /* 防止標籤被壓縮 */
+    max-width: 40%; /* 限制標籤寬度 */
   }
+
+  /* 針對第一欄 (類別) 特別樣式 */
   .rate-table td:first-child {
-    text-align: right;
-    padding-left: 12px;
+    background-color: #f1f8ff;
+    border-bottom: 2px solid #b3d9ff;
+    font-weight: bold;
+    justify-content: center; /* 在手機版讓標題置中 */
+  }
+  /* 第一欄不需要顯示 "類別" 兩個字，因為背景色已經暗示它是標題 */
+  .rate-table td:first-child::before {
+    display: none;
   }
 }
 /* --- (新) LINE 懸浮按鈕樣式 --- */
