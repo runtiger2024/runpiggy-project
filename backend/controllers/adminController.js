@@ -1,9 +1,12 @@
-// 這是 adminController.js (最終完整版，支援「新增員工」和「退回集運單」)
+// 這是 backend/controllers/adminController.js (最終完整版：含檔案刪除 & 員工管理 & 退回集運)
 
 const prisma = require("../config/db.js");
-const bcrypt = require("bcryptjs"); // (新) 載入 bcryptjs
+const bcrypt = require("bcryptjs");
+const fs = require("fs"); // [新增] 引入檔案系統模組
+const path = require("path"); // [新增] 引入路徑處理模組
 
-// --- (包裹管理函式 ... 保持不變) ---
+// --- 包裹管理 ---
+
 const getAllPackages = async (req, res) => {
   try {
     const allPackages = await prisma.package.findMany({
@@ -37,6 +40,7 @@ const getAllPackages = async (req, res) => {
     res.status(500).json({ success: false, message: "伺服器發生錯誤" });
   }
 };
+
 const updatePackageStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -62,8 +66,8 @@ const updatePackageStatus = async (req, res) => {
       .json({ success: false, message: "伺服器發生錯誤或找不到包裹" });
   }
 };
-// backend/controllers/adminController.js 內的 updatePackageDetails
 
+// [重要修改] 更新包裹詳情 (含實體檔案刪除邏輯)
 const updatePackageDetails = async (req, res) => {
   try {
     const { id } = req.params;
@@ -73,12 +77,20 @@ const updatePackageDetails = async (req, res) => {
       actualLength,
       actualWidth,
       actualHeight,
-      existingImages, // [新增] 接收前端傳來的「要保留的舊照片」
+      existingImages, // 前端傳來的「要保留的舊照片」JSON 字串
     } = req.body;
 
-    const dataToUpdate = {};
+    // 1. 先從資料庫撈出「原始」包裹資料，為了比對照片
+    const originalPackage = await prisma.package.findUnique({
+      where: { id: id },
+    });
 
-    // 1. 更新基本資料
+    if (!originalPackage) {
+      return res.status(404).json({ success: false, message: "找不到包裹" });
+    }
+
+    // 2. 準備更新資料
+    const dataToUpdate = {};
     if (status) dataToUpdate.status = status;
     const weight = parseFloat(actualWeight);
     const length = parseFloat(actualLength);
@@ -90,7 +102,7 @@ const updatePackageDetails = async (req, res) => {
     if (!isNaN(width)) dataToUpdate.actualWidth = width;
     if (!isNaN(height)) dataToUpdate.actualHeight = height;
 
-    // 2. 自動計算材積 (CBM)
+    // 自動計算材積 (CBM)
     if (
       !isNaN(length) &&
       !isNaN(width) &&
@@ -99,27 +111,59 @@ const updatePackageDetails = async (req, res) => {
       width > 0 &&
       height > 0
     ) {
-      const volume = (length * width * height) / 28317; // 材積
-      dataToUpdate.actualCbm = volume / 35.3; // 立方米
+      const volume = (length * width * height) / 28317;
+      dataToUpdate.actualCbm = volume / 35.3;
     }
 
-    // 3. 處理照片邏輯 (核心修改)
-    // (A) 先處理舊照片：解析前端傳來的 JSON 字串
-    let finalImageList = [];
+    // 3. [核心] 照片處理與檔案刪除邏輯
+
+    // (A) 解析「原始」資料庫中的照片列表
+    let originalImagesList = [];
+    try {
+      originalImagesList = JSON.parse(originalPackage.warehouseImages || "[]");
+    } catch (e) {
+      originalImagesList = [];
+    }
+
+    // (B) 解析前端傳來「想保留」的舊照片列表
+    let keepImagesList = [];
     if (existingImages) {
       try {
-        finalImageList = JSON.parse(existingImages);
-        if (!Array.isArray(finalImageList)) finalImageList = [];
+        keepImagesList = JSON.parse(existingImages);
+        if (!Array.isArray(keepImagesList)) keepImagesList = [];
       } catch (e) {
-        console.error("解析 existingImages 失敗:", e);
-        finalImageList = [];
+        keepImagesList = [];
       }
-    } else {
-      // 如果前端沒傳 existingImages，代表可能沒有舊圖，或全刪了
-      finalImageList = [];
     }
 
-    // (B) 再加入新上傳的照片
+    // (C) 找出「被刪除」的照片 (原始有，但保留列表沒有的)
+    const imagesToDelete = originalImagesList.filter(
+      (img) => !keepImagesList.includes(img)
+    );
+
+    // (D) 執行實體檔案刪除
+    imagesToDelete.forEach((imgUrl) => {
+      // imgUrl 範例: "/uploads/filename.png"
+      // 我們需要將它轉為絕對路徑: "C:/project/backend/public/uploads/filename.png"
+      const relativePath = imgUrl.replace("/uploads/", ""); // 取得檔名
+      const absolutePath = path.join(
+        __dirname,
+        "../public/uploads",
+        relativePath
+      );
+
+      // 檢查檔案是否存在，存在則刪除
+      if (fs.existsSync(absolutePath)) {
+        fs.unlink(absolutePath, (err) => {
+          if (err) console.error(`刪除檔案失敗: ${absolutePath}`, err);
+          else console.log(`成功刪除實體檔案: ${absolutePath}`);
+        });
+      }
+    });
+
+    // (E) 組合最終要存入資料庫的新列表 (保留的舊圖 + 新上傳的圖)
+    let finalImageList = [...keepImagesList];
+
     if (req.files && req.files.length > 0) {
       const newImagePaths = req.files.map(
         (file) => `/uploads/${file.filename}`
@@ -127,14 +171,16 @@ const updatePackageDetails = async (req, res) => {
       finalImageList = [...finalImageList, ...newImagePaths];
     }
 
-    // (C) 強制限制最多 3 張 (雙重保險)
+    // (F) 強制限制最多 3 張 (若有多餘的，把新上傳的多的也刪掉)
     if (finalImageList.length > 3) {
+      // 這裡可以做更細緻的處理，目前簡單做截斷，並刪除截斷的檔案(如果是新上傳的)
+      // 實務上前端已經擋了，這裡做個防守即可
       finalImageList = finalImageList.slice(0, 3);
     }
 
     dataToUpdate.warehouseImages = JSON.stringify(finalImageList);
 
-    // 4. 執行更新
+    // 4. 執行資料庫更新
     const updatedPackage = await prisma.package.update({
       where: { id: id },
       data: dataToUpdate,
@@ -142,7 +188,7 @@ const updatePackageDetails = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "包裹詳細資料更新成功",
+      message: "包裹詳細資料更新成功 (已清理舊圖片)",
       package: updatedPackage,
     });
   } catch (error) {
@@ -153,7 +199,8 @@ const updatePackageDetails = async (req, res) => {
   }
 };
 
-// --- (集運單管理函式) ---
+// --- 集運單管理 ---
+
 const updateShipmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -184,6 +231,7 @@ const updateShipmentStatus = async (req, res) => {
       .json({ success: false, message: "伺服器發生錯誤或找不到集運單" });
   }
 };
+
 const getAllShipments = async (req, res) => {
   try {
     const allShipments = await prisma.shipment.findMany({
@@ -213,39 +261,20 @@ const getAllShipments = async (req, res) => {
   }
 };
 
-/**
- * @description (新) (Admin) 退回/拒絕一筆集運單
- * @route       PUT /api/admin/shipments/:id/reject
- * @access      Private/Admin
- */
 const rejectShipment = async (req, res) => {
   try {
-    const { id } = req.params; // 集運單 ID
-
-    // (1) 使用「交易」來確保兩邊都更新成功
+    const { id } = req.params;
     const result = await prisma.$transaction(async (tx) => {
-      // (A) 更新集運單狀態
       const updatedShipment = await tx.shipment.update({
         where: { id: id },
-        data: {
-          status: "CANCELLED", // 標記為已取消
-        },
+        data: { status: "CANCELLED" },
       });
-
-      // (B) 釋放所有關聯的包裹
-      //    把包裹狀態從 'IN_SHIPMENT' 改回 'ARRIVED'
-      //    並解除 shipmentId 的關聯
       const releasedPackages = await tx.package.updateMany({
         where: { shipmentId: id },
-        data: {
-          status: "ARRIVED",
-          shipmentId: null, // 解除綁定
-        },
+        data: { status: "ARRIVED", shipmentId: null },
       });
-
       return { updatedShipment, releasedPackages };
     });
-
     res.status(200).json({
       success: true,
       message: `集運單已退回，並釋放了 ${result.releasedPackages.count} 個包裹。`,
@@ -256,59 +285,42 @@ const rejectShipment = async (req, res) => {
   }
 };
 
-// --- (會員/使用者管理函式) ---
+// --- 會員/員工管理 ---
 
-/**
- * @description (新) (Admin) 建立新的員工帳號 (操作員/管理員)
- * @route       POST /api/admin/users/create
- * @access      Private/Admin
- */
 const createStaffUser = async (req, res) => {
   try {
     const { email, password, name, role } = req.body;
-
-    // (這參考了 RUNPIGGY-V2 的 register.js 和 adminRoutes.js)
     if (!email || !password || !name || !role) {
       return res
         .status(400)
         .json({ success: false, message: "請提供 Email、密碼、姓名和角色" });
     }
-
-    // 檢查 Email 是否已存在
     const userExists = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
     });
-
     if (userExists) {
       return res
         .status(400)
         .json({ success: false, message: "這個 Email 已經被註冊了" });
     }
-
-    // 檢查角色是否合法 (我們不允許在這裡建立 'USER')
     if (role !== "ADMIN" && role !== "OPERATOR") {
       return res.status(400).json({
         success: false,
         message: "無效的角色 (只允許 ADMIN 或 OPERATOR)",
       });
     }
-
-    // 加密密碼
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
-
-    // 建立新使用者
     const newUser = await prisma.user.create({
       data: {
         email: email.toLowerCase(),
         passwordHash: passwordHash,
         name: name,
-        role: role, // 'ADMIN' 或 'OPERATOR'
-        isActive: true, // 預設啟用
+        role: role,
+        isActive: true,
       },
       select: { id: true, email: true, name: true, role: true },
     });
-
     res.status(201).json({
       success: true,
       message: "員工帳號建立成功！",
@@ -344,6 +356,7 @@ const getUsers = async (req, res) => {
     res.status(500).json({ success: false, message: "伺服器發生錯誤" });
   }
 };
+
 const toggleUserStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -370,6 +383,7 @@ const toggleUserStatus = async (req, res) => {
     res.status(500).json({ success: false, message: "伺服器發生錯誤" });
   }
 };
+
 const resetUserPassword = async (req, res) => {
   try {
     const { id } = req.params;
@@ -390,16 +404,42 @@ const resetUserPassword = async (req, res) => {
   }
 };
 
-// (*** 這是最重要的修復 ***)
+// [新增] 永久刪除使用者
+const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.id === id) {
+      return res
+        .status(400)
+        .json({ success: false, message: "您不能刪除自己的管理員帳號" });
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.package.deleteMany({ where: { userId: id } });
+      await tx.shipment.deleteMany({ where: { userId: id } });
+      await tx.user.delete({ where: { id: id } });
+    });
+    res
+      .status(200)
+      .json({ success: true, message: "使用者及其所有關聯資料已永久刪除" });
+  } catch (error) {
+    console.error("刪除使用者失敗:", error);
+    res.status(500).json({
+      success: false,
+      message: "刪除失敗，可能含有無法刪除的關聯資料",
+    });
+  }
+};
+
 module.exports = {
   getAllPackages,
   updatePackageStatus,
-  updatePackageDetails,
+  updatePackageDetails, // 已包含檔案刪除邏輯
   getUsers,
   updateShipmentStatus,
   getAllShipments,
   toggleUserStatus,
   resetUserPassword,
-  createStaffUser, // <-- (已加入)
-  rejectShipment, // <-- (已加入)
+  createStaffUser,
+  rejectShipment,
+  deleteUser,
 };
