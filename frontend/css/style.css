@@ -522,65 +522,77 @@ select#deliveryLocation optgroup {
 }
 
 /* --- 修改 2：手機版響應式 (卡片式排版) --- */
+/* --- 手機版響應式 (卡片式排版 - 修正溢出問題版) --- */
 @media (max-width: 768px) {
-  .rate-table {
+  /* 1. 強制將表格所有結構轉為區塊元素，並限制寬度 */
+  .rate-table,
+  .rate-table tbody,
+  .rate-table tr,
+  .rate-table td {
     display: block;
-    border: 0;
+    width: 100%;
+    box-sizing: border-box; /* ★ 超級關鍵：讓 padding 和 border 算在 100% 寬度內 */
   }
 
-  /* 隱藏原本的表頭 (thead) */
+  /* 2. 隱藏原本的表頭 */
   .rate-table thead {
     display: none;
   }
 
-  /* 每一行 (tr) 變成一張卡片 */
+  /* 3. 每一行 (tr) 變成一張卡片 */
   .rate-table tr {
-    display: block;
-    margin-bottom: 1.5em;
-    border: 2px solid #1a73e8; /* 卡片外框 */
+    margin-bottom: 15px;
+    border: 2px solid #1a73e8;
     border-radius: 8px;
-    overflow: hidden;
     background: #fff;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    /* 移除可能導致問題的 margin */
+    margin-left: 0;
+    margin-right: 0;
   }
 
-  /* 每一格 (td) 變成一行，使用 Flexbox 對齊 */
+  /* 4. 每一格 (td) 的樣式調整 */
   .rate-table td {
-    display: flex; /* 啟用彈性佈局 */
-    justify-content: space-between; /* 標籤靠左，內容靠右 */
-    align-items: center; /* 垂直置中 */
-    text-align: right; /* 內容文字靠右 */
-    font-size: 0.95em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: right;
+    font-size: 14px; /* 手機字體固定大小，避免太大 */
     border-bottom: 1px solid #eee;
-    padding: 10px 15px;
-    min-height: 40px; /* 確保有足夠高度 */
+    padding: 10px 12px; /* 稍微減少內距，避免太擠 */
+    min-height: 40px;
   }
 
   .rate-table td:last-child {
     border-bottom: 0;
   }
 
-  /* 使用 data-label 屬性來顯示標題 (例如: 類別、品項說明) */
+  /* 5. 標籤 (左側文字) */
   .rate-table td::before {
-    content: attr(data-label); /* 抓取 HTML 中的 data-label */
+    content: attr(data-label);
     font-weight: bold;
     color: #1a73e8;
     text-align: left;
-    margin-right: 15px; /* 標籤與內容的距離 */
+    margin-right: 10px;
     flex-shrink: 0; /* 防止標籤被壓縮 */
-    max-width: 40%; /* 限制標籤寬度 */
+    /* 限制標籤最大寬度，避免擠壓右邊內容 */
+    max-width: 100px;
+    white-space: nowrap;
   }
 
-  /* 針對第一欄 (類別) 特別樣式 */
+  /* 6. 第一欄 (標題欄) 特別樣式 */
   .rate-table td:first-child {
-    background-color: #f1f8ff;
+    background-color: #eaf4ff; /* 淺藍色背景 */
+    color: #1a73e8;
     border-bottom: 2px solid #b3d9ff;
     font-weight: bold;
-    justify-content: center; /* 在手機版讓標題置中 */
+    font-size: 16px;
+    justify-content: center; /* 文字置中 */
+    text-align: center;
   }
-  /* 第一欄不需要顯示 "類別" 兩個字，因為背景色已經暗示它是標題 */
+
   .rate-table td:first-child::before {
-    display: none;
+    display: none; /* 標題欄不顯示 data-label */
   }
 }
 /* --- (新) LINE 懸浮按鈕樣式 --- */
@@ -1748,4 +1760,13 @@ a.btn-secondary:hover {
 .admin-stealth-link:hover {
   color: #fff; /* 變回白色 */
   cursor: pointer; /* 顯示手指游標 */
+}
+/* 針對手機版，減少外層容器的內距，爭取更多空間 */
+@media (max-width: 768px) {
+  .rate-table-container {
+    padding: 10px; /* 原本可能是 20px，改小一點 */
+    width: 100%;
+    box-sizing: border-box; /* 關鍵：確保 padding 不會撐大寬度 */
+    overflow: hidden; /* 防止萬一內容溢出時出現橫向捲軸 */
+  }
 }
