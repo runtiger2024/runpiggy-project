@@ -135,11 +135,13 @@ document.addEventListener("DOMContentLoaded", () => {
     CANCELLED: "已取消",
   };
   const shipmentStatusMap = {
-    PENDING_PAYMENT: "等待付款",
-    PROCESSING: "處理中",
-    SHIPPED: "已出貨",
-    COMPLETED: "已完成",
-    CANCELLED: "已取消",
+    PENDING_PAYMENT: "待付款",
+    PROCESSING: "已收款，安排裝櫃",
+    SHIPPED: "已裝櫃",
+    COMPLETED: "海關查驗",
+    CANCELLEDD: "清關放行",
+    CANCELL: "拆櫃派送",
+    CANCEL: "已完成",
   };
 
   if (!token) {

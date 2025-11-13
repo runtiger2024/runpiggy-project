@@ -23,11 +23,13 @@
       <div class="filters">
         <select id="filter-status">
           <option value="">所有狀態</option>
-          <option value="PENDING_PAYMENT">等待付款</option>
-          <option value="PROCESSING">處理中</option>
-          <option value="SHIPPED">已出貨</option>
-          <option value="COMPLETED">已完成</option>
-          <option value="CANCELLED">已取消</option>
+          <option value="PENDING_PAYMENT">待付款</option>
+          <option value="PROCESSING">已收款，安排裝櫃</option>
+          <option value="SHIPPED">已裝櫃</option>
+          <option value="COMPLETED">海關查驗</option>
+          <option value="CANCELLEDD">清關放行</option>
+          <option value="CANCELL">拆櫃派送</option>
+          <option value="CANCEL">已完成</option>
         </select>
         <input
           type="text"
@@ -100,11 +102,13 @@
               <div class="form-group">
                 <label for="modal-status" class="required">訂單狀態</label>
                 <select id="modal-status" class="form-control">
-                  <option value="PENDING_PAYMENT">等待付款</option>
-                  <option value="PROCESSING">處理中 (已收款)</option>
-                  <option value="SHIPPED">已出貨</option>
-                  <option value="COMPLETED">已完成</option>
-                  <option value="CANCELLED">已取消</option>
+                  <option value="PENDING_PAYMENT">待付款</option>
+                  <option value="PROCESSING">已收款，安排裝櫃</option>
+                  <option value="SHIPPED">已裝櫃</option>
+                  <option value="COMPLETED">海關查驗</option>
+                  <option value="CANCELLEDD">清關放行</option>
+                  <option value="CANCELL">拆櫃派送</option>
+                  <option value="CANCEL">已完成</option>
                 </select>
               </div>
               <div class="form-group">
