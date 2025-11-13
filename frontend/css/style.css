@@ -7,6 +7,15 @@
   box-sizing: border-box; /* 關鍵：確保 Padding 不會增加元素寬度 */
 }
 
+html {
+  scroll-behavior: smooth; /* 讓頁面捲動時有平滑效果 */
+}
+
+/* 針對剛剛加的 ID 設定一點頂部留白，避免滑過去時貼太緊 */
+#calculator-section {
+  scroll-margin-top: 20px;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background-color: #f4f7f9;

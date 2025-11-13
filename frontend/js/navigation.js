@@ -8,20 +8,20 @@
 // (這個函式會在 DOM 載入後立刻執行)
 document.addEventListener("DOMContentLoaded", () => {
   const navContainer = document.querySelector(".main-nav");
-  if (!navContainer) return; // 如果頁面沒有 .main-nav，就跳出
+  if (!navContainer) return;
 
-  // (1) 檢查 localStorage 是否有 token
   const token = localStorage.getItem("token");
-  const currentPage = window.location.pathname.split("/").pop(); // (例如: "index.html", "login.html")
+  const currentPage = window.location.pathname.split("/").pop();
 
   let navHTML = "";
 
+  // [修改重點] href 從 "index.html" 改為 "index.html#calculator-section"
+  // 這樣點擊後，瀏覽器就會自動捲動到該 ID 的位置
+
   if (token) {
     // --- 狀態：已登入 ---
-    // (參考 public/customer.html)
-
     navHTML = `
-      <a href="index.html" class="nav-link ${
+      <a href="index.html#calculator-section" class="nav-link ${
         currentPage === "index.html" ? "active" : ""
       }">運費試算</a>
       <a href="dashboard.html" class="nav-link ${
@@ -31,9 +31,8 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
   } else {
     // --- 狀態：未登入 (訪客) ---
-
     navHTML = `
-      <a href="index.html" class="nav-link ${
+      <a href="index.html#calculator-section" class="nav-link ${
         currentPage === "index.html" ? "active" : ""
       }">運費試算</a>
       <a href="login.html" class="nav-link ${
@@ -45,7 +44,6 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
   }
 
-  // (2) 把組合好的 HTML 放入導航列
   navContainer.innerHTML = navHTML;
 
   // (3) (僅限登入狀態) 幫新的「登出」按鈕加上事件
