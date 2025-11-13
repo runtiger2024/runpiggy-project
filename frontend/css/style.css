@@ -1711,3 +1711,24 @@ a.btn-secondary:hover {
 .site-footer__copyright-text {
   margin: 5px 0;
 }
+/* --- [新增] 隱藏式管理員連結樣式 --- */
+
+/* 分隔線 */
+.separator {
+  color: rgba(255, 255, 255, 0.1); /* 非常淡的顏色 */
+  margin: 0 5px;
+}
+
+/* 不明顯的連結 */
+.admin-stealth-link {
+  color: rgba(255, 255, 255, 0.1); /* 設定透明度 0.1，平常幾乎看不見 */
+  text-decoration: none; /* 去除底線 */
+  font-size: 12px; /* 字體稍微小一點 */
+  transition: color 0.3s ease; /* 增加顏色變化的過渡效果 */
+}
+
+/* 當滑鼠移上去時，讓它變亮顯示 */
+.admin-stealth-link:hover {
+  color: #fff; /* 變回白色 */
+  cursor: pointer; /* 顯示手指游標 */
+}
