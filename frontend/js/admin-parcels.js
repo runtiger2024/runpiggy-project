@@ -1,5 +1,5 @@
 // 這是 frontend/js/admin-parcels.js (已修復 API_BASE_URL)
-// 負責管理 admin-parcels.html 頁面
+// (最終完整版，支援照片刪除、修改與 3 張上限限制)
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 獲取元素 ---
@@ -27,7 +27,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let allParcelsData = []; // 儲存從 API 拿到的所有包裹
   const adminToken = localStorage.getItem("admin_token"); // 讀取 "admin_token"
 
-  // (新) 中文翻譯字典
+  // [新增] 用來暫存目前這個包裹的「舊照片列表」 (用於刪除/保留邏輯)
+  let currentExistingImages = [];
+
+  // 中文翻譯字典
   const packageStatusMap = {
     PENDING: "待確認",
     ARRIVED: "已入庫",
@@ -43,7 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return; // 停止執行
   }
 
-  // (新) 顯示歡迎訊息
+  // 顯示歡迎訊息
   const adminName = localStorage.getItem("admin_name");
   if (adminName) {
     adminWelcome.textContent = `你好, ${adminName}`;
@@ -84,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderParcels(parcels) {
     parcelsTableBody.innerHTML = ""; // 清空
 
-    // (新) 篩選
+    // 篩選邏輯
     const status = filterStatus.value;
     const search = searchInput.value.toLowerCase();
 
@@ -156,7 +159,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // (D) 打開包裹彈窗 (Modal)
   function openPackageModal(pkg) {
-    // 1. 填入資料
+    // 1. 填入基本資料
     document.getElementById("modal-pkg-id").value = pkg.id;
     document.getElementById("modal-user-email").textContent = pkg.user.email;
     document.getElementById("modal-user-name").textContent =
@@ -168,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-quantity").textContent = pkg.quantity;
     document.getElementById("modal-note").textContent = pkg.note || "-";
 
-    // 顯示會員上傳的圖片
+    // 2. 顯示會員上傳的圖片 (唯讀)
     const customerImagesContainer = document.getElementById(
       "modal-customer-images"
     );
@@ -181,7 +184,7 @@ document.addEventListener("DOMContentLoaded", () => {
       customerImagesContainer.innerHTML += "<p>會員未上傳圖片</p>";
     }
 
-    // 填入 "倉庫回填區"
+    // 3. 填入 "倉庫回填區" 表單
     document.getElementById("modal-status").value = pkg.status;
     document.getElementById("modal-actualWeight").value =
       pkg.actualWeight || "";
@@ -191,27 +194,74 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-actualHeight").value =
       pkg.actualHeight || "";
 
-    // 顯示倉庫已上傳的圖片
-    const warehouseImagesContainer = document.getElementById(
-      "modal-warehouse-images-preview"
-    );
-    warehouseImagesContainer.innerHTML = "<h4>倉庫已拍照片：</h4>";
-    if (pkg.warehouseImages.length > 0) {
-      pkg.warehouseImages.forEach((imgUrl) => {
-        warehouseImagesContainer.innerHTML += `<img src="${API_BASE_URL}${imgUrl}" alt="倉庫圖片" onclick="window.open('${API_BASE_URL}${imgUrl}', '_blank')">`;
-      });
-    } else {
-      warehouseImagesContainer.innerHTML += "<p>倉庫尚未上傳照片</p>";
-    }
+    // 4. [修改重點] 初始化並顯示倉庫照片 (支援刪除與上限判斷)
+    currentExistingImages = [...pkg.warehouseImages]; // 複製一份陣列，避免直接修改原資料
+    renderWarehouseImages();
 
-    // (新) 清空檔案上傳欄位
+    // 清空檔案上傳欄位
     document.getElementById("modal-warehouseImages").value = null;
 
-    // 2. 顯示彈窗
+    // 5. 顯示彈窗
     modal.style.display = "flex";
   }
 
-  // (E) 關閉彈窗
+  // --- (E) [新增] 渲染倉庫照片與刪除按鈕 ---
+  function renderWarehouseImages() {
+    const warehouseImagesContainer = document.getElementById(
+      "modal-warehouse-images-preview"
+    );
+    const fileInput = document.getElementById("modal-warehouseImages");
+
+    warehouseImagesContainer.innerHTML = "<h4>倉庫已拍照片：</h4>";
+
+    if (currentExistingImages.length > 0) {
+      currentExistingImages.forEach((imgUrl, index) => {
+        // 建立包裝容器
+        const wrapper = document.createElement("div");
+        wrapper.className = "img-wrapper"; // 需配合 CSS 設定樣式
+
+        // 圖片
+        const img = document.createElement("img");
+        img.src = `${API_BASE_URL}${imgUrl}`;
+        img.alt = "倉庫照片";
+        img.onclick = () => window.open(img.src, "_blank"); // 點擊看大圖
+
+        // 刪除按鈕 (紅色 X)
+        const deleteBtn = document.createElement("div");
+        deleteBtn.className = "btn-delete-img"; // 需配合 CSS 設定樣式
+        deleteBtn.innerHTML = "&times;";
+        deleteBtn.onclick = (e) => {
+          e.stopPropagation(); // 防止觸發圖片點擊
+          removeImage(index); // 呼叫刪除函式
+        };
+
+        wrapper.appendChild(img);
+        wrapper.appendChild(deleteBtn);
+        warehouseImagesContainer.appendChild(wrapper);
+      });
+    } else {
+      warehouseImagesContainer.innerHTML += "<p>目前無照片</p>";
+    }
+
+    // [限制] 如果總數已達 3 張，禁用上傳欄位
+    if (currentExistingImages.length >= 3) {
+      fileInput.disabled = true;
+      fileInput.title = "已達 3 張照片上限，請先刪除舊照片";
+    } else {
+      fileInput.disabled = false;
+      fileInput.title = "可選擇新照片";
+    }
+  }
+
+  // --- (F) [新增] 移除照片函式 ---
+  function removeImage(index) {
+    if (confirm("確定要移除這張照片嗎？(需按「儲存更新」才會真正生效)")) {
+      currentExistingImages.splice(index, 1); // 從陣列移除
+      renderWarehouseImages(); // 重新渲染畫面
+    }
+  }
+
+  // (G) 關閉彈窗
   closeModalBtn.addEventListener("click", () => {
     modal.style.display = "none";
   });
@@ -221,15 +271,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (F) (關鍵!) 提交 "更新" 表單
+  // (H) [修改重點] 提交 "更新" 表單 (含照片處理邏輯)
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const packageId = document.getElementById("modal-pkg-id").value;
     const submitButton = updateForm.querySelector('button[type="submit"]');
+
+    // 1. 檢查：舊圖 + 新圖 是否超過 3 張
+    const newFiles = document.getElementById("modal-warehouseImages").files;
+    if (currentExistingImages.length + newFiles.length > 3) {
+      alert(
+        `照片總數不能超過 3 張！\n目前舊圖：${currentExistingImages.length} 張\n新上傳：${newFiles.length} 張`
+      );
+      return;
+    }
+
     submitButton.disabled = true;
     submitButton.textContent = "儲存中...";
 
-    // 1. 建立 FormData (因為有檔案)
+    // 2. 建立 FormData (因為有檔案和文字資料)
     const formData = new FormData();
     formData.append("status", document.getElementById("modal-status").value);
     formData.append(
@@ -249,21 +309,23 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("modal-actualHeight").value
     );
 
-    // 2. 取得圖片檔案
-    const imageFiles = document.getElementById("modal-warehouseImages").files;
-    for (let i = 0; i < imageFiles.length; i++) {
-      formData.append("warehouseImages", imageFiles[i]);
+    // [重要] 傳送剩餘的舊照片列表 (轉成 JSON 字串)
+    formData.append("existingImages", JSON.stringify(currentExistingImages));
+
+    // 3. 傳送新照片檔案
+    for (let i = 0; i < newFiles.length; i++) {
+      formData.append("warehouseImages", newFiles[i]);
     }
 
     try {
-      // 3. 呼叫我們新的 API (PUT /api/admin/packages/:id/details)
+      // 4. 呼叫 API (PUT /api/admin/packages/:id/details)
       const response = await fetch(
         `${API_BASE_URL}/api/admin/packages/${packageId}/details`,
         {
           method: "PUT",
           headers: {
             Authorization: `Bearer ${adminToken}`,
-            // (注意：FormData "不要" 設定 Content-Type)
+            // 注意：使用 FormData 時，不要手動設定 Content-Type，瀏覽器會自動處理
           },
           body: formData,
         }
@@ -286,7 +348,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (G) 登出
+  // (I) 登出
   logoutBtn.addEventListener("click", () => {
     if (confirm("確定要登出管理後台吗？")) {
       localStorage.removeItem("admin_token");
@@ -295,8 +357,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (H) 篩選按鈕
+  // (J) 篩選按鈕
   filterBtn.addEventListener("click", () => {
+    // 重新渲染 (不需重新 fetch，使用已下載的資料)
     renderParcels(allParcelsData);
   });
 

@@ -62,21 +62,35 @@ const updatePackageStatus = async (req, res) => {
       .json({ success: false, message: "伺服器發生錯誤或找不到包裹" });
   }
 };
+// backend/controllers/adminController.js 內的 updatePackageDetails
+
 const updatePackageDetails = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, actualWeight, actualLength, actualWidth, actualHeight } =
-      req.body;
+    const {
+      status,
+      actualWeight,
+      actualLength,
+      actualWidth,
+      actualHeight,
+      existingImages, // [新增] 接收前端傳來的「要保留的舊照片」
+    } = req.body;
+
     const dataToUpdate = {};
+
+    // 1. 更新基本資料
     if (status) dataToUpdate.status = status;
     const weight = parseFloat(actualWeight);
     const length = parseFloat(actualLength);
     const width = parseFloat(actualWidth);
     const height = parseFloat(actualHeight);
+
     if (!isNaN(weight)) dataToUpdate.actualWeight = weight;
     if (!isNaN(length)) dataToUpdate.actualLength = length;
     if (!isNaN(width)) dataToUpdate.actualWidth = width;
     if (!isNaN(height)) dataToUpdate.actualHeight = height;
+
+    // 2. 自動計算材積 (CBM)
     if (
       !isNaN(length) &&
       !isNaN(width) &&
@@ -88,21 +102,44 @@ const updatePackageDetails = async (req, res) => {
       const volume = (length * width * height) / 28317; // 材積
       dataToUpdate.actualCbm = volume / 35.3; // 立方米
     }
+
+    // 3. 處理照片邏輯 (核心修改)
+    // (A) 先處理舊照片：解析前端傳來的 JSON 字串
+    let finalImageList = [];
+    if (existingImages) {
+      try {
+        finalImageList = JSON.parse(existingImages);
+        if (!Array.isArray(finalImageList)) finalImageList = [];
+      } catch (e) {
+        console.error("解析 existingImages 失敗:", e);
+        finalImageList = [];
+      }
+    } else {
+      // 如果前端沒傳 existingImages，代表可能沒有舊圖，或全刪了
+      finalImageList = [];
+    }
+
+    // (B) 再加入新上傳的照片
     if (req.files && req.files.length > 0) {
       const newImagePaths = req.files.map(
         (file) => `/uploads/${file.filename}`
       );
-      const pkg = await prisma.package.findUnique({ where: { id: id } });
-      const existingImages = JSON.parse(pkg.warehouseImages || "[]");
-      dataToUpdate.warehouseImages = JSON.stringify([
-        ...existingImages,
-        ...newImagePaths,
-      ]);
+      finalImageList = [...finalImageList, ...newImagePaths];
     }
+
+    // (C) 強制限制最多 3 張 (雙重保險)
+    if (finalImageList.length > 3) {
+      finalImageList = finalImageList.slice(0, 3);
+    }
+
+    dataToUpdate.warehouseImages = JSON.stringify(finalImageList);
+
+    // 4. 執行更新
     const updatedPackage = await prisma.package.update({
       where: { id: id },
       data: dataToUpdate,
     });
+
     res.status(200).json({
       success: true,
       message: "包裹詳細資料更新成功",
@@ -250,12 +287,10 @@ const createStaffUser = async (req, res) => {
 
     // 檢查角色是否合法 (我們不允許在這裡建立 'USER')
     if (role !== "ADMIN" && role !== "OPERATOR") {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "無效的角色 (只允許 ADMIN 或 OPERATOR)",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "無效的角色 (只允許 ADMIN 或 OPERATOR)",
+      });
     }
 
     // 加密密碼
