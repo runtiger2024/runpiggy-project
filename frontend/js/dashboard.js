@@ -1,4 +1,4 @@
-// 這是 frontend/js/dashboard.js (支援「一鍵複製匯款資訊」的修改版)
+// 這是 frontend/js/dashboard.js (支援「集運彈窗套用低消」的修改版)
 
 // --- 定義費率 (前端顯示用) ---
 const RATES = {
@@ -8,6 +8,7 @@ const RATES = {
   special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
 };
 const VOLUME_DIVISOR = 28317;
+const MINIMUM_CHARGE = 2000; // [*** 新增：低消常數 ***]
 
 // --- [全域函式] 開啟圖片彈窗 ---
 window.openImages = function (images) {
@@ -196,11 +197,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnCreateShipment = document.getElementById("btn-create-shipment");
   const shipmentPackageList = document.getElementById("shipment-package-list");
   const shipmentTotalCost = document.getElementById("shipment-total-cost");
-  const viewImagesModal = document.getElementById("view-images-modal");
-  const feeDetailsModal = document.getElementById("fee-details-modal");
   const bankInfoModal = document.getElementById("bank-info-modal");
   const uploadProofModal = document.getElementById("upload-proof-modal");
   const uploadProofForm = document.getElementById("upload-proof-form");
+
+  // [*** 新增：抓取低消提示欄位 ***]
+  const shipmentFeeNotice = document.getElementById("shipment-fee-notice");
 
   // --- (狀態變數) ---
   let currentUser = null;
@@ -422,7 +424,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (F) 建立集運單 (顯示公式)
+  // (F) 建立集運單 (顯示公式) [*** 修改重點 ***]
   btnCreateShipment.addEventListener("click", () => {
     const checked = document.querySelectorAll(".package-checkbox:checked");
     if (checked.length === 0) {
@@ -432,7 +434,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let html = "";
     let ids = [];
-    let totalFee = 0;
+    let totalFee = 0; // 原始總金額
 
     checked.forEach((box) => {
       const p = allPackagesData.find((pkg) => pkg.id === box.dataset.id);
@@ -441,7 +443,6 @@ document.addEventListener("DOMContentLoaded", () => {
         totalFee += packageFee;
         ids.push(p.id);
 
-        // --- 開始產生詳細 HTML ---
         html += `<div class="shipment-pkg-detail-item">`;
         html += `<h4>${p.productName} (${p.trackingNumber})</h4>`;
 
@@ -500,9 +501,28 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
+    // [*** 新增：在前端彈窗套用低消 ***]
+    let finalDisplayFee = totalFee;
+    let noticeHtml = `(實際費用以管理員審核後為準)`;
+
+    if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
+      finalDisplayFee = MINIMUM_CHARGE;
+      noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(原始運費 $${totalFee.toLocaleString()}，已套用集運低消 $${MINIMUM_CHARGE.toLocaleString()})</span>`;
+    }
+
     shipmentPackageList.innerHTML = html;
+
+    // 顯示最終金額
     if (shipmentTotalCost)
-      shipmentTotalCost.textContent = totalFee.toLocaleString();
+      shipmentTotalCost.textContent = finalDisplayFee.toLocaleString();
+
+    // 顯示提示訊息
+    if (shipmentFeeNotice) {
+      shipmentFeeNotice.innerHTML = noticeHtml;
+      shipmentFeeNotice.style.color =
+        totalFee > 0 && totalFee < MINIMUM_CHARGE ? "#e74c3c" : "#888";
+    }
+
     createShipmentForm.dataset.ids = JSON.stringify(ids);
 
     document.getElementById("ship-name").value = currentUser.name || "";
@@ -660,31 +680,23 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   });
 
-  // [*** 新增：綁定一鍵複製按鈕 ***]
+  // (L) 綁定一鍵複製
   const btnCopyBankInfo = document.getElementById("btn-copy-bank-info");
   if (btnCopyBankInfo) {
     btnCopyBankInfo.addEventListener("click", () => {
-      // 1. Get text from the spans
       const bankName = document.getElementById("bank-name").textContent;
       const bankAccount = document.getElementById("bank-account").textContent;
       const bankHolder = document.getElementById("bank-holder").textContent;
-
-      // 2. Construct the string
       const copyText = `銀行：${bankName}\n帳號：${bankAccount}\n戶名：${bankHolder}`;
 
-      // 3. Copy to clipboard
       navigator.clipboard
         .writeText(copyText)
         .then(() => {
-          // 4. Success feedback
           const originalText = btnCopyBankInfo.textContent;
           const originalColor = btnCopyBankInfo.style.backgroundColor;
-
           btnCopyBankInfo.textContent = "✓ 已複製成功！";
-          btnCopyBankInfo.style.backgroundColor = "#27ae60"; // Green color
+          btnCopyBankInfo.style.backgroundColor = "#27ae60";
           btnCopyBankInfo.disabled = true;
-
-          // 5. Reset button
           setTimeout(() => {
             btnCopyBankInfo.textContent = originalText;
             btnCopyBankInfo.style.backgroundColor = originalColor;
@@ -697,14 +709,13 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
   }
-  // [*** 新增結束 ***]
 
   // --- (初始載入) ---
   loadUserProfile();
   loadMyPackages();
   loadMyShipments();
 
-  // (L) 檢查草稿
+  // (M) 檢查草稿
   const draft = localStorage.getItem("forecast_draft");
   if (draft) {
     try {

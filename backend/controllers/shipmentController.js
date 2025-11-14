@@ -1,6 +1,9 @@
-// 這是 backend/controllers/shipmentController.js (支援分箱的修改版)
+// 這是 backend/controllers/shipmentController.js (支援「集運低消」的修改版)
 
 const prisma = require("../config/db.js");
+
+// [*** 新增：定義低消常數 ***]
+const MINIMUM_CHARGE = 2000;
 
 /**
  * @description 建立新的集運單 (合併包裹)
@@ -17,13 +20,12 @@ const createShipment = async (req, res) => {
       phone,
       idNumber,
       taxId,
-      note, // [新增] 接收備註
-      // additionalServices (前端已移除，這裡可忽略或保留接收)
+      note,
     } = req.body;
 
     const userId = req.user.id;
 
-    // 驗證
+    // 2. 驗證 (保持不變)
     if (!packageIds || !Array.isArray(packageIds) || packageIds.length === 0) {
       return res
         .status(400)
@@ -36,7 +38,6 @@ const createShipment = async (req, res) => {
       });
     }
 
-    // 2. 驗證包裹並撈取資料 (為了計算運費)
     const packagesToShip = await prisma.package.findMany({
       where: {
         id: { in: packageIds },
@@ -54,11 +55,17 @@ const createShipment = async (req, res) => {
       });
     }
 
-    // 3. [*** 修改重點 ***] 自動計算總運費
-    // 累加每個包裹的 totalCalculatedFee，如果為 null 則視為 0 (代表未報價)
+    // 3. [*** 修改重點：計算總運費並套用低消 ***]
     const calculatedTotalCost = packagesToShip.reduce((sum, pkg) => {
-      return sum + (pkg.totalCalculatedFee || 0); // <-- 改用這個欄位
+      return sum + (pkg.totalCalculatedFee || 0);
     }, 0);
+
+    // [新增] 套用低消邏輯
+    let finalShipmentCost = calculatedTotalCost;
+    if (finalShipmentCost > 0 && finalShipmentCost < MINIMUM_CHARGE) {
+      finalShipmentCost = MINIMUM_CHARGE;
+    }
+    // [*** 修改結束 ***]
 
     // 4. 使用資料庫「交易」建立集運單
     const newShipment = await prisma.$transaction(async (tx) => {
@@ -70,17 +77,17 @@ const createShipment = async (req, res) => {
           shippingAddress: shippingAddress,
           idNumber: idNumber,
           taxId: taxId || null,
-          note: note || null, // [新增] 存入備註
+          note: note || null,
 
-          // [關鍵] 直接寫入計算好的總金額
-          totalCost: calculatedTotalCost,
+          // [修改] 寫入套用低消後的總金額
+          totalCost: finalShipmentCost,
 
           status: "PENDING_PAYMENT",
           userId: userId,
         },
       });
 
-      // B. 更新所有被選中包裹的狀態
+      // B. 更新所有被選中包裹的狀態 (不變)
       await tx.package.updateMany({
         where: {
           id: { in: packageIds },
@@ -122,16 +129,8 @@ const getMyShipments = async (req, res) => {
             id: true,
             productName: true,
             trackingNumber: true,
-
-            // [修改] 舊的欄位已不存在，改撈新的
-            // actualWeight: true,
-            // actualLength: true,
-            // actualWidth: true,
-            // actualHeight: true,
-            // shippingFee: true,
             arrivedBoxesJson: true,
             totalCalculatedFee: true,
-
             warehouseImages: true,
           },
         },
@@ -145,7 +144,6 @@ const getMyShipments = async (req, res) => {
       packages: ship.packages.map((pkg) => ({
         ...pkg,
         warehouseImages: JSON.parse(pkg.warehouseImages || "[]"),
-        // [新增] 也解析分箱
         arrivedBoxes: JSON.parse(pkg.arrivedBoxesJson || "[]"),
       })),
     }));
@@ -171,14 +169,12 @@ const uploadPaymentProof = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
 
-    // 1. 檢查是否有檔案
     if (!req.file) {
       return res
         .status(400)
         .json({ success: false, message: "請選擇一張圖片上傳" });
     }
 
-    // 2. 確認該集運單屬於該用戶
     const shipment = await prisma.shipment.findFirst({
       where: { id: id, userId: userId },
     });
@@ -187,15 +183,12 @@ const uploadPaymentProof = async (req, res) => {
       return res.status(404).json({ success: false, message: "找不到集運單" });
     }
 
-    // 3. 更新資料庫
     const imagePath = `/uploads/${req.file.filename}`;
 
     const updatedShipment = await prisma.shipment.update({
       where: { id: id },
       data: {
         paymentProof: imagePath,
-        // 可選：上傳憑證後，自動將狀態改為 "PROCESSING" (處理中/已付款待確認)
-        // status: "PROCESSING"
       },
     });
 
@@ -219,5 +212,5 @@ module.exports = {
   createShipment,
   getMyShipments,
   getShipmentById,
-  uploadPaymentProof, // [新增]
+  uploadPaymentProof,
 };
