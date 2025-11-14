@@ -78,10 +78,10 @@
                 <th>狀態</th>
                 <th>物流單號</th>
                 <th>商品名稱</th>
-                <th>實際尺寸 (cm)</th>
-                <th>實重 (kg)</th>
-                <th>單件運費</th>
-                <th>倉庫照片</th>
+                <th>件數</th>
+                <th>總實重 (kg)</th>
+                <th>總運費</th>
+                <th>包裹詳情</th>
                 <th>操作</th>
               </tr>
             </thead>
@@ -349,6 +349,51 @@
       </div>
     </div>
 
+    <div id="package-details-modal" class="modal-overlay" style="display: none">
+      <div class="modal-content modal-lg">
+        <button class="modal-close">&times;</button>
+        <h2>包裹詳情</h2>
+
+        <div class="form-section" style="padding: 15px; background: #fdfdfd">
+          <h4 style="margin-top: 0">分箱明細</h4>
+          <div
+            class="table-container"
+            style="max-height: 250px; overflow-y: auto"
+          >
+            <table class="detail-sub-package-table">
+              <thead>
+                <tr>
+                  <th>分箱名稱</th>
+                  <th>尺寸 (cm)</th>
+                  <th>重量 (kg)</th>
+                  <th>單箱運費</th>
+                </tr>
+              </thead>
+              <tbody id="details-boxes-list"></tbody>
+            </table>
+          </div>
+          <div class="detail-summary">
+            <strong>總計：</strong>
+            <span id="details-total-boxes">0</span> 箱,
+            <span id="details-total-weight">0.0</span> kg, 總運費
+            <span id="details-total-fee">NT$ 0</span>
+          </div>
+        </div>
+
+        <div class="form-section" style="padding: 15px; background: #fdfdfd">
+          <h4 style="margin-top: 0">倉庫照片</h4>
+          <div id="details-images-gallery" class="image-gallery"></div>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-primary modal-close-btn"
+          style="width: 100%"
+        >
+          關閉
+        </button>
+      </div>
+    </div>
     <script src="js/apiConfig.js"></script>
     <script src="js/navigation.js"></script>
     <script src="js/dashboard.js"></script>

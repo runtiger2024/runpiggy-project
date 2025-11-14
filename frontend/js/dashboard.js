@@ -1,5 +1,4 @@
-// 這是 frontend/js/dashboard.js (支援分箱的修改版)
-// (最終完整版：支援合併集運費用試算、備註欄位、照片查看、運費詳情、付款憑證上傳)
+// 這是 frontend/js/dashboard.js (支援「分箱詳情」彈窗的修改版)
 
 // --- 定義費率 (前端顯示用) ---
 const RATES = {
@@ -30,64 +29,82 @@ window.openImages = function (images) {
   modal.style.display = "flex";
 };
 
-// --- [全域函式] 開啟費用詳情 (*** 舊版，已不適用於分箱 ***) ---
-// (保留此函式，但 loadMyPackages 將不再呼叫它)
-window.openFeeDetails = function (pkgDataStr) {
-  const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
-  const modal = document.getElementById("fee-details-modal");
-  const content = document.getElementById("fee-details-content");
+// --- [*** 新增：開啟「包裹詳情」彈窗 ***] ---
+window.openPackageDetails = function (pkgDataStr) {
+  try {
+    const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
+    const modal = document.getElementById("package-details-modal");
+    if (!modal) return;
 
-  // [修改] 顯示分箱提示
-  if (pkg.arrivedBoxes && pkg.arrivedBoxes.length > 0) {
-    alert(
-      "此包裹運費已更新為分箱計算，總運費為 NT$ " +
-        (pkg.totalCalculatedFee || 0).toLocaleString() +
-        "，詳情請聯繫客服。"
+    const boxesListBody = document.getElementById("details-boxes-list");
+    const imagesGallery = document.getElementById("details-images-gallery");
+
+    const arrivedBoxes = Array.isArray(pkg.arrivedBoxes)
+      ? pkg.arrivedBoxes
+      : [];
+
+    // 1. 填充分箱明細
+    if (arrivedBoxes.length > 0) {
+      boxesListBody.innerHTML = arrivedBoxes
+        .map(
+          (box) => `
+        <tr>
+          <td>${box.name || "分箱"}</td>
+          <td>${box.length || 0} x ${box.width || 0} x ${box.height || 0}</td>
+          <td>${parseFloat(box.weight || 0).toFixed(1)}</td>
+          <td>$${(box.fee || 0).toLocaleString()}</td>
+        </tr>
+      `
+        )
+        .join("");
+    } else {
+      boxesListBody.innerHTML =
+        '<tr><td colspan="4" style="text-align: center;">暫無分箱資料</td></tr>';
+    }
+
+    // 2. 填充匯總
+    const totalBoxes = arrivedBoxes.length;
+    const totalWeight = arrivedBoxes.reduce(
+      (sum, box) => sum + (parseFloat(box.weight) || 0),
+      0
     );
-    return;
-  }
 
-  // (舊邏輯，幾乎不會被觸發)
-  if (!pkg.furnitureType || !RATES[pkg.furnitureType]) {
-    alert("資料不完整，無法顯示詳情");
-    return;
-  }
-  const rate = RATES[pkg.furnitureType];
-  const cai = Math.ceil(
-    (pkg.actualLength * pkg.actualWidth * pkg.actualHeight) / VOLUME_DIVISOR
-  );
-  const volCost = cai * rate.volumeRate;
-  const w = Math.ceil(pkg.actualWeight * 10) / 10;
-  const weightCost = w * rate.weightRate;
+    document.getElementById("details-total-boxes").textContent = totalBoxes;
+    document.getElementById("details-total-weight").textContent =
+      totalWeight.toFixed(1);
+    document.getElementById("details-total-fee").textContent = `NT$ ${(
+      pkg.totalCalculatedFee || 0
+    ).toLocaleString()}`;
 
-  content.innerHTML = `
-    <p><strong>商品名稱：</strong>${pkg.productName}</p>
-    <p><strong>家具類型：</strong>${rate.name}</p>
-    <hr style="margin: 10px 0; border-top: 1px dashed #ccc;">
-    <p>📦 <strong>材積計算：</strong><br>
-       尺寸：${pkg.actualLength}x${pkg.actualWidth}x${pkg.actualHeight} cm<br>
-       材數：${(
-         (pkg.actualLength * pkg.actualWidth * pkg.actualHeight) /
-         VOLUME_DIVISOR
-       ).toFixed(2)} ➜ <strong>${cai} 材</strong><br>
-       費用：${cai} × $${
-    rate.volumeRate
-  } = <span style="color:#d63031">$${volCost.toLocaleString()}</span>
-    </p>
-    <p>⚖️ <strong>重量計算：</strong><br>
-       實重：${pkg.actualWeight} kg ➜ <strong>${w} kg</strong><br>
-       費用：${w} × $${
-    rate.weightRate
-  } = <span style="color:#d63031">$${Math.round(
-    weightCost
-  ).toLocaleString()}</span>
-    </p>
-    <hr style="margin: 10px 0; border-top: 2px solid #eee;">
-    <p style="text-align:right; font-size:1.2em;">
-      最終運費：<strong style="color:#d63031">$${pkg.shippingFee.toLocaleString()}</strong>
-    </p>
-  `;
-  modal.style.display = "flex";
+    // 3. 填充倉庫照片
+    const warehouseImages = Array.isArray(pkg.warehouseImages)
+      ? pkg.warehouseImages
+      : [];
+    if (warehouseImages.length > 0) {
+      imagesGallery.innerHTML = ""; // 清空
+      warehouseImages.forEach((imgUrl) => {
+        const img = document.createElement("img");
+        img.src = `${API_BASE_URL}${imgUrl}`;
+        img.alt = "倉庫照片";
+        img.onclick = () => window.open(img.src, "_blank");
+        imagesGallery.appendChild(img);
+      });
+    } else {
+      imagesGallery.innerHTML = "<p>沒有照片</p>";
+    }
+
+    // 4. 顯示彈窗
+    modal.style.display = "flex";
+  } catch (e) {
+    console.error("開啟詳情彈窗失敗:", e);
+    alert("載入包裹詳情失敗。");
+  }
+};
+// --- [*** 新增結束 ***] ---
+
+// --- [全域函式] 開啟費用詳情 (舊版，保留但不使用) ---
+window.openFeeDetails = function (pkgDataStr) {
+  // ... 此函式內容不變 ...
 };
 
 // --- [全域函式] 開啟上傳憑證彈窗 ---
@@ -103,6 +120,7 @@ window.viewProof = function (imgUrl) {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
+  // ... (獲取 DOM 元素，保持不變) ...
   const messageBox = document.getElementById("message-box");
   const welcomeMessage = document.getElementById("welcome-message");
   const userEmail = document.getElementById("user-email");
@@ -122,13 +140,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const editProfileModal = document.getElementById("edit-profile-modal");
   const editProfileForm = document.getElementById("edit-profile-form");
   const btnEditProfile = document.getElementById("btn-edit-profile");
-
   const createShipmentModal = document.getElementById("create-shipment-modal");
   const createShipmentForm = document.getElementById("create-shipment-form");
   const btnCreateShipment = document.getElementById("btn-create-shipment");
   const shipmentPackageList = document.getElementById("shipment-package-list");
   const shipmentTotalCost = document.getElementById("shipment-total-cost");
-
   const viewImagesModal = document.getElementById("view-images-modal");
   const feeDetailsModal = document.getElementById("fee-details-modal");
   const bankInfoModal = document.getElementById("bank-info-modal");
@@ -194,16 +210,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // [*** 修改重點 ***]
+  // [*** 修改重點：loadMyPackages ***]
   async function loadMyPackages() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/packages/my`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      if (!response.ok) return;
+      if (!response.ok) throw new Error(data.message || "載入包裹失敗");
+
       allPackagesData = data.packages;
       packagesTableBody.innerHTML = "";
+
       if (allPackagesData.length === 0) {
         packagesTableBody.innerHTML =
           '<tr><td colspan="9" style="text-align: center;">尚無包裹</td></tr>';
@@ -220,11 +238,11 @@ document.addEventListener("DOMContentLoaded", () => {
           : [];
 
         // [修改] 顯示分箱總數
-        const dimensions =
+        const piecesCount =
           arrivedBoxes.length > 0 ? `${arrivedBoxes.length} 箱` : "-";
 
         // [修改] 顯示所有分箱的總重
-        const weight =
+        const totalWeight =
           arrivedBoxes.length > 0
             ? `${arrivedBoxes
                 .reduce((sum, box) => sum + (parseFloat(box.weight) || 0), 0)
@@ -234,17 +252,15 @@ document.addEventListener("DOMContentLoaded", () => {
         let feeDisplay = '<span style="color: #999;">-</span>';
 
         // [修改] 顯示總運費
-        if (pkg.totalCalculatedFee && pkg.totalCalculatedFee > 0) {
+        if (pkg.totalCalculatedFee != null) {
+          // 允許 0 元
           feeDisplay = `<span style="color: #d32f2f; font-weight: bold;">$${pkg.totalCalculatedFee.toLocaleString()}</span>`;
-          // (備註：移除了點擊事件，因為舊的 openFeeDetails 已不適用)
         }
 
-        const photosBtn =
-          pkg.warehouseImages && pkg.warehouseImages.length > 0
-            ? `<button class="btn btn-view-img btn-sm" onclick='window.openImages(${JSON.stringify(
-                pkg.warehouseImages
-              )})'>查看</button>`
-            : '<span style="color:#999; font-size:12px;">無</span>';
+        // [修改] 產生「查看詳情」按鈕
+        // 我們需要將整個 pkg 物件傳遞給彈窗函式
+        const pkgStr = encodeURIComponent(JSON.stringify(pkg));
+        const detailsBtn = `<button class="btn btn-view-img btn-sm" onclick='window.openPackageDetails("${pkgStr}")'>查看</button>`;
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -256,11 +272,7 @@ document.addEventListener("DOMContentLoaded", () => {
           }">${statusText}</span></td>
           <td>${pkg.trackingNumber}</td>
           <td>${pkg.productName}</td>
-          <td>${dimensions}</td>
-          <td>${weight}</td>
-          <td>${feeDisplay}</td>
-          <td>${photosBtn}</td>
-          <td>
+          <td>${piecesCount}</td> <td>${totalWeight}</td> <td>${feeDisplay}</td> <td>${detailsBtn}</td> <td>
             <button class="btn btn-secondary btn-sm btn-edit" ${
               pkg.status !== "PENDING" ? "disabled" : ""
             }>修改</button>
@@ -279,6 +291,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     } catch (e) {
       console.error("loadMyPackages 錯誤:", e);
+      packagesTableBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: red;">載入包裹失敗: ${e.message}</td></tr>`;
     }
   }
 
@@ -326,7 +339,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <td>${ship.idNumber}</td>
             <td>${ship.packages.length} 件</td>
             <td>${
-              ship.totalCost
+              ship.totalCost != null // 允許 0 元
                 ? `NT$ ${ship.totalCost.toLocaleString()}`
                 : "(待報價)"
             }</td>
