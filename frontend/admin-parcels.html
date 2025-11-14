@@ -74,7 +74,7 @@
                 <th>狀態</th>
                 <th>實重(kg)</th>
                 <th>尺寸(cm)</th>
-                <th>倉庫照片</th>
+                <th>總運費</th>
               </tr>
             </thead>
             <tbody id="parcelsTableBody">
@@ -129,100 +129,68 @@
           <div class="form-section">
             <h4>倉庫回填 (入庫作業)</h4>
 
-            <div class="form-grid-2">
-              <div class="form-group">
-                <label for="modal-status" class="required">包裹狀態</label>
-                <select id="modal-status" class="form-control">
-                  <option value="PENDING">待確認 (PENDING)</option>
-                  <option value="ARRIVED">已入庫 (ARRIVED)</option>
-                  <option value="IN_SHIPMENT">集運中 (IN_SHIPMENT)</option>
-                  <option value="COMPLETED">已完成 (COMPLETED)</option>
-                  <option value="CANCELLED">已取消 (CANCELLED)</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="modal-furnitureType">家具類型 (計算運費必填)</label>
-                <select id="modal-furnitureType" class="form-control">
-                  <option value="">請選擇類型</option>
-                  <option value="general">一般家具</option>
-                  <option value="special_a">特殊家具A (大理石/馬桶...)</option>
-                  <option value="special_b">特殊家具B (玻璃/建材...)</option>
-                  <option value="special_c">特殊家具C (電器...)</option>
-                </select>
-              </div>
+            <div class="form-group">
+              <label for="modal-status" class="required">包裹狀態</label>
+              <select id="modal-status" class="form-control">
+                <option value="PENDING">待確認 (PENDING)</option>
+                <option value="ARRIVED">已入庫 (ARRIVED)</option>
+                <option value="IN_SHIPMENT">集運中 (IN_SHIPMENT)</option>
+                <option value="COMPLETED">已完成 (COMPLETED)</option>
+                <option value="CANCELLED">已取消 (CANCELLED)</option>
+              </select>
             </div>
 
+            <hr />
+
+            <div id="sub-package-list-container">
+              <label style="font-weight: bold; font-size: 1.1em; color: #333"
+                >分箱明細 (請填寫所有抵達的包裹)</label
+              >
+              <div id="sub-package-list" style="margin-top: 10px"></div>
+              <button
+                typeD="button"
+                id="btn-add-sub-package"
+                class="btn btn-secondary"
+                style="width: auto; margin-top: 10px; background-color: #2ecc71"
+              >
+                + 新增一個分箱
+              </button>
+            </div>
             <div
               class="form-group"
-              style="background: #e8f5e9; padding: 10px; border-radius: 5px"
+              style="
+                background: #e8f5e9;
+                padding: 15px;
+                border-radius: 5px;
+                margin-top: 20px;
+              "
             >
-              <label style="color: #2e7d32; font-weight: bold"
-                >系統計算單件運費 (NT$)</label
+              <label style="color: #2e7d32; font-weight: bold; font-size: 1.2em"
+                >此預報單總運費 (NT$)</label
               >
               <input
                 type="text"
                 id="modal-shippingFee"
                 class="form-control"
-                style="font-weight: bold; color: #d32f2f"
+                style="
+                  font-weight: bold;
+                  color: #d32f2f;
+                  font-size: 1.5em;
+                  text-align: right;
+                "
                 readonly
-                placeholder="填寫尺寸/重量與類型後，儲存即會自動計算"
+                placeholder="請填寫分箱明細"
               />
             </div>
+
             <div
-              id="calc-details"
+              class="form-group"
               style="
-                margin-top: 5px;
-                padding: 10px;
-                background-color: #fff3cd;
-                border: 1px solid #ffeeba;
-                border-radius: 5px;
-                font-size: 13px;
-                color: #856404;
-                display: none;
-                line-height: 1.6;
+                border-top: 1px dashed #ccc;
+                padding-top: 15px;
+                margin-top: 20px;
               "
-            ></div>
-
-            <div class="form-grid-4">
-              <div class="form-group">
-                <label>實際重量 (kg)</label>
-                <input
-                  type="number"
-                  id="modal-actualWeight"
-                  class="form-control"
-                  step="0.1"
-                />
-              </div>
-              <div class="form-group">
-                <label>實際長 (cm)</label>
-                <input
-                  type="number"
-                  id="modal-actualLength"
-                  class="form-control"
-                  step="0.1"
-                />
-              </div>
-              <div class="form-group">
-                <label>實際寬 (cm)</label>
-                <input
-                  type="number"
-                  id="modal-actualWidth"
-                  class="form-control"
-                  step="0.1"
-                />
-              </div>
-              <div class="form-group">
-                <label>實際高 (cm)</label>
-                <input
-                  type="number"
-                  id="modal-actualHeight"
-                  class="form-control"
-                  step="0.1"
-                />
-              </div>
-            </div>
-
-            <div class="form-group">
+            >
               <label>上傳倉庫照片 (可多選)</label>
               <input
                 type="file"
@@ -237,7 +205,6 @@
               class="parcel-images"
             ></div>
           </div>
-
           <button type="submit" class="btn btn-primary">儲存更新</button>
         </form>
       </div>

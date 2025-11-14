@@ -1,5 +1,4 @@
-// 這是 frontend/js/admin-parcels.js (已修復 API_BASE_URL)
-// (最終完整版：包含運費自動試算公式、照片刪除/上傳管理)
+// 這是 frontend/js/admin-parcels.js (支援「分箱」的完整重構版)
 
 // --- 1. 定義費率常數 (需與後端保持一致) ---
 const RATES = {
@@ -18,27 +17,29 @@ document.addEventListener("DOMContentLoaded", () => {
   const searchInput = document.getElementById("search-input");
   const filterBtn = document.getElementById("filter-btn");
   const parcelsTableBody = document.getElementById("parcelsTableBody");
+
+  // 統計
   const statsTotal = document.getElementById("stats-total");
   const statsPending = document.getElementById("stats-pending");
   const statsArrived = document.getElementById("stats-arrived");
   const statsCompleted = document.getElementById("stats-completed");
+
+  // 彈窗
   const modal = document.getElementById("parcel-detail-modal");
   const closeModalBtn = modal.querySelector(".modal-close-btn");
   const updateForm = document.getElementById("update-package-form");
 
-  // 計算相關輸入框元素
-  const elType = document.getElementById("modal-furnitureType");
-  const elWeight = document.getElementById("modal-actualWeight");
-  const elL = document.getElementById("modal-actualLength");
-  const elW = document.getElementById("modal-actualWidth");
-  const elH = document.getElementById("modal-actualHeight");
-  const elFeeDisplay = document.getElementById("modal-shippingFee");
-  const elDetails = document.getElementById("calc-details"); // 顯示公式的區域
+  // [新增] 分箱相關元素
+  const subPackageListContainer = document.getElementById("sub-package-list");
+  const btnAddSubPackage = document.getElementById("btn-add-sub-package");
+  const elFeeDisplayTotal = document.getElementById("modal-shippingFee"); // 總運費
 
   // --- 3. 狀態變數 ---
   let allParcelsData = [];
   const adminToken = localStorage.getItem("admin_token");
   let currentExistingImages = []; // 暫存舊照片列表 (用於刪除邏輯)
+  let currentSubPackages = []; // [新增] 暫存分箱資料
+  let subPackageCounter = 0; // [新增]
 
   const packageStatusMap = {
     PENDING: "待確認",
@@ -54,7 +55,6 @@ document.addEventListener("DOMContentLoaded", () => {
     window.location.href = "admin-login.html";
     return;
   }
-
   const adminName = localStorage.getItem("admin_name");
   if (adminName) {
     adminWelcome.textContent = `你好, ${adminName}`;
@@ -70,7 +70,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await fetch(`${API_BASE_URL}/api/admin/packages/all`, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
-
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
           alert("登入已過期，請重新登入");
@@ -78,7 +77,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         throw new Error("載入包裹失敗");
       }
-
       const data = await response.json();
       allParcelsData = data.packages || [];
       renderParcels(allParcelsData);
@@ -89,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (B) 渲染包裹列表
+  // (B) 渲染包裹列表 (*** 修改 ***)
   function renderParcels(parcels) {
     parcelsTableBody.innerHTML = "";
     const status = filterStatus.value;
@@ -113,10 +111,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
     filteredParcels.forEach((pkg) => {
       const statusText = packageStatusMap[pkg.status] || pkg.status;
-      const dimensions = pkg.actualLength
-        ? `${pkg.actualLength}x${pkg.actualWidth}x${pkg.actualHeight}`
+
+      // [修改] 解析分箱 JSON (注意：後端傳來的已是 JSON 物件)
+      const arrivedBoxes = Array.isArray(pkg.arrivedBoxesJson)
+        ? pkg.arrivedBoxesJson
+        : [];
+
+      // [修改] 顯示分箱總數和總運費
+      const dimensions =
+        arrivedBoxes.length > 0 ? `${arrivedBoxes.length} 箱` : "-";
+      const weight =
+        arrivedBoxes.length > 0
+          ? `${arrivedBoxes
+              .reduce((sum, box) => sum + (parseFloat(box.weight) || 0), 0)
+              .toFixed(1)} kg (總)`
+          : "-";
+      const totalFee = pkg.totalCalculatedFee
+        ? `NT$ ${pkg.totalCalculatedFee.toLocaleString()}`
         : "-";
-      const weight = pkg.actualWeight ? `${pkg.actualWeight}` : "-";
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -130,7 +142,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }">${statusText}</span></td>
         <td>${weight}</td>
         <td>${dimensions}</td>
-        <td>${pkg.warehouseImages.length} 張</td>
+        <td><span style="color: #d32f2f; font-weight: bold;">${totalFee}</span></td>
       `;
       tr.querySelector(".btn-view-details").addEventListener("click", () => {
         openPackageModal(pkg);
@@ -139,6 +151,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // (C) 更新統計
   function updateStats(parcels) {
     statsTotal.textContent = parcels.length;
     statsPending.textContent = parcels.filter(
@@ -152,77 +165,195 @@ document.addEventListener("DOMContentLoaded", () => {
     ).length;
   }
 
-  // (C) [核心] 即時運費試算邏輯
+  // (D) [新增] 渲染「分箱」列表的 UI
+  function renderSubPackageUI() {
+    if (!subPackageListContainer) return;
+    subPackageListContainer.innerHTML = ""; // 清空
+
+    currentSubPackages.forEach((box) => {
+      const boxId = box.id; // 取得這個暫存分箱的唯一 ID
+      const div = document.createElement("div");
+      div.className = "sub-package-item";
+      div.setAttribute("data-box-id", boxId);
+
+      div.innerHTML = `
+        <button type="button" class="btn-remove-sub-pkg" data-id="${boxId}">&times;</button>
+        <div class="form-group">
+          <label for="box-name-${boxId}">分箱名稱</label>
+          <input type="text" id="box-name-${boxId}" class="sub-pkg-input" data-field="name" value="${
+        box.name || ""
+      }" placeholder="例：分箱1 (桌腳)">
+        </div>
+        <div class="form-grid-responsive">
+          <div class="form-group">
+            <label>重量(kg)</label>
+            <input type="number" id="box-weight-${boxId}" class="sub-pkg-input sub-pkg-calc" data-field="weight" value="${
+        box.weight || ""
+      }" step="0.1" placeholder="必填">
+          </div>
+          <div class="form-group">
+            <label>長(cm)</label>
+            <input type="number" id="box-length-${boxId}" class="sub-pkg-input sub-pkg-calc" data-field="length" value="${
+        box.length || ""
+      }" step="0.1" placeholder="必填">
+          </div>
+          <div class="form-group">
+            <label>寬(cm)</label>
+            <input type="number" id="box-width-${boxId}" class="sub-pkg-input sub-pkg-calc" data-field="width" value="${
+        box.width || ""
+      }" step="0.1" placeholder="必填">
+          </div>
+          <div class="form-group">
+            <label>高(cm)</label>
+            <input type="number" id="box-height-${boxId}" class="sub-pkg-input sub-pkg-calc" data-field="height" value="${
+        box.height || ""
+      }" step="0.1" placeholder="必填">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>家具類型</label>
+          <select id="box-type-${boxId}" class="sub-pkg-input sub-pkg-calc" data-field="type">
+            <option value="">請選擇類型</option>
+            <option value="general" ${
+              box.type === "general" ? "selected" : ""
+            }>一般家具</option>
+            <option value="special_a" ${
+              box.type === "special_a" ? "selected" : ""
+            }>特殊家具A (大理石/馬桶...)</option>
+            <option value="special_b" ${
+              box.type === "special_b" ? "selected" : ""
+            }>特殊家具B (玻璃/建材...)</option>
+            <option value="special_c" ${
+              box.type === "special_c" ? "selected" : ""
+            }>特殊家具C (電器...)</option>
+          </select>
+        </div>
+        <div class="sub-pkg-fee-display" id="box-fee-display-${boxId}">
+          單箱運費: NT$ 0
+        </div>
+      `;
+      subPackageListContainer.appendChild(div);
+    });
+
+    // 綁定事件
+    bindSubPackageEvents();
+    // 立即重算一次
+    updateLiveCalculation();
+  }
+
+  // (E) [新增] 綁定分箱上的事件 (輸入、刪除)
+  function bindSubPackageEvents() {
+    // 刪除按鈕
+    document.querySelectorAll(".btn-remove-sub-pkg").forEach((btn) => {
+      btn.onclick = (e) => {
+        const boxId = e.target.dataset.id;
+        if (confirm("確定要刪除這個分箱嗎？")) {
+          // 用字串比較 ID，因為 ID 可能是 temp_1 或 db_1
+          currentSubPackages = currentSubPackages.filter(
+            (b) => b.id.toString() !== boxId.toString()
+          );
+          renderSubPackageUI();
+        }
+      };
+    });
+
+    // 即時輸入
+    document.querySelectorAll(".sub-pkg-input").forEach((input) => {
+      const eventType = input.tagName === "SELECT" ? "change" : "input";
+      input.addEventListener(eventType, (e) => {
+        const boxId = e.target.closest(".sub-package-item").dataset.boxId;
+        const field = e.target.dataset.field;
+        const value = e.target.value;
+
+        // 更新暫存陣列中的資料
+        const box = currentSubPackages.find(
+          (b) => b.id.toString() === boxId.toString()
+        );
+        if (box) {
+          box[field] = value;
+        }
+
+        // 如果是影響計算的欄位
+        if (e.target.classList.contains("sub-pkg-calc")) {
+          updateLiveCalculation();
+        }
+      });
+    });
+  }
+
+  // (F) [重構] 即時運費試算邏輯
   function updateLiveCalculation() {
-    // 如果頁面上沒有相關元素，直接返回
-    if (!elType || !elWeight || !elL || !elW || !elH || !elFeeDisplay) return;
+    let totalFee = 0;
 
-    const typeKey = elType.value;
-    const w = parseFloat(elWeight.value);
-    const l = parseFloat(elL.value);
-    const w_dim = parseFloat(elW.value);
-    const h = parseFloat(elH.value);
+    currentSubPackages.forEach((box) => {
+      const boxId = box.id;
+      const displayEl = document.getElementById(`box-fee-display-${boxId}`);
 
-    // 檢查必填欄位是否完整且有效
-    if (
-      !typeKey ||
-      !RATES[typeKey] ||
-      isNaN(w) ||
-      isNaN(l) ||
-      isNaN(w_dim) ||
-      isNaN(h) ||
-      l <= 0 ||
-      w_dim <= 0 ||
-      h <= 0
-    ) {
-      elFeeDisplay.value = "資料不全，無法計算";
-      if (elDetails) elDetails.style.display = "none";
-      return;
-    }
+      const w = parseFloat(box.weight);
+      const l = parseFloat(box.length);
+      const w_dim = parseFloat(box.width);
+      const h = parseFloat(box.height);
+      const typeKey = box.type;
 
-    const rate = RATES[typeKey];
+      let boxFee = 0;
 
-    // 1. 材積重計算 (無條件進位)
-    const cai = Math.ceil((l * w_dim * h) / VOLUME_DIVISOR);
-    const volCost = cai * rate.volumeRate;
+      if (
+        typeKey &&
+        RATES[typeKey] &&
+        !isNaN(w) &&
+        w > 0 &&
+        !isNaN(l) &&
+        l > 0 &&
+        !isNaN(w_dim) &&
+        w_dim > 0 &&
+        !isNaN(h) &&
+        h > 0
+      ) {
+        const rate = RATES[typeKey];
+        const cai = Math.ceil((l * w_dim * h) / VOLUME_DIVISOR);
+        const volCost = cai * rate.volumeRate;
+        const finalWeight = Math.ceil(w * 10) / 10;
+        const weightCost = finalWeight * rate.weightRate;
+        boxFee = Math.max(volCost, weightCost);
 
-    // 2. 實重計算 (無條件進位到小數點後一位)
-    const finalWeight = Math.ceil(w * 10) / 10;
-    const weightCost = finalWeight * rate.weightRate;
+        if (displayEl) {
+          displayEl.textContent = `單箱運費: NT$ ${boxFee.toLocaleString()}`;
+        }
+      } else {
+        if (displayEl) {
+          displayEl.textContent = `單箱運費: NT$ 0 (資料不全)`;
+        }
+      }
 
-    // 3. 最終運費 (取高者)
-    const finalFee = Math.max(volCost, weightCost);
+      // 更新暫存陣列中的運費 (提交時雖然會重算，但這樣更保險)
+      box.fee = boxFee;
+      totalFee += boxFee;
+    });
 
-    elFeeDisplay.value = `$ ${finalFee.toLocaleString()}`;
-
-    // 4. 顯示詳細公式給管理員看
-    if (elDetails) {
-      elDetails.style.display = "block";
-      elDetails.innerHTML = `
-          <strong>${rate.name}費率：</strong><br>
-          📦 <strong>材積費：</strong> ${l}x${w_dim}x${h} ÷ 28317 = ${(
-        (l * w_dim * h) /
-        28317
-      ).toFixed(2)} ➜ 進位 <strong>${cai} 材</strong><br>
-          &nbsp;&nbsp;&nbsp;&nbsp;${cai} 材 × $${
-        rate.volumeRate
-      } = <span style="color:#d63031">$${volCost}</span><br>
-          ⚖️ <strong>重量費：</strong> 實重 ${w} kg ➜ 進位 <strong>${finalWeight} kg</strong><br>
-          &nbsp;&nbsp;&nbsp;&nbsp;${finalWeight} kg × $${
-        rate.weightRate
-      } = <span style="color:#d63031">$${Math.round(weightCost)}</span><br>
-          👉 <strong>最終運費：</strong> 取較高者 <span style="color:#d63031; font-weight:bold; font-size:1.2em;">$${finalFee}</span>
-        `;
+    // 更新總運費
+    if (elFeeDisplayTotal) {
+      elFeeDisplayTotal.value = `NT$ ${totalFee.toLocaleString()}`;
     }
   }
 
-  // 綁定試算監聽器 (輸入變更時自動重算)
-  if (elType) elType.addEventListener("change", updateLiveCalculation);
-  [elWeight, elL, elW, elH].forEach((el) => {
-    if (el) el.addEventListener("input", updateLiveCalculation);
-  });
+  // (G) [新增] 「新增分箱」按鈕的點擊事件
+  if (btnAddSubPackage) {
+    btnAddSubPackage.addEventListener("click", () => {
+      subPackageCounter++;
+      currentSubPackages.push({
+        id: `temp_${subPackageCounter}`, // 給一個暫時的 ID
+        name: `分箱 ${subPackageCounter}`,
+        weight: "",
+        length: "",
+        width: "",
+        height: "",
+        type: "",
+      });
+      renderSubPackageUI(); // 重新渲染列表
+    });
+  }
 
-  // (D) 打開編輯彈窗
+  // (H) [重構] 打開編輯彈窗
   function openPackageModal(pkg) {
     document.getElementById("modal-pkg-id").value = pkg.id;
     document.getElementById("modal-user-email").textContent = pkg.user.email;
@@ -234,12 +365,12 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-quantity").textContent = pkg.quantity;
     document.getElementById("modal-note").textContent = pkg.note || "-";
 
-    // 顯示會員上傳圖片
+    // 顯示會員上傳圖片 (不變)
     const customerImagesContainer = document.getElementById(
       "modal-customer-images"
     );
     customerImagesContainer.innerHTML = "<h4>會員上傳的圖片：</h4>";
-    if (pkg.productImages.length > 0) {
+    if (pkg.productImages && pkg.productImages.length > 0) {
       pkg.productImages.forEach((imgUrl) => {
         customerImagesContainer.innerHTML += `<img src="${API_BASE_URL}${imgUrl}" onclick="window.open('${API_BASE_URL}${imgUrl}', '_blank')">`;
       });
@@ -249,27 +380,52 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("modal-status").value = pkg.status;
 
-    // 回填資料並觸發試算
-    if (elType) elType.value = pkg.furnitureType || "";
-    if (elWeight) elWeight.value = pkg.actualWeight || "";
-    if (elL) elL.value = pkg.actualLength || "";
-    if (elW) elW.value = pkg.actualWidth || "";
-    if (elH) elH.value = pkg.actualHeight || "";
+    // [修改] 載入分箱資料
+    currentSubPackages = [];
+    subPackageCounter = 0; // 重置計數器
 
-    // 手動觸發一次計算以顯示目前狀態
-    updateLiveCalculation();
+    // 注意：後端傳來的 pkg.arrivedBoxesJson 已經被 getAllPackages 解析成物件陣列了
+    const boxes = Array.isArray(pkg.arrivedBoxesJson)
+      ? pkg.arrivedBoxesJson
+      : [];
 
-    // 載入現有照片到暫存區
-    currentExistingImages = [...pkg.warehouseImages];
+    // 確保每個 box 都有一個唯一的 ID 供前端操作
+    boxes.forEach((box, index) => {
+      subPackageCounter++;
+      currentSubPackages.push({
+        ...box,
+        id: `db_${subPackageCounter}`, // 從資料庫來的 ID
+      });
+    });
+
+    // 如果沒有分箱資料，預設給一筆
+    if (currentSubPackages.length === 0) {
+      subPackageCounter++;
+      currentSubPackages.push({
+        id: `temp_1`,
+        name: "分箱 1",
+        weight: "",
+        length: "",
+        width: "",
+        height: "",
+        type: "",
+      });
+    }
+
+    // 渲染分箱 UI
+    renderSubPackageUI();
+
+    // 載入現有照片到暫存區 (不變)
+    currentExistingImages = Array.isArray(pkg.warehouseImages)
+      ? [...pkg.warehouseImages]
+      : [];
     renderWarehouseImages();
-
-    // 清空上傳欄位
     document.getElementById("modal-warehouseImages").value = null;
 
     modal.style.display = "flex";
   }
 
-  // (E) 渲染倉庫照片 (含刪除按鈕)
+  // (I) 渲染倉庫照片 (不變)
   function renderWarehouseImages() {
     const container = document.getElementById("modal-warehouse-images-preview");
     const fileInput = document.getElementById("modal-warehouseImages");
@@ -279,11 +435,9 @@ document.addEventListener("DOMContentLoaded", () => {
       currentExistingImages.forEach((imgUrl, index) => {
         const wrapper = document.createElement("div");
         wrapper.className = "img-wrapper";
-
         const img = document.createElement("img");
         img.src = `${API_BASE_URL}${imgUrl}`;
         img.onclick = () => window.open(img.src, "_blank");
-
         const deleteBtn = document.createElement("div");
         deleteBtn.className = "btn-delete-img";
         deleteBtn.innerHTML = "&times;";
@@ -291,7 +445,6 @@ document.addEventListener("DOMContentLoaded", () => {
           e.stopPropagation();
           removeImage(index);
         };
-
         wrapper.appendChild(img);
         wrapper.appendChild(deleteBtn);
         container.appendChild(wrapper);
@@ -300,7 +453,6 @@ document.addEventListener("DOMContentLoaded", () => {
       container.innerHTML += "<p>目前無照片</p>";
     }
 
-    // 限制上傳數量
     if (currentExistingImages.length >= 3) {
       fileInput.disabled = true;
       fileInput.title = "已達上限 (3張)";
@@ -310,7 +462,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 移除照片 (僅前端移除，需儲存才生效)
+  // (J) 移除照片 (不變)
   function removeImage(index) {
     if (confirm("確定要移除這張照片嗎？(需按「儲存更新」才會生效)")) {
       currentExistingImages.splice(index, 1);
@@ -318,6 +470,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // (K) 關閉彈窗 (不變)
   closeModalBtn.addEventListener("click", () => {
     modal.style.display = "none";
   });
@@ -325,7 +478,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target === modal) modal.style.display = "none";
   });
 
-  // (F) 提交更新表單
+  // (L) [重構] 提交更新表單
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const packageId = document.getElementById("modal-pkg-id").value;
@@ -340,21 +493,31 @@ document.addEventListener("DOMContentLoaded", () => {
     submitButton.disabled = true;
     submitButton.textContent = "儲存中...";
 
+    // [修改] 準備 FormData
     const formData = new FormData();
     formData.append("status", document.getElementById("modal-status").value);
 
-    if (elType) formData.append("furnitureType", elType.value);
-    if (elWeight) formData.append("actualWeight", elWeight.value);
-    if (elL) formData.append("actualLength", elL.value);
-    if (elW) formData.append("actualWidth", elW.value);
-    if (elH) formData.append("actualHeight", elH.value);
+    // [修改] 傳送「分箱資料」
+    // (我們不需要傳 'fee' 和 'cai'，因為後端會自己重算，
+    //  但我們需要移除 'id' 欄位，因為那是前端暫存用的)
+    const cleanBoxes = currentSubPackages.map((box) => {
+      return {
+        name: box.name,
+        weight: box.weight,
+        length: box.length,
+        width: box.width,
+        height: box.height,
+        type: box.type,
+      };
+    });
 
-    // [關鍵] 傳送剩餘的舊照片列表 (轉成 JSON 字串)
+    formData.append("boxesData", JSON.stringify(cleanBoxes || []));
+
+    // [修改] 傳送「照片資料」(不變)
     formData.append(
       "existingImages",
       JSON.stringify(currentExistingImages || [])
     );
-
     for (let i = 0; i < newFiles.length; i++) {
       formData.append("warehouseImages", newFiles[i]);
     }
@@ -375,8 +538,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       modal.style.display = "none";
-      alert("包裹更新成功！運費已自動計算。");
-      loadAllParcels();
+      alert("包裹更新成功！分箱運費已自動計算。");
+      loadAllParcels(); // 重新載入列表
     } catch (error) {
       console.error("更新失敗:", error);
       alert(`更新失敗: ${error.message}`);
@@ -386,7 +549,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (G) 登出與篩選
+  // (M) 登出與篩選 (不變)
   logoutBtn.addEventListener("click", () => {
     if (confirm("確定要登出管理後台吗？")) {
       localStorage.removeItem("admin_token");
@@ -395,9 +558,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  filterBtn.addEventListener("click", () => {
-    loadAllParcels();
-  });
+  // 篩選器綁定 (改為 change 和 keyup)
+  filterStatus.addEventListener("change", () => renderParcels(allParcelsData));
+  searchInput.addEventListener("keyup", () => renderParcels(allParcelsData));
+  filterBtn.addEventListener("click", () => renderParcels(allParcelsData)); // 保留按鈕點擊
 
   // 初始載入
   loadAllParcels();
