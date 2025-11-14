@@ -10,19 +10,28 @@
     <div class="container" style="max-width: 1400px">
       <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
 
-      <div class="header-actions">
-        <a
-          href="admin-register.html"
-          class="btn btn-secondary"
-          style="background-color: #2ecc71"
-          >新增員工帳號</a
-        >
-        <a href="admin-shipments.html" class="btn btn-secondary">集運單管理</a>
-        <a href="admin-members.html" class="btn btn-secondary"
-          >管理會員/操作員</a
-        >
-        <span id="admin-welcome"></span>
-        <button id="logoutBtn" class="btn-danger">登出</button>
+      <div class="admin-header">
+        <h1>包裹管理</h1>
+        <div class="header-actions">
+          <a href="admin-dashboard.html" class="btn btn-secondary">儀表板</a>
+          <a
+            href="admin-register.html"
+            class="btn btn-secondary"
+            style="background-color: #2ecc71"
+            >新增員工帳號</a
+          >
+          <a href="admin-parcels.html" class="btn btn-secondary active"
+            >包裹管理</a
+          >
+          <a href="admin-shipments.html" class="btn btn-secondary"
+            >集運單管理</a
+          >
+          <a href="admin-members.html" class="btn btn-secondary"
+            >管理會員/操作員</a
+          >
+          <span id="admin-welcome"></span>
+          <button id="logoutBtn" class="btn-danger">登出</button>
+        </div>
       </div>
 
       <div class="stats-container">
@@ -148,7 +157,7 @@
               >
               <div id="sub-package-list" style="margin-top: 10px"></div>
               <button
-                typeD="button"
+                type="button"
                 id="btn-add-sub-package"
                 class="btn btn-secondary"
                 style="width: auto; margin-top: 10px; background-color: #2ecc71"
@@ -191,7 +200,7 @@
                 margin-top: 20px;
               "
             >
-              <label>上傳倉庫照片 (可多選)</label>
+              <label>上傳倉庫照片 (可多選, 最多5張)</label>
               <input
                 type="file"
                 id="modal-warehouseImages"

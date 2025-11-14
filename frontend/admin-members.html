@@ -10,17 +10,26 @@
     <div class="container" style="max-width: 1400px">
       <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
 
-      <div class="header-actions">
-        <a
-          href="admin-register.html"
-          class="btn btn-secondary"
-          style="background-color: #2ecc71"
-          >新增員工帳號</a
-        >
-        <a href="admin-parcels.html" class="btn btn-secondary">包裹管理</a>
-        <a href="admin-shipments.html" class="btn btn-secondary">集運單管理</a>
-        <span id="admin-welcome"></span>
-        <button id="logoutBtn" class="btn-danger">登出</button>
+      <div class="admin-header">
+        <h1>會員管理</h1>
+        <div class="header-actions">
+          <a href="admin-dashboard.html" class="btn btn-secondary">儀表板</a>
+          <a
+            href="admin-register.html"
+            class="btn btn-secondary"
+            style="background-color: #2ecc71"
+            >新增員工帳號</a
+          >
+          <a href="admin-parcels.html" class="btn btn-secondary">包裹管理</a>
+          <a href="admin-shipments.html" class="btn btn-secondary"
+            >集運單管理</a
+          >
+          <a href="admin-members.html" class="btn btn-secondary active"
+            >會員管理</a
+          >
+          <span id="admin-welcome"></span>
+          <button id="logoutBtn" class="btn-danger">登出</button>
+        </div>
       </div>
 
       <div class="stats-container">
@@ -54,6 +63,7 @@
             <option value="">所有角色</option>
             <option value="USER">會員 (USER)</option>
             <option value="ADMIN">管理員 (ADMIN)</option>
+            <option value="OPERATOR">操作員 (OPERATOR)</option>
           </select>
           <button class="btn btn-primary" id="filter-btn">搜尋</button>
         </div>

@@ -13,11 +13,21 @@
       <div class="admin-header">
         <h1>集運單管理</h1>
         <div class="header-actions">
-        <a href="admin-register.html" class="btn btn-secondary" style="background-color: #2ecc71;">新增員工帳號</a>
-        <a href="admin-parcels.html" class="btn btn-secondary">包裹管理</a>
-        <a href="admin-members.html" class="btn btn-secondary">會員管理</a>
-        <span id="admin-welcome"></span>
-        <button id="logoutBtn" class="btn-danger">登出</button>
+          <a href="admin-dashboard.html" class="btn btn-secondary">儀表板</a>
+          <a
+            href="admin-register.html"
+            class="btn btn-secondary"
+            style="background-color: #2ecc71"
+            >新增員工帳號</a
+          >
+          <a href="admin-parcels.html" class="btn btn-secondary">包裹管理</a>
+          <a href="admin-shipments.html" class="btn btn-secondary active"
+            >集運單管理</a
+          >
+          <a href="admin-members.html" class="btn btn-secondary">會員管理</a>
+          <span id="admin-welcome"></span>
+          <button id="logoutBtn" class="btn-danger">登出</button>
+        </div>
       </div>
 
       <div class="filters">
@@ -30,6 +40,7 @@
           <option value="CANCELLEDD">清關放行</option>
           <option value="CANCELL">拆櫃派送</option>
           <option value="CANCEL">已完成</option>
+          <option value="CANCELLED">已取消/退回</option>
         </select>
         <input
           type="text"
@@ -89,12 +100,22 @@
             <h4>附加服務</h4>
             <div id="modal-services" class="simple-list"></div>
           </div>
-          
-          <div style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
-  <p><strong>客戶備註:</strong> <span id="modal-note" style="color: #d32f2f;">-</span></p>
-  <p><strong>付款憑證:</strong> <span id="modal-payment-proof">-</span></p>
-</div>
-          
+
+          <div
+            style="
+              margin-top: 15px;
+              border-top: 1px dashed #ccc;
+              padding-top: 10px;
+            "
+          >
+            <p>
+              <strong>客戶備註:</strong>
+              <span id="modal-note" style="color: #d32f2f">-</span>
+            </p>
+            <p>
+              <strong>付款憑證:</strong> <span id="modal-payment-proof">-</span>
+            </p>
+          </div>
 
           <div class="form-section">
             <h4>管理員操作</h4>
@@ -109,11 +130,13 @@
                   <option value="CANCELLEDD">清關放行</option>
                   <option value="CANCELL">拆櫃派送</option>
                   <option value="CANCEL">已完成</option>
-                  
-                  <option value="CANCELLED" style="color: #e74c3c; font-weight: bold;">
+
+                  <option
+                    value="CANCELLED"
+                    style="color: #e74c3c; font-weight: bold"
+                  >
                     [退回] 取消此單 (釋放包裹)
                   </option>
-                  
                 </select>
               </div>
               <div class="form-group">
