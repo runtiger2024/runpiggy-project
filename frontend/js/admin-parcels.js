@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-parcels.js (支援「低消 2000 元」的修改版)
+// 這是 frontend/js/admin-parcels.js (支援「儲存後不關閉」的修改版)
 
 // --- 1. 定義費率常數 (需與後端保持一致) ---
 const RATES = {
@@ -8,7 +8,7 @@ const RATES = {
   special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
 };
 const VOLUME_DIVISOR = 28317;
-const MINIMUM_CHARGE = 2000; // [*** 新增：包裹低消常數 ***]
+const MINIMUM_CHARGE = 2000; // 包裹低消常數
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 2. 獲取 DOM 元素 ---
@@ -30,7 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeModalBtn = modal.querySelector(".modal-close-btn");
   const updateForm = document.getElementById("update-package-form");
 
-  // [新增] 分箱相關元素
+  // 分箱相關元素
   const subPackageListContainer = document.getElementById("sub-package-list");
   const btnAddSubPackage = document.getElementById("btn-add-sub-package");
   const elFeeDisplayTotal = document.getElementById("modal-shippingFee"); // 總運費
@@ -39,8 +39,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let allParcelsData = [];
   const adminToken = localStorage.getItem("admin_token");
   let currentExistingImages = []; // 暫存舊照片列表 (用於刪除邏輯)
-  let currentSubPackages = []; // [新增] 暫存分箱資料
-  let subPackageCounter = 0; // [新增]
+  let currentSubPackages = []; // 暫存分箱資料
+  let subPackageCounter = 0;
 
   const packageStatusMap = {
     PENDING: "待確認",
@@ -128,7 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const totalFee =
         pkg.totalCalculatedFee != null
           ? `NT$ ${pkg.totalCalculatedFee.toLocaleString()}`
-          : "-"; // 允許 0 元
+          : "-";
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -274,9 +274,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // (F) [*** 修改重點：即時運費試算邏輯 ***]
+  // (F) 即時運費試算邏輯
   function updateLiveCalculation() {
-    let totalFee = 0; // 原始總金額
+    let totalFee = 0;
 
     currentSubPackages.forEach((box) => {
       const boxId = box.id;
@@ -322,7 +322,7 @@ document.addEventListener("DOMContentLoaded", () => {
       totalFee += boxFee;
     });
 
-    // [*** 新增：套用低消邏輯 ***]
+    // 套用低消邏輯
     let finalDisplayFee = totalFee;
     let notice = "";
     if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
@@ -330,7 +330,6 @@ document.addEventListener("DOMContentLoaded", () => {
       notice = ` (原始 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE})`;
     }
 
-    // 更新總運費
     if (elFeeDisplayTotal) {
       elFeeDisplayTotal.value = `NT$ ${finalDisplayFee.toLocaleString()}${notice}`;
     }
@@ -341,7 +340,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnAddSubPackage.addEventListener("click", () => {
       subPackageCounter++;
       currentSubPackages.push({
-        id: `temp_${subPackageCounter}`, // 給一個暫時的 ID
+        id: `temp_${subPackageCounter}`,
         name: `分箱 ${subPackageCounter}`,
         weight: "",
         length: "",
@@ -349,7 +348,7 @@ document.addEventListener("DOMContentLoaded", () => {
         height: "",
         type: "",
       });
-      renderSubPackageUI(); // 重新渲染列表
+      renderSubPackageUI();
     });
   }
 
@@ -391,7 +390,7 @@ document.addEventListener("DOMContentLoaded", () => {
       subPackageCounter++;
       currentSubPackages.push({
         ...box,
-        id: `db_${subPackageCounter}`, // 從資料庫來的 ID
+        id: `db_${subPackageCounter}`,
       });
     });
 
@@ -408,7 +407,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
 
-    renderSubPackageUI(); // 渲染分箱 UI (這會自動觸發 updateLiveCalculation)
+    renderSubPackageUI();
 
     // 載入現有照片
     currentExistingImages = Array.isArray(pkg.warehouseImages)
@@ -473,7 +472,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target === modal) modal.style.display = "none";
   });
 
-  // (L) 提交更新表單
+  // (L) [*** 修改重點：提交更新表單 ***]
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const packageId = document.getElementById("modal-pkg-id").value;
@@ -529,15 +528,71 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(err.message || "更新失敗");
       }
 
-      modal.style.display = "none";
-      alert("包裹更新成功！分箱運費已自動計算。");
+      // [*** 修改：儲存成功後的動作 ***]
+
+      // 1. (移除) modal.style.display = "none";
+      // 2. (移除) alert("包裹更新成功！...");
+
+      // 3. 取得後端回傳的最新包裹資料
+      const result = await response.json();
+      const updatedPackage = result.package;
+
+      // 4. 解析後端回傳的最新分箱資料 (後端傳回的是字串)
+      let updatedBoxes = [];
+      if (updatedPackage.arrivedBoxesJson) {
+        try {
+          updatedBoxes = JSON.parse(updatedPackage.arrivedBoxesJson || "[]");
+        } catch (e) {
+          console.error("解析後端回傳的 arrivedBoxesJson 失敗", e);
+        }
+      }
+
+      // 5. 重新建立前端的 `currentSubPackages` 暫存
+      currentSubPackages = [];
+      subPackageCounter = 0; // 重置計數器
+      updatedBoxes.forEach((box) => {
+        subPackageCounter++;
+        currentSubPackages.push({
+          ...box,
+          id: `db_${subPackageCounter}`, // 賦予新的 DB 來源 ID
+        });
+      });
+
+      // 6. 重新渲染分箱 UI (這會自動觸發 updateLiveCalculation)
+      renderSubPackageUI();
+
+      // 7. 同時更新照片區 (後端回傳的也是字串)
+      try {
+        currentExistingImages = JSON.parse(
+          updatedPackage.warehouseImages || "[]"
+        );
+      } catch (e) {
+        currentExistingImages = [];
+      }
+      renderWarehouseImages();
+      document.getElementById("modal-warehouseImages").value = null; // 清空檔案上傳欄位
+
+      // 8. 重新載入背景的主列表 (這仍然需要)
       loadAllParcels();
+
+      // 9. 提供暫時的按鈕反饋
+      submitButton.textContent = "✓ 儲存成功！";
+      submitButton.style.backgroundColor = "#27ae60"; // Green
+
+      // [*** 修改結束 ***]
     } catch (error) {
       console.error("更新失敗:", error);
       alert(`更新失敗: ${error.message}`);
-    } finally {
-      submitButton.disabled = false;
+      // 失敗時也要恢復按鈕
       submitButton.textContent = "儲存更新";
+      submitButton.style.backgroundColor = ""; // 恢復原色
+    } finally {
+      // 延遲 2 秒後恢復按鈕
+      setTimeout(() => {
+        submitButton.disabled = false;
+        submitButton.textContent = "儲存更新";
+        submitButton.style.backgroundColor = ""; // 恢復原色
+      }, 2000);
     }
   });
 
