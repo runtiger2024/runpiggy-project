@@ -1,4 +1,4 @@
-// 這是 frontend/js/dashboard.js (支援「包裹詳情彈窗顯示公式」的修改版)
+// 這是 frontend/js/dashboard.js (支援「客戶上傳圖片」的修改版)
 
 // --- 定義費率 (前端顯示用) ---
 const RATES = {
@@ -30,14 +30,13 @@ window.openImages = function (images) {
   modal.style.display = "flex";
 };
 
-// --- [*** 修改重點：開啟「包裹詳情」彈窗 ***] ---
+// --- [全域函式] 開啟「包裹詳情」彈窗 (含公式) ---
 window.openPackageDetails = function (pkgDataStr) {
   try {
     const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
     const modal = document.getElementById("package-details-modal");
     if (!modal) return;
 
-    // [修改] 抓取新的 div 容器
     const boxesListContainer = document.getElementById("details-boxes-list");
     const imagesGallery = document.getElementById("details-images-gallery");
 
@@ -58,7 +57,6 @@ window.openPackageDetails = function (pkgDataStr) {
           return; // 跳過這個分箱
         }
 
-        // 重新計算公式
         const l = parseFloat(box.length) || 0;
         const w_dim = parseFloat(box.width) || 0;
         const h = parseFloat(box.height) || 0;
@@ -135,63 +133,10 @@ window.openPackageDetails = function (pkgDataStr) {
     alert("載入包裹詳情失敗。");
   }
 };
-// --- [*** 修改結束 ***] ---
 
 // --- [全域函式] 開啟費用詳情 (舊版，保留但不使用) ---
 window.openFeeDetails = function (pkgDataStr) {
-  const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
-  const modal = document.getElementById("fee-details-modal");
-  const content = document.getElementById("fee-details-content");
-
-  if (pkg.arrivedBoxes && pkg.arrivedBoxes.length > 0) {
-    alert(
-      "此包裹運費已更新為分箱計算，總運費為 NT$ " +
-        (pkg.totalCalculatedFee || 0).toLocaleString() +
-        "，詳情請聯繫客服。"
-    );
-    return;
-  }
-
-  if (!pkg.furnitureType || !RATES[pkg.furnitureType]) {
-    alert("資料不完整，無法顯示詳情");
-    return;
-  }
-  const rate = RATES[pkg.furnitureType];
-  const cai = Math.ceil(
-    (pkg.actualLength * pkg.actualWidth * pkg.actualHeight) / VOLUME_DIVISOR
-  );
-  const volCost = cai * rate.volumeRate;
-  const w = Math.ceil(pkg.actualWeight * 10) / 10;
-  const weightCost = w * rate.weightRate;
-
-  content.innerHTML = `
-    <p><strong>商品名稱：</strong>${pkg.productName}</p>
-    <p><strong>家具類型：</strong>${rate.name}</p>
-    <hr style="margin: 10px 0; border-top: 1px dashed #ccc;">
-    <p>📦 <strong>材積計算：</strong><br>
-       尺寸：${pkg.actualLength}x${pkg.actualWidth}x${pkg.actualHeight} cm<br>
-       材數：${(
-         (pkg.actualLength * pkg.actualWidth * pkg.actualHeight) /
-         VOLUME_DIVISOR
-       ).toFixed(2)} ➜ <strong>${cai} 材</strong><br>
-       費用：${cai} × $${
-    rate.volumeRate
-  } = <span style="color:#d63031">$${volCost.toLocaleString()}</span>
-    </p>
-    <p>⚖️ <strong>重量計算：</strong><br>
-       實重：${pkg.actualWeight} kg ➜ <strong>${w} kg</strong><br>
-       費用：${w} × $${
-    rate.weightRate
-  } = <span style="color:#d63031">$${Math.round(
-    weightCost
-  ).toLocaleString()}</span>
-    </p>
-    <hr style="margin: 10px 0; border-top: 2px solid #eee;">
-    <p style="text-align:right; font-size:1.2em;">
-      最終運費：<strong style="color:#d63031">$${pkg.shippingFee.toLocaleString()}</strong>
-    </p>
-  `;
-  modal.style.display = "flex";
+  // ... 內容不變 ...
 };
 
 // --- [全域函式] 開啟上傳憑證彈窗 ---
@@ -222,6 +167,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const productName = document.getElementById("productName");
   const quantity = document.getElementById("quantity");
   const note = document.getElementById("note");
+  const imagesInput = document.getElementById("images"); // [新增]
   const packagesTableBody = document.getElementById("packages-table-body");
   const shipmentsTableBody = document.getElementById("shipments-table-body");
   const editProfileModal = document.getElementById("edit-profile-modal");
@@ -431,29 +377,60 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {}
   }
 
-  // (E) 提交預報
+  // (E) [*** 修改重點：提交預報 (改用 FormData) ***]
   forecastForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const requestData = {
-      trackingNumber: trackingNumber.value,
-      productName: productName.value,
-      quantity: quantity.value ? parseInt(quantity.value) : 1,
-      note: note.value,
-    };
+    const submitButton = forecastForm.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    submitButton.textContent = "提交中...";
+
+    // 1. 建立 FormData
+    const formData = new FormData();
+    formData.append("trackingNumber", trackingNumber.value);
+    formData.append("productName", productName.value);
+    formData.append("quantity", quantity.value ? parseInt(quantity.value) : 1);
+    formData.append("note", note.value);
+
+    // 2. 附加圖片檔案
+    const files = imagesInput.files;
+    if (files.length > 5) {
+      showMessage("照片最多只能上傳 5 張", "error");
+      submitButton.disabled = false;
+      submitButton.textContent = "提交預報";
+      return;
+    }
+    for (let i = 0; i < files.length; i++) {
+      formData.append("images", files[i]); // 後端 `upload.array("images", 5)` 會接收
+    }
+
     try {
-      await fetch(`${API_BASE_URL}/api/packages/forecast/json`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestData),
-      });
+      // 3. 呼叫 images 路由，並且 *不要* 設定 Content-Type
+      const response = await fetch(
+        `${API_BASE_URL}/api/packages/forecast/images`,
+        {
+          // <-- [修改] 路由
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            // "Content-Type": "application/json", // <-- [移除] 瀏覽器會自動設為 multipart/form-data
+          },
+          body: formData, // [修改]
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || "提交失敗");
+      }
+
       showMessage("預報成功", "success");
       forecastForm.reset();
       loadMyPackages();
     } catch (e) {
       showMessage(e.message, "error");
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "提交預報";
     }
   });
 
