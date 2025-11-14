@@ -50,6 +50,9 @@ model Package {
   furnitureType   String?   // 家具類型 (general, special_a, etc.)
   shippingFee     Float?    // 單件運費
 
+  // [新增] 倉庫人員填寫的備註 (給客戶看)
+  warehouseRemark String?
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now()) @updatedAt
 

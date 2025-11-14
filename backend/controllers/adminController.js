@@ -370,12 +370,10 @@ const createStaffUser = async (req, res) => {
     }
 
     if (role !== "ADMIN" && role !== "OPERATOR") {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "無效的角色 (只允許 ADMIN 或 OPERATOR)",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "無效的角色 (只允許 ADMIN 或 OPERATOR)",
+      });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -518,12 +516,10 @@ const deleteUser = async (req, res) => {
       .json({ success: true, message: "使用者及其所有關聯資料已永久刪除" });
   } catch (error) {
     console.error("刪除使用者失敗:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "刪除失敗，可能含有無法刪除的關聯資料",
-      });
+    res.status(500).json({
+      success: false,
+      message: "刪除失敗，可能含有無法刪除的關聯資料",
+    });
   }
 };
 
