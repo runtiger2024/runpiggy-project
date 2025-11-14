@@ -1,4 +1,4 @@
-// 這是 frontend/js/dashboard.js (支援「集運彈窗套用低消」的修改版)
+// 這是 frontend/js/dashboard.js (支援「包裹詳情彈窗顯示公式」的修改版)
 
 // --- 定義費率 (前端顯示用) ---
 const RATES = {
@@ -8,7 +8,7 @@ const RATES = {
   special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
 };
 const VOLUME_DIVISOR = 28317;
-const MINIMUM_CHARGE = 2000; // [*** 新增：低消常數 ***]
+const MINIMUM_CHARGE = 2000; // 集運低消常數
 
 // --- [全域函式] 開啟圖片彈窗 ---
 window.openImages = function (images) {
@@ -30,37 +30,71 @@ window.openImages = function (images) {
   modal.style.display = "flex";
 };
 
-// --- [全域函式] 開啟「包裹詳情」彈窗 ---
+// --- [*** 修改重點：開啟「包裹詳情」彈窗 ***] ---
 window.openPackageDetails = function (pkgDataStr) {
   try {
     const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
     const modal = document.getElementById("package-details-modal");
     if (!modal) return;
 
-    const boxesListBody = document.getElementById("details-boxes-list");
+    // [修改] 抓取新的 div 容器
+    const boxesListContainer = document.getElementById("details-boxes-list");
     const imagesGallery = document.getElementById("details-images-gallery");
 
     const arrivedBoxes = Array.isArray(pkg.arrivedBoxes)
       ? pkg.arrivedBoxes
       : [];
 
-    // 1. 填充分箱明細
+    let boxesHtml = ""; // 準備存放 HTML
+
+    // 1. 填充分箱明細 (改為產生公式)
     if (arrivedBoxes.length > 0) {
-      boxesListBody.innerHTML = arrivedBoxes
-        .map(
-          (box) => `
-        <tr>
-          <td>${box.name || "分箱"}</td>
-          <td>${box.length || 0} x ${box.width || 0} x ${box.height || 0}</td>
-          <td>${parseFloat(box.weight || 0).toFixed(1)}</td>
-          <td>$${(box.fee || 0).toLocaleString()}</td>
-        </tr>
-      `
-        )
-        .join("");
+      arrivedBoxes.forEach((box) => {
+        const rate = RATES[box.type];
+        if (!rate) {
+          boxesHtml += `<div class="calc-box"><strong>${
+            box.name || "分箱"
+          }:</strong> <span style="color: red;">(類型錯誤，無法計算)</span></div>`;
+          return; // 跳過這個分箱
+        }
+
+        // 重新計算公式
+        const l = parseFloat(box.length) || 0;
+        const w_dim = parseFloat(box.width) || 0;
+        const h = parseFloat(box.height) || 0;
+        const w = parseFloat(box.weight) || 0;
+
+        const cai = Math.ceil((l * w_dim * h) / VOLUME_DIVISOR);
+        const volCost = cai * rate.volumeRate;
+        const finalWeight = Math.ceil(w * 10) / 10;
+        const weightCost = finalWeight * rate.weightRate;
+        const finalFee = box.fee || 0;
+
+        boxesHtml += `
+          <div class="calc-box" style="background: #fdfdfd; border: 1px solid #f0f0f0; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+            <strong>${box.name || "分箱"} (${rate.name}):</strong>
+            <div class="calc-line">
+              📦 <strong>材積費:</strong> (${l}x${w_dim}x${h} / ${VOLUME_DIVISOR} ➜ <strong>${cai} 材</strong>) × $${
+          rate.volumeRate
+        } = <span class="cost">$${volCost.toLocaleString()}</span>
+            </div>
+            <div class="calc-line">
+              ⚖️ <strong>重量費:</strong> (<strong>${finalWeight} kg</strong>) × $${
+          rate.weightRate
+        } = <span class="cost">$${Math.round(
+          weightCost
+        ).toLocaleString()}</span>
+            </div>
+            <div class="calc-line final">
+              → 單箱運費 (取高): <strong>$${finalFee.toLocaleString()}</strong>
+            </div>
+          </div>
+        `;
+      });
+      boxesListContainer.innerHTML = boxesHtml;
     } else {
-      boxesListBody.innerHTML =
-        '<tr><td colspan="4" style="text-align: center;">暫無分箱資料</td></tr>';
+      boxesListContainer.innerHTML =
+        '<p style="text-align: center; color: #888;">暫無分箱資料</p>';
     }
 
     // 2. 填充匯總
@@ -101,6 +135,7 @@ window.openPackageDetails = function (pkgDataStr) {
     alert("載入包裹詳情失敗。");
   }
 };
+// --- [*** 修改結束 ***] ---
 
 // --- [全域函式] 開啟費用詳情 (舊版，保留但不使用) ---
 window.openFeeDetails = function (pkgDataStr) {
@@ -200,8 +235,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const bankInfoModal = document.getElementById("bank-info-modal");
   const uploadProofModal = document.getElementById("upload-proof-modal");
   const uploadProofForm = document.getElementById("upload-proof-form");
-
-  // [*** 新增：抓取低消提示欄位 ***]
   const shipmentFeeNotice = document.getElementById("shipment-fee-notice");
 
   // --- (狀態變數) ---
@@ -424,7 +457,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (F) 建立集運單 (顯示公式) [*** 修改重點 ***]
+  // (F) 建立集運單 (顯示公式)
   btnCreateShipment.addEventListener("click", () => {
     const checked = document.querySelectorAll(".package-checkbox:checked");
     if (checked.length === 0) {
@@ -434,7 +467,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let html = "";
     let ids = [];
-    let totalFee = 0; // 原始總金額
+    let totalFee = 0;
 
     checked.forEach((box) => {
       const p = allPackagesData.find((pkg) => pkg.id === box.dataset.id);
@@ -501,7 +534,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // [*** 新增：在前端彈窗套用低消 ***]
     let finalDisplayFee = totalFee;
     let noticeHtml = `(實際費用以管理員審核後為準)`;
 
@@ -512,11 +544,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     shipmentPackageList.innerHTML = html;
 
-    // 顯示最終金額
     if (shipmentTotalCost)
       shipmentTotalCost.textContent = finalDisplayFee.toLocaleString();
 
-    // 顯示提示訊息
     if (shipmentFeeNotice) {
       shipmentFeeNotice.innerHTML = noticeHtml;
       shipmentFeeNotice.style.color =
