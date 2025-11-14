@@ -1,4 +1,4 @@
-// 這是 backend/controllers/adminController.js (最終完整修復版：含運費計算、照片刪除、防崩潰)
+// 這是 backend/controllers/adminController.js (支援分箱的修改版)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -40,7 +40,20 @@ const getAllPackages = async (req, res) => {
         // 忽略解析錯誤
       }
 
-      return { ...pkg, productImages, warehouseImages };
+      // [新增] 同時解析分箱資料，確保前端能收到
+      let arrivedBoxes = [];
+      try {
+        arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
+      } catch (e) {
+        // 忽略解析錯誤
+      }
+
+      return {
+        ...pkg,
+        productImages,
+        warehouseImages,
+        arrivedBoxesJson: arrivedBoxes,
+      }; // 回傳解析後的
     });
 
     res.status(200).json({
@@ -54,7 +67,7 @@ const getAllPackages = async (req, res) => {
   }
 };
 
-// 2. 更新包裹狀態
+// 2. 更新包裹狀態 (此函式保持不變，但實務上可能較少用到)
 const updatePackageStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -84,21 +97,19 @@ const updatePackageStatus = async (req, res) => {
   }
 };
 
-// 3. [關鍵修正] 更新包裹詳細資料 (含運費計算 & 實體照片刪除 & 防崩潰)
+// 3. [關鍵修正] 更新包裹詳細資料 (改為支援「多筆分箱」入庫)
 const updatePackageDetails = async (req, res) => {
   try {
     const { id } = req.params;
     const {
       status,
-      actualWeight,
-      actualLength,
-      actualWidth,
-      actualHeight,
-      furnitureType, // [新增] 接收家具類型
-      existingImages, // [新增] 接收前端傳來的「要保留的舊照片」
+      // [新增] 接收前端傳來的「分箱資料」JSON 字串
+      // 預期格式: "[{ "name": "分箱1", "weight": "10", "length": "80", ... "type": "general" }]"
+      boxesData,
+      existingImages, // (照片刪除邏輯保持不變)
     } = req.body;
 
-    // (1) 先從資料庫撈出「原始」包裹資料
+    // (1) 撈出原始包裹
     const originalPackage = await prisma.package.findUnique({
       where: { id: id },
     });
@@ -108,66 +119,94 @@ const updatePackageDetails = async (req, res) => {
     }
 
     const dataToUpdate = {};
-
-    // (2) 更新基本欄位
     if (status) dataToUpdate.status = status;
-    if (furnitureType) dataToUpdate.furnitureType = furnitureType;
 
-    const weight = parseFloat(actualWeight);
-    const length = parseFloat(actualLength);
-    const width = parseFloat(actualWidth);
-    const height = parseFloat(actualHeight);
+    let calculatedTotalFee = 0; // 總運費
+    let boxesWithFees = []; // 儲存處理過的分箱陣列
 
-    if (!isNaN(weight)) dataToUpdate.actualWeight = weight;
-    if (!isNaN(length)) dataToUpdate.actualLength = length;
-    if (!isNaN(width)) dataToUpdate.actualWidth = width;
-    if (!isNaN(height)) dataToUpdate.actualHeight = height;
+    // (2) [新邏輯] 處理分箱運費計算
+    if (boxesData) {
+      try {
+        const boxes = JSON.parse(boxesData);
 
-    // (3) 自動計算：材積 (CBM) & 運費 (Shipping Fee)
-    if (
-      !isNaN(length) &&
-      !isNaN(width) &&
-      !isNaN(height) &&
-      length > 0 &&
-      width > 0 &&
-      height > 0
-    ) {
-      // A. 計算 CBM
-      const volumeVal = (length * width * height) / 28317;
-      dataToUpdate.actualCbm = volumeVal / 35.3;
+        if (Array.isArray(boxes) && boxes.length > 0) {
+          for (const box of boxes) {
+            const name = box.name || "未命名分箱";
+            const weight = parseFloat(box.weight);
+            const length = parseFloat(box.length);
+            const width = parseFloat(box.width);
+            const height = parseFloat(box.height);
+            const typeKey = box.type;
 
-      // B. 計算運費 (若有重量且有家具類型)
-      const typeKey = furnitureType || originalPackage.furnitureType;
-      const validWeight = !isNaN(weight)
-        ? weight
-        : originalPackage.actualWeight;
+            let boxFee = 0;
+            let boxCai = 0;
 
-      if (typeKey && RATES[typeKey] && validWeight > 0) {
-        const rate = RATES[typeKey];
+            // 檢查是否所有必要欄位都存在且有效
+            if (
+              !isNaN(weight) &&
+              weight > 0 &&
+              !isNaN(length) &&
+              length > 0 &&
+              !isNaN(width) &&
+              width > 0 &&
+              !isNaN(height) &&
+              height > 0 &&
+              typeKey &&
+              RATES[typeKey]
+            ) {
+              const rate = RATES[typeKey];
 
-        // 無條件進位計算材數與重量
-        const cai = Math.ceil((length * width * height) / VOLUME_DIVISOR);
-        const w = Math.ceil(validWeight * 10) / 10;
+              // A. 計算材積 (無條件進位)
+              boxCai = Math.ceil((length * width * height) / VOLUME_DIVISOR);
+              const volumeCost = boxCai * rate.volumeRate;
 
-        const volumeCost = cai * rate.volumeRate;
-        const weightCost = w * rate.weightRate;
+              // B. 計算重量 (無條件進位到小數點後一位)
+              const w = Math.ceil(weight * 10) / 10;
+              const weightCost = w * rate.weightRate;
 
-        // 取大者為運費
-        dataToUpdate.shippingFee = Math.max(volumeCost, weightCost);
+              // C. 取大者為此箱運費
+              boxFee = Math.max(volumeCost, weightCost);
+            }
+
+            // 累加總運費
+            calculatedTotalFee += boxFee;
+
+            // 存回陣列 (儲存後端計算的結果)
+            boxesWithFees.push({
+              name: name,
+              weight: weight,
+              length: length,
+              width: width,
+              height: height,
+              type: typeKey,
+              cai: boxCai, // 存入計算出的材數
+              fee: boxFee, // 存入計算出的單箱運費
+            });
+          }
+
+          // (3) 準備更新資料庫
+          dataToUpdate.arrivedBoxesJson = JSON.stringify(boxesWithFees);
+          dataToUpdate.totalCalculatedFee = calculatedTotalFee;
+        } else {
+          // 如果傳了空陣列，就清空
+          dataToUpdate.arrivedBoxesJson = "[]";
+          dataToUpdate.totalCalculatedFee = 0;
+        }
+      } catch (e) {
+        console.error("解析 boxesData 失敗:", e);
+        return res
+          .status(400)
+          .json({ success: false, message: "分箱資料(boxesData)格式錯誤" });
       }
     }
 
-    // (4) 照片處理與檔案刪除邏輯 (使用 process.cwd() 確保路徑正確)
-
-    // A. 解析原始照片列表
+    // (4) 照片處理邏輯 (不變)
     let originalImagesList = [];
     try {
       originalImagesList = JSON.parse(originalPackage.warehouseImages || "[]");
     } catch (e) {
       originalImagesList = [];
     }
-
-    // B. 解析前端傳來「想保留」的列表
     let keepImagesList = [];
     if (existingImages) {
       try {
@@ -177,18 +216,12 @@ const updatePackageDetails = async (req, res) => {
         keepImagesList = [];
       }
     }
-
-    // C. 找出被刪除的照片，並執行實體檔案刪除
     const imagesToDelete = originalImagesList.filter(
       (img) => !keepImagesList.includes(img)
     );
-
-    // 使用 process.cwd() 獲取專案根目錄
     const uploadDir = path.join(process.cwd(), "public", "uploads");
-
     imagesToDelete.forEach((imgUrl) => {
       try {
-        // imgUrl 範例: "/uploads/filename.png"
         const filename = imgUrl.split("/").pop();
         if (filename) {
           const absolutePath = path.join(uploadDir, filename);
@@ -203,22 +236,16 @@ const updatePackageDetails = async (req, res) => {
         console.warn(`處理刪除檔案時發生錯誤: ${err.message}`);
       }
     });
-
-    // D. 組合最終列表 (保留的 + 新上傳的)
     let finalImageList = [...keepImagesList];
-
     if (req.files && req.files.length > 0) {
       const newImagePaths = req.files.map(
         (file) => `/uploads/${file.filename}`
       );
       finalImageList = [...finalImageList, ...newImagePaths];
     }
-
-    // E. 強制限制最多 3 張
     if (finalImageList.length > 3) {
       finalImageList = finalImageList.slice(0, 3);
     }
-
     dataToUpdate.warehouseImages = JSON.stringify(finalImageList);
 
     // (5) 執行資料庫更新
@@ -229,7 +256,7 @@ const updatePackageDetails = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: "包裹詳細資料與運費更新成功 (已清理舊圖片)",
+      message: "包裹詳細資料與分箱運費更新成功 (已清理舊圖片)",
       package: updatedPackage,
     });
   } catch (error) {
@@ -242,7 +269,7 @@ const updatePackageDetails = async (req, res) => {
 
 // --- 集運單管理 ---
 
-// 4. 更新集運單狀態
+// 4. 更新集運單狀態 (保持不變)
 const updateShipmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -280,7 +307,7 @@ const updateShipmentStatus = async (req, res) => {
   }
 };
 
-// 5. 取得所有集運單
+// 5. 取得所有集運單 (保持不變)
 const getAllShipments = async (req, res) => {
   try {
     const allShipments = await prisma.shipment.findMany({
@@ -312,7 +339,7 @@ const getAllShipments = async (req, res) => {
   }
 };
 
-// 6. 退回/拒絕集運單 (釋放包裹)
+// 6. 退回/拒絕集運單 (釋放包裹) (保持不變)
 const rejectShipment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -348,7 +375,7 @@ const rejectShipment = async (req, res) => {
 
 // --- 會員/員工管理 ---
 
-// 7. 建立員工帳號
+// 7. 建立員工帳號 (保持不變)
 const createStaffUser = async (req, res) => {
   try {
     const { email, password, name, role } = req.body;
@@ -401,7 +428,7 @@ const createStaffUser = async (req, res) => {
   }
 };
 
-// 8. 取得所有使用者
+// 8. 取得所有使用者 (保持不變)
 const getUsers = async (req, res) => {
   try {
     const users = await prisma.user.findMany({
@@ -427,7 +454,7 @@ const getUsers = async (req, res) => {
   }
 };
 
-// 9. 切換使用者狀態 (啟用/停用)
+// 9. 切換使用者狀態 (啟用/停用) (保持不變)
 const toggleUserStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -458,7 +485,7 @@ const toggleUserStatus = async (req, res) => {
   }
 };
 
-// 10. 重設密碼
+// 10. 重設密碼 (保持不變)
 const resetUserPassword = async (req, res) => {
   try {
     const { id } = req.params;
@@ -481,7 +508,7 @@ const resetUserPassword = async (req, res) => {
   }
 };
 
-// 11. 永久刪除使用者 (連動刪除包裹與集運單)
+// 11. 永久刪除使用者 (連動刪除包裹與集運單) (保持不變)
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;

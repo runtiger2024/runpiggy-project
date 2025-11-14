@@ -1,4 +1,4 @@
-// 這是 backend/controllers/shipmentController.js (最終版：含自動加總運費、備註、付款憑證上傳)
+// 這是 backend/controllers/shipmentController.js (支援分箱的修改版)
 
 const prisma = require("../config/db.js");
 
@@ -54,10 +54,10 @@ const createShipment = async (req, res) => {
       });
     }
 
-    // 3. [新增] 自動計算總運費
-    // 累加每個包裹的 shippingFee，如果為 null 則視為 0 (代表未報價)
+    // 3. [*** 修改重點 ***] 自動計算總運費
+    // 累加每個包裹的 totalCalculatedFee，如果為 null 則視為 0 (代表未報價)
     const calculatedTotalCost = packagesToShip.reduce((sum, pkg) => {
-      return sum + (pkg.shippingFee || 0);
+      return sum + (pkg.totalCalculatedFee || 0); // <-- 改用這個欄位
     }, 0);
 
     // 4. 使用資料庫「交易」建立集運單
@@ -122,11 +122,16 @@ const getMyShipments = async (req, res) => {
             id: true,
             productName: true,
             trackingNumber: true,
-            actualWeight: true,
-            actualLength: true,
-            actualWidth: true,
-            actualHeight: true,
-            shippingFee: true, // [新增] 讓前端也能看到明細裡的個別運費
+
+            // [修改] 舊的欄位已不存在，改撈新的
+            // actualWeight: true,
+            // actualLength: true,
+            // actualWidth: true,
+            // actualHeight: true,
+            // shippingFee: true,
+            arrivedBoxesJson: true,
+            totalCalculatedFee: true,
+
             warehouseImages: true,
           },
         },
@@ -140,6 +145,8 @@ const getMyShipments = async (req, res) => {
       packages: ship.packages.map((pkg) => ({
         ...pkg,
         warehouseImages: JSON.parse(pkg.warehouseImages || "[]"),
+        // [新增] 也解析分箱
+        arrivedBoxes: JSON.parse(pkg.arrivedBoxesJson || "[]"),
       })),
     }));
 

@@ -1,4 +1,4 @@
-// 這是 backend/prisma/schema.prisma (最終完整版：Shipment 新增 note 欄位)
+// 這是 backend/prisma/schema.prisma (支援分箱的修改版)
 
 generator client {
   provider = "prisma-client-js"
@@ -38,21 +38,23 @@ model Package {
   productImages   String    @default("[]") // 會員上傳的圖片 (JSON string)
   status          String    @default("PENDING") // PENDING, ARRIVED, IN_SHIPMENT, COMPLETED
 
-  // --- 倉庫回填欄位 ---
-  actualWeight    Float?    // 實際重量 (kg)
-  actualLength    Float?    // 實際長 (cm)
-  actualWidth     Float?    // 實際寬 (cm)
-  actualHeight    Float?    // 實際高 (cm)
-  actualCbm       Float?    // 實際 CBM (方)
-  warehouseImages String    @default("[]") // 倉庫拍的照片 (JSON string)
+  // --- 倉庫回填欄位 (*** 修改重點 ***) ---
   
-  // --- 運費計算相關 ---
-  furnitureType   String?   // 家具類型 (general, special_a, etc.)
-  shippingFee     Float?    // 單件運費
+  // [移除] actualWeight, actualLength, actualWidth, actualHeight, actualCbm, furnitureType, shippingFee
 
-  // [新增] 倉庫人員填寫的備註 (給客戶看)
+  // [新增] 儲存分箱的陣列 (JSON 字串)
+  // 例如: "[{ "name": "分箱1", "weight": 10.5, "length": 80, ... "fee": 2250 }]"
+  arrivedBoxesJson String?   @default("[]") 
+  
+  // [新增] 儲存所有分箱的運費總和
+  totalCalculatedFee Float?
+
+  // 倉庫拍的照片 (JSON string)
+  warehouseImages String    @default("[]") 
+  
+  // 倉庫人員填寫的備註 (給客戶看)
   warehouseRemark String?
-
+  
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now()) @updatedAt
 
@@ -78,7 +80,7 @@ model Shipment {
   shippingAddress      String
   idNumber             String    // 身分證
   taxId                String?   // 統一編號
-  note                 String?   // [新增] 客戶備註
+  note                 String?   // 客戶備註
 
   // 附加服務 & 費用
   additionalServices   String?   // JSON (雖然前端拿掉了，但資料庫保留無妨)
@@ -87,7 +89,7 @@ model Shipment {
   status               String    @default("PENDING_PAYMENT") // PENDING_PAYMENT, PROCESSING, SHIPPED, COMPLETED, CANCELLED
   totalCost            Float?    // 最終總運費 (建立時自動計算)
   trackingNumberTW     String?   // 台灣物流單號
-  paymentProof         String?   // [新增] 付款憑證圖片路徑
+  paymentProof         String?   // 付款憑證圖片路徑
 
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @default(now()) @updatedAt
