@@ -33,17 +33,61 @@ window.openImages = function (images) {
 // --- [全域函式] 開啟費用詳情 (*** 舊版，已不適用於分箱 ***) ---
 // (保留此函式，但 loadMyPackages 將不再呼叫它)
 window.openFeeDetails = function (pkgDataStr) {
-  // ... 此函式內容保持不變，但請注意它可能已失效 ...
   const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
   const modal = document.getElementById("fee-details-modal");
   const content = document.getElementById("fee-details-content");
-  if (!pkg.furnitureType || !RATES[pkg.furnitureType]) {
-    // ... (舊邏輯) ...
-    // [*** 理想情況下，這裡應該要改成顯示 arrivedBoxesJson 的彈窗 ***]
-    alert("此包裹運費已更新為分箱計算，詳情請聯繫客服。");
+
+  // [修改] 顯示分箱提示
+  if (pkg.arrivedBoxes && pkg.arrivedBoxes.length > 0) {
+    alert(
+      "此包裹運費已更新為分箱計算，總運費為 NT$ " +
+        (pkg.totalCalculatedFee || 0).toLocaleString() +
+        "，詳情請聯繫客服。"
+    );
     return;
   }
-  // ... (舊的計算邏輯) ...
+
+  // (舊邏輯，幾乎不會被觸發)
+  if (!pkg.furnitureType || !RATES[pkg.furnitureType]) {
+    alert("資料不完整，無法顯示詳情");
+    return;
+  }
+  const rate = RATES[pkg.furnitureType];
+  const cai = Math.ceil(
+    (pkg.actualLength * pkg.actualWidth * pkg.actualHeight) / VOLUME_DIVISOR
+  );
+  const volCost = cai * rate.volumeRate;
+  const w = Math.ceil(pkg.actualWeight * 10) / 10;
+  const weightCost = w * rate.weightRate;
+
+  content.innerHTML = `
+    <p><strong>商品名稱：</strong>${pkg.productName}</p>
+    <p><strong>家具類型：</strong>${rate.name}</p>
+    <hr style="margin: 10px 0; border-top: 1px dashed #ccc;">
+    <p>📦 <strong>材積計算：</strong><br>
+       尺寸：${pkg.actualLength}x${pkg.actualWidth}x${pkg.actualHeight} cm<br>
+       材數：${(
+         (pkg.actualLength * pkg.actualWidth * pkg.actualHeight) /
+         VOLUME_DIVISOR
+       ).toFixed(2)} ➜ <strong>${cai} 材</strong><br>
+       費用：${cai} × $${
+    rate.volumeRate
+  } = <span style="color:#d63031">$${volCost.toLocaleString()}</span>
+    </p>
+    <p>⚖️ <strong>重量計算：</strong><br>
+       實重：${pkg.actualWeight} kg ➜ <strong>${w} kg</strong><br>
+       費用：${w} × $${
+    rate.weightRate
+  } = <span style="color:#d63031">$${Math.round(
+    weightCost
+  ).toLocaleString()}</span>
+    </p>
+    <hr style="margin: 10px 0; border-top: 2px solid #eee;">
+    <p style="text-align:right; font-size:1.2em;">
+      最終運費：<strong style="color:#d63031">$${pkg.shippingFee.toLocaleString()}</strong>
+    </p>
+  `;
+  modal.style.display = "flex";
 };
 
 // --- [全域函式] 開啟上傳憑證彈窗 ---
@@ -165,18 +209,21 @@ document.addEventListener("DOMContentLoaded", () => {
           '<tr><td colspan="9" style="text-align: center;">尚無包裹</td></tr>';
         return;
       }
+
       allPackagesData.forEach((pkg) => {
         const statusText = packageStatusMap[pkg.status] || pkg.status;
         const isArrived = pkg.status === "ARRIVED";
 
-        // [修改] 解析分箱 JSON
+        // [修改] 讀取後端解析好的分箱陣列
         const arrivedBoxes = Array.isArray(pkg.arrivedBoxes)
           ? pkg.arrivedBoxes
           : [];
 
-        // [修改] 顯示分箱總數和總重
+        // [修改] 顯示分箱總數
         const dimensions =
           arrivedBoxes.length > 0 ? `${arrivedBoxes.length} 箱` : "-";
+
+        // [修改] 顯示所有分箱的總重
         const weight =
           arrivedBoxes.length > 0
             ? `${arrivedBoxes

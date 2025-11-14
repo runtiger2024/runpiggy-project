@@ -1,4 +1,4 @@
-// 這是 packageController.js (最終修正版，修復了 JSON.parse 錯誤)
+// 這是 backend/controllers/packageController.js (最終修正版，支援分箱)
 
 const prisma = require("../config/db.js");
 
@@ -66,11 +66,12 @@ const getMyPackages = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    // --- (*** 這是修復 ***) ---
+    // --- (*** 這是 [修改重點] ***) ---
     // 我們要安全地解析 JSON 欄位
-    const packagesWithImages = myPackages.map((pkg) => {
+    const packagesWithParsedJson = myPackages.map((pkg) => {
       let productImages = [];
       let warehouseImages = [];
+      let arrivedBoxes = []; // <-- [新增]
 
       try {
         productImages = JSON.parse(pkg.productImages || "[]");
@@ -88,18 +89,29 @@ const getMyPackages = async (req, res) => {
         );
       }
 
+      // [新增] 解析分箱資料
+      try {
+        arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
+      } catch (e) {
+        console.warn(
+          `包裹 ${pkg.id} 的 arrivedBoxesJson 格式錯誤 (值: ${pkg.arrivedBoxesJson})，已重設為空陣列。`
+        );
+      }
+
       return {
         ...pkg,
         productImages: productImages, // 回傳解析後的陣列
         warehouseImages: warehouseImages, // 回傳解析後的陣列
+        arrivedBoxes: arrivedBoxes, // <-- [新增] 回傳解析後的分箱陣列
+        arrivedBoxesJson: undefined, // 移除原始 JSON 字串，節省傳輸
       };
     });
-    // --- (*** 修復結束 ***) ---
+    // --- (*** 修改結束 ***) ---
 
     res.status(200).json({
       success: true,
-      count: packagesWithImages.length,
-      packages: packagesWithImages,
+      count: packagesWithParsedJson.length,
+      packages: packagesWithParsedJson, // <-- [修改]
     });
   } catch (error) {
     console.error("查詢我的包裹時發生錯誤:", error);
@@ -184,7 +196,9 @@ const deleteMyPackage = async (req, res) => {
 
 // (保留骨架)
 const getPackageById = (req, res) => {
-  res.json({ message: `OK, 正在取得包裹 ${req.params.id} 的詳情 (尚未實作)` });
+  res.json({
+    message: `OK, Ggting package ${req.params.id} details (not implemented)`,
+  });
 };
 
 module.exports = {
