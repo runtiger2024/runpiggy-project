@@ -1,5 +1,5 @@
-// 這是 frontend/js/admin-parcels.js (V2 修正版)
-// (修正了 V1/V2 檔案錯亂導致的錯誤)
+// 這是 frontend/js/admin-parcels.js (V2 最終修正版)
+// (修正了 AJAX 更新時，對 "已是陣列" 的資料執行 JSON.parse() 的錯誤)
 
 // --- 1. 定義費率常數 (與 adminController.js 同步) ---
 const RATES = {
@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- 3. 狀態變數 ---
   let allParcelsData = [];
   const adminToken = localStorage.getItem("admin_token");
-  let currentExistingImages = [];
+  let currentExistingImages = []; // [新增] 用於儲存彈窗中的倉庫照片
   let currentSubPackages = []; // [新增] 用於儲存彈窗中的分箱資料
 
   const packageStatusMap = {
@@ -111,7 +111,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // [*** 修正 ***] 從 V2 欄位計算
       // (controller 傳來 `arrivedBoxesJson` 欄位，但內容是已解析的陣列)
-      const boxes = pkg.arrivedBoxesJson || [];
+      const boxes = Array.isArray(pkg.arrivedBoxesJson)
+        ? pkg.arrivedBoxesJson
+        : [];
       const weight =
         boxes.length > 0
           ? boxes
@@ -148,21 +150,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // (AJAX 優化) 只更新列表中的單一一列
   function updateParcelInList(pkg) {
+    // 1. 更新 master data
     const index = allParcelsData.findIndex((p) => p.id === pkg.id);
     if (index !== -1) {
       // 合併資料 (因為 API 回傳的 pkg 沒有 user 物件，要保留舊的)
       allParcelsData[index] = { ...allParcelsData[index], ...pkg };
     }
 
+    // 2. 更新 DOM
     const tr = document.getElementById(`parcel-row-${pkg.id}`);
-    if (!tr) return;
+    if (!tr) return; // 如果該列不在畫面上 (可能被篩選掉了)
 
-    // [*** 修正 ***] 更新 V2 欄位
+    // 3. 重新產生儲存格內容
     const statusText = packageStatusMap[pkg.status] || pkg.status;
 
-    // 注意：API 回傳的 (updatedPackage) warehouseImages 和 arrivedBoxesJson 是 JSON *字串*
-    const warehouseImages = JSON.parse(pkg.warehouseImages || "[]");
-    const boxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
+    // [*** 關鍵修正 ***]
+    // API (adminController) 回傳的 pkg 物件已包含 *解析後* 的陣列，
+    // (arrivedBoxesJson 欄位在回傳時已被 controller 覆蓋為解析後的陣列，warehouseImages 也是)
+    // 我們不再需要 JSON.parse()
+    const warehouseImages = Array.isArray(pkg.warehouseImages)
+      ? pkg.warehouseImages
+      : [];
+    const boxes = Array.isArray(pkg.arrivedBoxesJson) // controller 把陣列放在 arrivedBoxesJson 欄位
+      ? pkg.arrivedBoxesJson
+      : [];
+    // [*** 修正結束 ***]
 
     const weight =
       boxes.length > 0
@@ -180,6 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
     tr.cells[7].textContent = dimensions;
     tr.cells[8].textContent = totalFee;
 
+    // 4. 更新統計
     updateStats(allParcelsData);
   }
 
@@ -316,6 +329,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // (F) 從 DOM 讀取資料，更新 currentSubPackages 陣列
   function updateSubPackagesFromDOM() {
     const newPackages = [];
+    if (!elSubPackageList) return; // 防呆
     const boxElements = elSubPackageList.querySelectorAll(".sub-package-item");
     boxElements.forEach((boxEl) => {
       newPackages.push({
@@ -360,7 +374,18 @@ document.addEventListener("DOMContentLoaded", () => {
     // 計算
     elSubPackageList.addEventListener("change", (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") {
-        updateTotalCalculation();
+        // 使用 .closest 來確保我們是在 sub-package-list 內部觸發的
+        if (e.target.closest("#sub-package-list")) {
+          updateTotalCalculation();
+        }
+      }
+    });
+    // [新增] input 事件，讓輸入時更即時
+    elSubPackageList.addEventListener("input", (e) => {
+      if (e.target.tagName === "INPUT") {
+        if (e.target.closest("#sub-package-list")) {
+          updateTotalCalculation();
+        }
       }
     });
   }
