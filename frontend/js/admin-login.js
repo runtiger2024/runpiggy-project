@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-login.js (已修復 API_BASE_URL 和 OPERATOR 權限)
+// 這是 frontend/js/admin-login.js (修改版)
 
 document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("admin-login-form");
@@ -26,7 +26,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       // (2) (關鍵！) 檢查這個人是不是管理員 (ADMIN)
-      //     我們需要呼叫 /api/auth/me 來取得 role
       const profileResponse = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${data.token}` },
       });
@@ -43,17 +42,17 @@ document.addEventListener("DOMContentLoaded", () => {
       // (3) 登入成功！
       showMessage("管理員登入成功！正在跳轉...", "success");
 
-      // (4) (重要！) 我們把 Token 存在 "admin_token"，
-      //     和 "token" (會員的) 分開
+      // (4) (重要！) 我們把 Token 存在 "admin_token"
       localStorage.setItem("admin_token", data.token);
       localStorage.setItem(
         "admin_name",
         profileData.user.name || profileData.user.email
       );
 
-      // 5. 跳轉到「包裹管理頁面」(我們下一步會建立它)
+      // 5. [*** 修改重點 ***]
+      //    跳轉到新的「儀表板」頁面
       setTimeout(() => {
-        window.location.href = "admin-parcels.html";
+        window.location.href = "admin-dashboard.html"; // <-- 修改
       }, 1500);
     } catch (error) {
       console.error("登入錯誤:", error);

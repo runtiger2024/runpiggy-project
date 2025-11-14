@@ -1,4 +1,4 @@
-// 這是 backend/controllers/adminController.js (支援低消 2000 元的修改版)
+// 這是 backend/controllers/adminController.js (最終完整修復版：含分箱、低消、儀表板)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -14,7 +14,7 @@ const RATES = {
 };
 const VOLUME_DIVISOR = 28317; // 材積參數
 const CBM_TO_CAI_FACTOR = 35.3; // CBM轉材參數
-const MINIMUM_CHARGE = 2000; // [*** 新增：包裹低消常數 ***]
+const MINIMUM_CHARGE = 2000; // [新增] 包裹低消常數
 
 // --- 包裹管理 ---
 
@@ -30,6 +30,8 @@ const getAllPackages = async (req, res) => {
     const packagesWithImages = allPackages.map((pkg) => {
       let productImages = [];
       let warehouseImages = [];
+      let arrivedBoxes = []; // [新增]
+
       try {
         productImages = JSON.parse(pkg.productImages || "[]");
       } catch (e) {
@@ -41,7 +43,6 @@ const getAllPackages = async (req, res) => {
         // 忽略解析錯誤
       }
 
-      let arrivedBoxes = [];
       try {
         // 後端傳給前端時，直接解析
         arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
@@ -98,11 +99,15 @@ const updatePackageStatus = async (req, res) => {
   }
 };
 
-// 3. [關鍵修正] 更新包裹詳細資料 (支援「多筆分箱」入庫)
+// 3. [關鍵修正] 更新包裹詳細資料 (支援「多筆分箱」入庫 + 「低消」)
 const updatePackageDetails = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, boxesData, existingImages } = req.body;
+    const {
+      status,
+      boxesData, // 接收分箱資料
+      existingImages, // 接收舊照片
+    } = req.body;
 
     // (1) 撈出原始包裹
     const originalPackage = await prisma.package.findUnique({
@@ -180,6 +185,7 @@ const updatePackageDetails = async (req, res) => {
           dataToUpdate.arrivedBoxesJson = JSON.stringify(boxesWithFees);
           dataToUpdate.totalCalculatedFee = finalPackageFee; // 儲存套用低消後的金額
         } else {
+          // 如果傳了空陣列，就清空
           dataToUpdate.arrivedBoxesJson = "[]";
           dataToUpdate.totalCalculatedFee = 0;
         }
@@ -245,10 +251,25 @@ const updatePackageDetails = async (req, res) => {
       data: dataToUpdate,
     });
 
+    // (6) [新增] 回傳更新後的包裹資料 (包含解析好的 JSON)
+    //    這是為了 admin-parcels.js 儲存後能即時刷新彈窗
+    let parsedBoxes = [];
+    let parsedImages = [];
+    try {
+      parsedBoxes = JSON.parse(updatedPackage.arrivedBoxesJson || "[]");
+    } catch (e) {}
+    try {
+      parsedImages = JSON.parse(updatedPackage.warehouseImages || "[]");
+    } catch (e) {}
+
     res.status(200).json({
       success: true,
       message: "包裹詳細資料與分箱運費更新成功 (已清理舊圖片)",
-      package: updatedPackage,
+      package: {
+        ...updatedPackage,
+        arrivedBoxesJson: parsedBoxes, // 回傳解析後的
+        warehouseImages: parsedImages, // 回傳解析後的
+      },
     });
   } catch (error) {
     console.error("後端更新包裹錯誤:", error);
@@ -260,7 +281,7 @@ const updatePackageDetails = async (req, res) => {
 
 // --- 集運單管理 ---
 
-// 4. 更新集運單狀態 (保持不變)
+// 4. 更新集運單狀態
 const updateShipmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -298,7 +319,7 @@ const updateShipmentStatus = async (req, res) => {
   }
 };
 
-// 5. 取得所有集運單 (保持不變)
+// 5. 取得所有集運單
 const getAllShipments = async (req, res) => {
   try {
     const allShipments = await prisma.shipment.findMany({
@@ -330,7 +351,7 @@ const getAllShipments = async (req, res) => {
   }
 };
 
-// 6. 退回/拒絕集運單 (釋放包裹) (保持不變)
+// 6. 退回/拒絕集運單 (釋放包裹)
 const rejectShipment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -366,7 +387,7 @@ const rejectShipment = async (req, res) => {
 
 // --- 會員/員工管理 ---
 
-// 7. 建立員工帳號 (保持不變)
+// 7. 建立員工帳號
 const createStaffUser = async (req, res) => {
   try {
     const { email, password, name, role } = req.body;
@@ -419,7 +440,7 @@ const createStaffUser = async (req, res) => {
   }
 };
 
-// 8. 取得所有使用者 (保持不變)
+// 8. 取得所有使用者
 const getUsers = async (req, res) => {
   try {
     const users = await prisma.user.findMany({
@@ -445,7 +466,7 @@ const getUsers = async (req, res) => {
   }
 };
 
-// 9. 切換使用者狀態 (啟用/停用) (保持不變)
+// 9. 切換使用者狀態 (啟用/停用)
 const toggleUserStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -476,7 +497,7 @@ const toggleUserStatus = async (req, res) => {
   }
 };
 
-// 10. 重設密碼 (保持不變)
+// 10. 重設密碼
 const resetUserPassword = async (req, res) => {
   try {
     const { id } = req.params;
@@ -499,31 +520,24 @@ const resetUserPassword = async (req, res) => {
   }
 };
 
-// 11. 永久刪除使用者 (連動刪除包裹與集運單) (保持不變)
+// 11. 永久刪除使用者 (連動刪除包裹與集運單)
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // 防止刪除自己
     if (req.user.id === id) {
       return res
         .status(400)
         .json({ success: false, message: "您不能刪除自己的管理員帳號" });
     }
 
-    // 使用 Transaction 確保資料一致性
     await prisma.$transaction(async (tx) => {
-      // 刪除關聯包裹
       await tx.package.deleteMany({
         where: { userId: id },
       });
-
-      // 刪除關聯集運單
       await tx.shipment.deleteMany({
         where: { userId: id },
       });
-
-      // 刪除使用者
       await tx.user.delete({
         where: { id: id },
       });
@@ -541,6 +555,115 @@ const deleteUser = async (req, res) => {
   }
 };
 
+// [*** 新增：儀表板統計函式 ***]
+const getDashboardStats = async (req, res) => {
+  try {
+    // 1. 總用戶數
+    const totalUsers = await prisma.user.count();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // 設定為今天凌晨
+    const newUsersToday = await prisma.user.count({
+      where: { createdAt: { gte: today } },
+    });
+
+    // 2. 包裹統計
+    const packageCounts = await prisma.package.groupBy({
+      by: ["status"],
+      _count: {
+        id: true,
+      },
+    });
+    const packageStats = {
+      PENDING:
+        packageCounts.find((p) => p.status === "PENDING")?._count.id || 0,
+      ARRIVED:
+        packageCounts.find((p) => p.status === "ARRIVED")?._count.id || 0,
+      IN_SHIPMENT:
+        packageCounts.find((p) => p.status === "IN_SHIPMENT")?._count.id || 0,
+      COMPLETED:
+        packageCounts.find((p) => p.status === "COMPLETED")?._count.id || 0,
+    };
+    const totalPackages = packageCounts.reduce(
+      (sum, p) => sum + p._count.id,
+      0
+    );
+
+    // 3. 訂單統計
+    const shipmentCounts = await prisma.shipment.groupBy({
+      by: ["status"],
+      _count: {
+        id: true,
+      },
+    });
+    const shipmentStats = {
+      PENDING_PAYMENT:
+        shipmentCounts.find((s) => s.status === "PENDING_PAYMENT")?._count.id ||
+        0,
+      PROCESSING:
+        shipmentCounts.find((s) => s.status === "PROCESSING")?._count.id || 0,
+      SHIPPED:
+        shipmentCounts.find((s) => s.status === "SHIPPED")?._count.id || 0,
+      CANCEL: shipmentCounts.find((s) => s.status === "CANCEL")?._count.id || 0, // 已完成
+    };
+
+    // 4. 營收統計
+    // (注意：'CANCEL' 在你的系統中代表「已完成」)
+    const revenueData = await prisma.shipment.aggregate({
+      where: {
+        status: "CANCEL", // 'CANCEL' = 已完成
+      },
+      _sum: {
+        totalCost: true,
+      },
+    });
+    const totalRevenue = revenueData._sum.totalCost || 0;
+
+    // 5. 待付款訂單金額
+    const pendingRevenueData = await prisma.shipment.aggregate({
+      where: {
+        status: "PENDING_PAYMENT",
+      },
+      _sum: {
+        totalCost: true,
+      },
+    });
+    const pendingRevenue = pendingRevenueData._sum.totalCost || 0;
+
+    // 6. 最近 5 筆包裹
+    const recentPackages = await prisma.package.findMany({
+      take: 5,
+      orderBy: { createdAt: "desc" },
+      include: { user: { select: { email: true } } },
+    });
+
+    // 7. 最近 5 筆訂單
+    const recentShipments = await prisma.shipment.findMany({
+      take: 5,
+      orderBy: { createdAt: "desc" },
+      include: { user: { select: { email: true } } },
+    });
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        totalUsers,
+        newUsersToday,
+        totalPackages,
+        packageStats,
+        shipmentStats,
+        totalRevenue,
+        pendingRevenue,
+        recentPackages,
+        recentShipments,
+      },
+    });
+  } catch (error) {
+    console.error("取得儀表板統計時發生錯誤:", error);
+    res.status(500).json({ success: false, message: "伺服器發生錯誤" });
+  }
+};
+// [*** 新增結束 ***]
+
 module.exports = {
   getAllPackages,
   updatePackageStatus,
@@ -553,4 +676,5 @@ module.exports = {
   createStaffUser,
   rejectShipment,
   deleteUser,
+  getDashboardStats, // [*** 匯出儀表板函式 ***]
 };
