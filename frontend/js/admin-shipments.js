@@ -1,32 +1,32 @@
-// 這是 frontend/js/admin-shipments.js (最終完整版：含備註與憑證查看)
+// 這是 frontend/js/admin-shipments.js (最終完整版：含 AJAX 即時更新)
 
 document.addEventListener("DOMContentLoaded", () => {
+  // --- 1. 獲取元素 ---
   const adminWelcome = document.getElementById("admin-welcome");
   const logoutBtn = document.getElementById("logoutBtn");
   const shipmentsTableBody = document.getElementById("shipmentsTableBody");
   const filterStatus = document.getElementById("filter-status");
   const searchInput = document.getElementById("search-input");
   const filterBtn = document.getElementById("filter-btn");
-
   const modal = document.getElementById("edit-shipment-modal");
   const closeModalBtn = modal.querySelector(".modal-close");
   const updateForm = document.getElementById("edit-shipment-form");
   const shipmentPackageList = document.getElementById("modal-package-list");
   const modalServices = document.getElementById("modal-services");
 
+  // --- 2. 狀態變數 ---
   let allShipmentsData = [];
   const adminToken = localStorage.getItem("admin_token");
 
   const shipmentStatusMap = {
-    PENDING_PAYMENT: "待付款",
-    PROCESSING: "已收款，安排裝櫃",
-    SHIPPED: "已裝櫃",
-    COMPLETED: "海關查驗",
-    CANCELLEDD: "清關放行",
-    CANCELL: "拆櫃派送",
-    CANCEL: "已完成",
+    PENDING_PAYMENT: "等待付款",
+    PROCESSING: "處理中",
+    SHIPPED: "已出貨",
+    COMPLETED: "已完成",
+    CANCELLED: "已取消",
   };
 
+  // --- 3. 初始化 ---
   if (!adminToken) {
     alert("請先登入管理員");
     window.location.href = "admin-login.html";
@@ -36,7 +36,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const adminName = localStorage.getItem("admin_name");
   if (adminName) adminWelcome.textContent = `你好, ${adminName}`;
 
-  // --- (A) 載入集運單 ---
+  // --- 4. 函式定義 ---
+
+  // (A) 載入集運單
   async function loadAllShipments() {
     shipmentsTableBody.innerHTML =
       '<tr><td colspan="7" class="loading"><div class="spinner"></div><p>載入集運單資料中...</p></td></tr>';
@@ -44,12 +46,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await fetch(`${API_BASE_URL}/api/admin/shipments/all`, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
-
       if (!response.ok) {
         if (response.status === 401) window.location.href = "admin-login.html";
         throw new Error("載入失敗");
       }
-
       const data = await response.json();
       allShipmentsData = data.shipments || [];
       renderShipments();
@@ -59,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- (B) 渲染列表 ---
+  // (B) 渲染列表
   function renderShipments() {
     shipmentsTableBody.innerHTML = "";
     const status = filterStatus.value;
@@ -85,7 +85,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const statusText = shipmentStatusMap[ship.status] || ship.status;
       const tr = document.createElement("tr");
 
-      // 判斷是否有憑證 (用於提示)
+      // [修改] 賦予 tr 一個唯一的 DOM ID
+      tr.id = `shipment-row-${ship.id}`;
+
+      // 判斷是否有憑證
       const hasProof = ship.paymentProof ? " (有憑證)" : "";
 
       tr.innerHTML = `
@@ -108,7 +111,31 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // --- (C) 開啟彈窗 ---
+  // [新增] (AJAX 優化) 只更新列表中的單一一列
+  function updateShipmentInList(ship) {
+    // 1. 更新 master data
+    const index = allShipmentsData.findIndex((s) => s.id === ship.id);
+    if (index !== -1) {
+      // 合併資料 (保留 user 和 packages)
+      allShipmentsData[index] = { ...allShipmentsData[index], ...ship };
+    }
+
+    // 2. 更新 DOM
+    const tr = document.getElementById(`shipment-row-${ship.id}`);
+    if (!tr) return;
+
+    // 3. 重新產生儲存格內容
+    const statusText = shipmentStatusMap[ship.status] || ship.status;
+    const hasProof = ship.paymentProof ? " (有憑證)" : "";
+
+    tr.cells[4].innerHTML = `<span class="status-badge status-${ship.status}">${statusText}${hasProof}</span>`;
+    tr.cells[5].textContent = ship.totalCost
+      ? `NT$ ${ship.totalCost.toLocaleString()}`
+      : "(待報價)";
+    tr.cells[6].textContent = ship.trackingNumberTW || "-";
+  }
+
+  // (C) 開啟彈窗
   function openShipmentModal(ship) {
     document.getElementById("edit-shipment-id").value = ship.id;
     document.getElementById("modal-user-email").textContent = ship.user.email;
@@ -118,30 +145,23 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-idNumber").textContent = ship.idNumber;
     document.getElementById("modal-address").textContent = ship.shippingAddress;
 
-    // [新增] 顯示備註
     const noteEl = document.getElementById("modal-note");
     if (noteEl) noteEl.textContent = ship.note || "(無)";
 
-    // [新增] 顯示付款憑證
     const proofEl = document.getElementById("modal-payment-proof");
     if (proofEl) {
       if (ship.paymentProof) {
-        // 產生可點擊的連結
         proofEl.innerHTML = `<a href="${API_BASE_URL}${ship.paymentProof}" target="_blank" style="color: #1a73e8; font-weight: bold; text-decoration: underline;">點擊查看憑證圖片</a>`;
       } else {
         proofEl.textContent = "尚未上傳";
       }
     }
 
-    // 顯示包裹列表
     shipmentPackageList.innerHTML = ship.packages
       .map((p) => `<p>${p.productName} (<b>${p.trackingNumber}</b>)</p>`)
       .join("");
-
-    // 顯示附加服務 (固定為無)
     modalServices.innerHTML = "<p>(無附加服務)</p>";
 
-    // 回填表單
     document.getElementById("modal-status").value = ship.status;
     document.getElementById("modal-totalCost").value = ship.totalCost || "";
     document.getElementById("modal-trackingNumberTW").value =
@@ -150,13 +170,13 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.style.display = "flex";
   }
 
-  // --- (D) 關閉彈窗 ---
+  // (D) 關閉彈窗
   closeModalBtn.addEventListener("click", () => (modal.style.display = "none"));
   modal.addEventListener("click", (e) => {
     if (e.target === modal) modal.style.display = "none";
   });
 
-  // --- (E) 提交更新 ---
+  // (E) 提交更新
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("edit-shipment-id").value;
@@ -168,11 +188,10 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       let response;
 
-      // 如果是取消訂單，呼叫退回 API
       if (status === "CANCELLED") {
         if (
           !confirm(
-            "確定要取消此集運單？\n\n這將會釋放所有包裹回到「已入庫」狀態，讓客戶可以重新申請。"
+            "確定要取消此集運單？\n\n這將會釋放所有包裹回到「已入庫」狀態。"
           )
         ) {
           submitBtn.disabled = false;
@@ -187,7 +206,6 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         );
       } else {
-        // 一般更新
         const data = {
           status: status,
           totalCost: document.getElementById("modal-totalCost").value,
@@ -204,11 +222,21 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }
 
-      if (!response.ok) throw new Error("更新失敗");
+      const result = await response.json(); // [修改] 取得回傳資料
+      if (!response.ok) throw new Error(result.message || "更新失敗");
 
       modal.style.display = "none";
       alert("集運單更新成功");
-      loadAllShipments();
+
+      // --- [AJAX 優化邏輯] ---
+      if (status === "CANCELLED") {
+        // 1. 取消訂單會影響包裹狀態，最好是重新載入
+        loadAllShipments();
+      } else {
+        // 2. 否則，只更新這一列
+        updateShipmentInList(result.shipment);
+      }
+      // --- [優化結束] ---
     } catch (error) {
       alert(error.message);
     } finally {
@@ -217,7 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- (F) 登出 ---
+  // (F) 登出
   logoutBtn.addEventListener("click", () => {
     if (confirm("確定登出？")) {
       localStorage.removeItem("admin_token");
@@ -226,7 +254,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- (G) 篩選 ---
+  // (G) 篩選
   filterBtn.addEventListener("click", () => renderShipments());
 
   // 初始載入
