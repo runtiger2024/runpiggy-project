@@ -1,5 +1,4 @@
-// 這是 frontend/js/main.js (已修復 API_BASE_URL)
-// (最終完整版，支援「登入預報」)
+// 這是 frontend/js/main.js (已修復分享連結)
 
 // --- (1) 計數器邏輯 ---
 function initializeUsageCounter() {
@@ -307,36 +306,28 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
 
-    // --- (*** 這是新加入的功能 ***) ---
-    // 1. 加入分享按鈕
     html += `<button type="button" id="btn-share" class="btn btn-share">產生分享連結 (複製)</button>`;
 
-    // 2. 檢查是否已登入
     const token = localStorage.getItem("token");
     if (!token) {
-      // "未登入" -> 顯示「登入預報」按鈕
       html += `<button type="button" id="btn-login-forecast" class="btn btn-primary">登入/註冊 以預報此包裹</button>`;
     } else {
-      // "已登入" -> 顯示「直接預報」按鈕
       html += `<button type="button" id="btn-login-forecast" class="btn btn-primary">將此試算存入包裹預報</button>`;
     }
-    // --- (*** 結束 ***) ---
 
     resultsContainer.innerHTML = html;
     resultsContainer.scrollIntoView({ behavior: "smooth" });
 
-    // 為新產生的 "分享" 按鈕綁定事件
     document
       .getElementById("btn-share")
       .addEventListener("click", handleShareQuote);
 
-    // (新) 為新產生的 "預報" 按鈕綁定事件
     document
       .getElementById("btn-login-forecast")
       .addEventListener("click", handleForecastRedirect);
   }
 
-  // --- (11) 函式: handleShareQuote ---
+  // --- (11) 函式: handleShareQuote [*** 修改重點 ***] ---
   async function handleShareQuote() {
     const shareButton = document.getElementById("btn-share");
     if (!currentCalculationResult) {
@@ -357,7 +348,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!response.ok) {
         throw new Error(result.error || "產生連結失敗");
       }
-      const shareUrl = `${window.location.origin}/frontend/quote.html?id=${result.id}`;
+
+      // [修改] 移除了錯誤的 "/frontend"
+      const shareUrl = `${window.location.origin}/quote.html?id=${result.id}`;
+
       await navigator.clipboard.writeText(shareUrl);
       shareButton.textContent = "✓ 連結已複製！";
       shareButton.style.backgroundColor = "#27ae60";
@@ -375,17 +369,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- (12) (新) 函式: handleForecastRedirect ---
-  /**
-   * 儲存試算資料到 localStorage 並跳轉
-   */
   function handleForecastRedirect() {
     if (!currentCalculationResult || !currentCalculationResult.allItemsData) {
       alert("沒有試算資料可儲存");
       return;
     }
 
-    // (1) 我們只儲存 "第一個" 貨物的 "名稱" 和 "数量"
-    //     (因為 dashboard 的預報表單一次只收一筆)
     const firstItem = currentCalculationResult.allItemsData[0];
 
     if (!firstItem) {
@@ -398,16 +387,12 @@ document.addEventListener("DOMContentLoaded", () => {
       quantity: firstItem.quantity,
     };
 
-    // (2) 存入 localStorage
     localStorage.setItem("forecast_draft", JSON.stringify(forecastDraft));
 
-    // (3) 跳轉
     const token = localStorage.getItem("token");
     if (token) {
-      // 如果已經登入了，直接跳去 dashboard
       window.location.href = "dashboard.html";
     } else {
-      // 如果沒登入，跳去 login
       window.location.href = "login.html";
     }
   }
