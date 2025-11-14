@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-parcels.js (支援「儲存後不關閉」的修改版)
+// 這是 frontend/js/admin-parcels.js (支援「5 張照片」的修改版)
 
 // --- 1. 定義費率常數 (需與後端保持一致) ---
 const RATES = {
@@ -322,7 +322,6 @@ document.addEventListener("DOMContentLoaded", () => {
       totalFee += boxFee;
     });
 
-    // 套用低消邏輯
     let finalDisplayFee = totalFee;
     let notice = "";
     if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
@@ -378,7 +377,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("modal-status").value = pkg.status;
 
-    // 載入分箱資料
     currentSubPackages = [];
     subPackageCounter = 0;
 
@@ -409,7 +407,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     renderSubPackageUI();
 
-    // 載入現有照片
     currentExistingImages = Array.isArray(pkg.warehouseImages)
       ? [...pkg.warehouseImages]
       : [];
@@ -419,7 +416,7 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.style.display = "flex";
   }
 
-  // (I) 渲染倉庫照片
+  // (I) 渲染倉庫照片 [*** 修改重點：照片上限 ***]
   function renderWarehouseImages() {
     const container = document.getElementById("modal-warehouse-images-preview");
     const fileInput = document.getElementById("modal-warehouseImages");
@@ -447,9 +444,10 @@ document.addEventListener("DOMContentLoaded", () => {
       container.innerHTML += "<p>目前無照片</p>";
     }
 
-    if (currentExistingImages.length >= 3) {
+    // [修改] 限制上傳數量為 5
+    if (currentExistingImages.length >= 5) {
       fileInput.disabled = true;
-      fileInput.title = "已達上限 (3張)";
+      fileInput.title = "已達上限 (5張)"; // [修改]
     } else {
       fileInput.disabled = false;
       fileInput.title = "";
@@ -472,15 +470,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target === modal) modal.style.display = "none";
   });
 
-  // (L) [*** 修改重點：提交更新表單 ***]
+  // (L) 提交更新表單 [*** 修改重點：照片上限 ***]
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const packageId = document.getElementById("modal-pkg-id").value;
     const submitButton = updateForm.querySelector('button[type="submit"]');
     const newFiles = document.getElementById("modal-warehouseImages").files;
 
-    if (currentExistingImages.length + newFiles.length > 3) {
-      alert("照片總數不能超過 3 張！");
+    // [修改] 檢查照片總數是否超過 5
+    if (currentExistingImages.length + newFiles.length > 5) {
+      alert("照片總數不能超過 5 張！"); // [修改]
       return;
     }
 
@@ -490,7 +489,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const formData = new FormData();
     formData.append("status", document.getElementById("modal-status").value);
 
-    // 傳送「分箱資料」
     const cleanBoxes = currentSubPackages.map((box) => {
       return {
         name: box.name,
@@ -504,7 +502,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     formData.append("boxesData", JSON.stringify(cleanBoxes || []));
 
-    // 傳送「照片資料」
     formData.append(
       "existingImages",
       JSON.stringify(currentExistingImages || [])
@@ -528,70 +525,39 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(err.message || "更新失敗");
       }
 
-      // [*** 修改：儲存成功後的動作 ***]
-
-      // 1. (移除) modal.style.display = "none";
-      // 2. (移除) alert("包裹更新成功！...");
-
-      // 3. 取得後端回傳的最新包裹資料
       const result = await response.json();
       const updatedPackage = result.package;
 
-      // 4. 解析後端回傳的最新分箱資料 (後端傳回的是字串)
-      let updatedBoxes = [];
-      if (updatedPackage.arrivedBoxesJson) {
-        try {
-          updatedBoxes = JSON.parse(updatedPackage.arrivedBoxesJson || "[]");
-        } catch (e) {
-          console.error("解析後端回傳的 arrivedBoxesJson 失敗", e);
-        }
-      }
-
-      // 5. 重新建立前端的 `currentSubPackages` 暫存
+      // [修改] 後端回傳的 arrivedBoxesJson 和 warehouseImages 已經是解析過的陣列
       currentSubPackages = [];
-      subPackageCounter = 0; // 重置計數器
-      updatedBoxes.forEach((box) => {
+      subPackageCounter = 0;
+      (updatedPackage.arrivedBoxesJson || []).forEach((box) => {
         subPackageCounter++;
         currentSubPackages.push({
           ...box,
-          id: `db_${subPackageCounter}`, // 賦予新的 DB 來源 ID
+          id: `db_${subPackageCounter}`,
         });
       });
-
-      // 6. 重新渲染分箱 UI (這會自動觸發 updateLiveCalculation)
       renderSubPackageUI();
 
-      // 7. 同時更新照片區 (後端回傳的也是字串)
-      try {
-        currentExistingImages = JSON.parse(
-          updatedPackage.warehouseImages || "[]"
-        );
-      } catch (e) {
-        currentExistingImages = [];
-      }
+      currentExistingImages = updatedPackage.warehouseImages || [];
       renderWarehouseImages();
-      document.getElementById("modal-warehouseImages").value = null; // 清空檔案上傳欄位
+      document.getElementById("modal-warehouseImages").value = null;
 
-      // 8. 重新載入背景的主列表 (這仍然需要)
       loadAllParcels();
 
-      // 9. 提供暫時的按鈕反饋
       submitButton.textContent = "✓ 儲存成功！";
-      submitButton.style.backgroundColor = "#27ae60"; // Green
-
-      // [*** 修改結束 ***]
+      submitButton.style.backgroundColor = "#27ae60";
     } catch (error) {
       console.error("更新失敗:", error);
       alert(`更新失敗: ${error.message}`);
-      // 失敗時也要恢復按鈕
       submitButton.textContent = "儲存更新";
-      submitButton.style.backgroundColor = ""; // 恢復原色
+      submitButton.style.backgroundColor = "";
     } finally {
-      // 延遲 2 秒後恢復按鈕
       setTimeout(() => {
         submitButton.disabled = false;
         submitButton.textContent = "儲存更新";
-        submitButton.style.backgroundColor = ""; // 恢復原色
+        submitButton.style.backgroundColor = "";
       }, 2000);
     }
   });

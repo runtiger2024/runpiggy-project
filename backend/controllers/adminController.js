@@ -1,4 +1,4 @@
-// 這是 backend/controllers/adminController.js (最終完整修復版：含分箱、低消、儀表板)
+// 這是 backend/controllers/adminController.js (已將照片上限修改為 5)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -14,7 +14,7 @@ const RATES = {
 };
 const VOLUME_DIVISOR = 28317; // 材積參數
 const CBM_TO_CAI_FACTOR = 35.3; // CBM轉材參數
-const MINIMUM_CHARGE = 2000; // [新增] 包裹低消常數
+const MINIMUM_CHARGE = 2000; // 包裹低消常數
 
 // --- 包裹管理 ---
 
@@ -175,17 +175,14 @@ const updatePackageDetails = async (req, res) => {
             });
           }
 
-          // (3) [*** 修改重點：套用低消 ***]
           let finalPackageFee = calculatedTotalFee;
-          // 只有在總金額 > 0 但 < 2000 時才套用
           if (calculatedTotalFee > 0 && calculatedTotalFee < MINIMUM_CHARGE) {
             finalPackageFee = MINIMUM_CHARGE;
           }
 
           dataToUpdate.arrivedBoxesJson = JSON.stringify(boxesWithFees);
-          dataToUpdate.totalCalculatedFee = finalPackageFee; // 儲存套用低消後的金額
+          dataToUpdate.totalCalculatedFee = finalPackageFee;
         } else {
-          // 如果傳了空陣列，就清空
           dataToUpdate.arrivedBoxesJson = "[]";
           dataToUpdate.totalCalculatedFee = 0;
         }
@@ -240,9 +237,12 @@ const updatePackageDetails = async (req, res) => {
       );
       finalImageList = [...finalImageList, ...newImagePaths];
     }
-    if (finalImageList.length > 3) {
-      finalImageList = finalImageList.slice(0, 3);
+
+    // [*** 修改重點：強制限制最多 5 張 ***]
+    if (finalImageList.length > 5) {
+      finalImageList = finalImageList.slice(0, 5);
     }
+
     dataToUpdate.warehouseImages = JSON.stringify(finalImageList);
 
     // (5) 執行資料庫更新
@@ -251,8 +251,7 @@ const updatePackageDetails = async (req, res) => {
       data: dataToUpdate,
     });
 
-    // (6) [新增] 回傳更新後的包裹資料 (包含解析好的 JSON)
-    //    這是為了 admin-parcels.js 儲存後能即時刷新彈窗
+    // (6) 回傳更新後的包裹資料 (包含解析好的 JSON)
     let parsedBoxes = [];
     let parsedImages = [];
     try {
@@ -555,7 +554,7 @@ const deleteUser = async (req, res) => {
   }
 };
 
-// [*** 新增：儀表板統計函式 ***]
+// 12. [儀表板統計函式]
 const getDashboardStats = async (req, res) => {
   try {
     // 1. 總用戶數
@@ -662,7 +661,6 @@ const getDashboardStats = async (req, res) => {
     res.status(500).json({ success: false, message: "伺服器發生錯誤" });
   }
 };
-// [*** 新增結束 ***]
 
 module.exports = {
   getAllPackages,
@@ -676,5 +674,5 @@ module.exports = {
   createStaffUser,
   rejectShipment,
   deleteUser,
-  getDashboardStats, // [*** 匯出儀表板函式 ***]
+  getDashboardStats,
 };
