@@ -30,7 +30,7 @@ const getAllPackages = async (req, res) => {
     const packagesWithImages = allPackages.map((pkg) => {
       let productImages = [];
       let warehouseImages = [];
-      let arrivedBoxes = [];
+      let arrivedBoxes = []; // [新增]
 
       try {
         productImages = JSON.parse(pkg.productImages || "[]");
@@ -40,6 +40,7 @@ const getAllPackages = async (req, res) => {
       } catch (e) {}
 
       try {
+        // 後端傳給前端時，直接解析
         arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
       } catch (e) {}
 
@@ -47,7 +48,7 @@ const getAllPackages = async (req, res) => {
         ...pkg,
         productImages,
         warehouseImages,
-        arrivedBoxesJson: arrivedBoxes,
+        arrivedBoxesJson: arrivedBoxes, // [修改] 直接回傳解析後的物件
       };
     });
 
@@ -102,6 +103,7 @@ const updatePackageDetails = async (req, res) => {
       existingImages, // 接收舊照片
     } = req.body;
 
+    // (1) 撈出原始包裹
     const originalPackage = await prisma.package.findUnique({
       where: { id: id },
     });
@@ -116,6 +118,7 @@ const updatePackageDetails = async (req, res) => {
     let calculatedTotalFee = 0; // 總運費
     let boxesWithFees = []; // 儲存處理過的分箱陣列
 
+    // (2) [新邏輯] 處理分箱運費計算
     if (boxesData) {
       try {
         const boxes = JSON.parse(boxesData);
