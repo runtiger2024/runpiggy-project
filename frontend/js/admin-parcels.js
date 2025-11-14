@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-parcels.js (支援「5 張照片」的修改版)
+// 這是 frontend/js/admin-parcels.js (已移除包裹層級的低消)
 
 // --- 1. 定義費率常數 (需與後端保持一致) ---
 const RATES = {
@@ -8,7 +8,8 @@ const RATES = {
   special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
 };
 const VOLUME_DIVISOR = 28317;
-const MINIMUM_CHARGE = 2000; // 包裹低消常數
+// [*** 移除：低消常數 ***]
+// const MINIMUM_CHARGE = 2000;
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 2. 獲取 DOM 元素 ---
@@ -19,27 +20,24 @@ document.addEventListener("DOMContentLoaded", () => {
   const filterBtn = document.getElementById("filter-btn");
   const parcelsTableBody = document.getElementById("parcelsTableBody");
 
-  // 統計
   const statsTotal = document.getElementById("stats-total");
   const statsPending = document.getElementById("stats-pending");
   const statsArrived = document.getElementById("stats-arrived");
   const statsCompleted = document.getElementById("stats-completed");
 
-  // 彈窗
   const modal = document.getElementById("parcel-detail-modal");
   const closeModalBtn = modal.querySelector(".modal-close-btn");
   const updateForm = document.getElementById("update-package-form");
 
-  // 分箱相關元素
   const subPackageListContainer = document.getElementById("sub-package-list");
   const btnAddSubPackage = document.getElementById("btn-add-sub-package");
-  const elFeeDisplayTotal = document.getElementById("modal-shippingFee"); // 總運費
+  const elFeeDisplayTotal = document.getElementById("modal-shippingFee");
 
   // --- 3. 狀態變數 ---
   let allParcelsData = [];
   const adminToken = localStorage.getItem("admin_token");
-  let currentExistingImages = []; // 暫存舊照片列表 (用於刪除邏輯)
-  let currentSubPackages = []; // 暫存分箱資料
+  let currentExistingImages = [];
+  let currentSubPackages = [];
   let subPackageCounter = 0;
 
   const packageStatusMap = {
@@ -274,7 +272,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // (F) 即時運費試算邏輯
+  // (F) [*** 修改重點：移除低消邏輯 ***]
   function updateLiveCalculation() {
     let totalFee = 0;
 
@@ -322,15 +320,17 @@ document.addEventListener("DOMContentLoaded", () => {
       totalFee += boxFee;
     });
 
-    let finalDisplayFee = totalFee;
-    let notice = "";
-    if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
-      finalDisplayFee = MINIMUM_CHARGE;
-      notice = ` (原始 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE})`;
-    }
+    // [*** 移除低消判斷 ***]
+    // let finalDisplayFee = totalFee;
+    // let notice = "";
+    // if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
+    //   finalDisplayFee = MINIMUM_CHARGE;
+    //   notice = ` (原始 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE})`;
+    // }
 
     if (elFeeDisplayTotal) {
-      elFeeDisplayTotal.value = `NT$ ${finalDisplayFee.toLocaleString()}${notice}`;
+      // [修改] 只顯示原始總和
+      elFeeDisplayTotal.value = `NT$ ${totalFee.toLocaleString()}`;
     }
   }
 
@@ -416,7 +416,7 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.style.display = "flex";
   }
 
-  // (I) 渲染倉庫照片 [*** 修改重點：照片上限 ***]
+  // (I) 渲染倉庫照片 (修改為 5 張)
   function renderWarehouseImages() {
     const container = document.getElementById("modal-warehouse-images-preview");
     const fileInput = document.getElementById("modal-warehouseImages");
@@ -444,8 +444,8 @@ document.addEventListener("DOMContentLoaded", () => {
       container.innerHTML += "<p>目前無照片</p>";
     }
 
-    // [修改] 限制上傳數量為 5
     if (currentExistingImages.length >= 5) {
+      // [修改]
       fileInput.disabled = true;
       fileInput.title = "已達上限 (5張)"; // [修改]
     } else {
@@ -470,15 +470,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target === modal) modal.style.display = "none";
   });
 
-  // (L) 提交更新表單 [*** 修改重點：照片上限 ***]
+  // (L) 提交更新表單 (修改為 5 張)
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const packageId = document.getElementById("modal-pkg-id").value;
     const submitButton = updateForm.querySelector('button[type="submit"]');
     const newFiles = document.getElementById("modal-warehouseImages").files;
 
-    // [修改] 檢查照片總數是否超過 5
     if (currentExistingImages.length + newFiles.length > 5) {
+      // [修改]
       alert("照片總數不能超過 5 張！"); // [修改]
       return;
     }
@@ -528,7 +528,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const result = await response.json();
       const updatedPackage = result.package;
 
-      // [修改] 後端回傳的 arrivedBoxesJson 和 warehouseImages 已經是解析過的陣列
       currentSubPackages = [];
       subPackageCounter = 0;
       (updatedPackage.arrivedBoxesJson || []).forEach((box) => {

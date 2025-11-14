@@ -1,4 +1,4 @@
-// 這是 backend/controllers/adminController.js (已將照片上限修改為 5)
+// 這是 backend/controllers/adminController.js (已移除包裹層級的低消)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -14,7 +14,7 @@ const RATES = {
 };
 const VOLUME_DIVISOR = 28317; // 材積參數
 const CBM_TO_CAI_FACTOR = 35.3; // CBM轉材參數
-const MINIMUM_CHARGE = 2000; // 包裹低消常數
+const MINIMUM_CHARGE = 2000; // 集運低消常數 (保留定義，但不在包裹層級使用)
 
 // --- 包裹管理 ---
 
@@ -30,31 +30,24 @@ const getAllPackages = async (req, res) => {
     const packagesWithImages = allPackages.map((pkg) => {
       let productImages = [];
       let warehouseImages = [];
-      let arrivedBoxes = []; // [新增]
+      let arrivedBoxes = [];
 
       try {
         productImages = JSON.parse(pkg.productImages || "[]");
-      } catch (e) {
-        // 忽略解析錯誤
-      }
+      } catch (e) {}
       try {
         warehouseImages = JSON.parse(pkg.warehouseImages || "[]");
-      } catch (e) {
-        // 忽略解析錯誤
-      }
+      } catch (e) {}
 
       try {
-        // 後端傳給前端時，直接解析
         arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
-      } catch (e) {
-        // 忽略解析錯誤
-      }
+      } catch (e) {}
 
       return {
         ...pkg,
         productImages,
         warehouseImages,
-        arrivedBoxesJson: arrivedBoxes, // [修改] 直接回傳解析後的物件
+        arrivedBoxesJson: arrivedBoxes,
       };
     });
 
@@ -99,7 +92,7 @@ const updatePackageStatus = async (req, res) => {
   }
 };
 
-// 3. [關鍵修正] 更新包裹詳細資料 (支援「多筆分箱」入庫 + 「低消」)
+// 3. [關鍵修正] 更新包裹詳細資料 (移除包裹層級的低消)
 const updatePackageDetails = async (req, res) => {
   try {
     const { id } = req.params;
@@ -109,7 +102,6 @@ const updatePackageDetails = async (req, res) => {
       existingImages, // 接收舊照片
     } = req.body;
 
-    // (1) 撈出原始包裹
     const originalPackage = await prisma.package.findUnique({
       where: { id: id },
     });
@@ -124,7 +116,6 @@ const updatePackageDetails = async (req, res) => {
     let calculatedTotalFee = 0; // 總運費
     let boxesWithFees = []; // 儲存處理過的分箱陣列
 
-    // (2) [新邏輯] 處理分箱運費計算
     if (boxesData) {
       try {
         const boxes = JSON.parse(boxesData);
@@ -175,13 +166,14 @@ const updatePackageDetails = async (req, res) => {
             });
           }
 
-          let finalPackageFee = calculatedTotalFee;
-          if (calculatedTotalFee > 0 && calculatedTotalFee < MINIMUM_CHARGE) {
-            finalPackageFee = MINIMUM_CHARGE;
-          }
+          // (3) [*** 修改重點：移除低消判斷 ***]
+          // let finalPackageFee = calculatedTotalFee;
+          // if (calculatedTotalFee > 0 && calculatedTotalFee < MINIMUM_CHARGE) {
+          //   finalPackageFee = MINIMUM_CHARGE;
+          // }
 
           dataToUpdate.arrivedBoxesJson = JSON.stringify(boxesWithFees);
-          dataToUpdate.totalCalculatedFee = finalPackageFee;
+          dataToUpdate.totalCalculatedFee = calculatedTotalFee; // [修改] 儲存原始總和
         } else {
           dataToUpdate.arrivedBoxesJson = "[]";
           dataToUpdate.totalCalculatedFee = 0;
@@ -194,7 +186,7 @@ const updatePackageDetails = async (req, res) => {
       }
     }
 
-    // (4) 照片處理邏輯 (不變)
+    // (4) 照片處理邏輯 (修改為 5 張)
     let originalImagesList = [];
     try {
       originalImagesList = JSON.parse(originalPackage.warehouseImages || "[]");
@@ -238,8 +230,8 @@ const updatePackageDetails = async (req, res) => {
       finalImageList = [...finalImageList, ...newImagePaths];
     }
 
-    // [*** 修改重點：強制限制最多 5 張 ***]
     if (finalImageList.length > 5) {
+      // 已修改為 5
       finalImageList = finalImageList.slice(0, 5);
     }
 
@@ -266,8 +258,8 @@ const updatePackageDetails = async (req, res) => {
       message: "包裹詳細資料與分箱運費更新成功 (已清理舊圖片)",
       package: {
         ...updatedPackage,
-        arrivedBoxesJson: parsedBoxes, // 回傳解析後的
-        warehouseImages: parsedImages, // 回傳解析後的
+        arrivedBoxesJson: parsedBoxes,
+        warehouseImages: parsedImages,
       },
     });
   } catch (error) {
@@ -333,9 +325,7 @@ const getAllShipments = async (req, res) => {
       let services = {};
       try {
         services = JSON.parse(ship.additionalServices || "{}");
-      } catch (e) {
-        // 忽略解析錯誤
-      }
+      } catch (e) {}
       return { ...ship, additionalServices: services };
     });
 
@@ -356,13 +346,11 @@ const rejectShipment = async (req, res) => {
     const { id } = req.params;
 
     const result = await prisma.$transaction(async (tx) => {
-      // 更新集運單為取消
       const updatedShipment = await tx.shipment.update({
         where: { id: id },
         data: { status: "CANCELLED" },
       });
 
-      // 釋放所有包裹 (回到 ARRIVED 狀態，解除關聯)
       const releasedPackages = await tx.package.updateMany({
         where: { shipmentId: id },
         data: {
@@ -560,7 +548,7 @@ const getDashboardStats = async (req, res) => {
     // 1. 總用戶數
     const totalUsers = await prisma.user.count();
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // 設定為今天凌晨
+    today.setHours(0, 0, 0, 0);
     const newUsersToday = await prisma.user.count({
       where: { createdAt: { gte: today } },
     });
@@ -606,7 +594,6 @@ const getDashboardStats = async (req, res) => {
     };
 
     // 4. 營收統計
-    // (注意：'CANCEL' 在你的系統中代表「已完成」)
     const revenueData = await prisma.shipment.aggregate({
       where: {
         status: "CANCEL", // 'CANCEL' = 已完成
