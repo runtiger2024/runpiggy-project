@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-parcels.js (支援「分箱」的完整重構版)
+// 這是 frontend/js/admin-parcels.js (支援「低消 2000 元」的修改版)
 
 // --- 1. 定義費率常數 (需與後端保持一致) ---
 const RATES = {
@@ -8,6 +8,7 @@ const RATES = {
   special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
 };
 const VOLUME_DIVISOR = 28317;
+const MINIMUM_CHARGE = 2000; // [*** 新增：包裹低消常數 ***]
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 2. 獲取 DOM 元素 ---
@@ -87,7 +88,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (B) 渲染包裹列表 (*** 修改 ***)
+  // (B) 渲染包裹列表
   function renderParcels(parcels) {
     parcelsTableBody.innerHTML = "";
     const status = filterStatus.value;
@@ -112,12 +113,10 @@ document.addEventListener("DOMContentLoaded", () => {
     filteredParcels.forEach((pkg) => {
       const statusText = packageStatusMap[pkg.status] || pkg.status;
 
-      // [修改] 解析分箱 JSON (注意：後端傳來的已是 JSON 物件)
       const arrivedBoxes = Array.isArray(pkg.arrivedBoxesJson)
         ? pkg.arrivedBoxesJson
         : [];
 
-      // [修改] 顯示分箱總數和總運費
       const dimensions =
         arrivedBoxes.length > 0 ? `${arrivedBoxes.length} 箱` : "-";
       const weight =
@@ -126,9 +125,10 @@ document.addEventListener("DOMContentLoaded", () => {
               .reduce((sum, box) => sum + (parseFloat(box.weight) || 0), 0)
               .toFixed(1)} kg (總)`
           : "-";
-      const totalFee = pkg.totalCalculatedFee
-        ? `NT$ ${pkg.totalCalculatedFee.toLocaleString()}`
-        : "-";
+      const totalFee =
+        pkg.totalCalculatedFee != null
+          ? `NT$ ${pkg.totalCalculatedFee.toLocaleString()}`
+          : "-"; // 允許 0 元
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -165,13 +165,13 @@ document.addEventListener("DOMContentLoaded", () => {
     ).length;
   }
 
-  // (D) [新增] 渲染「分箱」列表的 UI
+  // (D) 渲染「分箱」列表的 UI
   function renderSubPackageUI() {
     if (!subPackageListContainer) return;
-    subPackageListContainer.innerHTML = ""; // 清空
+    subPackageListContainer.innerHTML = "";
 
     currentSubPackages.forEach((box) => {
-      const boxId = box.id; // 取得這個暫存分箱的唯一 ID
+      const boxId = box.id;
       const div = document.createElement("div");
       div.className = "sub-package-item";
       div.setAttribute("data-box-id", boxId);
@@ -235,20 +235,16 @@ document.addEventListener("DOMContentLoaded", () => {
       subPackageListContainer.appendChild(div);
     });
 
-    // 綁定事件
     bindSubPackageEvents();
-    // 立即重算一次
     updateLiveCalculation();
   }
 
-  // (E) [新增] 綁定分箱上的事件 (輸入、刪除)
+  // (E) 綁定分箱上的事件
   function bindSubPackageEvents() {
-    // 刪除按鈕
     document.querySelectorAll(".btn-remove-sub-pkg").forEach((btn) => {
       btn.onclick = (e) => {
         const boxId = e.target.dataset.id;
         if (confirm("確定要刪除這個分箱嗎？")) {
-          // 用字串比較 ID，因為 ID 可能是 temp_1 或 db_1
           currentSubPackages = currentSubPackages.filter(
             (b) => b.id.toString() !== boxId.toString()
           );
@@ -257,7 +253,6 @@ document.addEventListener("DOMContentLoaded", () => {
       };
     });
 
-    // 即時輸入
     document.querySelectorAll(".sub-pkg-input").forEach((input) => {
       const eventType = input.tagName === "SELECT" ? "change" : "input";
       input.addEventListener(eventType, (e) => {
@@ -265,7 +260,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const field = e.target.dataset.field;
         const value = e.target.value;
 
-        // 更新暫存陣列中的資料
         const box = currentSubPackages.find(
           (b) => b.id.toString() === boxId.toString()
         );
@@ -273,7 +267,6 @@ document.addEventListener("DOMContentLoaded", () => {
           box[field] = value;
         }
 
-        // 如果是影響計算的欄位
         if (e.target.classList.contains("sub-pkg-calc")) {
           updateLiveCalculation();
         }
@@ -281,9 +274,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // (F) [重構] 即時運費試算邏輯
+  // (F) [*** 修改重點：即時運費試算邏輯 ***]
   function updateLiveCalculation() {
-    let totalFee = 0;
+    let totalFee = 0; // 原始總金額
 
     currentSubPackages.forEach((box) => {
       const boxId = box.id;
@@ -325,18 +318,25 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
 
-      // 更新暫存陣列中的運費 (提交時雖然會重算，但這樣更保險)
       box.fee = boxFee;
       totalFee += boxFee;
     });
 
+    // [*** 新增：套用低消邏輯 ***]
+    let finalDisplayFee = totalFee;
+    let notice = "";
+    if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
+      finalDisplayFee = MINIMUM_CHARGE;
+      notice = ` (原始 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE})`;
+    }
+
     // 更新總運費
     if (elFeeDisplayTotal) {
-      elFeeDisplayTotal.value = `NT$ ${totalFee.toLocaleString()}`;
+      elFeeDisplayTotal.value = `NT$ ${finalDisplayFee.toLocaleString()}${notice}`;
     }
   }
 
-  // (G) [新增] 「新增分箱」按鈕的點擊事件
+  // (G) 「新增分箱」按鈕的點擊事件
   if (btnAddSubPackage) {
     btnAddSubPackage.addEventListener("click", () => {
       subPackageCounter++;
@@ -353,7 +353,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // (H) [重構] 打開編輯彈窗
+  // (H) 打開編輯彈窗
   function openPackageModal(pkg) {
     document.getElementById("modal-pkg-id").value = pkg.id;
     document.getElementById("modal-user-email").textContent = pkg.user.email;
@@ -365,7 +365,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-quantity").textContent = pkg.quantity;
     document.getElementById("modal-note").textContent = pkg.note || "-";
 
-    // 顯示會員上傳圖片 (不變)
     const customerImagesContainer = document.getElementById(
       "modal-customer-images"
     );
@@ -380,16 +379,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("modal-status").value = pkg.status;
 
-    // [修改] 載入分箱資料
+    // 載入分箱資料
     currentSubPackages = [];
-    subPackageCounter = 0; // 重置計數器
+    subPackageCounter = 0;
 
-    // 注意：後端傳來的 pkg.arrivedBoxesJson 已經被 getAllPackages 解析成物件陣列了
     const boxes = Array.isArray(pkg.arrivedBoxesJson)
       ? pkg.arrivedBoxesJson
       : [];
 
-    // 確保每個 box 都有一個唯一的 ID 供前端操作
     boxes.forEach((box, index) => {
       subPackageCounter++;
       currentSubPackages.push({
@@ -398,7 +395,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    // 如果沒有分箱資料，預設給一筆
     if (currentSubPackages.length === 0) {
       subPackageCounter++;
       currentSubPackages.push({
@@ -412,10 +408,9 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
 
-    // 渲染分箱 UI
-    renderSubPackageUI();
+    renderSubPackageUI(); // 渲染分箱 UI (這會自動觸發 updateLiveCalculation)
 
-    // 載入現有照片到暫存區 (不變)
+    // 載入現有照片
     currentExistingImages = Array.isArray(pkg.warehouseImages)
       ? [...pkg.warehouseImages]
       : [];
@@ -425,7 +420,7 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.style.display = "flex";
   }
 
-  // (I) 渲染倉庫照片 (不變)
+  // (I) 渲染倉庫照片
   function renderWarehouseImages() {
     const container = document.getElementById("modal-warehouse-images-preview");
     const fileInput = document.getElementById("modal-warehouseImages");
@@ -462,7 +457,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (J) 移除照片 (不變)
+  // (J) 移除照片
   function removeImage(index) {
     if (confirm("確定要移除這張照片嗎？(需按「儲存更新」才會生效)")) {
       currentExistingImages.splice(index, 1);
@@ -470,7 +465,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (K) 關閉彈窗 (不變)
+  // (K) 關閉彈窗
   closeModalBtn.addEventListener("click", () => {
     modal.style.display = "none";
   });
@@ -478,7 +473,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target === modal) modal.style.display = "none";
   });
 
-  // (L) [重構] 提交更新表單
+  // (L) 提交更新表單
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const packageId = document.getElementById("modal-pkg-id").value;
@@ -493,13 +488,10 @@ document.addEventListener("DOMContentLoaded", () => {
     submitButton.disabled = true;
     submitButton.textContent = "儲存中...";
 
-    // [修改] 準備 FormData
     const formData = new FormData();
     formData.append("status", document.getElementById("modal-status").value);
 
-    // [修改] 傳送「分箱資料」
-    // (我們不需要傳 'fee' 和 'cai'，因為後端會自己重算，
-    //  但我們需要移除 'id' 欄位，因為那是前端暫存用的)
+    // 傳送「分箱資料」
     const cleanBoxes = currentSubPackages.map((box) => {
       return {
         name: box.name,
@@ -513,7 +505,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     formData.append("boxesData", JSON.stringify(cleanBoxes || []));
 
-    // [修改] 傳送「照片資料」(不變)
+    // 傳送「照片資料」
     formData.append(
       "existingImages",
       JSON.stringify(currentExistingImages || [])
@@ -539,7 +531,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       modal.style.display = "none";
       alert("包裹更新成功！分箱運費已自動計算。");
-      loadAllParcels(); // 重新載入列表
+      loadAllParcels();
     } catch (error) {
       console.error("更新失敗:", error);
       alert(`更新失敗: ${error.message}`);
@@ -549,7 +541,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (M) 登出與篩選 (不變)
+  // (M) 登出與篩選
   logoutBtn.addEventListener("click", () => {
     if (confirm("確定要登出管理後台吗？")) {
       localStorage.removeItem("admin_token");
@@ -558,10 +550,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // 篩選器綁定 (改為 change 和 keyup)
   filterStatus.addEventListener("change", () => renderParcels(allParcelsData));
   searchInput.addEventListener("keyup", () => renderParcels(allParcelsData));
-  filterBtn.addEventListener("click", () => renderParcels(allParcelsData)); // 保留按鈕點擊
+  filterBtn.addEventListener("click", () => renderParcels(allParcelsData));
 
   // 初始載入
   loadAllParcels();

@@ -1,4 +1,4 @@
-// 這是 backend/controllers/adminController.js (支援分箱的修改版)
+// 這是 backend/controllers/adminController.js (支援低消 2000 元的修改版)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -14,6 +14,7 @@ const RATES = {
 };
 const VOLUME_DIVISOR = 28317; // 材積參數
 const CBM_TO_CAI_FACTOR = 35.3; // CBM轉材參數
+const MINIMUM_CHARGE = 2000; // [*** 新增：包裹低消常數 ***]
 
 // --- 包裹管理 ---
 
@@ -40,9 +41,9 @@ const getAllPackages = async (req, res) => {
         // 忽略解析錯誤
       }
 
-      // [新增] 同時解析分箱資料，確保前端能收到
       let arrivedBoxes = [];
       try {
+        // 後端傳給前端時，直接解析
         arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
       } catch (e) {
         // 忽略解析錯誤
@@ -52,8 +53,8 @@ const getAllPackages = async (req, res) => {
         ...pkg,
         productImages,
         warehouseImages,
-        arrivedBoxesJson: arrivedBoxes,
-      }; // 回傳解析後的
+        arrivedBoxesJson: arrivedBoxes, // [修改] 直接回傳解析後的物件
+      };
     });
 
     res.status(200).json({
@@ -67,7 +68,7 @@ const getAllPackages = async (req, res) => {
   }
 };
 
-// 2. 更新包裹狀態 (此函式保持不變，但實務上可能較少用到)
+// 2. 更新包裹狀態
 const updatePackageStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -97,17 +98,11 @@ const updatePackageStatus = async (req, res) => {
   }
 };
 
-// 3. [關鍵修正] 更新包裹詳細資料 (改為支援「多筆分箱」入庫)
+// 3. [關鍵修正] 更新包裹詳細資料 (支援「多筆分箱」入庫)
 const updatePackageDetails = async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      status,
-      // [新增] 接收前端傳來的「分箱資料」JSON 字串
-      // 預期格式: "[{ "name": "分箱1", "weight": "10", "length": "80", ... "type": "general" }]"
-      boxesData,
-      existingImages, // (照片刪除邏輯保持不變)
-    } = req.body;
+    const { status, boxesData, existingImages } = req.body;
 
     // (1) 撈出原始包裹
     const originalPackage = await prisma.package.findUnique({
@@ -141,7 +136,6 @@ const updatePackageDetails = async (req, res) => {
             let boxFee = 0;
             let boxCai = 0;
 
-            // 檢查是否所有必要欄位都存在且有效
             if (
               !isNaN(weight) &&
               weight > 0 &&
@@ -155,23 +149,15 @@ const updatePackageDetails = async (req, res) => {
               RATES[typeKey]
             ) {
               const rate = RATES[typeKey];
-
-              // A. 計算材積 (無條件進位)
               boxCai = Math.ceil((length * width * height) / VOLUME_DIVISOR);
               const volumeCost = boxCai * rate.volumeRate;
-
-              // B. 計算重量 (無條件進位到小數點後一位)
               const w = Math.ceil(weight * 10) / 10;
               const weightCost = w * rate.weightRate;
-
-              // C. 取大者為此箱運費
               boxFee = Math.max(volumeCost, weightCost);
             }
 
-            // 累加總運費
             calculatedTotalFee += boxFee;
 
-            // 存回陣列 (儲存後端計算的結果)
             boxesWithFees.push({
               name: name,
               weight: weight,
@@ -179,16 +165,21 @@ const updatePackageDetails = async (req, res) => {
               width: width,
               height: height,
               type: typeKey,
-              cai: boxCai, // 存入計算出的材數
-              fee: boxFee, // 存入計算出的單箱運費
+              cai: boxCai,
+              fee: boxFee,
             });
           }
 
-          // (3) 準備更新資料庫
+          // (3) [*** 修改重點：套用低消 ***]
+          let finalPackageFee = calculatedTotalFee;
+          // 只有在總金額 > 0 但 < 2000 時才套用
+          if (calculatedTotalFee > 0 && calculatedTotalFee < MINIMUM_CHARGE) {
+            finalPackageFee = MINIMUM_CHARGE;
+          }
+
           dataToUpdate.arrivedBoxesJson = JSON.stringify(boxesWithFees);
-          dataToUpdate.totalCalculatedFee = calculatedTotalFee;
+          dataToUpdate.totalCalculatedFee = finalPackageFee; // 儲存套用低消後的金額
         } else {
-          // 如果傳了空陣列，就清空
           dataToUpdate.arrivedBoxesJson = "[]";
           dataToUpdate.totalCalculatedFee = 0;
         }
