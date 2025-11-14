@@ -1455,3 +1455,67 @@ select#deliveryLocation optgroup {
 .header-actions .btn {
   width: auto;
 }
+/* --- [新增] 集運單詳情彈窗樣式 --- */
+
+/* 讓集運單列表的每一行都可以點擊 */
+#shipments-table-body tr {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+#shipments-table-body tr:hover {
+  background-color: #f8f9fa;
+}
+
+/* 彈窗內的左右佈局 */
+.shipment-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* 簡化版的資訊列表 */
+.info-grid-simple p {
+  margin: 10px 0;
+  font-size: 15px;
+  border-bottom: 1px dashed #eee;
+  padding-bottom: 8px;
+}
+.info-grid-simple p:last-child {
+  border-bottom: none;
+}
+.info-grid-simple strong {
+  color: #555;
+  min-width: 100px;
+  display: inline-block;
+}
+
+/* 彈窗內的包裹清單 */
+#detail-package-list .shipment-package-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: #fdfdfd;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+}
+#detail-package-list .shipment-package-item:last-child {
+  border-bottom: none;
+}
+#detail-package-list .shipment-package-item span {
+  flex: 1;
+}
+#detail-package-list .shipment-package-item small {
+  flex-basis: 100px;
+  text-align: right;
+  color: #1a73e8;
+  font-weight: bold;
+}
+
+/* 手機版調整 */
+@media (max-width: 768px) {
+  .shipment-details-grid {
+    grid-template-columns: 1fr;
+    gap: 0px;
+  }
+}

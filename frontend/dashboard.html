@@ -421,6 +421,85 @@
       </div>
     </div>
 
+    <div
+      id="shipment-details-modal"
+      class="modal-overlay"
+      style="display: none"
+    >
+      <div class="modal-content modal-lg">
+        <button class="modal-close">&times;</button>
+        <h2
+          style="
+            color: #1a73e8;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+          "
+        >
+          集運單詳情
+        </h2>
+
+        <div class="shipment-details-grid">
+          <div class="form-section">
+            <h4 style="margin-top: 0">📝 收件人資訊</h4>
+            <div class="info-grid-simple">
+              <p>
+                <strong>收件人:</strong> <span id="detail-ship-name">-</span>
+              </p>
+              <p>
+                <strong>連絡電話:</strong> <span id="detail-ship-phone">-</span>
+              </p>
+              <p>
+                <strong>身分證號:</strong> <span id="detail-ship-id"></span>
+              </p>
+              <p>
+                <strong>收件地址:</strong>
+                <span id="detail-ship-address">-</span>
+              </p>
+              <p>
+                <strong>客戶備註:</strong>
+                <span id="detail-ship-note" style="color: #d32f2f">-</span>
+              </p>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h4 style="margin-top: 0">🚚 物流與付款</h4>
+            <div class="info-grid-simple">
+              <p>
+                <strong>訂單狀態:</strong>
+                <span id="detail-ship-status" class="status-badge">-</span>
+              </p>
+              <p>
+                <strong>總運費:</strong>
+                <span
+                  id="detail-ship-cost"
+                  style="font-weight: bold; color: #d32f2f; font-size: 1.2em"
+                  >-</span
+                >
+              </p>
+              <p>
+                <strong>付款憑證:</strong>
+                <span id="detail-ship-payment">-</span>
+              </p>
+              <p>
+                <strong>台灣物流單號:</strong>
+                <span id="detail-ship-tw-tracking">-</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section" style="margin-top: 15px; background: #fdfdfd">
+          <h4 style="margin-top: 0">📦 包含包裹清單</h4>
+          <div id="detail-package-list"></div>
+        </div>
+
+        <div class="text-center" style="margin-top: 20px">
+          <button class="btn btn-primary modal-close-btn">關閉</button>
+        </div>
+      </div>
+    </div>
+
     <script src="js/apiConfig.js"></script>
     <script src="js/navigation.js"></script>
     <script src="js/dashboard.js"></script>
