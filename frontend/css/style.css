@@ -1444,3 +1444,14 @@ select#deliveryLocation optgroup {
     display: none;
   }
 }
+/* frontend/css/style.css (在最底部加入) */
+
+/* [*** 新增：優化 Admin 導覽列排版 ***] */
+/* * 說明：
+  * 原始 .btn 樣式為 width: 100% (適用於手機)
+  * 這導致 .header-actions (flex-wrap: wrap) 中的按鈕在電腦版上也強迫換行。
+  * 我們在這裡新增一條規則，專門指定「.header-actions 內的 .btn」寬度為 auto。
+*/
+.header-actions .btn {
+  width: auto;
+}
