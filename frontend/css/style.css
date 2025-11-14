@@ -2684,3 +2684,200 @@ table:not(.rate-table) td {
   padding-top: 10px;
   border-top: 1px dashed #eee;
 }
+/* frontend/css/style.css (在最底部加入) */
+
+/* [新增] 會員中心 - 包裹詳情彈窗樣式 */
+.detail-sub-package-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+}
+.detail-sub-package-table th,
+.detail-sub-package-table td {
+  border: 1px solid #eee;
+  padding: 8px 12px;
+  text-align: left;
+}
+.detail-sub-package-table th {
+  background-color: #f9f9f9;
+  font-size: 14px;
+}
+.detail-sub-package-table td {
+  font-size: 14px;
+}
+
+/* 詳情彈窗內的匯總 */
+.detail-summary {
+  text-align: right;
+  font-size: 1.1em;
+  font-weight: bold;
+  color: #333;
+  margin-top: 10px;
+}
+.detail-summary span {
+  color: #d32f2f;
+  margin: 0 5px;
+}
+
+/* 詳情彈窗內的畫廊 */
+#details-images-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #f0f0f0;
+  padding: 10px;
+  border-radius: 5px;
+}
+#details-images-gallery img {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
+#details-images-gallery p {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #888;
+  margin: 10px 0;
+}
+/* frontend/css/style.css (在最底部加入) */
+
+/* [新增] 會員中心 - 包裹詳情彈窗樣式 */
+.detail-sub-package-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+}
+.detail-sub-package-table th,
+.detail-sub-package-table td {
+  border: 1px solid #eee;
+  padding: 8px 12px;
+  text-align: left;
+  white-space: normal; /* 允許換行 */
+}
+.detail-sub-package-table th {
+  background-color: #f9f9f9;
+  font-size: 14px;
+}
+.detail-sub-package-table td {
+  font-size: 14px;
+}
+
+/* 詳情彈窗內的匯總 */
+.detail-summary {
+  text-align: right;
+  font-size: 1.1em;
+  font-weight: bold;
+  color: #333;
+  margin-top: 10px;
+}
+.detail-summary span {
+  color: #d32f2f;
+  margin: 0 5px;
+}
+
+/* 詳情彈窗內的畫廊 */
+#details-images-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #f0f0f0;
+  padding: 10px;
+  border-radius: 5px;
+}
+#details-images-gallery img {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
+#details-images-gallery p {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #888;
+  margin: 10px 0;
+}
+
+/* [新增] 集運單彈窗 - 包裹詳情樣式 */
+#shipment-package-list {
+  /* 移除舊的 flex 樣式，以免衝突 */
+  border: none;
+  background: none;
+  padding: 0;
+}
+.shipment-package-item {
+  /* 移除舊的 flex 樣式 */
+  display: block;
+  padding: 0;
+  border-bottom: none;
+}
+
+/* 每個包裹的獨立卡片 */
+.shipment-pkg-detail-item {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+}
+.shipment-pkg-detail-item h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #1a73e8;
+  border-bottom: 1px dashed #eee;
+  padding-bottom: 10px;
+}
+
+/* 每個分箱的計算卡片 */
+.calc-box {
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+.shipment-pkg-detail-item .calc-box:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.calc-line {
+  font-size: 14px;
+  color: #555;
+  line-height: 1.6;
+  margin-left: 10px;
+  white-space: normal; /* 允許公式換行 */
+}
+.calc-line .cost {
+  color: #d32f2f;
+  font-weight: bold;
+}
+.calc-line.final {
+  text-align: right;
+  font-size: 1.1em;
+  margin-top: 5px;
+}
+.calc-line.final strong {
+  color: #d32f2f;
+}
+
+/* 包裹小計 */
+.pkg-subtotal {
+  text-align: right;
+  font-weight: bold;
+  font-size: 1.2em;
+  color: #1a73e8;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 2px solid #ddd;
+}
+.pkg-subtotal strong {
+  color: #d32f2f;
+}

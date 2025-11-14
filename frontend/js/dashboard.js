@@ -1,4 +1,4 @@
-// 這是 frontend/js/dashboard.js (支援「分箱詳情」彈窗的修改版)
+// 這是 frontend/js/dashboard.js (支援「集運彈窗顯示完整公式」的修改版)
 
 // --- 定義費率 (前端顯示用) ---
 const RATES = {
@@ -29,7 +29,7 @@ window.openImages = function (images) {
   modal.style.display = "flex";
 };
 
-// --- [*** 新增：開啟「包裹詳情」彈窗 ***] ---
+// --- [全域函式] 開啟「包裹詳情」彈窗 ---
 window.openPackageDetails = function (pkgDataStr) {
   try {
     const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
@@ -100,11 +100,63 @@ window.openPackageDetails = function (pkgDataStr) {
     alert("載入包裹詳情失敗。");
   }
 };
-// --- [*** 新增結束 ***] ---
 
 // --- [全域函式] 開啟費用詳情 (舊版，保留但不使用) ---
 window.openFeeDetails = function (pkgDataStr) {
-  // ... 此函式內容不變 ...
+  const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
+  const modal = document.getElementById("fee-details-modal");
+  const content = document.getElementById("fee-details-content");
+
+  // [修改] 顯示分箱提示
+  if (pkg.arrivedBoxes && pkg.arrivedBoxes.length > 0) {
+    alert(
+      "此包裹運費已更新為分箱計算，總運費為 NT$ " +
+        (pkg.totalCalculatedFee || 0).toLocaleString() +
+        "，詳情請聯繫客服。"
+    );
+    return;
+  }
+
+  if (!pkg.furnitureType || !RATES[pkg.furnitureType]) {
+    alert("資料不完整，無法顯示詳情");
+    return;
+  }
+  const rate = RATES[pkg.furnitureType];
+  const cai = Math.ceil(
+    (pkg.actualLength * pkg.actualWidth * pkg.actualHeight) / VOLUME_DIVISOR
+  );
+  const volCost = cai * rate.volumeRate;
+  const w = Math.ceil(pkg.actualWeight * 10) / 10;
+  const weightCost = w * rate.weightRate;
+
+  content.innerHTML = `
+    <p><strong>商品名稱：</strong>${pkg.productName}</p>
+    <p><strong>家具類型：</strong>${rate.name}</p>
+    <hr style="margin: 10px 0; border-top: 1px dashed #ccc;">
+    <p>📦 <strong>材積計算：</strong><br>
+       尺寸：${pkg.actualLength}x${pkg.actualWidth}x${pkg.actualHeight} cm<br>
+       材數：${(
+         (pkg.actualLength * pkg.actualWidth * pkg.actualHeight) /
+         VOLUME_DIVISOR
+       ).toFixed(2)} ➜ <strong>${cai} 材</strong><br>
+       費用：${cai} × $${
+    rate.volumeRate
+  } = <span style="color:#d63031">$${volCost.toLocaleString()}</span>
+    </p>
+    <p>⚖️ <strong>重量計算：</strong><br>
+       實重：${pkg.actualWeight} kg ➜ <strong>${w} kg</strong><br>
+       費用：${w} × $${
+    rate.weightRate
+  } = <span style="color:#d63031">$${Math.round(
+    weightCost
+  ).toLocaleString()}</span>
+    </p>
+    <hr style="margin: 10px 0; border-top: 2px solid #eee;">
+    <p style="text-align:right; font-size:1.2em;">
+      最終運費：<strong style="color:#d63031">$${pkg.shippingFee.toLocaleString()}</strong>
+    </p>
+  `;
+  modal.style.display = "flex";
 };
 
 // --- [全域函式] 開啟上傳憑證彈窗 ---
@@ -232,16 +284,16 @@ document.addEventListener("DOMContentLoaded", () => {
         const statusText = packageStatusMap[pkg.status] || pkg.status;
         const isArrived = pkg.status === "ARRIVED";
 
-        // [修改] 讀取後端解析好的分箱陣列
+        // 讀取後端解析好的分箱陣列
         const arrivedBoxes = Array.isArray(pkg.arrivedBoxes)
           ? pkg.arrivedBoxes
           : [];
 
-        // [修改] 顯示分箱總數
+        // 顯示分箱總數
         const piecesCount =
           arrivedBoxes.length > 0 ? `${arrivedBoxes.length} 箱` : "-";
 
-        // [修改] 顯示所有分箱的總重
+        // 顯示所有分箱的總重
         const totalWeight =
           arrivedBoxes.length > 0
             ? `${arrivedBoxes
@@ -251,14 +303,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         let feeDisplay = '<span style="color: #999;">-</span>';
 
-        // [修改] 顯示總運費
+        // 顯示總運費
         if (pkg.totalCalculatedFee != null) {
           // 允許 0 元
           feeDisplay = `<span style="color: #d32f2f; font-weight: bold;">$${pkg.totalCalculatedFee.toLocaleString()}</span>`;
         }
 
-        // [修改] 產生「查看詳情」按鈕
-        // 我們需要將整個 pkg 物件傳遞給彈窗函式
+        // 產生「查看詳情」按鈕
         const pkgStr = encodeURIComponent(JSON.stringify(pkg));
         const detailsBtn = `<button class="btn btn-view-img btn-sm" onclick='window.openPackageDetails("${pkgStr}")'>查看</button>`;
 
@@ -321,7 +372,6 @@ document.addEventListener("DOMContentLoaded", () => {
         .map((ship) => {
           const statusText = shipmentStatusMap[ship.status] || ship.status;
 
-          // [新增] 判斷是否已上傳憑證
           let proofBtn = "";
           if (ship.paymentProof) {
             proofBtn = `<button class="btn btn-secondary btn-sm" onclick="window.viewProof('${ship.paymentProof}')" style="background-color:#27ae60;">已上傳(查看)</button>`;
@@ -383,25 +433,87 @@ document.addEventListener("DOMContentLoaded", () => {
       showMessage("請至少選擇一個包裹", "error");
       return;
     }
+
     let html = "";
     let ids = [];
     let totalFee = 0;
+
     checked.forEach((box) => {
       const p = allPackagesData.find((pkg) => pkg.id === box.dataset.id);
       if (p) {
-        // [修改] 改用 totalCalculatedFee
-        const fee = p.totalCalculatedFee || 0;
-        totalFee += fee;
-        html += `<div class="shipment-package-item"><span>${p.productName} (${
-          p.trackingNumber
-        })</span><span>$${fee.toLocaleString()}</span></div>`;
+        const packageFee = p.totalCalculatedFee || 0;
+        totalFee += packageFee;
         ids.push(p.id);
+
+        // --- 開始產生詳細 HTML ---
+        html += `<div class="shipment-pkg-detail-item">`;
+        html += `<h4>${p.productName} (${p.trackingNumber})</h4>`;
+
+        const arrivedBoxes = Array.isArray(p.arrivedBoxes)
+          ? p.arrivedBoxes
+          : [];
+
+        if (arrivedBoxes.length > 0) {
+          arrivedBoxes.forEach((box) => {
+            const rate = RATES[box.type];
+            if (!rate) {
+              html += `<div class="calc-box"><strong>${
+                box.name || "分箱"
+              }:</strong> <span style="color: red;">(類型錯誤，無法計算)</span></div>`;
+              return; // 跳過這個分箱
+            }
+
+            // 重新計算公式
+            const l = parseFloat(box.length) || 0;
+            const w_dim = parseFloat(box.width) || 0;
+            const h = parseFloat(box.height) || 0;
+            const w = parseFloat(box.weight) || 0;
+
+            const cai = Math.ceil((l * w_dim * h) / VOLUME_DIVISOR);
+            const volCost = cai * rate.volumeRate;
+            const finalWeight = Math.ceil(w * 10) / 10;
+            const weightCost = finalWeight * rate.weightRate;
+
+            // 註：box.fee 是後端算好的，理論上會等於 finalFee
+            const finalFee = box.fee || 0;
+
+            html += `
+              <div class="calc-box">
+                <strong>${box.name || "分箱"} (${box.type}):</strong>
+                <div class="calc-line">
+                  📦 <strong>材積費:</strong> (${l}x${w_dim}x${h} / ${VOLUME_DIVISOR} ➜ <strong>${cai} 材</strong>) × $${
+              rate.volumeRate
+            } = <span class="cost">$${volCost.toLocaleString()}</span>
+                </div>
+                <div class="calc-line">
+                  ⚖️ <strong>重量費:</strong> (<strong>${finalWeight} kg</strong>) × $${
+              rate.weightRate
+            } = <span class="cost">$${Math.round(
+              weightCost
+            ).toLocaleString()}</span>
+                </div>
+                <div class="calc-line final">
+                  → 單箱運費 (取高): <strong>$${finalFee.toLocaleString()}</strong>
+                </div>
+              </div>
+            `;
+          });
+        } else {
+          html += `<p style="color: #888; font-style: italic;">此包裹尚未入庫（無分箱資料），運費暫計 $0</p>`;
+        }
+
+        // 包裹小計
+        html += `<div class="pkg-subtotal">包裹小計: <strong>$${packageFee.toLocaleString()}</strong></div>`;
+        html += `</div>`; // 結束 .shipment-pkg-detail-item
       }
     });
+
     shipmentPackageList.innerHTML = html;
     if (shipmentTotalCost)
       shipmentTotalCost.textContent = totalFee.toLocaleString();
     createShipmentForm.dataset.ids = JSON.stringify(ids);
+
+    // 填入使用者預設資料
     document.getElementById("ship-name").value = currentUser.name || "";
     document.getElementById("ship-phone").value = currentUser.phone || "";
     document.getElementById("ship-address").value =
