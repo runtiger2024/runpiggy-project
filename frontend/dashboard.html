@@ -300,6 +300,7 @@
             請匯款至以下帳戶：
           </p>
           <ul
+            id="bank-info-list"
             style="
               list-style: none;
               padding: 0;
@@ -307,13 +308,30 @@
               font-size: 1.1em;
             "
           >
-            <li>🏦 <strong>銀行：</strong> 第一銀行 (007) 台南分行</li>
+            <li>
+              🏦 <strong>銀行：</strong>
+              <span id="bank-name">第一銀行 (007) 台南分行</span>
+            </li>
             <li>
               💰 <strong>帳號：</strong>
-              <span style="color: #d32f2f; font-weight: bold">60110066477</span>
+              <span id="bank-account" style="color: #d32f2f; font-weight: bold"
+                >60110066477</span
+              >
             </li>
-            <li>👤 <strong>戶名：</strong> 跑得快國際貿易有限公司</li>
+            <li>
+              👤 <strong>戶名：</strong>
+              <span id="bank-holder">跑得快國際貿易有限公司</span>
+            </li>
           </ul>
+
+          <button
+            type="button"
+            id="btn-copy-bank-info"
+            class="btn btn-secondary"
+            style="width: 100%; margin-top: 15px; background-color: #1abc9c"
+          >
+            一鍵複製匯款資訊
+          </button>
         </div>
         <p style="margin-top: 15px; color: #666; font-size: 0.9em">
           匯款完成後，請至「我的集運單」點擊「上傳憑證」，我們將盡快為您安排出貨。
@@ -323,7 +341,6 @@
         </div>
       </div>
     </div>
-
     <div id="upload-proof-modal" class="modal-overlay" style="display: none">
       <div class="modal-content">
         <button class="modal-close">&times;</button>
@@ -394,6 +411,7 @@
         </button>
       </div>
     </div>
+
     <script src="js/apiConfig.js"></script>
     <script src="js/navigation.js"></script>
     <script src="js/dashboard.js"></script>

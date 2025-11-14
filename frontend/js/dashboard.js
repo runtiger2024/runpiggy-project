@@ -1,4 +1,4 @@
-// 這是 frontend/js/dashboard.js (支援「集運彈窗顯示完整公式」的修改版)
+// 這是 frontend/js/dashboard.js (支援「一鍵複製匯款資訊」的修改版)
 
 // --- 定義費率 (前端顯示用) ---
 const RATES = {
@@ -107,7 +107,6 @@ window.openFeeDetails = function (pkgDataStr) {
   const modal = document.getElementById("fee-details-modal");
   const content = document.getElementById("fee-details-content");
 
-  // [修改] 顯示分箱提示
   if (pkg.arrivedBoxes && pkg.arrivedBoxes.length > 0) {
     alert(
       "此包裹運費已更新為分箱計算，總運費為 NT$ " +
@@ -172,7 +171,7 @@ window.viewProof = function (imgUrl) {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  // ... (獲取 DOM 元素，保持不變) ...
+  // --- (獲取 DOM 元素) ---
   const messageBox = document.getElementById("message-box");
   const welcomeMessage = document.getElementById("welcome-message");
   const userEmail = document.getElementById("user-email");
@@ -203,6 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const uploadProofModal = document.getElementById("upload-proof-modal");
   const uploadProofForm = document.getElementById("upload-proof-form");
 
+  // --- (狀態變數) ---
   let currentUser = null;
   const token = localStorage.getItem("token");
   let allPackagesData = [];
@@ -224,6 +224,7 @@ document.addEventListener("DOMContentLoaded", () => {
     CANCEL: "已完成",
   };
 
+  // --- (初始化檢查) ---
   if (!token) {
     window.location.href = "login.html";
     return;
@@ -262,7 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // [*** 修改重點：loadMyPackages ***]
+  // (B) 載入我的包裹
   async function loadMyPackages() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/packages/my`, {
@@ -283,17 +284,11 @@ document.addEventListener("DOMContentLoaded", () => {
       allPackagesData.forEach((pkg) => {
         const statusText = packageStatusMap[pkg.status] || pkg.status;
         const isArrived = pkg.status === "ARRIVED";
-
-        // 讀取後端解析好的分箱陣列
         const arrivedBoxes = Array.isArray(pkg.arrivedBoxes)
           ? pkg.arrivedBoxes
           : [];
-
-        // 顯示分箱總數
         const piecesCount =
           arrivedBoxes.length > 0 ? `${arrivedBoxes.length} 箱` : "-";
-
-        // 顯示所有分箱的總重
         const totalWeight =
           arrivedBoxes.length > 0
             ? `${arrivedBoxes
@@ -302,14 +297,10 @@ document.addEventListener("DOMContentLoaded", () => {
             : "-";
 
         let feeDisplay = '<span style="color: #999;">-</span>';
-
-        // 顯示總運費
         if (pkg.totalCalculatedFee != null) {
-          // 允許 0 元
           feeDisplay = `<span style="color: #d32f2f; font-weight: bold;">$${pkg.totalCalculatedFee.toLocaleString()}</span>`;
         }
 
-        // 產生「查看詳情」按鈕
         const pkgStr = encodeURIComponent(JSON.stringify(pkg));
         const detailsBtn = `<button class="btn btn-view-img btn-sm" onclick='window.openPackageDetails("${pkgStr}")'>查看</button>`;
 
@@ -323,7 +314,11 @@ document.addEventListener("DOMContentLoaded", () => {
           }">${statusText}</span></td>
           <td>${pkg.trackingNumber}</td>
           <td>${pkg.productName}</td>
-          <td>${piecesCount}</td> <td>${totalWeight}</td> <td>${feeDisplay}</td> <td>${detailsBtn}</td> <td>
+          <td>${piecesCount}</td>
+          <td>${totalWeight}</td>
+          <td>${feeDisplay}</td>
+          <td>${detailsBtn}</td>
+          <td>
             <button class="btn btn-secondary btn-sm btn-edit" ${
               pkg.status !== "PENDING" ? "disabled" : ""
             }>修改</button>
@@ -346,6 +341,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // (C) 刪除包裹
   async function handleDeletePackage(pkg) {
     if (confirm("確定刪除?")) {
       await fetch(`${API_BASE_URL}/api/packages/${pkg.id}`, {
@@ -356,7 +352,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (C) 載入集運單 (含憑證按鈕)
+  // (D) 載入集運單
   async function loadMyShipments() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/shipments/my`, {
@@ -389,7 +385,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <td>${ship.idNumber}</td>
             <td>${ship.packages.length} 件</td>
             <td>${
-              ship.totalCost != null // 允許 0 元
+              ship.totalCost != null
                 ? `NT$ ${ship.totalCost.toLocaleString()}`
                 : "(待報價)"
             }</td>
@@ -400,7 +396,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {}
   }
 
-  // (D) 提交預報
+  // (E) 提交預報
   forecastForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const requestData = {
@@ -426,7 +422,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (E) 建立集運單 [*** 修改重點 ***]
+  // (F) 建立集運單 (顯示公式)
   btnCreateShipment.addEventListener("click", () => {
     const checked = document.querySelectorAll(".package-checkbox:checked");
     if (checked.length === 0) {
@@ -460,10 +456,9 @@ document.addEventListener("DOMContentLoaded", () => {
               html += `<div class="calc-box"><strong>${
                 box.name || "分箱"
               }:</strong> <span style="color: red;">(類型錯誤，無法計算)</span></div>`;
-              return; // 跳過這個分箱
+              return;
             }
 
-            // 重新計算公式
             const l = parseFloat(box.length) || 0;
             const w_dim = parseFloat(box.width) || 0;
             const h = parseFloat(box.height) || 0;
@@ -473,13 +468,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const volCost = cai * rate.volumeRate;
             const finalWeight = Math.ceil(w * 10) / 10;
             const weightCost = finalWeight * rate.weightRate;
-
-            // 註：box.fee 是後端算好的，理論上會等於 finalFee
             const finalFee = box.fee || 0;
 
             html += `
               <div class="calc-box">
-                <strong>${box.name || "分箱"} (${box.type}):</strong>
+                <strong>${box.name || "分箱"} (${rate.name}):</strong>
                 <div class="calc-line">
                   📦 <strong>材積費:</strong> (${l}x${w_dim}x${h} / ${VOLUME_DIVISOR} ➜ <strong>${cai} 材</strong>) × $${
               rate.volumeRate
@@ -502,9 +495,8 @@ document.addEventListener("DOMContentLoaded", () => {
           html += `<p style="color: #888; font-style: italic;">此包裹尚未入庫（無分箱資料），運費暫計 $0</p>`;
         }
 
-        // 包裹小計
         html += `<div class="pkg-subtotal">包裹小計: <strong>$${packageFee.toLocaleString()}</strong></div>`;
-        html += `</div>`; // 結束 .shipment-pkg-detail-item
+        html += `</div>`;
       }
     });
 
@@ -513,15 +505,15 @@ document.addEventListener("DOMContentLoaded", () => {
       shipmentTotalCost.textContent = totalFee.toLocaleString();
     createShipmentForm.dataset.ids = JSON.stringify(ids);
 
-    // 填入使用者預設資料
     document.getElementById("ship-name").value = currentUser.name || "";
     document.getElementById("ship-phone").value = currentUser.phone || "";
     document.getElementById("ship-address").value =
       currentUser.defaultAddress || "";
-    document.getElementById("ship-note").value = ""; // 清空備註
+    document.getElementById("ship-note").value = "";
     document.getElementById("create-shipment-modal").style.display = "flex";
   });
 
+  // (G) 提交集運單
   createShipmentForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const ids = JSON.parse(createShipmentForm.dataset.ids);
@@ -532,7 +524,7 @@ document.addEventListener("DOMContentLoaded", () => {
       shippingAddress: document.getElementById("ship-address").value,
       idNumber: document.getElementById("ship-idNumber").value,
       taxId: document.getElementById("ship-taxId").value,
-      note: document.getElementById("ship-note").value, // [新增] 傳送備註
+      note: document.getElementById("ship-note").value,
     };
     const res = await fetch(`${API_BASE_URL}/api/shipments/create`, {
       method: "POST",
@@ -545,7 +537,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (res.ok) {
       document.getElementById("create-shipment-modal").style.display = "none";
       createShipmentForm.reset();
-      // [新增] 顯示匯款資訊
       bankInfoModal.style.display = "flex";
       loadMyPackages();
       loadMyShipments();
@@ -555,7 +546,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // [新增] 提交憑證上傳
+  // (H) 提交憑證上傳
   uploadProofForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("upload-proof-id").value;
@@ -583,7 +574,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Tab 與 編輯個資 (保留)
+  // (I) Tab 與 編輯個資
   tabPackages.addEventListener("click", () => {
     tabPackages.classList.add("active");
     tabShipments.classList.remove("active");
@@ -618,7 +609,7 @@ document.addEventListener("DOMContentLoaded", () => {
     loadUserProfile();
   });
 
-  // 編輯包裹
+  // (J) 編輯包裹 (預報)
   function openEditPackageModal(pkg) {
     document.getElementById("edit-package-id").value = pkg.id;
     document.getElementById("edit-trackingNumber").value = pkg.trackingNumber;
@@ -657,7 +648,7 @@ document.addEventListener("DOMContentLoaded", () => {
     loadMyPackages();
   });
 
-  // 綁定所有彈窗關閉
+  // (K) 綁定所有彈窗關閉
   const allModals = document.querySelectorAll(".modal-overlay");
   allModals.forEach((m) => {
     m.addEventListener("click", (e) => {
@@ -669,11 +660,51 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   });
 
+  // [*** 新增：綁定一鍵複製按鈕 ***]
+  const btnCopyBankInfo = document.getElementById("btn-copy-bank-info");
+  if (btnCopyBankInfo) {
+    btnCopyBankInfo.addEventListener("click", () => {
+      // 1. Get text from the spans
+      const bankName = document.getElementById("bank-name").textContent;
+      const bankAccount = document.getElementById("bank-account").textContent;
+      const bankHolder = document.getElementById("bank-holder").textContent;
+
+      // 2. Construct the string
+      const copyText = `銀行：${bankName}\n帳號：${bankAccount}\n戶名：${bankHolder}`;
+
+      // 3. Copy to clipboard
+      navigator.clipboard
+        .writeText(copyText)
+        .then(() => {
+          // 4. Success feedback
+          const originalText = btnCopyBankInfo.textContent;
+          const originalColor = btnCopyBankInfo.style.backgroundColor;
+
+          btnCopyBankInfo.textContent = "✓ 已複製成功！";
+          btnCopyBankInfo.style.backgroundColor = "#27ae60"; // Green color
+          btnCopyBankInfo.disabled = true;
+
+          // 5. Reset button
+          setTimeout(() => {
+            btnCopyBankInfo.textContent = originalText;
+            btnCopyBankInfo.style.backgroundColor = originalColor;
+            btnCopyBankInfo.disabled = false;
+          }, 3000);
+        })
+        .catch((err) => {
+          console.error("複製失敗:", err);
+          alert("複製失敗，請手動複製");
+        });
+    });
+  }
+  // [*** 新增結束 ***]
+
+  // --- (初始載入) ---
   loadUserProfile();
   loadMyPackages();
   loadMyShipments();
 
-  // 檢查草稿
+  // (L) 檢查草稿
   const draft = localStorage.getItem("forecast_draft");
   if (draft) {
     try {
