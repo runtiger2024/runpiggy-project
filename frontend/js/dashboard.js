@@ -1,9 +1,10 @@
-// 這是 frontend/js/dashboard.js (V4 - 佇列 UI 修正版)
-// (1) 修正 V3 佇列邏輯 Bug
-// (2) 新增「待處理佇列」UI 顯示
-// (3) 延長 showMessage 時間
+// 這是 frontend/js/dashboard.js (V5 最終版)
+// (1) 修正 V3 佇列 Bug
+// (2) 新增 V4 佇列 UI
+// (3) 延長 showMessage
+// (4) 新增「超重/超長/堆高機」警告
 
-// --- 定義費率 (前端顯示用) ---
+// --- [*** V5 修正：從 calculatorController.js 引入規則 ***] ---
 const RATES = {
   general: { name: "一般家具", weightRate: 22, volumeRate: 125 },
   special_a: { name: "特殊家具A", weightRate: 32, volumeRate: 184 },
@@ -12,6 +13,11 @@ const RATES = {
 };
 const VOLUME_DIVISOR = 28317;
 const MINIMUM_CHARGE = 2000; // 集運低消常數
+const OVERSIZED_LIMIT = 300;
+const OVERSIZED_FEE = 800;
+const OVERWEIGHT_LIMIT = 100;
+const OVERWEIGHT_FEE = 800;
+// --- [*** 修正結束 ***] ---
 
 // --- [全域函式] 開啟圖片彈窗 ---
 window.openImages = function (images) {
@@ -186,9 +192,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const uploadProofForm = document.getElementById("upload-proof-form");
   const shipmentFeeNotice = document.getElementById("shipment-fee-notice");
 
-  // [*** V4 修正：獲取佇列 UI 元素 ***]
+  // [*** V5 修正：獲取 V4 佇列 UI 元素 ***]
   const draftQueueContainer = document.getElementById("draft-queue-container");
   const draftQueueList = document.getElementById("draft-queue-list");
+  // [*** V5 修正：獲取 V5 警告 UI 元素 ***]
+  const shipmentWarnings = document.getElementById("shipment-warnings");
   // [*** 修正結束 ***]
 
   // --- (狀態變數) ---
@@ -448,7 +456,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (F) 建立集運單 (顯示公式)
+  // (F) [*** V5 修正 ***] 建立集運單 (顯示公式 + 警告)
   btnCreateShipment.addEventListener("click", () => {
     const checked = document.querySelectorAll(".package-checkbox:checked");
     if (checked.length === 0) {
@@ -459,6 +467,12 @@ document.addEventListener("DOMContentLoaded", () => {
     let html = "";
     let ids = [];
     let totalFee = 0;
+
+    // [*** V5 新增 ***]
+    let warningHtml = "";
+    let hasAnyOversizedItem = false;
+    let hasAnyOverweightItem = false;
+    // [*** V5 結束 ***]
 
     checked.forEach((box) => {
       const p = allPackagesData.find((pkg) => pkg.id === box.dataset.id);
@@ -476,6 +490,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (arrivedBoxes.length > 0) {
           arrivedBoxes.forEach((box) => {
+            // [*** V5 新增：檢查附加費 ***]
+            if (
+              parseFloat(box.length) > OVERSIZED_LIMIT ||
+              parseFloat(box.width) > OVERSIZED_LIMIT ||
+              parseFloat(box.height) > OVERSIZED_LIMIT
+            ) {
+              hasAnyOversizedItem = true;
+            }
+            if (parseFloat(box.weight) > OVERWEIGHT_LIMIT) {
+              hasAnyOverweightItem = true;
+            }
+            // [*** V5 結束 ***]
+
             const rate = RATES[box.type];
             if (!rate) {
               html += `<div class="calc-box"><strong>${
@@ -525,23 +552,42 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    let finalDisplayFee = totalFee;
-    let noticeHtml = `(實際費用以管理員審核後為準)`;
+    // [*** V5 修正：計算最終金額與警告 ***]
+    const totalOverweightFee = hasAnyOverweightItem ? OVERWEIGHT_FEE : 0;
+    const totalOversizedFee = hasAnyOversizedItem ? OVERSIZED_FEE : 0;
+
+    let finalBaseCost = totalFee;
+    let noticeHtml = `(基本運費 $${totalFee.toLocaleString()})`;
 
     if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
-      finalDisplayFee = MINIMUM_CHARGE;
-      noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(原始運費 $${totalFee.toLocaleString()}，已套用集運低消 $${MINIMUM_CHARGE.toLocaleString()})</span>`;
+      finalBaseCost = MINIMUM_CHARGE;
+      noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(基本運費 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE.toLocaleString()})</span>`;
     }
+
+    const finalTotalCost =
+      finalBaseCost + totalOverweightFee + totalOversizedFee;
+
+    if (hasAnyOversizedItem) {
+      warningHtml += `<div>⚠️ 偵測到超長件 (單邊 > ${OVERSIZED_LIMIT}cm)，已加收 $${OVERSIZED_FEE} 超長費。</div>`;
+    }
+    if (hasAnyOverweightItem) {
+      warningHtml += `<div>⚠️ 偵測到超重件 (單件 > ${OVERWEIGHT_LIMIT}kg)，已加收 $${OVERWEIGHT_FEE} 超重費。</div>`;
+      warningHtml += `<div style="font-size: 0.9em;">(超重件台灣收件地，請務必自行安排堆高機下貨)</div>`;
+    }
+    // [*** V5 修正結束 ***]
 
     shipmentPackageList.innerHTML = html;
 
     if (shipmentTotalCost)
-      shipmentTotalCost.textContent = finalDisplayFee.toLocaleString();
+      shipmentTotalCost.textContent = finalTotalCost.toLocaleString();
 
     if (shipmentFeeNotice) {
       shipmentFeeNotice.innerHTML = noticeHtml;
-      shipmentFeeNotice.style.color =
-        totalFee > 0 && totalFee < MINIMUM_CHARGE ? "#e74c3c" : "#888";
+    }
+
+    // 填入警告
+    if (shipmentWarnings) {
+      shipmentWarnings.innerHTML = warningHtml;
     }
 
     createShipmentForm.dataset.ids = JSON.stringify(ids);
@@ -567,6 +613,12 @@ document.addEventListener("DOMContentLoaded", () => {
       taxId: document.getElementById("ship-taxId").value,
       note: document.getElementById("ship-note").value,
     };
+
+    // [*** V5 修正 ***]
+    // 提交的 API (shipmentController) 已經被我們修好了，
+    // 它會自動計算正確的總金額 (包含附加費)，
+    // 所以前端這裡不需要做任何額外的事情。
+
     const res = await fetch(`${API_BASE_URL}/api/shipments/create`, {
       method: "POST",
       headers: {
@@ -765,7 +817,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (draftList.length === 0) {
       draftQueueContainer.style.display = "none"; // 隱藏 "待處理" 區塊
 
-      // [*** Bug 修正 ***]
+      // [*** V4 Bug 修正 ***]
       // 只有在佇列為空時，才執行清除
       localStorage.removeItem("forecast_draft_list");
       // [*** 修正結束 ***]

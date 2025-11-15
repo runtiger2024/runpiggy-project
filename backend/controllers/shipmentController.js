@@ -1,9 +1,15 @@
-// 這是 backend/controllers/shipmentController.js (支援「集運低消」的修改版)
+// 這是 backend/controllers/shipmentController.js (V2 修正版)
+// (修正：補上「超重費」和「超長費」的計算邏輯)
 
 const prisma = require("../config/db.js");
 
-// [*** 新增：定義低消常數 ***]
-const MINIMUM_CHARGE = 2000;
+// [*** 修正：從 calculatorController.js 引入規則 ***]
+const MINIMUM_CHARGE = 2000; // 集運低消
+const OVERSIZED_LIMIT = 300;
+const OVERSIZED_FEE = 800;
+const OVERWEIGHT_LIMIT = 100;
+const OVERWEIGHT_FEE = 800;
+// [*** 修正結束 ***]
 
 /**
  * @description 建立新的集運單 (合併包裹)
@@ -55,17 +61,51 @@ const createShipment = async (req, res) => {
       });
     }
 
-    // 3. [*** 修改重點：計算總運費並套用低消 ***]
+    // 3. [*** 關鍵修正：計算總運費 (包含附加費) ***]
+
+    // (A) 累加所有包裹的 "基本運費"
     const calculatedTotalCost = packagesToShip.reduce((sum, pkg) => {
       return sum + (pkg.totalCalculatedFee || 0);
     }, 0);
 
-    // [新增] 套用低消邏輯
-    let finalShipmentCost = calculatedTotalCost;
-    if (finalShipmentCost > 0 && finalShipmentCost < MINIMUM_CHARGE) {
-      finalShipmentCost = MINIMUM_CHARGE;
+    // (B) 檢查是否觸發 "附加費"
+    let hasAnyOversizedItem = false;
+    let hasAnyOverweightItem = false;
+
+    packagesToShip.forEach((pkg) => {
+      try {
+        const boxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
+        boxes.forEach((box) => {
+          if (
+            parseFloat(box.length) > OVERSIZED_LIMIT ||
+            parseFloat(box.width) > OVERSIZED_LIMIT ||
+            parseFloat(box.height) > OVERSIZED_LIMIT
+          ) {
+            hasAnyOversizedItem = true;
+          }
+          if (parseFloat(box.weight) > OVERWEIGHT_LIMIT) {
+            hasAnyOverweightItem = true;
+          }
+        });
+      } catch (e) {
+        console.error(`解析包裹 ${pkg.id} 的 arrivedBoxesJson 失敗`, e);
+      }
+    });
+
+    const totalOverweightFee = hasAnyOverweightItem ? OVERWEIGHT_FEE : 0;
+    const totalOversizedFee = hasAnyOversizedItem ? OVERSIZED_FEE : 0;
+
+    // (C) 套用 "低消" 邏輯
+    let finalBaseCost = calculatedTotalCost;
+    if (finalBaseCost > 0 && finalBaseCost < MINIMUM_CHARGE) {
+      finalBaseCost = MINIMUM_CHARGE;
     }
-    // [*** 修改結束 ***]
+
+    // (D) 計算最終總金額
+    const finalTotalCost =
+      finalBaseCost + totalOverweightFee + totalOversizedFee;
+
+    // [*** 修正結束 ***]
 
     // 4. 使用資料庫「交易」建立集運單
     const newShipment = await prisma.$transaction(async (tx) => {
@@ -79,8 +119,8 @@ const createShipment = async (req, res) => {
           taxId: taxId || null,
           note: note || null,
 
-          // [修改] 寫入套用低消後的總金額
-          totalCost: finalShipmentCost,
+          // [修改] 寫入 "最終總金額"
+          totalCost: finalTotalCost,
 
           status: "PENDING_PAYMENT",
           userId: userId,
