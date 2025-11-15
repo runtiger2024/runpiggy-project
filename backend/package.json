@@ -8,7 +8,7 @@
     "dev": "nodemon server.js",
     "prisma:push": "dotenv -- prisma db push",
     "prisma:studio": "dotenv -- prisma studio",
-    "build": "prisma generate"
+    "build": "prisma generate && npm run prisma:push"
   },
   "keywords": [],
   "author": "",

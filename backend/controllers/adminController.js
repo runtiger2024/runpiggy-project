@@ -1,5 +1,5 @@
-// 這是 backend/controllers/adminController.js (V4 權限系統版)
-// (新增 adminCreatePackage 函式)
+// 這是 backend/controllers/adminController.js (V3 權限系統 + V4 代客預報 整合版)
+// (補上 V4 的 adminCreatePackage 和 getUsersList 函式)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -72,33 +72,28 @@ const adminCreatePackage = async (req, res) => {
     // 1. 取得操作者 ID (自己)
     const adminUserId = req.user.id;
 
-    // 2. 取得表單資料
-    const { userEmail, trackingNumber, productName, quantity, note } = req.body;
+    // 2. 取得表單資料 ( V4.1 修正：改用 userId )
+    const { userId, trackingNumber, productName, quantity, note } = req.body;
 
-    if (!userEmail || !trackingNumber || !productName) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "請提供客戶 Email、物流單號和商品名稱",
-        });
+    if (!userId || !trackingNumber || !productName) {
+      return res.status(400).json({
+        success: false,
+        message: "請提供客戶 ID、物流單號和商品名稱",
+      });
     }
 
-    // 3. 根據 Email 找到客戶
+    // 3. 根據 User ID 找到客戶
     const customer = await prisma.user.findUnique({
-      where: { email: userEmail.toLowerCase() },
+      where: { id: userId },
     });
 
     if (!customer) {
       return res
         .status(404)
-        .json({
-          success: false,
-          message: `找不到 Email 為 ${userEmail} 的客戶`,
-        });
+        .json({ success: false, message: `找不到 ID 為 ${userId} 的客戶` });
     }
 
-    // 4. (安全檢查) 確保我們是幫 "USER" (權限為空) 建立包裹
+    // 4. (安全檢查 V3) 確保我們是幫 "USER" (權限為空) 建立包裹
     let customerPermissions = [];
     try {
       customerPermissions = JSON.parse(customer.permissions || "[]");
@@ -130,13 +125,17 @@ const adminCreatePackage = async (req, res) => {
       },
     });
 
-    // 7. 寫入日誌
-    await createLog(
-      adminUserId,
-      "ADMIN_CREATE_PACKAGE",
-      newPackage.id,
-      `為 ${userEmail} 新增包裹 (單號: ${trackingNumber})`
-    );
+    // 7. 寫入日誌 (假設 V3 日誌系統存在)
+    try {
+      await createLog(
+        adminUserId,
+        "ADMIN_CREATE_PACKAGE",
+        newPackage.id,
+        `為 ${customer.email} 新增包裹 (單號: ${trackingNumber})`
+      );
+    } catch (logError) {
+      console.error("寫入日誌失敗(不影響主流程):", logError);
+    }
 
     res.status(201).json({
       success: true,
@@ -167,12 +166,16 @@ const updatePackageStatus = async (req, res) => {
     });
 
     // [*** 新增日誌 ***]
-    await createLog(
-      req.user.id,
-      "UPDATE_PACKAGE_STATUS",
-      id,
-      `狀態更新為 ${status}`
-    );
+    try {
+      await createLog(
+        req.user.id,
+        "UPDATE_PACKAGE_STATUS",
+        id,
+        `狀態更新為 ${status}`
+      );
+    } catch (logError) {
+      console.error("寫入日誌失敗(不影響主流程):", logError);
+    }
 
     res.status(200).json({
       success: true,
@@ -348,12 +351,16 @@ const updatePackageDetails = async (req, res) => {
     if (dataToUpdate.arrivedBoxesJson !== originalPackage.arrivedBoxesJson) {
       logDetails.push(`更新了 ${boxesWithFees.length} 筆分箱明細`);
     }
-    await createLog(
-      req.user.id,
-      "UPDATE_PACKAGE_DETAILS",
-      id,
-      logDetails.join(", ") || "儲存更新"
-    );
+    try {
+      await createLog(
+        req.user.id,
+        "UPDATE_PACKAGE_DETAILS",
+        id,
+        logDetails.join(", ") || "儲存更新"
+      );
+    } catch (logError) {
+      console.error("寫入日誌失敗(不影響主流程):", logError);
+    }
     // [*** 日誌結束 ***]
 
     // (6) 回傳更新後的包裹資料 (包含解析好的 JSON)
@@ -429,12 +436,16 @@ const updateShipmentStatus = async (req, res) => {
     ) {
       logDetails.push(`台-單號: ${trackingNumberTW}`);
     }
-    await createLog(
-      req.user.id,
-      "UPDATE_SHIPMENT_STATUS",
-      id,
-      logDetails.join(", ") || "更新資料"
-    );
+    try {
+      await createLog(
+        req.user.id,
+        "UPDATE_SHIPMENT_STATUS",
+        id,
+        logDetails.join(", ") || "更新資料"
+      );
+    } catch (logError) {
+      console.error("寫入日誌失敗(不影響主流程):", logError);
+    }
     // [*** 日誌結束 ***]
 
     res.status(200).json({
@@ -503,12 +514,16 @@ const rejectShipment = async (req, res) => {
     });
 
     // [*** 新增日誌 ***]
-    await createLog(
-      req.user.id,
-      "REJECT_SHIPMENT",
-      id,
-      `退回訂單, 釋放 ${result.releasedPackages.count} 個包裹`
-    );
+    try {
+      await createLog(
+        req.user.id,
+        "REJECT_SHIPMENT",
+        id,
+        `退回訂單, 釋放 ${result.releasedPackages.count} 個包裹`
+      );
+    } catch (logError) {
+      console.error("寫入日誌失敗(不影響主流程):", logError);
+    }
     // [*** 日誌結束 ***]
 
     res.status(200).json({
@@ -526,7 +541,7 @@ const rejectShipment = async (req, res) => {
 // 8. 建立員工帳號
 const createStaffUser = async (req, res) => {
   try {
-    // [*** V3 修正：接收 permissions 陣列 ***]
+    // (*** V3 權限系統 ***)
     const { email, password, name, permissions } = req.body;
 
     if (!email || !password || !name) {
@@ -535,7 +550,6 @@ const createStaffUser = async (req, res) => {
         .json({ success: false, message: "請提供 Email、密碼和姓名" });
     }
 
-    // 驗證 permissions
     if (!Array.isArray(permissions)) {
       return res
         .status(400)
@@ -560,19 +574,23 @@ const createStaffUser = async (req, res) => {
         email: email.toLowerCase(),
         passwordHash: passwordHash,
         name: name,
-        permissions: JSON.stringify(permissions), // [*** V3 修正：存入 JSON 字串 ***]
+        permissions: JSON.stringify(permissions),
         isActive: true,
       },
       select: { id: true, email: true, name: true, permissions: true },
     });
 
     // [*** 新增日誌 ***]
-    await createLog(
-      req.user.id,
-      "CREATE_STAFF_USER",
-      newUser.id,
-      `建立新員工 ${newUser.email} (權限: ${permissions.join(", ")})`
-    );
+    try {
+      await createLog(
+        req.user.id,
+        "CREATE_STAFF_USER",
+        newUser.id,
+        `建立新員工 ${newUser.email} (權限: ${permissions.join(", ")})`
+      );
+    } catch (logError) {
+      console.error("寫入日誌失敗(不影響主流程):", logError);
+    }
     // [*** 日誌結束 ***]
 
     res.status(201).json({
@@ -599,8 +617,7 @@ const getUsers = async (req, res) => {
         email: true,
         name: true,
         phone: true,
-        // role: true, // [*** V3 移除 ***]
-        permissions: true, // [*** V3 新增 ***]
+        permissions: true, // ( V3 權限系統 )
         createdAt: true,
         isActive: true,
       },
@@ -612,6 +629,31 @@ const getUsers = async (req, res) => {
     });
   } catch (error) {
     console.error("管理員取得所有使用者時發生錯誤:", error);
+    res.status(500).json({ success: false, message: "伺服器發生錯誤" });
+  }
+};
+
+// 9.1 [*** V4.1 新增：取得客戶列表 (用於搜尋) ***]
+const getUsersList = async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        permissions: "[]", // 只搜尋 "USER" (權限為空)
+        isActive: true, // 只搜尋 "啟用" 的
+      },
+      orderBy: { email: "asc" },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    });
+    res.status(200).json({
+      success: true,
+      users: users,
+    });
+  } catch (error) {
+    console.error("管理員取得客戶列表時發生錯誤:", error);
     res.status(500).json({ success: false, message: "伺服器發生錯誤" });
   }
 };
@@ -635,12 +677,16 @@ const toggleUserStatus = async (req, res) => {
     });
 
     // [*** 新增日誌 ***]
-    await createLog(
-      req.user.id,
-      "TOGGLE_USER_STATUS",
-      id,
-      `將 ${updatedUser.email} 狀態設為 ${isActive ? "啟用" : "停用"}`
-    );
+    try {
+      await createLog(
+        req.user.id,
+        "TOGGLE_USER_STATUS",
+        id,
+        `將 ${updatedUser.email} 狀態設為 ${isActive ? "啟用" : "停用"}`
+      );
+    } catch (logError) {
+      console.error("寫入日誌失敗(不影響主流程):", logError);
+    }
     // [*** 日誌結束 ***]
 
     res.status(200).json({
@@ -670,7 +716,11 @@ const resetUserPassword = async (req, res) => {
     });
 
     // [*** 新增日誌 ***]
-    await createLog(req.user.id, "RESET_USER_PASSWORD", id, `重設密碼`);
+    try {
+      await createLog(req.user.id, "RESET_USER_PASSWORD", id, `重設密碼`);
+    } catch (logError) {
+      console.error("寫入日誌失敗(不影響主流程):", logError);
+    }
     // [*** 日誌結束 ***]
 
     res.status(200).json({
@@ -699,12 +749,16 @@ const deleteUser = async (req, res) => {
       where: { id: id },
       select: { email: true },
     });
-    await createLog(
-      req.user.id,
-      "DELETE_USER",
-      id,
-      `(危險) 刪除使用者 ${userToDelete?.email || id} 及其所有資料`
-    );
+    try {
+      await createLog(
+        req.user.id,
+        "DELETE_USER",
+        id,
+        `(危險) 刪除使用者 ${userToDelete?.email || id} 及其所有資料`
+      );
+    } catch (logError) {
+      console.error("寫入日誌失敗(不影響主流程):", logError);
+    }
     // [*** 日誌結束 ***]
 
     await prisma.$transaction(async (tx) => {
@@ -864,7 +918,7 @@ const impersonateUser = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: userIdToImpersonate },
-      select: { id: true, email: true, name: true, permissions: true }, // [*** V3 修正: 讀取 permissions ***]
+      select: { id: true, email: true, name: true, permissions: true },
     });
 
     if (!user) {
@@ -880,22 +934,24 @@ const impersonateUser = async (req, res) => {
     } catch (e) {}
 
     if (userPermissions.length > 0) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "只能登入 'USER' 角色的帳號 (即權限為空)",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "只能登入 'USER' 角色的帳號 (即權限為空)",
+      });
     }
     // [*** 修正結束 ***]
 
     // [*** 新增日誌 ***]
-    await createLog(
-      adminUserId,
-      "IMPERSONATE_USER",
-      user.id,
-      `模擬登入 ${user.email}`
-    );
+    try {
+      await createLog(
+        adminUserId,
+        "IMPERSONATE_USER",
+        user.id,
+        `模擬登入 ${user.email}`
+      );
+    } catch (logError) {
+      console.error("寫入日誌失敗(不影響主流程):", logError);
+    }
     // [*** 日誌結束 ***]
 
     // 產生一個 "客戶" 的 Token
@@ -924,6 +980,7 @@ module.exports = {
   updatePackageStatus,
   updatePackageDetails,
   getUsers,
+  getUsersList, // [*** 匯出新函式 ***]
   updateShipmentStatus,
   getAllShipments,
   toggleUserStatus,
