@@ -1,5 +1,5 @@
-// 這是 backend/routes/adminRoutes.js (V4.1 權限系統版)
-// (補上 /users/list 路由)
+// 這是 backend/routes/adminRoutes.js (V4.2 權限系統版)
+// (補上 /users/list 和 /users/:id/permissions 路由)
 
 const express = require("express");
 const router = express.Router();
@@ -9,11 +9,11 @@ const {
   getAllPackages,
   updatePackageStatus,
   updatePackageDetails,
-  adminCreatePackage, // (V4)
+  adminCreatePackage,
   updateShipmentStatus,
   getAllShipments,
   getUsers,
-  getUsersList, // (V4.1)
+  getUsersList,
   toggleUserStatus,
   resetUserPassword,
   createStaffUser,
@@ -21,6 +21,7 @@ const {
   getDashboardStats,
   getActivityLogs,
   impersonateUser,
+  updateUserPermissions, // [*** 1. 匯入新函式 ***]
 } = require("../controllers/adminController");
 
 // [*** V3 修正：匯入新的中介軟體 ***]
@@ -80,10 +81,10 @@ router
   .get(protect, checkPermission("CAN_MANAGE_USERS"), getUsers);
 
 // [*** V4.1 修正：補上 /users/list 路由 ***]
+// (使用 CAN_MANAGE_PACKAGES 保護，因為它是「代客預報」功能的一部分)
 router
   .route("/users/list")
   .get(protect, checkPermission("CAN_MANAGE_PACKAGES"), getUsersList);
-// (注意：我們用 CAN_MANAGE_PACKAGES 保護它，因為「代客預報」是包裹管理的一部分)
 
 router
   .route("/users/create")
@@ -91,6 +92,12 @@ router
 router
   .route("/users/:id/status")
   .put(protect, checkPermission("CAN_MANAGE_USERS"), toggleUserStatus);
+
+// [*** V4.2 新增：更新權限路由 ***]
+router
+  .route("/users/:id/permissions")
+  .put(protect, checkPermission("CAN_MANAGE_USERS"), updateUserPermissions);
+
 router
   .route("/users/:id/reset-password")
   .put(protect, checkPermission("CAN_MANAGE_USERS"), resetUserPassword);

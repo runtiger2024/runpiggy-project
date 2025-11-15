@@ -1,5 +1,8 @@
-// 這是 backend/controllers/adminController.js (V4.1 權限 + 代客預報 整合版)
-// (補上 V4 的 adminCreatePackage 和 getUsersList 函式，並修正 exports)
+// 這是 backend/controllers/adminController.js (V4.2 權限 + 代客預報 整合版)
+// (1) 新增 updateUserPermissions 函式
+// (2) 移除 adminCreatePackage 的權限檢查
+// (3) 移除 getUsersList 的權限過濾
+// (4) 修正 module.exports
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -66,13 +69,10 @@ const getAllPackages = async (req, res) => {
   }
 };
 
-// 2. [*** V4 新增：管理員幫客戶建立包裹 ***]
+// 2. [ V4.2 修正：管理員幫客戶建立包裹 ]
 const adminCreatePackage = async (req, res) => {
   try {
-    // 1. 取得操作者 ID (自己)
     const adminUserId = req.user.id;
-
-    // 2. 取得表單資料 ( V4.1 修正：改用 userId )
     const { userId, trackingNumber, productName, quantity, note } = req.body;
 
     if (!userId || !trackingNumber || !productName) {
@@ -93,17 +93,15 @@ const adminCreatePackage = async (req, res) => {
         .json({ success: false, message: `找不到 ID 為 ${userId} 的客戶` });
     }
 
-    // 4. (安全檢查 V3) 確保我們是幫 "USER" (權限為空) 建立包裹
-    let customerPermissions = [];
-    try {
-      customerPermissions = JSON.parse(customer.permissions || "[]");
-    } catch (e) {}
-
-    if (customerPermissions.length > 0) {
-      return res
-        .status(400)
-        .json({ success: false, message: "無法為管理員或操作員帳號新增包裹" });
-    }
+    // 4. [*** V4.2 修正：移除權限檢查 ***]
+    // (允許管理員為自己或其他管理員新增包裹)
+    // let customerPermissions = [];
+    // try {
+    //     customerPermissions = JSON.parse(customer.permissions || "[]");
+    // } catch(e) {}
+    // if (customerPermissions.length > 0) {
+    //     return res.status(400).json({ success: false, message: "無法為管理員或操作員帳號新增包裹" });
+    // }
 
     // 5. 處理上傳的圖片 (與 packageController 邏輯相同)
     let imagePaths = "[]";
@@ -125,7 +123,7 @@ const adminCreatePackage = async (req, res) => {
       },
     });
 
-    // 7. 寫入日誌 (假設 V3 日誌系統存在)
+    // 7. 寫入日誌
     try {
       await createLog(
         adminUserId,
@@ -633,12 +631,12 @@ const getUsers = async (req, res) => {
   }
 };
 
-// 9.1 [*** V4.1 新增：取得客戶列表 (用於搜尋) ***]
+// 9.1 [*** V4.2 修正：取得所有使用者 (用於搜尋) ***]
 const getUsersList = async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       where: {
-        permissions: "[]", // 只搜尋 "USER" (權限為空)
+        // [V4.2 修正] 移除 'permissions: "[]"' 過濾器
         isActive: true, // 只搜尋 "啟用" 的
       },
       orderBy: { email: "asc" },
@@ -974,13 +972,78 @@ const impersonateUser = async (req, res) => {
   }
 };
 
+// 16. [*** V4.2 新增：更新使用者權限 ***]
+const updateUserPermissions = async (req, res) => {
+  try {
+    const { id: userIdToUpdate } = req.params;
+    const { permissions } = req.body;
+
+    // 驗證
+    if (!Array.isArray(permissions)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "權限必須是一個陣列" });
+    }
+
+    // 檢查不能修改自己的權限
+    if (req.user.id === userIdToUpdate) {
+      return res
+        .status(400)
+        .json({ success: false, message: "無法修改自己的權限" });
+    }
+
+    // 撈出舊資料
+    const originalUser = await prisma.user.findUnique({
+      where: { id: userIdToUpdate },
+      select: { email: true, permissions: true },
+    });
+    if (!originalUser) {
+      return res.status(404).json({ success: false, message: "找不到使用者" });
+    }
+
+    // 更新資料庫
+    const updatedUser = await prisma.user.update({
+      where: { id: userIdToUpdate },
+      data: {
+        permissions: JSON.stringify(permissions), // 存回 JSON 字串
+      },
+      select: { id: true, email: true, permissions: true },
+    });
+
+    // 寫入日誌
+    try {
+      await createLog(
+        req.user.id,
+        "UPDATE_USER_PERMISSIONS",
+        userIdToUpdate,
+        `更新 ${updatedUser.email} 的權限為: [${permissions.join(", ")}]`
+      );
+    } catch (logError) {
+      console.error("寫入日誌失敗(不影響主流程):", logError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "使用者權限更新成功",
+      user: {
+        ...updatedUser,
+        permissions: JSON.parse(updatedUser.permissions || "[]"), // 回傳陣列
+      },
+    });
+  } catch (error) {
+    console.error("更新權限失敗:", error);
+    res.status(500).json({ success: false, message: "伺服器發生錯誤" });
+  }
+};
+
+// [*** V4.2 修正：匯出所有函式 ***]
 module.exports = {
   getAllPackages,
-  adminCreatePackage, // [*** 匯出新函式 ***]
+  adminCreatePackage,
   updatePackageStatus,
   updatePackageDetails,
   getUsers,
-  getUsersList, // [*** 匯出新函式 ***]
+  getUsersList, // <--- 補上
   updateShipmentStatus,
   getAllShipments,
   toggleUserStatus,
@@ -991,4 +1054,5 @@ module.exports = {
   getDashboardStats,
   getActivityLogs,
   impersonateUser,
+  updateUserPermissions, // <--- 新增
 };

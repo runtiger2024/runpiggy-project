@@ -1,5 +1,6 @@
-// 這是 frontend/js/admin-members.js (V3 權限系統版)
+// 這是 frontend/js/admin-members.js (V4.2 權限系統 + 編輯權限功能)
 // (使用 permissions 陣列取代 role)
+// (新增「編輯權限」按鈕與彈窗邏輯)
 
 document.addEventListener("DOMContentLoaded", () => {
   // [*** V3 權限檢查：讀取權限 ***]
@@ -66,6 +67,24 @@ document.addEventListener("DOMContentLoaded", () => {
   const filterRole = document.getElementById("filter-role");
   const filterBtn = document.getElementById("filter-btn");
 
+  // [*** V4.2 新增：獲取權限彈窗元素 ***]
+  const permsModal = document.getElementById("edit-permissions-modal");
+  const permsModalCloseBtn = permsModal.querySelector(".modal-close-btn");
+  const permsForm = document.getElementById("edit-permissions-form");
+  const permsEmailDisplay = document.getElementById("edit-perms-email");
+  const permsUserIdInput = document.getElementById("edit-perms-userId");
+  const permsFieldset = document.getElementById("edit-perms-fieldset");
+  const permsMessageBox = document.getElementById("edit-perms-message-box");
+  const allPermissionCheckboxes = [
+    "CAN_VIEW_DASHBOARD",
+    "CAN_MANAGE_PACKAGES",
+    "CAN_MANAGE_SHIPMENTS",
+    "CAN_MANAGE_USERS",
+    "CAN_VIEW_LOGS",
+    "CAN_IMPERSONATE_USERS",
+  ];
+  // [*** 新增結束 ***]
+
   // --- 2. 狀態變數 ---
   let allUsersData = [];
 
@@ -75,6 +94,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const prefix = type === "error" ? "錯誤" : "成功";
     alert(`${prefix}: ${message}`);
     if (type === "error") console.error(message);
+  }
+
+  // [*** V4.2 新增：彈窗內訊息 ***]
+  function showPermsMessage(message, type) {
+    permsMessageBox.textContent = message;
+    permsMessageBox.className = `alert alert-${type}`;
+    permsMessageBox.style.display = "block";
   }
 
   // (A) 載入所有使用者 (呼叫 GET /api/admin/users)
@@ -172,9 +198,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       // [*** 修正結束 ***]
 
-      // [*** V3 修正：按鈕權限 ***]
-      // 檢查 "我" (管理員) 是否有模擬登入的權限
+      // [*** V4.2 修正：按鈕權限 ***]
       const canImpersonate = adminPermissions.includes("CAN_IMPERSONATE_USERS");
+      const canManageUsers = adminPermissions.includes("CAN_MANAGE_USERS");
 
       const loginAsBtn =
         canImpersonate && userRole === "USER" // 只有 ADMIN 且 對象是 USER
@@ -186,7 +212,14 @@ document.addEventListener("DOMContentLoaded", () => {
               登入身份
              </button>`
           : "";
-      // [*** 修正結束 ***]
+
+      // [V4.2 新增] 編輯權限按鈕 (不能編輯自己)
+      const editPermsBtn =
+        canManageUsers && user.email !== adminName // 假設 adminName 存的是登入者的 Email
+          ? `<button class="btn-action btn-edit-perms" data-id="${user.id}" style="background-color: #f39c12;">
+              編輯權限
+             </button>`
+          : "";
 
       tr.innerHTML = `
         <td>${user.name || "-"}</td>
@@ -202,7 +235,8 @@ document.addEventListener("DOMContentLoaded", () => {
         </td>
         <td>
           <div class="action-buttons">
-            ${loginAsBtn} <button class="btn-action btn-reset-password" data-id="${
+            ${loginAsBtn}
+            ${editPermsBtn} <button class="btn-action btn-reset-password" data-id="${
         user.id
       }" data-name="${user.name || user.email}">
               重設密碼
@@ -230,6 +264,15 @@ document.addEventListener("DOMContentLoaded", () => {
       if (loginAsButton) {
         loginAsButton.addEventListener("click", handleLoginAs);
       }
+
+      // [*** V4.2 新增：綁定編輯權限按鈕 ***]
+      const editPermsButton = tr.querySelector(".btn-edit-perms");
+      if (editPermsButton) {
+        editPermsButton.addEventListener("click", () =>
+          handleEditPermissions(user)
+        );
+      }
+      // [*** 新增結束 ***]
 
       membersTableBody.appendChild(tr);
     });
@@ -349,7 +392,92 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (G) 登出
+  // (G) [*** V4.2 新增：開啟權限編輯彈窗 ***]
+  function handleEditPermissions(user) {
+    permsMessageBox.style.display = "none";
+    permsForm.reset(); // 清除舊的勾選
+
+    permsEmailDisplay.textContent = user.email;
+    permsUserIdInput.value = user.id;
+
+    // 解析該用戶 "目前" 的權限
+    let userPermissions = [];
+    try {
+      userPermissions = JSON.parse(user.permissions || "[]");
+    } catch (e) {}
+
+    // 根據用戶權限，勾選 Checkboxes
+    allPermissionCheckboxes.forEach((permKey) => {
+      const checkbox = document.getElementById(`edit-perm-${permKey}`);
+      if (checkbox) {
+        checkbox.checked = userPermissions.includes(permKey);
+      }
+    });
+
+    permsModal.style.display = "flex";
+  }
+
+  // (H) [*** V4.2 新增：提交權限變更 ***]
+  permsForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showPermsMessage("", "clear");
+    const submitButton = permsForm.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    submitButton.textContent = "儲存中...";
+
+    const userId = permsUserIdInput.value;
+
+    // 1. 收集新的權限
+    const newPermissions = [];
+    const checkboxes = permsFieldset.querySelectorAll(
+      "input[type='checkbox']:checked"
+    );
+    checkboxes.forEach((cb) => {
+      newPermissions.push(cb.value);
+    });
+
+    try {
+      // 2. 呼叫新 API
+      const response = await fetch(
+        `${API_BASE_URL}/api/admin/users/${userId}/permissions`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ permissions: newPermissions }),
+        }
+      );
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message);
+
+      // 3. 成功
+      showPermsMessage("權限更新成功！", "success");
+      await loadAllUsers(); // 重新載入列表以更新 "角色" 顯示
+
+      setTimeout(() => {
+        permsModal.style.display = "none";
+      }, 1500);
+    } catch (error) {
+      showPermsMessage(error.message, "error");
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "儲存權限";
+    }
+  });
+
+  // 關閉權限彈窗
+  permsModalCloseBtn.addEventListener("click", () => {
+    permsModal.style.display = "none";
+  });
+  permsModal.addEventListener("click", (e) => {
+    if (e.target === permsModal) permsModal.style.display = "none";
+  });
+  // [*** V4.2 新增結束 ***]
+
+  // (I) 登出
   logoutBtn.addEventListener("click", () => {
     if (confirm("確定要登出管理後台吗？")) {
       localStorage.removeItem("admin_token");
@@ -359,7 +487,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (H) 篩選按鈕
+  // (J) 篩選按鈕
   if (filterBtn) {
     filterBtn.addEventListener("click", () => {
       renderUsers();
