@@ -1,8 +1,6 @@
-// 這是 backend/controllers/adminController.js (V4.2 權限 + 代客預報 整合版)
-// (1) 新增 updateUserPermissions 函式
-// (2) 移除 adminCreatePackage 的權限檢查
-// (3) 移除 getUsersList 的權限過濾
-// (4) 修正 module.exports
+// 這是 backend/controllers/adminController.js (V5 報表功能 Phase 1)
+// (1) 新增 7 天 / 30 天 報表數據
+// (2) 修正 exports (補上 V4.1 遺漏的)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -69,7 +67,7 @@ const getAllPackages = async (req, res) => {
   }
 };
 
-// 2. [ V4.2 修正：管理員幫客戶建立包裹 ]
+// 2. [ V4.1 ] 管理員幫客戶建立包裹
 const adminCreatePackage = async (req, res) => {
   try {
     const adminUserId = req.user.id;
@@ -82,7 +80,6 @@ const adminCreatePackage = async (req, res) => {
       });
     }
 
-    // 3. 根據 User ID 找到客戶
     const customer = await prisma.user.findUnique({
       where: { id: userId },
     });
@@ -93,8 +90,7 @@ const adminCreatePackage = async (req, res) => {
         .json({ success: false, message: `找不到 ID 為 ${userId} 的客戶` });
     }
 
-    // 4. [*** V4.2 修正：移除權限檢查 ***]
-    // (允許管理員為自己或其他管理員新增包裹)
+    // [V4.2 修正] 允許管理員為自己新增
     // let customerPermissions = [];
     // try {
     //     customerPermissions = JSON.parse(customer.permissions || "[]");
@@ -103,14 +99,12 @@ const adminCreatePackage = async (req, res) => {
     //     return res.status(400).json({ success: false, message: "無法為管理員或操作員帳號新增包裹" });
     // }
 
-    // 5. 處理上傳的圖片 (與 packageController 邏輯相同)
     let imagePaths = "[]";
     if (req.files && req.files.length > 0) {
       const paths = req.files.map((file) => `/uploads/${file.filename}`);
       imagePaths = JSON.stringify(paths);
     }
 
-    // 6. 建立包裹
     const newPackage = await prisma.package.create({
       data: {
         trackingNumber: trackingNumber,
@@ -119,11 +113,10 @@ const adminCreatePackage = async (req, res) => {
         note: note,
         productImages: imagePaths, // 客戶圖片
         warehouseImages: "[]", // 倉庫圖片預設為空
-        userId: customer.id, // [*** 關鍵 ***] 使用客戶的 ID
+        userId: customer.id,
       },
     });
 
-    // 7. 寫入日誌
     try {
       await createLog(
         adminUserId,
@@ -163,7 +156,6 @@ const updatePackageStatus = async (req, res) => {
       data: { status: status },
     });
 
-    // [*** 新增日誌 ***]
     try {
       await createLog(
         req.user.id,
@@ -194,7 +186,6 @@ const updatePackageDetails = async (req, res) => {
     const { id } = req.params;
     const { status, boxesData, existingImages } = req.body;
 
-    // (1) 撈出原始包裹
     const originalPackage = await prisma.package.findUnique({
       where: { id: id },
     });
@@ -209,7 +200,6 @@ const updatePackageDetails = async (req, res) => {
     let calculatedTotalFee = 0;
     let boxesWithFees = [];
 
-    // (2) 處理分箱運費計算
     if (boxesData) {
       try {
         const boxes = JSON.parse(boxesData);
@@ -274,7 +264,6 @@ const updatePackageDetails = async (req, res) => {
       }
     }
 
-    // (4) 照片處理邏輯 (修改為 5 張)
     let originalImagesList = [];
     try {
       originalImagesList = JSON.parse(originalPackage.warehouseImages || "[]");
@@ -319,20 +308,16 @@ const updatePackageDetails = async (req, res) => {
     }
 
     if (finalImageList.length > 5) {
-      // 已修改為 5
       finalImageList = finalImageList.slice(0, 5);
     }
 
     dataToUpdate.warehouseImages = JSON.stringify(finalImageList);
 
-    // (5) 執行資料庫更新
     const updatedPackage = await prisma.package.update({
       where: { id: id },
       data: dataToUpdate,
     });
 
-    // [*** 新增日誌 ***]
-    // 建立日誌詳情
     let logDetails = [];
     if (status && originalPackage.status !== status) {
       logDetails.push(`狀態: ${originalPackage.status} -> ${status}`);
@@ -359,9 +344,7 @@ const updatePackageDetails = async (req, res) => {
     } catch (logError) {
       console.error("寫入日誌失敗(不影響主流程):", logError);
     }
-    // [*** 日誌結束 ***]
 
-    // (6) 回傳更新後的包裹資料 (包含解析好的 JSON)
     let parsedBoxes = [];
     let parsedImages = [];
     try {
@@ -420,7 +403,6 @@ const updateShipmentStatus = async (req, res) => {
       data: dataToUpdate,
     });
 
-    // [*** 新增日誌 ***]
     let logDetails = [];
     if (status && originalShipment.status !== status) {
       logDetails.push(`狀態: ${originalShipment.status} -> ${status}`);
@@ -444,7 +426,6 @@ const updateShipmentStatus = async (req, res) => {
     } catch (logError) {
       console.error("寫入日誌失敗(不影響主流程):", logError);
     }
-    // [*** 日誌結束 ***]
 
     res.status(200).json({
       success: true,
@@ -511,7 +492,6 @@ const rejectShipment = async (req, res) => {
       return { updatedShipment, releasedPackages };
     });
 
-    // [*** 新增日誌 ***]
     try {
       await createLog(
         req.user.id,
@@ -522,7 +502,6 @@ const rejectShipment = async (req, res) => {
     } catch (logError) {
       console.error("寫入日誌失敗(不影響主流程):", logError);
     }
-    // [*** 日誌結束 ***]
 
     res.status(200).json({
       success: true,
@@ -539,7 +518,6 @@ const rejectShipment = async (req, res) => {
 // 8. 建立員工帳號
 const createStaffUser = async (req, res) => {
   try {
-    // (*** V3 權限系統 ***)
     const { email, password, name, permissions } = req.body;
 
     if (!email || !password || !name) {
@@ -578,7 +556,6 @@ const createStaffUser = async (req, res) => {
       select: { id: true, email: true, name: true, permissions: true },
     });
 
-    // [*** 新增日誌 ***]
     try {
       await createLog(
         req.user.id,
@@ -589,7 +566,6 @@ const createStaffUser = async (req, res) => {
     } catch (logError) {
       console.error("寫入日誌失敗(不影響主流程):", logError);
     }
-    // [*** 日誌結束 ***]
 
     res.status(201).json({
       success: true,
@@ -631,12 +607,12 @@ const getUsers = async (req, res) => {
   }
 };
 
-// 9.1 [*** V4.2 修正：取得所有使用者 (用於搜尋) ***]
+// 9.1 [ V4.2 修正：取得所有使用者 (用於搜尋) ]
 const getUsersList = async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       where: {
-        // [V4.2 修正] 移除 'permissions: "[]"' 過濾器
+        // [V4.2 修正] 移除 'permissions: "[]"' 過濾器，讓管理員也能被搜尋到
         isActive: true, // 只搜尋 "啟用" 的
       },
       orderBy: { email: "asc" },
@@ -674,7 +650,6 @@ const toggleUserStatus = async (req, res) => {
       select: { id: true, email: true, isActive: true },
     });
 
-    // [*** 新增日誌 ***]
     try {
       await createLog(
         req.user.id,
@@ -685,7 +660,6 @@ const toggleUserStatus = async (req, res) => {
     } catch (logError) {
       console.error("寫入日誌失敗(不影響主流程):", logError);
     }
-    // [*** 日誌結束 ***]
 
     res.status(200).json({
       success: true,
@@ -713,13 +687,11 @@ const resetUserPassword = async (req, res) => {
       data: { passwordHash: passwordHash },
     });
 
-    // [*** 新增日誌 ***]
     try {
       await createLog(req.user.id, "RESET_USER_PASSWORD", id, `重設密碼`);
     } catch (logError) {
       console.error("寫入日誌失敗(不影響主流程):", logError);
     }
-    // [*** 日誌結束 ***]
 
     res.status(200).json({
       success: true,
@@ -742,7 +714,6 @@ const deleteUser = async (req, res) => {
         .json({ success: false, message: "您不能刪除自己的管理員帳號" });
     }
 
-    // [*** 新增日誌 ***]
     const userToDelete = await prisma.user.findUnique({
       where: { id: id },
       select: { email: true },
@@ -757,10 +728,8 @@ const deleteUser = async (req, res) => {
     } catch (logError) {
       console.error("寫入日誌失敗(不影響主流程):", logError);
     }
-    // [*** 日誌結束 ***]
 
     await prisma.$transaction(async (tx) => {
-      // [*** V3 修正：刪除日誌 ***]
       await tx.activityLog.deleteMany({
         where: { userId: id },
       });
@@ -787,24 +756,71 @@ const deleteUser = async (req, res) => {
   }
 };
 
-// 13. [儀表板統計函式]
+// 13. [*** V5 修正：儀表板統計函式 (Phase 1) ***]
 const getDashboardStats = async (req, res) => {
   try {
-    // 1. 總用戶數
-    const totalUsers = await prisma.user.count();
+    // --- (1) 日期定義 ---
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const newUsersToday = await prisma.user.count({
-      where: { createdAt: { gte: today } },
-    });
+    const date7DaysAgo = new Date(new Date().setDate(today.getDate() - 7));
+    const date30DaysAgo = new Date(new Date().setDate(today.getDate() - 30));
+    today.setHours(0, 0, 0, 0); // 設定為今天 0 點
 
-    // 2. 包裹統計
-    const packageCounts = await prisma.package.groupBy({
-      by: ["status"],
-      _count: {
-        id: true,
-      },
-    });
+    // --- (2) 營收 (Shipment "已完成" (CANCEL) 且 "已更新") ---
+    const [
+      weeklyRevenueData,
+      monthlyRevenueData,
+      totalRevenueData,
+      pendingRevenueData,
+    ] = await Promise.all([
+      prisma.shipment.aggregate({
+        where: { status: "CANCEL", updatedAt: { gte: date7DaysAgo } },
+        _sum: { totalCost: true },
+      }),
+      prisma.shipment.aggregate({
+        where: { status: "CANCEL", updatedAt: { gte: date30DaysAgo } },
+        _sum: { totalCost: true },
+      }),
+      prisma.shipment.aggregate({
+        where: { status: "CANCEL" },
+        _sum: { totalCost: true },
+      }),
+      prisma.shipment.aggregate({
+        where: { status: "PENDING_PAYMENT" },
+        _sum: { totalCost: true },
+      }),
+    ]);
+
+    // --- (3) 入庫 (Package "已入庫" (ARRIVED) 且 "已更新") ---
+    const [weeklyPackages, monthlyPackages] = await Promise.all([
+      prisma.package.count({
+        where: { status: "ARRIVED", updatedAt: { gte: date7DaysAgo } },
+      }),
+      prisma.package.count({
+        where: { status: "ARRIVED", updatedAt: { gte: date30DaysAgo } },
+      }),
+    ]);
+
+    // --- (4) 會員 (User "建立時間") ---
+    const [weeklyNewUsers, monthlyNewUsers, totalUsers, newUsersToday] =
+      await Promise.all([
+        prisma.user.count({ where: { createdAt: { gte: date7DaysAgo } } }),
+        prisma.user.count({ where: { createdAt: { gte: date30DaysAgo } } }),
+        prisma.user.count(),
+        prisma.user.count({ where: { createdAt: { gte: today } } }),
+      ]);
+
+    // --- (5) 狀態總覽 (與舊版相同) ---
+    const [packageCounts, shipmentCounts] = await Promise.all([
+      prisma.package.groupBy({
+        by: ["status"],
+        _count: { id: true },
+      }),
+      prisma.shipment.groupBy({
+        by: ["status"],
+        _count: { id: true },
+      }),
+    ]);
+
     const packageStats = {
       PENDING:
         packageCounts.find((p) => p.status === "PENDING")?._count.id || 0,
@@ -815,18 +831,7 @@ const getDashboardStats = async (req, res) => {
       COMPLETED:
         packageCounts.find((p) => p.status === "COMPLETED")?._count.id || 0,
     };
-    const totalPackages = packageCounts.reduce(
-      (sum, p) => sum + p._count.id,
-      0
-    );
 
-    // 3. 訂單統計
-    const shipmentCounts = await prisma.shipment.groupBy({
-      by: ["status"],
-      _count: {
-        id: true,
-      },
-    });
     const shipmentStats = {
       PENDING_PAYMENT:
         shipmentCounts.find((s) => s.status === "PENDING_PAYMENT")?._count.id ||
@@ -838,52 +843,38 @@ const getDashboardStats = async (req, res) => {
       CANCEL: shipmentCounts.find((s) => s.status === "CANCEL")?._count.id || 0, // 已完成
     };
 
-    // 4. 營收統計
-    const revenueData = await prisma.shipment.aggregate({
-      where: {
-        status: "CANCEL", // 'CANCEL' = 已完成
-      },
-      _sum: {
-        totalCost: true,
-      },
-    });
-    const totalRevenue = revenueData._sum.totalCost || 0;
-
-    // 5. 待付款訂單金額
-    const pendingRevenueData = await prisma.shipment.aggregate({
-      where: {
-        status: "PENDING_PAYMENT",
-      },
-      _sum: {
-        totalCost: true,
-      },
-    });
-    const pendingRevenue = pendingRevenueData._sum.totalCost || 0;
-
-    // 6. 最近 5 筆包裹
-    const recentPackages = await prisma.package.findMany({
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      include: { user: { select: { email: true } } },
-    });
-
-    // 7. 最近 5 筆訂單
-    const recentShipments = await prisma.shipment.findMany({
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      include: { user: { select: { email: true } } },
-    });
+    // --- (6) 最近活動 (與舊版相同) ---
+    const [recentPackages, recentShipments] = await Promise.all([
+      prisma.package.findMany({
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        include: { user: { select: { email: true } } },
+      }),
+      prisma.shipment.findMany({
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        include: { user: { select: { email: true } } },
+      }),
+    ]);
 
     res.status(200).json({
       success: true,
       stats: {
+        // [V5 新增]
+        weeklyRevenue: weeklyRevenueData._sum.totalCost || 0,
+        monthlyRevenue: monthlyRevenueData._sum.totalCost || 0,
+        weeklyPackages: weeklyPackages,
+        monthlyPackages: monthlyPackages,
+        weeklyNewUsers: weeklyNewUsers,
+        monthlyNewUsers: monthlyNewUsers,
+
+        // [舊有]
         totalUsers,
         newUsersToday,
-        totalPackages,
         packageStats,
         shipmentStats,
-        totalRevenue,
-        pendingRevenue,
+        totalRevenue: totalRevenueData._sum.totalCost || 0,
+        pendingRevenue: pendingRevenueData._sum.totalCost || 0,
         recentPackages,
         recentShipments,
       },
@@ -1043,7 +1034,7 @@ module.exports = {
   updatePackageStatus,
   updatePackageDetails,
   getUsers,
-  getUsersList, // <--- 補上
+  getUsersList,
   updateShipmentStatus,
   getAllShipments,
   toggleUserStatus,
@@ -1054,5 +1045,5 @@ module.exports = {
   getDashboardStats,
   getActivityLogs,
   impersonateUser,
-  updateUserPermissions, // <--- 新增
+  updateUserPermissions,
 };

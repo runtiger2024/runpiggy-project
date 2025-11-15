@@ -199,8 +199,12 @@ document.addEventListener("DOMContentLoaded", () => {
       // [*** 修正結束 ***]
 
       // [*** V4.2 修正：按鈕權限 ***]
+      // 檢查 "我" (管理員) 是否有模擬登入的權限
       const canImpersonate = adminPermissions.includes("CAN_IMPERSONATE_USERS");
       const canManageUsers = adminPermissions.includes("CAN_MANAGE_USERS");
+
+      // 取得登入者自己的 Email (或 Name)
+      const myName = localStorage.getItem("admin_name");
 
       const loginAsBtn =
         canImpersonate && userRole === "USER" // 只有 ADMIN 且 對象是 USER
@@ -215,7 +219,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // [V4.2 新增] 編輯權限按鈕 (不能編輯自己)
       const editPermsBtn =
-        canManageUsers && user.email !== adminName // 假設 adminName 存的是登入者的 Email
+        canManageUsers && user.email !== myName
           ? `<button class="btn-action btn-edit-perms" data-id="${user.id}" style="background-color: #f39c12;">
               編輯權限
              </button>`
