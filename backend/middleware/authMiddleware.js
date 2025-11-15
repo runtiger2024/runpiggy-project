@@ -1,4 +1,5 @@
-// 這是 backend/middleware/authMiddleware.js
+// 這是 backend/middleware/authMiddleware.js (V3 權限系統版)
+// (使用 permissions 陣列取代 role)
 
 const jwt = require("jsonwebtoken");
 const prisma = require("../config/db.js");
@@ -14,24 +15,34 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(" ")[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // *** 關鍵更新 ***
-      // 我們現在也把 'role' 欄位一起撈出來
+      // [*** V3 修正：讀取 permissions ***]
       req.user = await prisma.user.findUnique({
         where: { id: decoded.id },
         select: {
           id: true,
           email: true,
           name: true,
-          role: true, // <-- 把 'role' 撈出來
+          permissions: true, // <-- 讀取新的 permissions 欄位
           createdAt: true,
         },
       });
+      // [*** 修正結束 ***]
 
       if (!req.user) {
         return res
           .status(401)
           .json({ success: false, message: "未授權：找不到此使用者" });
       }
+
+      // [*** V3 新增：解析權限 ***]
+      // 將 permissions JSON 字串解析為陣列，並附加到 req.user 上
+      try {
+        req.user.permissions = JSON.parse(req.user.permissions || "[]");
+      } catch (e) {
+        req.user.permissions = []; // 解析失敗，給予空權限
+      }
+      // [*** 新增結束 ***]
+
       next();
     } catch (error) {
       console.error("Token 驗證失敗:", error.message);
@@ -47,20 +58,27 @@ const protect = async (req, res, next) => {
   }
 };
 
-// 2. "管理員" 中介軟體 (檢查是否有 'ADMIN' 權限)
-//    (這與 RUNPIGGY-V2 的 operatorAuthMiddleware.js 邏輯一致)
-const admin = (req, res, next) => {
-  //
-  //
-  //
-  // `protect` 必須先執行，所以我們才能從 `req.user` 讀到資料
-  if (req.user && (req.user.role === "ADMIN" || req.user.role === "OPERATOR")) {
-    next(); // 通過！
-  } else {
-    return res
-      .status(403)
-      .json({ success: false, message: "權限不足：需要管理員權限" });
-  }
+// 2. [*** V3 修正：建立權限檢查中介軟體 ***]
+// 這會取代舊的 admin 和 operator
+/**
+ * 建立一個中介軟體，檢查 req.user 是否包含指定的權限
+ * @param {string} permission - 需要的權限代號 (e.g., "CAN_MANAGE_USERS")
+ */
+const checkPermission = (permission) => {
+  return (req, res, next) => {
+    // protect 必須先執行
+    if (
+      req.user &&
+      req.user.permissions &&
+      req.user.permissions.includes(permission)
+    ) {
+      next(); // 通過！
+    } else {
+      return res
+        .status(403)
+        .json({ success: false, message: `權限不足：需要 ${permission} 權限` });
+    }
+  };
 };
 
-module.exports = { protect, admin };
+module.exports = { protect, checkPermission }; // [*** V3 修正 ***]

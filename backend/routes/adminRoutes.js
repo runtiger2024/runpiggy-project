@@ -1,5 +1,5 @@
-// 這是 backend/routes/adminRoutes.js (V4 權限系統版)
-// (新增「管理員建立包裹」路由)
+// 這是 backend/routes/adminRoutes.js (V3 權限系統版)
+// (使用新的 admin 和 operator 中介軟體)
 
 const express = require("express");
 const router = express.Router();
@@ -9,7 +9,7 @@ const {
   getAllPackages,
   updatePackageStatus,
   updatePackageDetails,
-  adminCreatePackage, // [*** 1. 匯入新函式 ***]
+  adminCreatePackage, // (V4 新增)
   updateShipmentStatus,
   getAllShipments,
   getUsers,
@@ -22,7 +22,7 @@ const {
   impersonateUser,
 } = require("../controllers/adminController");
 
-// ( V3 權限系統 - 保持不變 )
+// [*** V3 修正：匯入新的中介軟體 ***]
 const { protect, checkPermission } = require("../middleware/authMiddleware.js");
 
 // 儀表板
@@ -40,8 +40,7 @@ router
   .route("/packages/all")
   .get(protect, checkPermission("CAN_MANAGE_PACKAGES"), getAllPackages);
 
-// [*** 2. 新增「管理員建立包裹」路由 ***]
-// (注意：這必須使用 upload.array，因為管理員也可能幫客戶上傳圖片)
+// (V4 新增)
 router
   .route("/packages/create")
   .post(
@@ -50,7 +49,6 @@ router
     upload.array("images", 5),
     adminCreatePackage
   );
-// [*** 路由新增結束 ***]
 
 router
   .route("/packages/:id/status")
