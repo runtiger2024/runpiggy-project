@@ -1,4 +1,4 @@
-// 這是 authController.js (控制器)
+// 這是 authController.js (V3 權限系統版)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -10,7 +10,6 @@ const generateToken = require("../utils/generateToken.js");
  * @access      Public
  */
 const registerUser = async (req, res) => {
-  // (註冊邏輯... 保持不變)
   try {
     const { email, password, name } = req.body;
     if (!email || !password) {
@@ -28,13 +27,18 @@ const registerUser = async (req, res) => {
     }
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
+
+    // [*** V3 修正：新註冊的 "客戶" 權限為空 ***]
     const newUser = await prisma.user.create({
       data: {
         email: email.toLowerCase(),
         passwordHash: passwordHash,
         name: name,
+        permissions: "[]", // "USER" 預設權限為空
       },
     });
+    // [*** 修正結束 ***]
+
     if (newUser) {
       res.status(201).json({
         success: true,
@@ -57,7 +61,6 @@ const registerUser = async (req, res) => {
  * @access      Public
  */
 const loginUser = async (req, res) => {
-  // (登入邏輯... 保持不變)
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -92,26 +95,35 @@ const loginUser = async (req, res) => {
  * @access      Private (受保護)
  */
 const getMe = async (req, res) => {
-  // (取得資料邏輯... 保持不變)
   try {
     const user = req.user;
     if (user) {
-      // (我們從 DB 撈出完整的 user，包含 phone 和 defaultAddress)
+      // (我們從 DB 撈出完整的 user)
       const userFromDb = await prisma.user.findUnique({
         where: { id: user.id },
         select: {
           id: true,
           email: true,
           name: true,
-          role: true,
+          permissions: true, // [*** V3 修正：讀取 permissions ***]
           phone: true,
           defaultAddress: true,
           createdAt: true,
         },
       });
+
+      // [*** V3 修正：回傳前解析權限 ***]
+      let permissions = [];
+      try {
+        permissions = JSON.parse(userFromDb.permissions || "[]");
+      } catch (e) {}
+
       res.status(200).json({
         success: true,
-        user: userFromDb,
+        user: {
+          ...userFromDb,
+          permissions: permissions, // 回傳陣列，而非 JSON 字串
+        },
       });
     } else {
       return res.status(404).json({ success: false, message: "找不到使用者" });
@@ -130,7 +142,6 @@ const getMe = async (req, res) => {
 const updateMe = async (req, res) => {
   try {
     const userId = req.user.id;
-    // (這與 RUNPIGGY-V2 的 customerRoutes.js /profile 邏輯一致)
     const { name, phone, defaultAddress } = req.body;
 
     const updatedUser = await prisma.user.update({
@@ -147,14 +158,23 @@ const updateMe = async (req, res) => {
         name: true,
         phone: true,
         defaultAddress: true,
-        role: true,
+        permissions: true, // [*** V3 修正：讀取 permissions ***]
       },
     });
+
+    // [*** V3 修正：回傳前解析權限 ***]
+    let permissions = [];
+    try {
+      permissions = JSON.parse(updatedUser.permissions || "[]");
+    } catch (e) {}
 
     res.status(200).json({
       success: true,
       message: "個人資料更新成功",
-      user: updatedUser,
+      user: {
+        ...updatedUser,
+        permissions: permissions, // 回傳陣列
+      },
     });
   } catch (error) {
     console.error("更新個人資料時發生錯誤:", error);
@@ -167,5 +187,5 @@ module.exports = {
   registerUser,
   loginUser,
   getMe,
-  updateMe, // <-- 新增
+  updateMe,
 };

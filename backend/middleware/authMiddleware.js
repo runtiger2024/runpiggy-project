@@ -61,7 +61,7 @@ const protect = async (req, res, next) => {
 // 2. [*** V3 修正：建立權限檢查中介軟體 ***]
 // 這會取代舊的 admin 和 operator
 /**
- * 建立一個中介軟體，檢查 req.user 是否包含指定的權限
+ * 建立一個中介軟体，檢查 req.user 是否包含指定的權限
  * @param {string} permission - 需要的權限代號 (e.g., "CAN_MANAGE_USERS")
  */
 const checkPermission = (permission) => {

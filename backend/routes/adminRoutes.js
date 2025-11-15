@@ -1,5 +1,4 @@
 // 這是 backend/routes/adminRoutes.js (V3 權限系統版)
-// (使用新的 admin 和 operator 中介軟體)
 
 const express = require("express");
 const router = express.Router();
