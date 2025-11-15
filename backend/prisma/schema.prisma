@@ -25,6 +25,7 @@ model User {
 
   packages       Package[]  // 關聯：一個會員可以有多個包裹
   shipments      Shipment[] // 關聯：一個會員可以有多張集運單
+  activityLogs ActivityLog[] // [*** 在此新增這一行 ***]
 }
 
 // --- 2. 包裹 (預報) 資料模型 ---
