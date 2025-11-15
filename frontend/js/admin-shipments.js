@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-shipments.js (最終完整版：含 AJAX 即時更新)
+// 這是 frontend/js/admin-shipments.js (V5 狀態標籤統一版)
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 獲取元素 ---
@@ -18,13 +18,19 @@ document.addEventListener("DOMContentLoaded", () => {
   let allShipmentsData = [];
   const adminToken = localStorage.getItem("admin_token");
 
+  // [*** V5 關鍵修正：統一狀態 ***]
+  // (此定義基於 admin-shipments.html 的下拉選單)
   const shipmentStatusMap = {
-    PENDING_PAYMENT: "等待付款",
-    PROCESSING: "處理中",
-    SHIPPED: "已出貨",
-    COMPLETED: "已完成",
-    CANCELLED: "已取消",
+    PENDING_PAYMENT: "待付款",
+    PROCESSING: "已收款，安排裝櫃",
+    SHIPPED: "已裝櫃",
+    COMPLETED: "海關查驗",
+    CANCELLEDD: "清關放行", // (保留錯字鍵名)
+    CANCELL: "拆櫃派送", // (保留錯字鍵名)
+    CANCEL: "已完成", // (保留錯字鍵名)
+    CANCELLED: "已取消/退回", // (這是"取消"的狀態)
   };
+  // [*** 修正結束 ***]
 
   // --- 3. 初始化 ---
   if (!adminToken) {
@@ -82,6 +88,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     filtered.forEach((ship) => {
+      // [*** V5 修正 ***] 使用統一的 map
       const statusText = shipmentStatusMap[ship.status] || ship.status;
       const tr = document.createElement("tr");
 
@@ -111,7 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // [新增] (AJAX 優化) 只更新列表中的單一一列
+  // (AJAX 優化) 只更新列表中的單一一列
   function updateShipmentInList(ship) {
     // 1. 更新 master data
     const index = allShipmentsData.findIndex((s) => s.id === ship.id);
@@ -125,6 +132,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!tr) return;
 
     // 3. 重新產生儲存格內容
+    // [*** V5 修正 ***] 使用統一的 map
     const statusText = shipmentStatusMap[ship.status] || ship.status;
     const hasProof = ship.paymentProof ? " (有憑證)" : "";
 

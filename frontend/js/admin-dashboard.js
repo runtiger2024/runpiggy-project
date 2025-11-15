@@ -1,4 +1,4 @@
-// 這是 frontend/js/admin-dashboard.js (新檔案)
+// 這是 frontend/js/admin-dashboard.js (V5 狀態標籤統一版)
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 獲取元素 ---
@@ -36,17 +36,20 @@ document.addEventListener("DOMContentLoaded", () => {
     COMPLETED: "已完成",
     CANCELLED: "已取消",
   };
-  // (從 admin-shipments.js 複製過來)
+
+  // [*** V5 關鍵修正：統一狀態 ***]
+  // (此定義基於 admin-shipments.html 的下拉選單)
   const shipmentStatusMap = {
     PENDING_PAYMENT: "待付款",
-    PROCESSING: "已收款",
+    PROCESSING: "已收款，安排裝櫃",
     SHIPPED: "已裝櫃",
     COMPLETED: "海關查驗",
-    CANCELLEDD: "清關放行",
-    CANCELL: "拆櫃派送",
-    CANCEL: "已完成",
-    CANCELLED: "已取消",
+    CANCELLEDD: "清關放行", // (保留錯字鍵名)
+    CANCELL: "拆櫃派送", // (保留錯字鍵名)
+    CANCEL: "已完成", // (保留錯字鍵名)
+    CANCELLED: "已取消/退回", // (這是"取消"的狀態)
   };
+  // [*** 修正結束 ***]
 
   // --- 3. 初始化 (檢查登入) ---
   if (!adminToken) {
@@ -125,7 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
               ship.totalCost ? `NT$ ${ship.totalCost.toLocaleString()}` : "-"
             }</td>
             <td><span class="status-badge status-${ship.status}">${
-              shipmentStatusMap[ship.status] || ship.status
+              shipmentStatusMap[ship.status] || ship.status // [*** V5 修正 ***]
             }</span></td>
           </tr>
         `

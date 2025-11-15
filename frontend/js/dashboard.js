@@ -1,8 +1,9 @@
-// 這是 frontend/js/dashboard.js (V5 最終版)
+// 這是 frontend/js/dashboard.js (V5 - 狀態標籤統一版)
 // (1) 修正 V3 佇列 Bug
 // (2) 新增 V4 佇列 UI
 // (3) 延長 showMessage
 // (4) 新增「超重/超長/堆高機」警告
+// (5) [V5 修正] 統一集運單狀態 (shipmentStatusMap)
 
 // --- [*** V5 修正：從 calculatorController.js 引入規則 ***] ---
 const RATES = {
@@ -192,7 +193,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const uploadProofForm = document.getElementById("upload-proof-form");
   const shipmentFeeNotice = document.getElementById("shipment-fee-notice");
 
-  // [*** V5 修正：獲取 V4 佇列 UI 元素 ***]
+  // [*** V4 修正：獲取 V4 佇列 UI 元素 ***]
   const draftQueueContainer = document.getElementById("draft-queue-container");
   const draftQueueList = document.getElementById("draft-queue-list");
   // [*** V5 修正：獲取 V5 警告 UI 元素 ***]
@@ -211,15 +212,19 @@ document.addEventListener("DOMContentLoaded", () => {
     COMPLETED: "已完成",
     CANCELLED: "已取消",
   };
+
+  // [*** V5 關鍵修正：統一狀態 ***]
   const shipmentStatusMap = {
     PENDING_PAYMENT: "待付款",
     PROCESSING: "已收款，安排裝櫃",
     SHIPPED: "已裝櫃",
     COMPLETED: "海關查驗",
-    CANCELLEDD: "清關放行",
-    CANCELL: "拆櫃派送",
-    CANCEL: "已完成",
+    CANCELLEDD: "清關放行", // (保留錯字鍵名，因為後端/數據庫可能在用)
+    CANCELL: "拆櫃派送", // (保留錯字鍵名)
+    CANCEL: "已完成", // (保留錯字鍵名)
+    CANCELLED: "已取消/退回", // (這是"取消"的狀態)
   };
+  // [*** 修正結束 ***]
 
   // --- (初始化檢查) ---
   if (!token) {
@@ -367,6 +372,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       shipmentsTableBody.innerHTML = data.shipments
         .map((ship) => {
+          // [*** V5 修正 ***] 使用統一的 map
           const statusText = shipmentStatusMap[ship.status] || ship.status;
 
           let proofBtn = "";
