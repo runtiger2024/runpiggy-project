@@ -729,8 +729,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       customerSearchResults.style.display = "block";
     } else {
-      customerSearchResults.innerHTML = `<div class="search-result-item" style="color: #888;">找不到客戶</div>`;
-      customerSearchResults.style.display = "block";
+      customerSearchResults.innerHTML = `<div class"search-result-item" style="color: #888;">找不到客戶</div>`;
     }
   });
 

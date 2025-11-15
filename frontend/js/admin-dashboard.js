@@ -71,6 +71,18 @@ document.addEventListener("DOMContentLoaded", () => {
     "recent-shipments-table"
   );
 
+  // [*** V5 新增：報表卡片 ***]
+  const statsWeeklyRevenue = document.getElementById("stats-weekly-revenue");
+  const statsMonthlyRevenue = document.getElementById("stats-monthly-revenue");
+  const statsWeeklyPackages = document.getElementById("stats-weekly-packages");
+  const statsMonthlyPackages = document.getElementById(
+    "stats-monthly-packages"
+  );
+  const statsWeeklyNewUsers = document.getElementById("stats-weekly-new-users");
+  const statsMonthlyNewUsers = document.getElementById(
+    "stats-monthly-new-users"
+  );
+
   // --- 2. 狀態變數 ---
   const packageStatusMap = {
     PENDING: "待確認",
@@ -115,6 +127,20 @@ document.addEventListener("DOMContentLoaded", () => {
       statsPendingRevenue.textContent = `NT$ ${stats.pendingRevenue.toLocaleString()}`;
       statsTotalUsers.textContent = stats.totalUsers.toLocaleString();
       statsNewUsersToday.textContent = stats.newUsersToday.toLocaleString();
+
+      // [*** V5 新增：填入報表卡片 ***]
+      if (statsWeeklyRevenue)
+        statsWeeklyRevenue.textContent = `NT$ ${stats.weeklyRevenue.toLocaleString()}`;
+      if (statsMonthlyRevenue)
+        statsMonthlyRevenue.textContent = `NT$ ${stats.monthlyRevenue.toLocaleString()}`;
+      if (statsWeeklyPackages)
+        statsWeeklyPackages.textContent = `${stats.weeklyPackages} 件`;
+      if (statsMonthlyPackages)
+        statsMonthlyPackages.textContent = `${stats.monthlyPackages} 件`;
+      if (statsWeeklyNewUsers)
+        statsWeeklyNewUsers.textContent = `${stats.weeklyNewUsers} 人`;
+      if (statsMonthlyNewUsers)
+        statsMonthlyNewUsers.textContent = `${stats.monthlyNewUsers} 人`;
 
       // 填入次要卡片
       statsPkgPending.textContent = stats.packageStats.PENDING || 0;
