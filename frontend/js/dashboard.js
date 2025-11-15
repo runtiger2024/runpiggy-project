@@ -1,5 +1,7 @@
-// 這是 frontend/js/dashboard.js (V3 - 佇列版)
-// (支援「自動帶入下一筆」功能)
+// 這是 frontend/js/dashboard.js (V4 - 佇列 UI 修正版)
+// (1) 修正 V3 佇列邏輯 Bug
+// (2) 新增「待處理佇列」UI 顯示
+// (3) 延長 showMessage 時間
 
 // --- 定義費率 (前端顯示用) ---
 const RATES = {
@@ -184,6 +186,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const uploadProofForm = document.getElementById("upload-proof-form");
   const shipmentFeeNotice = document.getElementById("shipment-fee-notice");
 
+  // [*** V4 修正：獲取佇列 UI 元素 ***]
+  const draftQueueContainer = document.getElementById("draft-queue-container");
+  const draftQueueList = document.getElementById("draft-queue-list");
+  // [*** 修正結束 ***]
+
   // --- (狀態變數) ---
   let currentUser = null;
   const token = localStorage.getItem("token");
@@ -217,8 +224,9 @@ document.addEventListener("DOMContentLoaded", () => {
     messageBox.className = `alert alert-${type}`;
     messageBox.style.display = "block";
 
-    // [*** 修正 ***] 延長提示時間
-    const duration = message.includes("佇列") ? 8000 : 5000;
+    // [*** V4 修正：延長提示時間 ***]
+    const duration =
+      message.includes("佇列") || message.includes("帶入") ? 12000 : 5000;
     setTimeout(() => {
       messageBox.style.display = "none";
     }, duration);
@@ -381,9 +389,9 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {}
   }
 
-  // (E) [*** 關鍵修正 V3 ***] 提交預報 (支援佇列)
+  // (E) 提交預報 (支援佇列)
   forecastForm.addEventListener("submit", async (e) => {
-    e.preventDefault(); // [*** 修正 ***] 永遠阻止預設提交
+    e.preventDefault();
     const submitButton = forecastForm.querySelector('button[type="submit"]');
     submitButton.disabled = true;
     submitButton.textContent = "提交中...";
@@ -424,12 +432,12 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(err.message || "提交失敗");
       }
 
-      showMessage("預報成功", "success");
+      // showMessage("預報成功", "success"); // [*** 修正 ***] 訊息改由佇列函式顯示
       forecastForm.reset(); // 清空剛剛提交的表單
       loadMyPackages(); // 重新載入包裹列表
 
-      // [*** 關鍵修正 ***]
-      // 3. 提交成功後，檢查佇列
+      // [*** V4 關鍵修正 ***]
+      // 3. 提交成功後，呼叫佇列檢查
       checkForecastDraftQueue(true); // 傳入 true，表示是「提交後」的檢查
       // [*** 修正結束 ***]
     } catch (e) {
@@ -723,57 +731,94 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // (M) [*** 關鍵修正 V3 ***] 檢查草稿佇列
+  // (M) [*** 關鍵修正 V4 ***] 檢查草稿佇列 (修正 Bug 並新增 UI)
   function checkForecastDraftQueue(isAfterSubmit = false) {
+    // (A) 處理舊版 (V2) 的 "單筆" 草稿，將其轉換為 V3/V4 的 "佇列"
+    const oldDraftJSON = localStorage.getItem("forecast_draft");
+    if (oldDraftJSON) {
+      try {
+        const oldDraft = JSON.parse(oldDraftJSON);
+        // 轉存為只有一筆的佇列
+        localStorage.setItem("forecast_draft_list", JSON.stringify([oldDraft]));
+        localStorage.removeItem("forecast_draft"); // 刪除舊版
+        localStorage.removeItem("show_multi_item_warning"); // 刪除舊版
+      } catch (e) {
+        // 解析失敗，清除舊資料
+        localStorage.removeItem("forecast_draft");
+        localStorage.removeItem("show_multi_item_warning");
+      }
+    }
+
+    // (B) 處理 V4 佇列
     const draftListJSON = localStorage.getItem("forecast_draft_list");
-    if (!draftListJSON) return; // 沒有佇列
-
     let draftList = [];
-    try {
-      draftList = JSON.parse(draftListJSON);
-    } catch (e) {
-      localStorage.removeItem("forecast_draft_list");
-      return;
+    if (draftListJSON) {
+      try {
+        draftList = JSON.parse(draftListJSON);
+      } catch (e) {
+        localStorage.removeItem("forecast_draft_list");
+        return; // 解析失敗，退出
+      }
     }
 
+    // (C) 檢查佇列是否為空
     if (draftList.length === 0) {
-      // 佇列是空的，清除
+      draftQueueContainer.style.display = "none"; // 隱藏 "待處理" 區塊
+
+      // [*** Bug 修正 ***]
+      // 只有在佇列為空時，才執行清除
       localStorage.removeItem("forecast_draft_list");
-      return;
+      // [*** 修正結束 ***]
+
+      return; // 沒有佇列，結束
     }
 
-    // 1. 取出第一筆
-    const nextItem = draftList.shift(); // .shift() 會取出第一筆，並修改原陣列
+    // (D) 佇列有東西，開始處理
 
-    // 2. 填入表單
+    // 1. 更新 "待處理" 列表 UI
+    draftQueueContainer.style.display = "block"; // 顯示區塊
+    draftQueueList.innerHTML = ""; // 清空
+    draftList.forEach((item) => {
+      const li = document.createElement("li");
+      li.textContent = `${item.name} (數量: ${item.quantity || 1})`;
+      draftQueueList.appendChild(li);
+    });
+
+    // 2. 取出第一筆 (下一個要處理的)
+    const nextItem = draftList.shift(); // .shift() 會從陣列中 "取出" 第一筆
+
+    // 3. 填入表單
     productName.value = nextItem.name || "";
     quantity.value = nextItem.quantity || 1;
-    note.value = "來自運費試算"; // (新) 增加一個備註
+    note.value = "來自運費試算";
+    trackingNumber.value = ""; // 確保物流單號是清空的
+    imagesInput.value = null; // 確保檔案是清空的
 
-    // 3. 顯示提示訊息
-    if (draftList.length > 0) {
-      // 3a. 告知使用者還有
-      const message = isAfterSubmit
-        ? `已自動帶入下一筆試算資料。您還有 ${draftList.length} 筆在佇列中。`
-        : `已帶入第 1 筆試算資料。您還有 ${draftList.length} 筆在佇列中。`;
-      showMessage(message, "success");
-      // 4a. 將 *剩下的* 存回去
-      localStorage.setItem("forecast_draft_list", JSON.stringify(draftList));
+    // 4. 顯示提示訊息
+    let message = "";
+    if (isAfterSubmit) {
+      message = `預報成功！已自動帶入下一筆 (${nextItem.name})。`;
     } else {
-      // 3b. 告知這是最後一筆
-      const message = isAfterSubmit
-        ? "已自動帶入最後一筆試算資料。"
-        : "已帶入試算資料。";
-      showMessage(message, "success");
-      // 4b. 佇列已空，清除
-      localStorage.removeItem("forecast_draft_list");
+      message = `已自動帶入第 1 筆 (${nextItem.name})。`;
     }
 
-    // 5. 捲動到表單
+    if (draftList.length > 0) {
+      message += ` 還有 ${draftList.length} 筆在佇列中。`;
+    } else {
+      message += " 這是最後一筆了。";
+    }
+    showMessage(message, "success");
+
+    // 5. 將 *剩下的* (已經 .shift() 過的) 存回去
+    //    如果 draftList.length 現在是 0，這裡會存入 "[]"
+    localStorage.setItem("forecast_draft_list", JSON.stringify(draftList));
+
+    // 6. 捲動並 Focus
     if (!isAfterSubmit) {
       // 只有在頁面 "載入" 時才捲動，提交後不用
       forecastForm.scrollIntoView({ behavior: "smooth" });
     }
+    trackingNumber.focus(); // 讓使用者可以直接輸入最重要的物流單號
   }
 
   // --- (初始載入) ---
