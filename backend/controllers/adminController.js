@@ -1,12 +1,12 @@
-// 這是 backend/controllers/adminController.js (V3 修正版)
-// (整合 createLog 日誌功能 + 模擬登入功能)
+// 這是 backend/controllers/adminController.js (V4 權限系統版)
+// (新增 adminCreatePackage 函式)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
 const createLog = require("../utils/createLog.js");
-const generateToken = require("../utils/generateToken.js"); // [*** 1. 匯入 Token 工具 ***]
+const generateToken = require("../utils/generateToken.js");
 
 // --- 常數定義 (用於運費計算) ---
 const RATES = {
@@ -15,9 +15,9 @@ const RATES = {
   special_b: { name: "特殊家具B", weightRate: 40, volumeRate: 224 },
   special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
 };
-const VOLUME_DIVISOR = 28317; // 材積參數
-const CBM_TO_CAI_FACTOR = 35.3; // CBM轉材參數
-const MINIMUM_CHARGE = 2000; // 集運低消常數 (保留定義，但不在包裹層級使用)
+const VOLUME_DIVISOR = 28317;
+const CBM_TO_CAI_FACTOR = 35.3;
+const MINIMUM_CHARGE = 2000;
 
 // --- 包裹管理 ---
 
@@ -51,7 +51,7 @@ const getAllPackages = async (req, res) => {
         ...pkg,
         productImages,
         warehouseImages,
-        arrivedBoxesJson: arrivedBoxes, // [修改] 直接回傳解析後的物件
+        arrivedBoxesJson: arrivedBoxes,
       };
     });
 
@@ -66,7 +66,90 @@ const getAllPackages = async (req, res) => {
   }
 };
 
-// 2. 更新包裹狀態 (簡易版，通常不用，但保留)
+// 2. [*** V4 新增：管理員幫客戶建立包裹 ***]
+const adminCreatePackage = async (req, res) => {
+  try {
+    // 1. 取得操作者 ID (自己)
+    const adminUserId = req.user.id;
+
+    // 2. 取得表單資料
+    const { userEmail, trackingNumber, productName, quantity, note } = req.body;
+
+    if (!userEmail || !trackingNumber || !productName) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "請提供客戶 Email、物流單號和商品名稱",
+        });
+    }
+
+    // 3. 根據 Email 找到客戶
+    const customer = await prisma.user.findUnique({
+      where: { email: userEmail.toLowerCase() },
+    });
+
+    if (!customer) {
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message: `找不到 Email 為 ${userEmail} 的客戶`,
+        });
+    }
+
+    // 4. (安全檢查) 確保我們是幫 "USER" (權限為空) 建立包裹
+    let customerPermissions = [];
+    try {
+      customerPermissions = JSON.parse(customer.permissions || "[]");
+    } catch (e) {}
+
+    if (customerPermissions.length > 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "無法為管理員或操作員帳號新增包裹" });
+    }
+
+    // 5. 處理上傳的圖片 (與 packageController 邏輯相同)
+    let imagePaths = "[]";
+    if (req.files && req.files.length > 0) {
+      const paths = req.files.map((file) => `/uploads/${file.filename}`);
+      imagePaths = JSON.stringify(paths);
+    }
+
+    // 6. 建立包裹
+    const newPackage = await prisma.package.create({
+      data: {
+        trackingNumber: trackingNumber,
+        productName: productName,
+        quantity: quantity ? parseInt(quantity) : 1,
+        note: note,
+        productImages: imagePaths, // 客戶圖片
+        warehouseImages: "[]", // 倉庫圖片預設為空
+        userId: customer.id, // [*** 關鍵 ***] 使用客戶的 ID
+      },
+    });
+
+    // 7. 寫入日誌
+    await createLog(
+      adminUserId,
+      "ADMIN_CREATE_PACKAGE",
+      newPackage.id,
+      `為 ${userEmail} 新增包裹 (單號: ${trackingNumber})`
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "包裹預報成功！",
+      package: newPackage,
+    });
+  } catch (error) {
+    console.error("管理員建立包裹時發生錯誤:", error);
+    res.status(500).json({ success: false, message: "伺服器發生錯誤" });
+  }
+};
+
+// 3. 更新包裹狀態 (簡易版)
 const updatePackageStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -104,15 +187,11 @@ const updatePackageStatus = async (req, res) => {
   }
 };
 
-// 3. 更新包裹詳細資料 (主要)
+// 4. 更新包裹詳細資料 (主要)
 const updatePackageDetails = async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      status,
-      boxesData, // 接收分箱資料
-      existingImages, // 接收舊照片
-    } = req.body;
+    const { status, boxesData, existingImages } = req.body;
 
     // (1) 撈出原始包裹
     const originalPackage = await prisma.package.findUnique({
@@ -126,10 +205,10 @@ const updatePackageDetails = async (req, res) => {
     const dataToUpdate = {};
     if (status) dataToUpdate.status = status;
 
-    let calculatedTotalFee = 0; // 總運費
-    let boxesWithFees = []; // 儲存處理過的分箱陣列
+    let calculatedTotalFee = 0;
+    let boxesWithFees = [];
 
-    // (2) [新邏輯] 處理分箱運費計算
+    // (2) 處理分箱運費計算
     if (boxesData) {
       try {
         const boxes = JSON.parse(boxesData);
@@ -306,7 +385,7 @@ const updatePackageDetails = async (req, res) => {
 
 // --- 集運單管理 ---
 
-// 4. 更新集運單狀態
+// 5. 更新集運單狀態
 const updateShipmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -371,7 +450,7 @@ const updateShipmentStatus = async (req, res) => {
   }
 };
 
-// 5. 取得所有集運單
+// 6. 取得所有集運單
 const getAllShipments = async (req, res) => {
   try {
     const allShipments = await prisma.shipment.findMany({
@@ -401,7 +480,7 @@ const getAllShipments = async (req, res) => {
   }
 };
 
-// 6. 退回/拒絕集運單 (釋放包裹)
+// 7. 退回/拒絕集運單 (釋放包裹)
 const rejectShipment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -444,15 +523,23 @@ const rejectShipment = async (req, res) => {
 
 // --- 會員/員工管理 ---
 
-// 7. 建立員工帳號
+// 8. 建立員工帳號
 const createStaffUser = async (req, res) => {
   try {
-    const { email, password, name, role } = req.body;
+    // [*** V3 修正：接收 permissions 陣列 ***]
+    const { email, password, name, permissions } = req.body;
 
-    if (!email || !password || !name || !role) {
+    if (!email || !password || !name) {
       return res
         .status(400)
-        .json({ success: false, message: "請提供 Email、密碼、姓名和角色" });
+        .json({ success: false, message: "請提供 Email、密碼和姓名" });
+    }
+
+    // 驗證 permissions
+    if (!Array.isArray(permissions)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "權限必須是一個陣列" });
     }
 
     const userExists = await prisma.user.findUnique({
@@ -465,13 +552,6 @@ const createStaffUser = async (req, res) => {
         .json({ success: false, message: "這個 Email 已經被註冊了" });
     }
 
-    if (role !== "ADMIN" && role !== "OPERATOR") {
-      return res.status(400).json({
-        success: false,
-        message: "無效的角色 (只允許 ADMIN 或 OPERATOR)",
-      });
-    }
-
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
@@ -480,10 +560,10 @@ const createStaffUser = async (req, res) => {
         email: email.toLowerCase(),
         passwordHash: passwordHash,
         name: name,
-        role: role,
+        permissions: JSON.stringify(permissions), // [*** V3 修正：存入 JSON 字串 ***]
         isActive: true,
       },
-      select: { id: true, email: true, name: true, role: true },
+      select: { id: true, email: true, name: true, permissions: true },
     });
 
     // [*** 新增日誌 ***]
@@ -491,14 +571,17 @@ const createStaffUser = async (req, res) => {
       req.user.id,
       "CREATE_STAFF_USER",
       newUser.id,
-      `建立新員工 ${newUser.email} (角色: ${newUser.role})`
+      `建立新員工 ${newUser.email} (權限: ${permissions.join(", ")})`
     );
     // [*** 日誌結束 ***]
 
     res.status(201).json({
       success: true,
       message: "員工帳號建立成功！",
-      user: newUser,
+      user: {
+        ...newUser,
+        permissions: JSON.parse(newUser.permissions || "[]"), // 回傳陣列
+      },
     });
   } catch (error) {
     console.error("建立員工帳號時發生錯誤:", error);
@@ -506,7 +589,7 @@ const createStaffUser = async (req, res) => {
   }
 };
 
-// 8. 取得所有使用者
+// 9. 取得所有使用者
 const getUsers = async (req, res) => {
   try {
     const users = await prisma.user.findMany({
@@ -516,7 +599,8 @@ const getUsers = async (req, res) => {
         email: true,
         name: true,
         phone: true,
-        role: true,
+        // role: true, // [*** V3 移除 ***]
+        permissions: true, // [*** V3 新增 ***]
         createdAt: true,
         isActive: true,
       },
@@ -532,7 +616,7 @@ const getUsers = async (req, res) => {
   }
 };
 
-// 9. 切換使用者狀態 (啟用/停用)
+// 10. 切換使用者狀態 (啟用/停用)
 const toggleUserStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -572,7 +656,7 @@ const toggleUserStatus = async (req, res) => {
   }
 };
 
-// 10. 重設密碼
+// 11. 重設密碼
 const resetUserPassword = async (req, res) => {
   try {
     const { id } = req.params;
@@ -599,7 +683,7 @@ const resetUserPassword = async (req, res) => {
   }
 };
 
-// 11. 永久刪除使用者 (連動刪除包裹與集運單)
+// 12. 永久刪除使用者 (連動刪除包裹與集運單)
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -624,6 +708,10 @@ const deleteUser = async (req, res) => {
     // [*** 日誌結束 ***]
 
     await prisma.$transaction(async (tx) => {
+      // [*** V3 修正：刪除日誌 ***]
+      await tx.activityLog.deleteMany({
+        where: { userId: id },
+      });
       await tx.package.deleteMany({
         where: { userId: id },
       });
@@ -647,7 +735,7 @@ const deleteUser = async (req, res) => {
   }
 };
 
-// 12. [儀表板統計函式]
+// 13. [儀表板統計函式]
 const getDashboardStats = async (req, res) => {
   try {
     // 1. 總用戶數
@@ -754,7 +842,7 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
-// 13. [*** 新增：取得日誌函式 ***]
+// 14. [*** 新增：取得日誌函式 ***]
 const getActivityLogs = async (req, res) => {
   try {
     const logs = await prisma.activityLog.findMany({
@@ -768,7 +856,7 @@ const getActivityLogs = async (req, res) => {
   }
 };
 
-// [*** 2. 新增模擬登入函式 ***]
+// 15. [*** V3 修正：模擬登入函式 ***]
 const impersonateUser = async (req, res) => {
   try {
     const { id: userIdToImpersonate } = req.params; // 這是客戶 ID
@@ -776,7 +864,7 @@ const impersonateUser = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: userIdToImpersonate },
-      select: { id: true, email: true, name: true, role: true },
+      select: { id: true, email: true, name: true, permissions: true }, // [*** V3 修正: 讀取 permissions ***]
     });
 
     if (!user) {
@@ -785,12 +873,21 @@ const impersonateUser = async (req, res) => {
         .json({ success: false, message: "找不到該使用者" });
     }
 
-    // [安全限制]：只允許模擬 "USER" 角色
-    if (user.role !== "USER") {
+    // [*** V3 修正：檢查客戶是否為 "USER" (權限為空) ***]
+    let userPermissions = [];
+    try {
+      userPermissions = JSON.parse(user.permissions || "[]");
+    } catch (e) {}
+
+    if (userPermissions.length > 0) {
       return res
         .status(400)
-        .json({ success: false, message: "只能登入 'USER' 角色的帳號" });
+        .json({
+          success: false,
+          message: "只能登入 'USER' 角色的帳號 (即權限為空)",
+        });
     }
+    // [*** 修正結束 ***]
 
     // [*** 新增日誌 ***]
     await createLog(
@@ -823,6 +920,7 @@ const impersonateUser = async (req, res) => {
 
 module.exports = {
   getAllPackages,
+  adminCreatePackage, // [*** 匯出新函式 ***]
   updatePackageStatus,
   updatePackageDetails,
   getUsers,
@@ -835,5 +933,5 @@ module.exports = {
   deleteUser,
   getDashboardStats,
   getActivityLogs,
-  impersonateUser, // [*** 3. 匯出新函式 ***]
+  impersonateUser,
 };

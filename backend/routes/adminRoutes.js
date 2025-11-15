@@ -1,5 +1,5 @@
-// 這是 backend/routes/adminRoutes.js (V3 修正版)
-// (新增 /logs 路由 和 /users/:id/impersonate 路由)
+// 這是 backend/routes/adminRoutes.js (V4 權限系統版)
+// (新增「管理員建立包裹」路由)
 
 const express = require("express");
 const router = express.Router();
@@ -9,6 +9,7 @@ const {
   getAllPackages,
   updatePackageStatus,
   updatePackageDetails,
+  adminCreatePackage, // [*** 1. 匯入新函式 ***]
   updateShipmentStatus,
   getAllShipments,
   getUsers,
@@ -18,43 +19,77 @@ const {
   rejectShipment,
   getDashboardStats,
   getActivityLogs,
-  impersonateUser, // [*** 1. 匯入新函式 ***]
+  impersonateUser,
 } = require("../controllers/adminController");
 
-const { protect, admin } = require("../middleware/authMiddleware.js");
+// ( V3 權限系統 - 保持不變 )
+const { protect, checkPermission } = require("../middleware/authMiddleware.js");
 
 // 儀表板
-router.route("/stats").get(protect, admin, getDashboardStats);
+router
+  .route("/stats")
+  .get(protect, checkPermission("CAN_VIEW_DASHBOARD"), getDashboardStats);
 
 // 日誌
-router.route("/logs").get(protect, admin, getActivityLogs);
+router
+  .route("/logs")
+  .get(protect, checkPermission("CAN_VIEW_LOGS"), getActivityLogs);
 
 // --- 包裹管理 ---
-router.route("/packages/all").get(protect, admin, getAllPackages);
-router.route("/packages/:id/status").put(protect, admin, updatePackageStatus);
+router
+  .route("/packages/all")
+  .get(protect, checkPermission("CAN_MANAGE_PACKAGES"), getAllPackages);
+
+// [*** 2. 新增「管理員建立包裹」路由 ***]
+// (注意：這必須使用 upload.array，因為管理員也可能幫客戶上傳圖片)
+router
+  .route("/packages/create")
+  .post(
+    protect,
+    checkPermission("CAN_MANAGE_PACKAGES"),
+    upload.array("images", 5),
+    adminCreatePackage
+  );
+// [*** 路由新增結束 ***]
+
+router
+  .route("/packages/:id/status")
+  .put(protect, checkPermission("CAN_MANAGE_PACKAGES"), updatePackageStatus);
 router
   .route("/packages/:id/details")
   .put(
     protect,
-    admin,
+    checkPermission("CAN_MANAGE_PACKAGES"),
     upload.array("warehouseImages", 5),
     updatePackageDetails
   );
 
 // --- 集運單管理 ---
-router.route("/shipments/all").get(protect, admin, getAllShipments);
-router.route("/shipments/:id").put(protect, admin, updateShipmentStatus);
-router.route("/shipments/:id/reject").put(protect, admin, rejectShipment);
+router
+  .route("/shipments/all")
+  .get(protect, checkPermission("CAN_MANAGE_SHIPMENTS"), getAllShipments);
+router
+  .route("/shipments/:id")
+  .put(protect, checkPermission("CAN_MANAGE_SHIPMENTS"), updateShipmentStatus);
+router
+  .route("/shipments/:id/reject")
+  .put(protect, checkPermission("CAN_MANAGE_SHIPMENTS"), rejectShipment);
 
 // --- 會員/員工管理 ---
-router.route("/users").get(protect, admin, getUsers);
-router.route("/users/create").post(protect, admin, createStaffUser);
-router.route("/users/:id/status").put(protect, admin, toggleUserStatus);
+router
+  .route("/users")
+  .get(protect, checkPermission("CAN_MANAGE_USERS"), getUsers);
+router
+  .route("/users/create")
+  .post(protect, checkPermission("CAN_MANAGE_USERS"), createStaffUser);
+router
+  .route("/users/:id/status")
+  .put(protect, checkPermission("CAN_MANAGE_USERS"), toggleUserStatus);
 router
   .route("/users/:id/reset-password")
-  .put(protect, admin, resetUserPassword);
-
-// [*** 2. 新增模擬登入路由 ***]
-router.route("/users/:id/impersonate").post(protect, admin, impersonateUser);
+  .put(protect, checkPermission("CAN_MANAGE_USERS"), resetUserPassword);
+router
+  .route("/users/:id/impersonate")
+  .post(protect, checkPermission("CAN_IMPERSONATE_USERS"), impersonateUser);
 
 module.exports = router;

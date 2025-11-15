@@ -1,6 +1,6 @@
-// 這是 frontend/js/admin-parcels.js (V6 錯誤修正版)
-// (1) 修正 V5 的 'input' 事件 Bug
-// (2) 修正 V5 中 'renderSubPackages' 函式會將 0 顯示為空白的 Bug
+// 這是 frontend/js/admin-parcels.js (V7 - 新增「代客預報」功能)
+// (1) 修正 V6 的 '0' bug
+// (2) 新增「代客預報」彈窗 (modal) 的所有 JS 邏輯
 
 // --- 1. 定義費率常數 (與 adminController.js 同步) ---
 const RATES = {
@@ -13,7 +13,61 @@ const VOLUME_DIVISOR = 28317;
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 2. 獲取 DOM 元素 ---
+
+  // [*** V7 權限檢查：讀取權限 ***]
+  // (我們假設 V3 權限系統已實施)
+  const adminPermissions = JSON.parse(
+    localStorage.getItem("admin_permissions") || "[]"
+  );
+  const adminToken = localStorage.getItem("admin_token");
+  const adminName = localStorage.getItem("admin_name");
+
+  // [*** V3 權限檢查：檢查函式 ***]
+  function checkAdminPermissions() {
+    // 檢查是否 "沒有" 管理會員的權限 (即 OPERATOR)
+    if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
+      // 1. 隱藏導覽列的 Admin 按鈕
+      const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
+      const btnNavMembers = document.getElementById("btn-nav-members");
+      const btnNavLogs = document.getElementById("btn-nav-logs");
+
+      if (btnNavCreateStaff) btnNavCreateStaff.style.display = "none";
+      if (btnNavMembers) btnNavMembers.style.display = "none";
+      if (btnNavLogs) btnNavLogs.style.display = "none";
+
+      // 2. (特殊) 如果目前頁面是 "僅限 Admin" 頁面，隱藏主要内容
+      const adminOnlyContent = document.getElementById("admin-only-content");
+      if (adminOnlyContent) {
+        adminOnlyContent.innerHTML =
+          '<h2 style="color: red; text-align: center; padding: 40px;">權限不足 (Access Denied)</h2>' +
+          '<p style="text-align: center;">此頁面僅限「系統管理員 (ADMIN)」使用。</p>';
+      }
+    }
+  }
+
+  // (A) 檢查登入
+  if (!adminToken) {
+    alert("偵測到未登入，將跳轉至管理員登入頁面");
+    window.location.href = "admin-login.html";
+    return; // 停止執行
+  }
+
   const adminWelcome = document.getElementById("admin-welcome");
+  if (adminName) {
+    // [V3 修正] 解析權限，顯示 ADMIN 或 OPERATOR
+    let role = "USER";
+    if (adminPermissions.includes("CAN_MANAGE_USERS")) {
+      role = "ADMIN";
+    } else if (adminPermissions.length > 0) {
+      role = "OPERATOR";
+    }
+    adminWelcome.textContent = `你好, ${adminName} (${role})`; // 顯示角色
+  }
+
+  // (B) [*** V3 權限檢查：立刻執行 ***]
+  checkAdminPermissions();
+  // [*** 權限檢查結束 ***]
+
   const logoutBtn = document.getElementById("logoutBtn");
   const filterStatus = document.getElementById("filter-status");
   const searchInput = document.getElementById("search-input");
@@ -23,17 +77,25 @@ document.addEventListener("DOMContentLoaded", () => {
   const statsPending = document.getElementById("stats-pending");
   const statsArrived = document.getElementById("stats-arrived");
   const statsCompleted = document.getElementById("stats-completed");
+
+  // (編輯彈窗)
   const modal = document.getElementById("parcel-detail-modal");
   const closeModalBtn = modal.querySelector(".modal-close-btn");
   const updateForm = document.getElementById("update-package-form");
-
   const elSubPackageList = document.getElementById("sub-package-list");
   const elBtnAddSubPackage = document.getElementById("btn-add-sub-package");
   const elFeeDisplay = document.getElementById("modal-shippingFee");
 
+  // [*** V7 新增：獲取「新增包裹」彈窗元素 ***]
+  const btnShowCreateModal = document.getElementById("btn-show-create-modal");
+  const createModal = document.getElementById("admin-create-package-modal");
+  const createModalCloseBtn = createModal.querySelector(".modal-close-btn");
+  const createForm = document.getElementById("admin-create-package-form");
+  const createMessageBox = document.getElementById("admin-create-message-box");
+  // [*** 新增結束 ***]
+
   // --- 3. 狀態變數 ---
   let allParcelsData = [];
-  const adminToken = localStorage.getItem("admin_token");
   let currentExistingImages = [];
   let currentSubPackages = []; // 儲存分箱資料的 "資料來源 (Source of Truth)"
 
@@ -44,17 +106,6 @@ document.addEventListener("DOMContentLoaded", () => {
     COMPLETED: "已完成",
     CANCELLED: "已取消",
   };
-
-  // --- 4. 初始化檢查 ---
-  if (!adminToken) {
-    alert("偵測到未登入，將跳轉至管理員登入頁面");
-    window.location.href = "admin-login.html";
-    return;
-  }
-  const adminName = localStorage.getItem("admin_name");
-  if (adminName) {
-    adminWelcome.textContent = `你好, ${adminName}`;
-  }
 
   // --- 5. 核心功能函式 ---
 
@@ -402,7 +453,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // (I) 打開編輯彈窗 (V4 版)
+  // (I) 打開「編輯」彈窗 (V4 版)
   function openPackageModal(pkg) {
     document.getElementById("modal-pkg-id").value = pkg.id;
     document.getElementById("modal-user-email").textContent = pkg.user.email;
@@ -511,7 +562,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target === modal) modal.style.display = "none";
   });
 
-  // (K) 提交更新表單 (V2 版)
+  // (K) 提交「編輯」更新表單 (V2 版)
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const packageId = document.getElementById("modal-pkg-id").value;
@@ -575,11 +626,109 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (L) 登出與篩選
+  // (L) [*** V7 新增：「新增包裹」彈窗邏輯 ***]
+
+  // 簡易訊息顯示 (用於新彈窗)
+  function showCreateMessage(message, type) {
+    createMessageBox.textContent = message;
+    createMessageBox.className = `alert alert-${type}`;
+    createMessageBox.style.display = "block";
+  }
+
+  // 顯示 "新增" 彈窗
+  btnShowCreateModal.addEventListener("click", () => {
+    createForm.reset();
+    createMessageBox.style.display = "none";
+    createModal.style.display = "flex";
+  });
+
+  // 關閉 "新增" 彈窗
+  createModalCloseBtn.addEventListener("click", () => {
+    createModal.style.display = "none";
+  });
+  createModal.addEventListener("click", (e) => {
+    if (e.target === createModal) createModal.style.display = "none";
+  });
+
+  // 提交 "新增" 表單
+  createForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const submitButton = createForm.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    submitButton.textContent = "新增中...";
+    showCreateMessage("", "clear");
+
+    // 1. 建立 FormData
+    const formData = new FormData();
+    formData.append(
+      "userEmail",
+      document.getElementById("admin-create-email").value
+    );
+    formData.append(
+      "trackingNumber",
+      document.getElementById("admin-create-tracking").value
+    );
+    formData.append(
+      "productName",
+      document.getElementById("admin-create-product").value
+    );
+    formData.append(
+      "quantity",
+      document.getElementById("admin-create-quantity").value
+    );
+    formData.append("note", document.getElementById("admin-create-note").value);
+
+    const files = document.getElementById("admin-create-images").files;
+    if (files.length > 5) {
+      showCreateMessage("照片最多 5 張", "error");
+      submitButton.disabled = false;
+      submitButton.textContent = "確認新增";
+      return;
+    }
+    for (let i = 0; i < files.length; i++) {
+      formData.append("images", files[i]);
+    }
+
+    try {
+      // 2. 呼叫新 API
+      const response = await fetch(
+        `${API_BASE_URL}/api/admin/packages/create`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${adminToken}` },
+          body: formData,
+        }
+      );
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "新增失敗");
+      }
+
+      // 3. 成功
+      createModal.style.display = "none";
+      alert(
+        `成功為 ${
+          document.getElementById("admin-create-email").value
+        } 新增包裹！`
+      );
+      loadAllParcels(); // 重新載入列表
+    } catch (error) {
+      console.error("新增失敗:", error);
+      showCreateMessage(error.message, "error"); // 在彈窗內顯示錯誤
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = "確認新增";
+    }
+  });
+  // [*** V7 新增結束 ***]
+
+  // (M) 登出與篩選
   logoutBtn.addEventListener("click", () => {
     if (confirm("確定要登出管理後台吗？")) {
       localStorage.removeItem("admin_token");
       localStorage.removeItem("admin_name");
+      localStorage.removeItem("admin_permissions"); // [*** V3 修正 ***]
       window.location.href = "admin-login.html";
     }
   });
