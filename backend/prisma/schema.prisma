@@ -108,3 +108,23 @@ model CalculationQuote {
   createdAt         DateTime  @default(now())
   calculationResult String    // 儲存 JSON 字串
 }
+// 這是 backend/prisma/schema.prisma (僅顯示新增部分)
+// (請將此 model 貼到你現有檔案的最下方)
+
+// --- 5. 操作日誌 (Audit Log) ---
+model ActivityLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  action    String // 動作代號, e.g., "UPDATE_PACKAGE_DETAILS"
+  targetId  String?  // 被操作的物件 ID (例如 packageId 或 userId)
+  details   String?  // 額外資訊 (例如 "Status changed from PENDING to ARRIVED")
+
+  // 關聯：哪個員工做的
+  userId    String
+  userEmail String // 儲存 Email 副本，方便查詢
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+}

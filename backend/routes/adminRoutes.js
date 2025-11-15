@@ -1,4 +1,6 @@
-// 這是 backend/routes/adminRoutes.js (修改版)
+// 這是 backend/routes/adminRoutes.js (V2 修正版)
+// (新增 /logs 路由)
+
 const express = require("express");
 const router = express.Router();
 const upload = require("../utils/upload.js");
@@ -14,13 +16,17 @@ const {
   resetUserPassword,
   createStaffUser,
   rejectShipment,
-  getDashboardStats, // [*** 新增：匯入儀表板函式 ***]
+  getDashboardStats,
+  getActivityLogs, // [*** 新增：匯入日誌函式 ***]
 } = require("../controllers/adminController");
 
 const { protect, admin } = require("../middleware/authMiddleware.js");
 
-// [*** 新增：儀表板 API 路由 ***]
+// 儀表板
 router.route("/stats").get(protect, admin, getDashboardStats);
+
+// [*** 新增：日誌 API 路由 ***]
+router.route("/logs").get(protect, admin, getActivityLogs);
 
 // --- 包裹管理 ---
 router.route("/packages/all").get(protect, admin, getAllPackages);

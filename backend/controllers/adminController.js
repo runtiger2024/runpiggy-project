@@ -1,9 +1,11 @@
-// 這是 backend/controllers/adminController.js (已移除包裹層級的低消)
+// 這是 backend/controllers/adminController.js (V2 修正版)
+// (全面整合 createLog 日誌功能)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
+const createLog = require("../utils/createLog.js"); // [*** 新增：匯入日誌工具 ***]
 
 // --- 常數定義 (用於運費計算) ---
 const RATES = {
@@ -30,7 +32,7 @@ const getAllPackages = async (req, res) => {
     const packagesWithImages = allPackages.map((pkg) => {
       let productImages = [];
       let warehouseImages = [];
-      let arrivedBoxes = []; // [新增]
+      let arrivedBoxes = [];
 
       try {
         productImages = JSON.parse(pkg.productImages || "[]");
@@ -63,7 +65,7 @@ const getAllPackages = async (req, res) => {
   }
 };
 
-// 2. 更新包裹狀態
+// 2. 更新包裹狀態 (簡易版，通常不用，但保留)
 const updatePackageStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -80,6 +82,14 @@ const updatePackageStatus = async (req, res) => {
       data: { status: status },
     });
 
+    // [*** 新增日誌 ***]
+    await createLog(
+      req.user.id,
+      "UPDATE_PACKAGE_STATUS",
+      id,
+      `狀態更新為 ${status}`
+    );
+
     res.status(200).json({
       success: true,
       message: `包裹狀態已更新為 ${status}`,
@@ -93,7 +103,7 @@ const updatePackageStatus = async (req, res) => {
   }
 };
 
-// 3. [關鍵修正] 更新包裹詳細資料 (移除包裹層級的低消)
+// 3. 更新包裹詳細資料 (主要)
 const updatePackageDetails = async (req, res) => {
   try {
     const { id } = req.params;
@@ -169,14 +179,8 @@ const updatePackageDetails = async (req, res) => {
             });
           }
 
-          // (3) [*** 修改重點：移除低消判斷 ***]
-          // let finalPackageFee = calculatedTotalFee;
-          // if (calculatedTotalFee > 0 && calculatedTotalFee < MINIMUM_CHARGE) {
-          //   finalPackageFee = MINIMUM_CHARGE;
-          // }
-
           dataToUpdate.arrivedBoxesJson = JSON.stringify(boxesWithFees);
-          dataToUpdate.totalCalculatedFee = calculatedTotalFee; // [修改] 儲存原始總和
+          dataToUpdate.totalCalculatedFee = calculatedTotalFee;
         } else {
           dataToUpdate.arrivedBoxesJson = "[]";
           dataToUpdate.totalCalculatedFee = 0;
@@ -246,6 +250,32 @@ const updatePackageDetails = async (req, res) => {
       data: dataToUpdate,
     });
 
+    // [*** 新增日誌 ***]
+    // 建立日誌詳情
+    let logDetails = [];
+    if (status && originalPackage.status !== status) {
+      logDetails.push(`狀態: ${originalPackage.status} -> ${status}`);
+    }
+    if (
+      dataToUpdate.totalCalculatedFee !== originalPackage.totalCalculatedFee
+    ) {
+      logDetails.push(
+        `費用: ${originalPackage.totalCalculatedFee || 0} -> ${
+          dataToUpdate.totalCalculatedFee
+        }`
+      );
+    }
+    if (dataToUpdate.arrivedBoxesJson !== originalPackage.arrivedBoxesJson) {
+      logDetails.push(`更新了 ${boxesWithFees.length} 筆分箱明細`);
+    }
+    await createLog(
+      req.user.id,
+      "UPDATE_PACKAGE_DETAILS",
+      id,
+      logDetails.join(", ") || "儲存更新"
+    );
+    // [*** 日誌結束 ***]
+
     // (6) 回傳更新後的包裹資料 (包含解析好的 JSON)
     let parsedBoxes = [];
     let parsedImages = [];
@@ -280,13 +310,18 @@ const updateShipmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, totalCost, trackingNumberTW } = req.body;
+
+    const originalShipment = await prisma.shipment.findUnique({
+      where: { id: id },
+    });
+    if (!originalShipment) {
+      return res.status(404).json({ success: false, message: "找不到集運單" });
+    }
+
     const dataToUpdate = {};
-
     if (status) dataToUpdate.status = status;
-
     const cost = parseFloat(totalCost);
     if (!isNaN(cost)) dataToUpdate.totalCost = cost;
-
     if (trackingNumberTW) dataToUpdate.trackingNumberTW = trackingNumberTW;
 
     if (Object.keys(dataToUpdate).length === 0) {
@@ -299,6 +334,28 @@ const updateShipmentStatus = async (req, res) => {
       where: { id: id },
       data: dataToUpdate,
     });
+
+    // [*** 新增日誌 ***]
+    let logDetails = [];
+    if (status && originalShipment.status !== status) {
+      logDetails.push(`狀態: ${originalShipment.status} -> ${status}`);
+    }
+    if (!isNaN(cost) && originalShipment.totalCost !== cost) {
+      logDetails.push(`費用: ${originalShipment.totalCost || 0} -> ${cost}`);
+    }
+    if (
+      trackingNumberTW &&
+      originalShipment.trackingNumberTW !== trackingNumberTW
+    ) {
+      logDetails.push(`台-單號: ${trackingNumberTW}`);
+    }
+    await createLog(
+      req.user.id,
+      "UPDATE_SHIPMENT_STATUS",
+      id,
+      logDetails.join(", ") || "更新資料"
+    );
+    // [*** 日誌結束 ***]
 
     res.status(200).json({
       success: true,
@@ -365,6 +422,15 @@ const rejectShipment = async (req, res) => {
       return { updatedShipment, releasedPackages };
     });
 
+    // [*** 新增日誌 ***]
+    await createLog(
+      req.user.id,
+      "REJECT_SHIPMENT",
+      id,
+      `退回訂單, 釋放 ${result.releasedPackages.count} 個包裹`
+    );
+    // [*** 日誌結束 ***]
+
     res.status(200).json({
       success: true,
       message: `集運單已退回，並釋放了 ${result.releasedPackages.count} 個包裹。`,
@@ -418,6 +484,15 @@ const createStaffUser = async (req, res) => {
       },
       select: { id: true, email: true, name: true, role: true },
     });
+
+    // [*** 新增日誌 ***]
+    await createLog(
+      req.user.id,
+      "CREATE_STAFF_USER",
+      newUser.id,
+      `建立新員工 ${newUser.email} (角色: ${newUser.role})`
+    );
+    // [*** 日誌結束 ***]
 
     res.status(201).json({
       success: true,
@@ -474,6 +549,15 @@ const toggleUserStatus = async (req, res) => {
       select: { id: true, email: true, isActive: true },
     });
 
+    // [*** 新增日誌 ***]
+    await createLog(
+      req.user.id,
+      "TOGGLE_USER_STATUS",
+      id,
+      `將 ${updatedUser.email} 狀態設為 ${isActive ? "啟用" : "停用"}`
+    );
+    // [*** 日誌結束 ***]
+
     res.status(200).json({
       success: true,
       message: `會員 ${updatedUser.email} 狀態已更新為 ${
@@ -500,6 +584,10 @@ const resetUserPassword = async (req, res) => {
       data: { passwordHash: passwordHash },
     });
 
+    // [*** 新增日誌 ***]
+    await createLog(req.user.id, "RESET_USER_PASSWORD", id, `重設密碼`);
+    // [*** 日誌結束 ***]
+
     res.status(200).json({
       success: true,
       message: `密碼已成功重設為 "${DEFAULT_PASSWORD}"`,
@@ -520,6 +608,19 @@ const deleteUser = async (req, res) => {
         .status(400)
         .json({ success: false, message: "您不能刪除自己的管理員帳號" });
     }
+
+    // [*** 新增日誌 ***]
+    const userToDelete = await prisma.user.findUnique({
+      where: { id: id },
+      select: { email: true },
+    });
+    await createLog(
+      req.user.id,
+      "DELETE_USER",
+      id,
+      `(危險) 刪除使用者 ${userToDelete?.email || id} 及其所有資料`
+    );
+    // [*** 日誌結束 ***]
 
     await prisma.$transaction(async (tx) => {
       await tx.package.deleteMany({
@@ -652,6 +753,20 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
+// 13. [*** 新增：取得日誌函式 ***]
+const getActivityLogs = async (req, res) => {
+  try {
+    const logs = await prisma.activityLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 200, // 最多顯示最近 200 筆
+    });
+    res.status(200).json({ success: true, logs: logs });
+  } catch (error) {
+    console.error("取得操作日誌時發生錯誤:", error);
+    res.status(500).json({ success: false, message: "伺服器發生錯誤" });
+  }
+};
+
 module.exports = {
   getAllPackages,
   updatePackageStatus,
@@ -665,4 +780,5 @@ module.exports = {
   rejectShipment,
   deleteUser,
   getDashboardStats,
+  getActivityLogs, // [*** 新增：匯出日誌函式 ***]
 };
