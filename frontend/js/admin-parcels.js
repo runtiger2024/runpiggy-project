@@ -1,6 +1,6 @@
-// 這是 frontend/js/admin-parcels.js (V4 流程優化版)
-// (1) 修正了 V3 的 JSON.parse() Bug
-// (2) 優化：開啟彈窗時，如果分箱為 0，自動新增一筆
+// 這是 frontend/js/admin-parcels.js (V5 體驗修正版)
+// (1) 修正 V4 中 'input' 事件會重-建 DOM 導致輸入中斷的 Bug
+// (2) 區分「輕量更新 (只算錢)」和「重量更新 (重-建列表)」
 
 // --- 1. 定義費率常數 (與 adminController.js 同步) ---
 const RATES = {
@@ -27,7 +27,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeModalBtn = modal.querySelector(".modal-close-btn");
   const updateForm = document.getElementById("update-package-form");
 
-  // [*** 修正 ***] 獲取 V2 HTML 中的元素
   const elSubPackageList = document.getElementById("sub-package-list");
   const elBtnAddSubPackage = document.getElementById("btn-add-sub-package");
   const elFeeDisplay = document.getElementById("modal-shippingFee");
@@ -35,8 +34,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- 3. 狀態變數 ---
   let allParcelsData = [];
   const adminToken = localStorage.getItem("admin_token");
-  let currentExistingImages = []; // [新增] 用於儲存彈窗中的倉庫照片
-  let currentSubPackages = []; // [新增] 用於儲存彈窗中的分箱資料
+  let currentExistingImages = [];
+  let currentSubPackages = []; // 儲存分箱資料的 "資料來源 (Source of Truth)"
 
   const packageStatusMap = {
     PENDING: "待確認",
@@ -109,9 +108,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     filteredParcels.forEach((pkg) => {
       const statusText = packageStatusMap[pkg.status] || pkg.status;
-
-      // [*** 修正 ***] 從 V2 欄位計算
-      // (controller 傳來 `arrivedBoxesJson` 欄位，但內容是已解析的陣列)
       const boxes = Array.isArray(pkg.arrivedBoxesJson)
         ? pkg.arrivedBoxesJson
         : [];
@@ -149,33 +145,28 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // (AJAX 優化) 只更新列表中的單一一列
+  // (C) AJAX 優化 - 只更新列表中的單一一列
   function updateParcelInList(pkg) {
     // 1. 更新 master data
     const index = allParcelsData.findIndex((p) => p.id === pkg.id);
     if (index !== -1) {
-      // 合併資料 (因為 API 回傳的 pkg 沒有 user 物件，要保留舊的)
       allParcelsData[index] = { ...allParcelsData[index], ...pkg };
     }
 
     // 2. 更新 DOM
     const tr = document.getElementById(`parcel-row-${pkg.id}`);
-    if (!tr) return; // 如果該列不在畫面上 (可能被篩選掉了)
+    if (!tr) return;
 
     // 3. 重新產生儲存格內容
     const statusText = packageStatusMap[pkg.status] || pkg.status;
 
-    // [*** 關鍵修正 ***]
-    // API (adminController) 回傳的 pkg 物件已包含 *解析後* 的陣列，
-    // (arrivedBoxesJson 欄位在回傳時已被 controller 覆蓋為解析後的陣列，warehouseImages 也是)
-    // 我們不再需要 JSON.parse()
+    // 後端 API 回傳的 pkg 物件已包含 *解析後* 的陣列
     const warehouseImages = Array.isArray(pkg.warehouseImages)
       ? pkg.warehouseImages
       : [];
-    const boxes = Array.isArray(pkg.arrivedBoxesJson) // controller 把陣列放在 arrivedBoxesJson 欄位
+    const boxes = Array.isArray(pkg.arrivedBoxesJson)
       ? pkg.arrivedBoxesJson
       : [];
-    // [*** 修正結束 ***]
 
     const weight =
       boxes.length > 0
@@ -197,6 +188,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updateStats(allParcelsData);
   }
 
+  // (D) 更新統計數字
   function updateStats(parcels) {
     statsTotal.textContent = parcels.length;
     statsPending.textContent = parcels.filter(
@@ -205,15 +197,14 @@ document.addEventListener("DOMContentLoaded", () => {
     statsArrived.textContent = parcels.filter(
       (p) => p.status === "ARRIVED"
     ).length;
-    // V2 狀態
     statsCompleted.textContent = parcels.filter(
       (p) => p.status === "IN_SHIPMENT" || p.status === "COMPLETED"
     ).length;
   }
 
-  // --- [*** 新增 V2 運費計算邏輯 ***] ---
+  // --- [*** V5 運費計算邏輯 (已分離) ***] ---
 
-  // (C) 計算單一分箱的運費 (從 adminController.js 複製)
+  // (E) 計算單一分箱的運費
   function calculateSubPackageFee(box) {
     const weight = parseFloat(box.weight);
     const length = parseFloat(box.length);
@@ -243,31 +234,55 @@ document.addEventListener("DOMContentLoaded", () => {
     return 0; // 資料不全
   }
 
-  // (D) 更新總運費
-  function updateTotalCalculation() {
+  // (F) [*** V5 修正 ***]
+  // 輕量級更新：只更新 "費用顯示"，不重-建 DOM
+  function updateFeesOnInput() {
+    // 1. 從 DOM 讀取所有分箱的 "當前" 值
+    const boxElements = elSubPackageList.querySelectorAll(".sub-package-item");
+    if (!boxElements.length) {
+      elFeeDisplay.value = "$ 0";
+      return;
+    }
+
     let calculatedTotalFee = 0;
 
-    // [新增] 順便從 DOM 更新 currentSubPackages (這樣計算才是即時的)
-    updateSubPackagesFromDOM();
+    boxElements.forEach((boxEl, index) => {
+      // 從 DOM 讀取值
+      const boxData = {
+        name: boxEl.querySelector(".sub-pkg-name").value,
+        type: boxEl.querySelector(".sub-pkg-type").value,
+        weight: parseFloat(boxEl.querySelector(".sub-pkg-weight").value) || 0,
+        length: parseFloat(boxEl.querySelector(".sub-pkg-length").value) || 0,
+        width: parseFloat(boxEl.querySelector(".sub-pkg-width").value) || 0,
+        height: parseFloat(boxEl.querySelector(".sub-pkg-height").value) || 0,
+      };
 
-    currentSubPackages.forEach((box) => {
-      const fee = calculateSubPackageFee(box);
-      box.fee = fee; // 把計算結果存回去
+      // 2. 計算費用
+      const fee = calculateSubPackageFee(boxData);
       calculatedTotalFee += fee;
+
+      // 3. *只* 更新 "該分箱" 的費用顯示
+      const feeDisplay = boxEl.querySelector(".sub-pkg-fee-display");
+      if (feeDisplay) {
+        feeDisplay.textContent = `單箱運費: $ ${fee.toLocaleString()}`;
+      }
+
+      // 4. (重要) 同時更新 "資料來源" 陣列，但 *不* 重-繪
+      if (currentSubPackages[index]) {
+        currentSubPackages[index] = boxData;
+        currentSubPackages[index].fee = fee; // 把算好的 fee 存進去
+      }
     });
 
-    // [*** 修正 ***]
-    // 根據 adminController.js (line 155)，包裹層級的低消已移除
+    // 5. 更新總金額
     elFeeDisplay.value = `$ ${calculatedTotalFee.toLocaleString()}`;
-
-    // (可選) 更新 UI 上的分箱費用
-    renderSubPackages();
   }
 
-  // (E) 渲染分箱列表
+  // (G) 渲染分箱列表 (重-建 DOM)
   function renderSubPackages() {
     if (!elSubPackageList) return;
-    elSubPackageList.innerHTML = "";
+    elSubPackageList.innerHTML = ""; // 清空
+
     if (currentSubPackages.length === 0) {
       elSubPackageList.innerHTML =
         '<p style="text-align: center; color: #888;">尚無分箱，請點擊下方按鈕新增。</p>';
@@ -275,79 +290,65 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     currentSubPackages.forEach((box, index) => {
+      // 直接從 "資料來源" 讀取費用 (如果已計算)
       const fee = box.fee ? box.fee : calculateSubPackageFee(box);
+
       const boxEl = document.createElement("div");
       boxEl.className = "sub-package-item";
       boxEl.setAttribute("data-index", index);
       boxEl.innerHTML = `
-        <button type="button" class="btn-remove-sub-pkg" data-index="${index}">&times;</button>
-        <div class="form-group">
-          <label>分箱名稱</label>
-          <input type="text" class="sub-pkg-name form-control" value="${
-            box.name || ""
-          }" placeholder="例: 分箱1">
-        </div>
-        <div class="form-group">
-          <label>家具類型</label>
-          <select class="sub-pkg-type form-control">
-            <option value="">-- 請選擇 --</option>
-            <option value="general" ${
-              box.type === "general" ? "selected" : ""
-            }>一般家具</option>
-            <option value="special_a" ${
-              box.type === "special_a" ? "selected" : ""
-            }>特殊家具A</option>
-            <option value="special_b" ${
-              box.type === "special_b" ? "selected" : ""
-            }>特殊家具B</option>
-            <option value="special_c" ${
-              box.type === "special_c" ? "selected" : ""
-            }>特殊家具C</option>
-          </select>
-        </div>
-        <div class="form-grid-responsive">
-          <div class="form-group"><label>實重(kg)</label><input type="number" class="sub-pkg-weight form-control" value="${
-            box.weight || ""
-          }"></div>
-          <div class="form-group"><label>長(cm)</label><input type="number" class="sub-pkg-length form-control" value="${
-            box.length || ""
-          }"></div>
-          <div class="form-group"><label>寬(cm)</label><input type="number" class="sub-pkg-width form-control" value="${
-            box.width || ""
-          }"></div>
-          <div class="form-group"><label>高(cm)</label><input type="number" class="sub-pkg-height form-control" value="${
-            box.height || ""
-          }"></div>
-        </div>
-        <div class="sub-pkg-fee-display">
-          單箱運費: $ ${fee.toLocaleString()}
-        </div>
-      `;
+            <button type="button" class="btn-remove-sub-pkg" data-index="${index}">&times;</button>
+            <div class="form-group">
+            <label>分箱名稱</label>
+            <input type="text" class="sub-pkg-name form-control" value="${
+              box.name || ""
+            }" placeholder="例: 分箱1">
+            </div>
+            <div class="form-group">
+            <label>家具類型</label>
+            <select class="sub-pkg-type form-control">
+                <option value="">-- 請選擇 --</option>
+                <option value="general" ${
+                  box.type === "general" ? "selected" : ""
+                }>一般家具</option>
+                <option value="special_a" ${
+                  box.type === "special_a" ? "selected" : ""
+                }>特殊家具A</option>
+                <option value="special_b" ${
+                  box.type === "special_b" ? "selected" : ""
+                }>特殊家具B</option>
+                <option value="special_c" ${
+                  box.type === "special_c" ? "selected" : ""
+                }>特殊家具C</option>
+            </select>
+            </div>
+            <div class="form-grid-responsive">
+            <div class="form-group"><label>實重(kg)</label><input type="number" class="sub-pkg-weight form-control" value="${
+              box.weight || ""
+            }"></div>
+            <div class="form-group"><label>長(cm)</label><input type="number" class="sub-pkg-length form-control" value="${
+              box.length || ""
+            }"></div>
+            <div class="form-group"><label>寬(cm)</label><input type="number" class="sub-pkg-width form-control" value="${
+              box.width || ""
+            }"></div>
+            <div class="form-group"><label>高(cm)</label><input type="number" class="sub-pkg-height form-control" value="${
+              box.height || ""
+            }"></div>
+            </div>
+            <div class="sub-pkg-fee-display">
+            單箱運費: $ ${fee.toLocaleString()}
+            </div>
+        `;
       elSubPackageList.appendChild(boxEl);
     });
   }
 
-  // (F) 從 DOM 讀取資料，更新 currentSubPackages 陣列
-  function updateSubPackagesFromDOM() {
-    const newPackages = [];
-    if (!elSubPackageList) return; // 防呆
-    const boxElements = elSubPackageList.querySelectorAll(".sub-package-item");
-    boxElements.forEach((boxEl) => {
-      newPackages.push({
-        name: boxEl.querySelector(".sub-pkg-name").value,
-        type: boxEl.querySelector(".sub-pkg-type").value,
-        weight: parseFloat(boxEl.querySelector(".sub-pkg-weight").value) || 0,
-        length: parseFloat(boxEl.querySelector(".sub-pkg-length").value) || 0,
-        width: parseFloat(boxEl.querySelector(".sub-pkg-width").value) || 0,
-        height: parseFloat(boxEl.querySelector(".sub-pkg-height").value) || 0,
-      });
-    });
-    currentSubPackages = newPackages;
-  }
-
-  // (G) 綁定 V2 彈窗事件
+  // (H) [*** V5 修正 ***]
+  // 綁定彈窗事件 (ADD, REMOVE, INPUT, CHANGE)
   if (elBtnAddSubPackage) {
     elBtnAddSubPackage.addEventListener("click", () => {
+      // 1. 更新 "資料來源"
       currentSubPackages.push({
         name: `分箱 ${currentSubPackages.length + 1}`,
         type: "general",
@@ -356,42 +357,48 @@ document.addEventListener("DOMContentLoaded", () => {
         width: 0,
         height: 0,
       });
+      // 2. 重量級更新 (重-建 DOM)
       renderSubPackages();
     });
   }
   if (elSubPackageList) {
-    // 移除
+    // 移除 (重量級)
     elSubPackageList.addEventListener("click", (e) => {
       if (e.target.classList.contains("btn-remove-sub-pkg")) {
         const index = parseInt(e.target.dataset.index);
         if (!isNaN(index)) {
+          // 1. 更新 "資料來源"
           currentSubPackages.splice(index, 1);
+          // 2. 重量級更新 (重-建 DOM)
           renderSubPackages();
-          updateTotalCalculation();
+          // 3. 輕量級更新 (只算總錢)
+          updateFeesOnInput();
         }
       }
     });
-    //
-    // 計算
+
+    // 'change' 事件 (下拉選單觸發)
     elSubPackageList.addEventListener("change", (e) => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") {
-        // 使用 .closest 來確保我們是在 sub-package-list 內部觸發的
+      if (e.target.tagName === "SELECT") {
         if (e.target.closest("#sub-package-list")) {
-          updateTotalCalculation();
+          // 輕量級更新 (只算錢)
+          updateFeesOnInput();
         }
       }
     });
-    // [新增] input 事件，讓輸入時更即時
+
+    // 'input' 事件 (打字時觸發)
     elSubPackageList.addEventListener("input", (e) => {
       if (e.target.tagName === "INPUT") {
         if (e.target.closest("#sub-package-list")) {
-          updateTotalCalculation();
+          // 輕量級更新 (只算錢)
+          updateFeesOnInput();
         }
       }
     });
   }
 
-  // (H) 打開編輯彈窗 (V2 版)
+  // (I) 打開編輯彈窗 (V4 版)
   function openPackageModal(pkg) {
     document.getElementById("modal-pkg-id").value = pkg.id;
     document.getElementById("modal-user-email").textContent = pkg.user.email;
@@ -418,11 +425,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("modal-status").value = pkg.status;
 
-    // [*** V4 優化：載入 V2 分箱資料，並預設一箱 ***]
+    // [ V4 優化：載入 V2 分箱資料，並預設一箱 ]
     const arrivedBoxes = pkg.arrivedBoxesJson || [];
     currentSubPackages = JSON.parse(JSON.stringify(arrivedBoxes)); // 深拷貝
 
-    // [*** 關鍵修正：如果沒有分箱，預設新增一筆 ***]
+    // [ 關鍵修正：如果沒有分箱，預設新增一筆 ]
     if (currentSubPackages.length === 0) {
       currentSubPackages.push({
         name: "分箱 1", // 預設名稱
@@ -433,13 +440,15 @@ document.addEventListener("DOMContentLoaded", () => {
         height: 0,
       });
     }
+
+    // [*** V5 修正 ***]
+    // 1. 先重-建 DOM
+    renderSubPackages();
+    // 2. 再計算一次總價 (因為 renderSubPackages 只算了單箱)
+    updateFeesOnInput();
     // [*** 修正結束 ***]
 
-    renderSubPackages();
-    updateTotalCalculation();
-
-    // [*** 修正 ***] 載入 V2 倉庫照片
-    // (controller 傳來 `warehouseImages` 欄位，內容是已解析的陣列)
+    // 載入 V2 倉庫照片
     currentExistingImages = pkg.warehouseImages ? [...pkg.warehouseImages] : [];
     renderWarehouseImages();
 
@@ -447,7 +456,7 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.style.display = "flex";
   }
 
-  // (I) 渲染倉庫照片 (V2 版)
+  // (J) 渲染倉庫照片 (V2 版)
   function renderWarehouseImages() {
     const container = document.getElementById("modal-warehouse-images-preview");
     const fileInput = document.getElementById("modal-warehouseImages");
@@ -474,8 +483,7 @@ document.addEventListener("DOMContentLoaded", () => {
       container.innerHTML += "<p>目前無照片</p>";
     }
 
-    // [*** 修正 ***] 配合 V2 controller (line 214)，改為 5 張
-    // 同時也配合 V2 HTML (line 187)
+    // 配合 V2 controller (line 214)，改為 5 張
     if (currentExistingImages.length >= 5) {
       fileInput.disabled = true;
       fileInput.title = "已達上限 (5張)";
@@ -499,14 +507,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target === modal) modal.style.display = "none";
   });
 
-  // (J) 提交更新表單 (V2 版)
+  // (K) 提交更新表單 (V2 版)
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const packageId = document.getElementById("modal-pkg-id").value;
     const submitButton = updateForm.querySelector('button[type="submit"]');
     const newFiles = document.getElementById("modal-warehouseImages").files;
 
-    // [*** 修正 ***] 配合 V2 controller，改為 5 張
     if (currentExistingImages.length + newFiles.length > 5) {
       alert("照片總數不能超過 5 張！");
       return;
@@ -515,12 +522,16 @@ document.addEventListener("DOMContentLoaded", () => {
     submitButton.disabled = true;
     submitButton.textContent = "儲存中...";
 
-    // [*** 修正 ***] 建立 V2 FormData
+    // [*** V5 修正 ***]
+    // 在提交前，最後一次輕量更新
+    // 這能確保 currentSubPackages 陣列是 "最新" 的
+    updateFeesOnInput();
+    // [*** 修正結束 ***]
+
     const formData = new FormData();
     formData.append("status", document.getElementById("modal-status").value);
 
-    // [新增] 儲存前最後更新一次
-    updateSubPackagesFromDOM();
+    // 傳送 "資料來源"
     formData.append("boxesData", JSON.stringify(currentSubPackages));
 
     formData.append(
@@ -549,10 +560,7 @@ document.addEventListener("DOMContentLoaded", () => {
       modal.style.display = "none";
       alert("包裹更新成功！");
 
-      // [*** 修正 ***]
-      // V2 (adminController) 只會更新一個包裹，
-      // 所以我們總是使用 AJAX updateParcelInList 即可。
-      // (API 會回傳更新後的 package 物件)
+      // AJAX updateParcelInList 即可
       updateParcelInList(result.package);
     } catch (error) {
       console.error("更新失敗:", error);
@@ -563,7 +571,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (G) 登出與篩選
+  // (L) 登出與篩選
   logoutBtn.addEventListener("click", () => {
     if (confirm("確定要登出管理後台吗？")) {
       localStorage.removeItem("admin_token");
