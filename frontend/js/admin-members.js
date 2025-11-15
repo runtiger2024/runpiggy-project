@@ -1,5 +1,5 @@
-// 這是 frontend/js/admin-members.js (已修復 API_BASE_URL)
-// 負責管理 admin-members.html 頁面
+// 這是 frontend/js/admin-members.js (V2 修正版)
+// (新增「模擬登入」功能)
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 獲取元素 ---
@@ -37,9 +37,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- 4. 函式定義 ---
 
   // 顯示訊息 (簡易版)
-  function showMessage(message, isError = false) {
-    alert(message);
-    if (isError) console.error(message);
+  function showMessage(message, type = "success") {
+    // (V2) 稍微優化提示
+    const prefix = type === "error" ? "錯誤" : "成功";
+    alert(`${prefix}: ${message}`);
+    if (type === "error") console.error(message);
   }
 
   // (A) 載入所有使用者 (呼叫 GET /api/admin/users)
@@ -100,6 +102,19 @@ document.addEventListener("DOMContentLoaded", () => {
       const tr = document.createElement("tr");
       const isActive = user.isActive === true;
 
+      // [*** V3 修正：新增「登入身份」按鈕 ***]
+      // (只有 USER 角色才顯示 "登入身份" 按鈕)
+      const loginAsBtn =
+        user.role === "USER"
+          ? `<button class="btn-action btn-login-as" data-id="${
+              user.id
+            }" data-name="${
+              user.name || user.email
+            }" style="background-color: #3498db;">
+              登入身份
+             </button>`
+          : "";
+
       tr.innerHTML = `
         <td>${user.name || "-"}</td>
         <td>${user.email}</td>
@@ -113,9 +128,9 @@ document.addEventListener("DOMContentLoaded", () => {
         </td>
         <td>
           <div class="action-buttons">
-            <button class="btn-action btn-reset-password" data-id="${
-              user.id
-            }" data-name="${user.name || user.email}">
+            ${loginAsBtn} <button class="btn-action btn-reset-password" data-id="${
+        user.id
+      }" data-name="${user.name || user.email}">
               重設密碼
             </button>
             <button class="btn-action btn-toggle-status ${
@@ -136,6 +151,13 @@ document.addEventListener("DOMContentLoaded", () => {
         "click",
         handleToggleStatus
       );
+
+      // [*** V3 新增：綁定新按鈕的事件 ***]
+      const loginAsButton = tr.querySelector(".btn-login-as");
+      if (loginAsButton) {
+        loginAsButton.addEventListener("click", handleLoginAs);
+      }
+      // [*** 修正結束 ***]
 
       membersTableBody.appendChild(tr);
     });
@@ -213,7 +235,53 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (F) 登出
+  // (F) [*** V3 新增：處理模擬登入 ***]
+  async function handleLoginAs(e) {
+    const userId = e.target.dataset.id;
+    const userName = e.target.dataset.name;
+
+    if (
+      !confirm(
+        `即將以客戶 "${userName}" 的身份登入客戶前台。\n\n確定要繼續嗎？`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      e.target.disabled = true;
+      e.target.textContent = "登入中...";
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/admin/users/${userId}/impersonate`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${adminToken}` },
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+
+      // 成功！
+      showMessage(data.message, "success");
+
+      // 1. 將 "客戶的 Token" 存入 "客戶的" localStorage key ("token")
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("userName", data.user.name || data.user.email);
+
+      // 2. 在新分頁中開啟客戶儀表板
+      window.open("dashboard.html", "_blank");
+    } catch (error) {
+      showMessage(error.message, "error");
+    } finally {
+      e.target.disabled = false;
+      e.target.textContent = "登入身份";
+    }
+  }
+  // [*** 修正結束 ***]
+
+  // (G) 登出
   logoutBtn.addEventListener("click", () => {
     if (confirm("確定要登出管理後台吗？")) {
       localStorage.removeItem("admin_token");
@@ -222,7 +290,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (G) 篩選按鈕
+  // (H) 篩選按鈕
   filterBtn.addEventListener("click", () => {
     renderUsers();
   });
