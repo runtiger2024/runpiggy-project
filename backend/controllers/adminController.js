@@ -1,5 +1,5 @@
-// 這是 backend/controllers/adminController.js (V3 權限系統 + V4 代客預報 整合版)
-// (補上 V4 的 adminCreatePackage 和 getUsersList 函式)
+// 這是 backend/controllers/adminController.js (V4.1 權限 + 代客預報 整合版)
+// (補上 V4 的 adminCreatePackage 和 getUsersList 函式，並修正 exports)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");

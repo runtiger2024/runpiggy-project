@@ -1,4 +1,5 @@
-// 這是 backend/routes/adminRoutes.js (V3 權限系統版)
+// 這是 backend/routes/adminRoutes.js (V4.1 權限系統版)
+// (補上 /users/list 路由)
 
 const express = require("express");
 const router = express.Router();
@@ -8,10 +9,11 @@ const {
   getAllPackages,
   updatePackageStatus,
   updatePackageDetails,
-  adminCreatePackage, // (V4 新增)
+  adminCreatePackage, // (V4)
   updateShipmentStatus,
   getAllShipments,
   getUsers,
+  getUsersList, // (V4.1)
   toggleUserStatus,
   resetUserPassword,
   createStaffUser,
@@ -39,7 +41,7 @@ router
   .route("/packages/all")
   .get(protect, checkPermission("CAN_MANAGE_PACKAGES"), getAllPackages);
 
-// (V4 新增)
+// (V4)
 router
   .route("/packages/create")
   .post(
@@ -76,6 +78,13 @@ router
 router
   .route("/users")
   .get(protect, checkPermission("CAN_MANAGE_USERS"), getUsers);
+
+// [*** V4.1 修正：補上 /users/list 路由 ***]
+router
+  .route("/users/list")
+  .get(protect, checkPermission("CAN_MANAGE_PACKAGES"), getUsersList);
+// (注意：我們用 CAN_MANAGE_PACKAGES 保護它，因為「代客預報」是包裹管理的一部分)
+
 router
   .route("/users/create")
   .post(protect, checkPermission("CAN_MANAGE_USERS"), createStaffUser);
