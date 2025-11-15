@@ -1,11 +1,12 @@
-// 這是 backend/controllers/adminController.js (V2 修正版)
-// (全面整合 createLog 日誌功能)
+// 這是 backend/controllers/adminController.js (V3 修正版)
+// (整合 createLog 日誌功能 + 模擬登入功能)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
-const createLog = require("../utils/createLog.js"); // [*** 新增：匯入日誌工具 ***]
+const createLog = require("../utils/createLog.js");
+const generateToken = require("../utils/generateToken.js"); // [*** 1. 匯入 Token 工具 ***]
 
 // --- 常數定義 (用於運費計算) ---
 const RATES = {
@@ -767,6 +768,59 @@ const getActivityLogs = async (req, res) => {
   }
 };
 
+// [*** 2. 新增模擬登入函式 ***]
+const impersonateUser = async (req, res) => {
+  try {
+    const { id: userIdToImpersonate } = req.params; // 這是客戶 ID
+    const adminUserId = req.user.id; // 這是管理員 ID
+
+    const user = await prisma.user.findUnique({
+      where: { id: userIdToImpersonate },
+      select: { id: true, email: true, name: true, role: true },
+    });
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "找不到該使用者" });
+    }
+
+    // [安全限制]：只允許模擬 "USER" 角色
+    if (user.role !== "USER") {
+      return res
+        .status(400)
+        .json({ success: false, message: "只能登入 'USER' 角色的帳號" });
+    }
+
+    // [*** 新增日誌 ***]
+    await createLog(
+      adminUserId,
+      "IMPERSONATE_USER",
+      user.id,
+      `模擬登入 ${user.email}`
+    );
+    // [*** 日誌結束 ***]
+
+    // 產生一個 "客戶" 的 Token
+    const customerToken = generateToken(user.id);
+
+    res.status(200).json({
+      success: true,
+      message: `即將以 ${user.name || user.email} 的身份登入`,
+      token: customerToken, // 回傳客戶 Token
+      user: {
+        // 回傳客戶的 user info
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+    });
+  } catch (error) {
+    console.error("模擬登入失敗:", error);
+    res.status(500).json({ success: false, message: "伺服器發生錯誤" });
+  }
+};
+
 module.exports = {
   getAllPackages,
   updatePackageStatus,
@@ -780,5 +834,6 @@ module.exports = {
   rejectShipment,
   deleteUser,
   getDashboardStats,
-  getActivityLogs, // [*** 新增：匯出日誌函式 ***]
+  getActivityLogs,
+  impersonateUser, // [*** 3. 匯出新函式 ***]
 };

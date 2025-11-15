@@ -1,5 +1,5 @@
-// 這是 backend/routes/adminRoutes.js (V2 修正版)
-// (新增 /logs 路由)
+// 這是 backend/routes/adminRoutes.js (V3 修正版)
+// (新增 /logs 路由 和 /users/:id/impersonate 路由)
 
 const express = require("express");
 const router = express.Router();
@@ -17,7 +17,8 @@ const {
   createStaffUser,
   rejectShipment,
   getDashboardStats,
-  getActivityLogs, // [*** 新增：匯入日誌函式 ***]
+  getActivityLogs,
+  impersonateUser, // [*** 1. 匯入新函式 ***]
 } = require("../controllers/adminController");
 
 const { protect, admin } = require("../middleware/authMiddleware.js");
@@ -25,7 +26,7 @@ const { protect, admin } = require("../middleware/authMiddleware.js");
 // 儀表板
 router.route("/stats").get(protect, admin, getDashboardStats);
 
-// [*** 新增：日誌 API 路由 ***]
+// 日誌
 router.route("/logs").get(protect, admin, getActivityLogs);
 
 // --- 包裹管理 ---
@@ -52,5 +53,8 @@ router.route("/users/:id/status").put(protect, admin, toggleUserStatus);
 router
   .route("/users/:id/reset-password")
   .put(protect, admin, resetUserPassword);
+
+// [*** 2. 新增模擬登入路由 ***]
+router.route("/users/:id/impersonate").post(protect, admin, impersonateUser);
 
 module.exports = router;
