@@ -1,5 +1,6 @@
-// 這是 frontend/js/admin-parcels.js (V2 最終修正版)
-// (修正了 AJAX 更新時，對 "已是陣列" 的資料執行 JSON.parse() 的錯誤)
+// 這是 frontend/js/admin-parcels.js (V4 流程優化版)
+// (1) 修正了 V3 的 JSON.parse() Bug
+// (2) 優化：開啟彈窗時，如果分箱為 0，自動新增一筆
 
 // --- 1. 定義費率常數 (與 adminController.js 同步) ---
 const RATES = {
@@ -417,17 +418,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("modal-status").value = pkg.status;
 
-    // [*** 修正 ***] 載入 V2 分箱資料
-    // (controller 傳來 `arrivedBoxesJson` 欄位，但內容是已解析的陣列)
+    // [*** V4 優化：載入 V2 分箱資料，並預設一箱 ***]
     const arrivedBoxes = pkg.arrivedBoxesJson || [];
     currentSubPackages = JSON.parse(JSON.stringify(arrivedBoxes)); // 深拷貝
+
+    // [*** 關鍵修正：如果沒有分箱，預設新增一筆 ***]
+    if (currentSubPackages.length === 0) {
+      currentSubPackages.push({
+        name: "分箱 1", // 預設名稱
+        type: "general", // 預設類型
+        weight: 0,
+        length: 0,
+        width: 0,
+        height: 0,
+      });
+    }
+    // [*** 修正結束 ***]
+
     renderSubPackages();
     updateTotalCalculation();
 
     // [*** 修正 ***] 載入 V2 倉庫照片
     // (controller 傳來 `warehouseImages` 欄位，內容是已解析的陣列)
     currentExistingImages = pkg.warehouseImages ? [...pkg.warehouseImages] : [];
-    renderWarehouseImages(); // (此函式內部的 3 張限制要改 5 張)
+    renderWarehouseImages();
 
     document.getElementById("modal-warehouseImages").value = null;
     modal.style.display = "flex";
