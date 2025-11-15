@@ -1,6 +1,7 @@
-// 這是 frontend/js/admin-parcels.js (V7 - 新增「代客預報」功能)
+// 這是 frontend/js/admin-parcels.js (V7.1 - 代客預報 + 客戶搜尋)
 // (1) 修正 V6 的 '0' bug
 // (2) 新增「代客預報」彈窗 (modal) 的所有 JS 邏輯
+// (3) 新增「客戶搜尋」功能
 
 // --- 1. 定義費率常數 (與 adminController.js 同步) ---
 const RATES = {
@@ -14,36 +15,10 @@ const VOLUME_DIVISOR = 28317;
 document.addEventListener("DOMContentLoaded", () => {
   // --- 2. 獲取 DOM 元素 ---
 
-  // [*** V7 權限檢查：讀取權限 ***]
-  // (我們假設 V3 權限系統已實施)
-  const adminPermissions = JSON.parse(
-    localStorage.getItem("admin_permissions") || "[]"
-  );
+  // (*** 權限檢查 - V2 角色系統 ***)
+  const adminRole = localStorage.getItem("admin_role"); // 假設使用 V2
   const adminToken = localStorage.getItem("admin_token");
   const adminName = localStorage.getItem("admin_name");
-
-  // [*** V3 權限檢查：檢查函式 ***]
-  function checkAdminPermissions() {
-    // 檢查是否 "沒有" 管理會員的權限 (即 OPERATOR)
-    if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
-      // 1. 隱藏導覽列的 Admin 按鈕
-      const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
-      const btnNavMembers = document.getElementById("btn-nav-members");
-      const btnNavLogs = document.getElementById("btn-nav-logs");
-
-      if (btnNavCreateStaff) btnNavCreateStaff.style.display = "none";
-      if (btnNavMembers) btnNavMembers.style.display = "none";
-      if (btnNavLogs) btnNavLogs.style.display = "none";
-
-      // 2. (特殊) 如果目前頁面是 "僅限 Admin" 頁面，隱藏主要内容
-      const adminOnlyContent = document.getElementById("admin-only-content");
-      if (adminOnlyContent) {
-        adminOnlyContent.innerHTML =
-          '<h2 style="color: red; text-align: center; padding: 40px;">權限不足 (Access Denied)</h2>' +
-          '<p style="text-align: center;">此頁面僅限「系統管理員 (ADMIN)」使用。</p>';
-      }
-    }
-  }
 
   // (A) 檢查登入
   if (!adminToken) {
@@ -54,19 +29,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const adminWelcome = document.getElementById("admin-welcome");
   if (adminName) {
-    // [V3 修正] 解析權限，顯示 ADMIN 或 OPERATOR
-    let role = "USER";
-    if (adminPermissions.includes("CAN_MANAGE_USERS")) {
-      role = "ADMIN";
-    } else if (adminPermissions.length > 0) {
-      role = "OPERATOR";
-    }
-    adminWelcome.textContent = `你好, ${adminName} (${role})`; // 顯示角色
+    adminWelcome.textContent = `你好, ${adminName} (${adminRole || "員工"})`;
   }
 
-  // (B) [*** V3 權限檢查：立刻執行 ***]
+  // (B) 權限檢查 (V2 簡易版)
+  function checkAdminPermissions() {
+    if (adminRole && adminRole !== "ADMIN") {
+      // 角色是 OPERATOR
+      const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
+      const btnNavMembers = document.getElementById("btn-nav-members");
+      const btnNavLogs = document.getElementById("btn-nav-logs");
+
+      if (btnNavCreateStaff) btnNavCreateStaff.style.display = "none";
+      if (btnNavMembers) btnNavMembers.style.display = "none";
+      if (btnNavLogs) btnNavLogs.style.display = "none";
+    }
+  }
   checkAdminPermissions();
-  // [*** 權限檢查結束 ***]
+  // (*** 權限檢查結束 ***)
 
   const logoutBtn = document.getElementById("logoutBtn");
   const filterStatus = document.getElementById("filter-status");
@@ -86,16 +66,25 @@ document.addEventListener("DOMContentLoaded", () => {
   const elBtnAddSubPackage = document.getElementById("btn-add-sub-package");
   const elFeeDisplay = document.getElementById("modal-shippingFee");
 
-  // [*** V7 新增：獲取「新增包裹」彈窗元素 ***]
+  // [*** V7.1 新增：獲取「新增包裹」彈窗元素 ***]
   const btnShowCreateModal = document.getElementById("btn-show-create-modal");
   const createModal = document.getElementById("admin-create-package-modal");
   const createModalCloseBtn = createModal.querySelector(".modal-close-btn");
   const createForm = document.getElementById("admin-create-package-form");
   const createMessageBox = document.getElementById("admin-create-message-box");
+  const customerSearchInput = document.getElementById("admin-customer-search");
+  const customerSearchResults = document.getElementById(
+    "admin-customer-search-results"
+  );
+  const createUserIdInput = document.getElementById("admin-create-userId");
+  const createEmailDisplay = document.getElementById(
+    "admin-create-email-display"
+  );
   // [*** 新增結束 ***]
 
   // --- 3. 狀態變數 ---
   let allParcelsData = [];
+  let allUsersData = []; // [*** V7.1 新增：快取客戶列表 ***]
   let currentExistingImages = [];
   let currentSubPackages = []; // 儲存分箱資料的 "資料來源 (Source of Truth)"
 
@@ -131,6 +120,24 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) {
       console.error("載入失敗:", error);
       parcelsTableBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: red;">載入失敗: ${error.message}</td></tr>`;
+    }
+  }
+
+  // (A.1) [*** V7.1 新增：載入所有客戶 ***]
+  async function loadAllUsers() {
+    try {
+      // 呼叫我們在 adminController 新增的 API
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/list`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      if (!response.ok) {
+        throw new Error("載入客戶列表失敗");
+      }
+      const data = await response.json();
+      allUsersData = data.users || [];
+    } catch (error) {
+      console.error(error.message);
+      // 即使失敗，也不中斷主流程
     }
   }
 
@@ -626,7 +633,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (L) [*** V7 新增：「新增包裹」彈窗邏輯 ***]
+  // (L) [*** V7.1 新增：「新增包裹」彈窗邏輯 ***]
 
   // 簡易訊息顯示 (用於新彈窗)
   function showCreateMessage(message, type) {
@@ -638,6 +645,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // 顯示 "新增" 彈窗
   btnShowCreateModal.addEventListener("click", () => {
     createForm.reset();
+    createUserIdInput.value = "";
+    createEmailDisplay.value = "";
+    customerSearchInput.value = "";
+    createEmailDisplay.placeholder = "請從上方搜尋並選取客戶";
+    customerSearchResults.style.display = "none";
     createMessageBox.style.display = "none";
     createModal.style.display = "flex";
   });
@@ -650,20 +662,76 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target === createModal) createModal.style.display = "none";
   });
 
+  // 客戶搜尋
+  customerSearchInput.addEventListener("input", (e) => {
+    const searchTerm = e.target.value.toLowerCase();
+
+    // 清除已選取的 ID
+    createUserIdInput.value = "";
+    createEmailDisplay.value = "";
+    createEmailDisplay.placeholder = "請從上方搜尋並選取客戶";
+
+    if (!searchTerm) {
+      customerSearchResults.style.display = "none";
+      return;
+    }
+
+    // 使用快取的 allUsersData 進行前端搜尋
+    const filteredUsers = allUsersData.filter(
+      (user) =>
+        user.email.toLowerCase().includes(searchTerm) ||
+        (user.name && user.name.toLowerCase().includes(searchTerm))
+    );
+
+    customerSearchResults.innerHTML = "";
+    if (filteredUsers.length > 0) {
+      filteredUsers.slice(0, 10).forEach((user) => {
+        // 最多顯示 10 筆
+        const item = document.createElement("div");
+        item.className = "search-result-item";
+        item.textContent = `${user.name || "N/A"} (${user.email})`;
+        item.setAttribute("data-id", user.id);
+        item.setAttribute("data-email", user.email);
+        item.setAttribute("data-name", user.name || "");
+
+        item.addEventListener("click", () => {
+          // 選中客戶
+          const selName = item.getAttribute("data-name");
+          const selEmail = item.getAttribute("data-email");
+
+          customerSearchInput.value = `${selName} (${selEmail})`;
+          createUserIdInput.value = item.getAttribute("data-id"); // 儲存 ID
+          createEmailDisplay.value = selEmail; // 顯示 Email
+          customerSearchResults.style.display = "none";
+        });
+        customerSearchResults.appendChild(item);
+      });
+      customerSearchResults.style.display = "block";
+    } else {
+      customerSearchResults.innerHTML = `<div class="search-result-item" style="color: #888;">找不到客戶</div>`;
+      customerSearchResults.style.display = "block";
+    }
+  });
+
   // 提交 "新增" 表單
   createForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const submitButton = createForm.querySelector('button[type="submit"]');
+
+    // 驗證
+    const userId = createUserIdInput.value;
+    if (!userId) {
+      showCreateMessage("請先從搜尋列表中選取一位客戶", "error");
+      return;
+    }
+
     submitButton.disabled = true;
     submitButton.textContent = "新增中...";
     showCreateMessage("", "clear");
 
     // 1. 建立 FormData
     const formData = new FormData();
-    formData.append(
-      "userEmail",
-      document.getElementById("admin-create-email").value
-    );
+    formData.append("userId", userId); // [*** V4.1 修正 ***]
     formData.append(
       "trackingNumber",
       document.getElementById("admin-create-tracking").value
@@ -707,11 +775,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // 3. 成功
       createModal.style.display = "none";
-      alert(
-        `成功為 ${
-          document.getElementById("admin-create-email").value
-        } 新增包裹！`
-      );
+      alert(`成功為 ${createEmailDisplay.value} 新增包裹！`);
       loadAllParcels(); // 重新載入列表
     } catch (error) {
       console.error("新增失敗:", error);
@@ -721,14 +785,14 @@ document.addEventListener("DOMContentLoaded", () => {
       submitButton.textContent = "確認新增";
     }
   });
-  // [*** V7 新增結束 ***]
+  // [*** V7.1 新增結束 ***]
 
   // (M) 登出與篩選
   logoutBtn.addEventListener("click", () => {
     if (confirm("確定要登出管理後台吗？")) {
       localStorage.removeItem("admin_token");
       localStorage.removeItem("admin_name");
-      localStorage.removeItem("admin_permissions"); // [*** V3 修正 ***]
+      localStorage.removeItem("admin_role"); // [*** V2 修正 ***]
       window.location.href = "admin-login.html";
     }
   });
@@ -739,4 +803,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 初始載入
   loadAllParcels();
+  loadAllUsers(); // [*** V7.1 新增 ***]
 });

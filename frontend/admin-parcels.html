@@ -254,13 +254,36 @@
 
         <form id="admin-create-package-form">
           <div class="form-group">
-            <label for="admin-create-email" class="required">客戶 Email</label>
+            <label for="admin-customer-search" class="required">搜尋客戶</label>
             <input
-              type="email"
-              id="admin-create-email"
+              type="text"
+              id="admin-customer-search"
               class="form-control"
-              placeholder="請輸入已註冊的客戶Email"
-              required
+              placeholder="輸入客戶 Email 或姓名..."
+            />
+            <div
+              id="admin-customer-search-results"
+              style="
+                max-height: 150px;
+                overflow-y: auto;
+                border: 1px solid #ccc;
+                display: none;
+                border-top: none;
+              "
+            ></div>
+            <input type="hidden" id="admin-create-userId" />
+            <input
+              type="text"
+              id="admin-create-email-display"
+              class="form-control"
+              style="
+                margin-top: 5px;
+                background-color: #f0f0f0;
+                color: #333;
+                font-weight: bold;
+              "
+              readonly
+              placeholder="請從上方搜尋並選取客戶"
             />
           </div>
           <hr />
