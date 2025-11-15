@@ -610,39 +610,68 @@ document.addEventListener("DOMContentLoaded", () => {
   createShipmentForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const ids = JSON.parse(createShipmentForm.dataset.ids);
+
+    // [*** 這裡是修改點 ***]
+    // 1. 取得資料時，使用 .trim() 移除前後空白
     const data = {
       packageIds: ids,
-      recipientName: document.getElementById("ship-name").value,
-      phone: document.getElementById("ship-phone").value,
-      shippingAddress: document.getElementById("ship-address").value,
-      idNumber: document.getElementById("ship-idNumber").value,
-      taxId: document.getElementById("ship-taxId").value,
-      note: document.getElementById("ship-note").value,
+      recipientName: document.getElementById("ship-name").value.trim(),
+      phone: document.getElementById("ship-phone").value.trim(),
+      shippingAddress: document.getElementById("ship-address").value.trim(),
+      idNumber: document.getElementById("ship-idNumber").value.trim(),
+      taxId: document.getElementById("ship-taxId").value.trim(),
+      note: document.getElementById("ship-note").value.trim(),
     };
 
-    // [*** V5 修正 ***]
-    // 提交的 API (shipmentController) 已經被我們修好了，
-    // 它會自動計算正確的總金額 (包含附加費)，
-    // 所以前端這裡不需要做任何額外的事情。
-
-    const res = await fetch(`${API_BASE_URL}/api/shipments/create`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
-    if (res.ok) {
-      document.getElementById("create-shipment-modal").style.display = "none";
-      createShipmentForm.reset();
-      bankInfoModal.style.display = "flex";
-      loadMyPackages();
-      loadMyShipments();
-    } else {
-      const err = await res.json();
-      showMessage(err.message, "error");
+    // 2. 新增前端驗證
+    if (
+      !data.recipientName ||
+      !data.phone ||
+      !data.shippingAddress ||
+      !data.idNumber
+    ) {
+      // (我們使用 dashboard.js 自己的 showMessage 函式，它會顯示在頁面頂端)
+      showMessage(
+        "錯誤：收件人姓名、電話、地址、身分證字號為必填欄位。",
+        "error"
+      );
+      return; // 停止提交
     }
+    if (!data.packageIds || data.packageIds.length === 0) {
+      showMessage("錯誤：沒有選中任何包裹。", "error");
+      return; // 停止提交
+    }
+    // [*** 修改結束 ***]
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/shipments/create`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      // [*** 這裡是修改點 2 ***]
+      // 檢查 res.ok，如果失敗 (例如 400 錯誤)，就顯示後端傳來的錯誤訊息
+      if (res.ok) {
+        // 成功
+        document.getElementById("create-shipment-modal").style.display = "none";
+        createShipmentForm.reset();
+        bankInfoModal.style.display = "flex";
+        loadMyPackages();
+        loadMyShipments();
+      } else {
+        // 失敗
+        const err = await res.json();
+        throw new Error(err.message || "提交失敗，請檢查欄位");
+      }
+    } catch (error) {
+      // 捕捉 fetch 失敗或 res.ok=false 的錯誤
+      showMessage(error.message, "error");
+    }
+    // [*** 修改結束 ***]
   });
 
   // (H) 提交憑證上傳
