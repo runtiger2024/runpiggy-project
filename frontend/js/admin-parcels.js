@@ -1,7 +1,8 @@
-// 這是 frontend/js/admin-parcels.js (V7.1 - 代客預報 + 客戶搜尋)
+// 這是 frontend/js/admin-parcels.js (V7.1 - 代客預報 + 客戶搜尋 + V3 權限版)
 // (1) 修正 V6 的 '0' bug
 // (2) 新增「代客預報」彈窗 (modal) 的所有 JS 邏輯
 // (3) 新增「客戶搜尋」功能
+// (4) 整合 V3 權限檢查
 
 // --- 1. 定義費率常數 (與 adminController.js 同步) ---
 const RATES = {
@@ -15,10 +16,35 @@ const VOLUME_DIVISOR = 28317;
 document.addEventListener("DOMContentLoaded", () => {
   // --- 2. 獲取 DOM 元素 ---
 
-  // (*** 權限檢查 - V2 角色系統 ***)
-  const adminRole = localStorage.getItem("admin_role"); // 假設使用 V2
+  // [*** V3 權限檢查：讀取權限 ***]
+  const adminPermissions = JSON.parse(
+    localStorage.getItem("admin_permissions") || "[]"
+  );
   const adminToken = localStorage.getItem("admin_token");
   const adminName = localStorage.getItem("admin_name");
+
+  // [*** V3 權限檢查：檢查函式 ***]
+  function checkAdminPermissions() {
+    // 檢查是否 "沒有" 管理會員的權限 (即 OPERATOR)
+    if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
+      // 1. 隱藏導覽列的 Admin 按鈕
+      const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
+      const btnNavMembers = document.getElementById("btn-nav-members");
+      const btnNavLogs = document.getElementById("btn-nav-logs");
+
+      if (btnNavCreateStaff) btnNavCreateStaff.style.display = "none";
+      if (btnNavMembers) btnNavMembers.style.display = "none";
+      if (btnNavLogs) btnNavLogs.style.display = "none";
+
+      // 2. (特殊) 如果目前頁面是 "僅限 Admin" 頁面，隱藏主要内容
+      const adminOnlyContent = document.getElementById("admin-only-content");
+      if (adminOnlyContent) {
+        adminOnlyContent.innerHTML =
+          '<h2 style="color: red; text-align: center; padding: 40px;">權限不足 (Access Denied)</h2>' +
+          '<p style="text-align: center;">此頁面僅限「系統管理員 (ADMIN)」使用。</p>';
+      }
+    }
+  }
 
   // (A) 檢查登入
   if (!adminToken) {
@@ -29,24 +55,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const adminWelcome = document.getElementById("admin-welcome");
   if (adminName) {
-    adminWelcome.textContent = `你好, ${adminName} (${adminRole || "員工"})`;
-  }
-
-  // (B) 權限檢查 (V2 簡易版)
-  function checkAdminPermissions() {
-    if (adminRole && adminRole !== "ADMIN") {
-      // 角色是 OPERATOR
-      const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
-      const btnNavMembers = document.getElementById("btn-nav-members");
-      const btnNavLogs = document.getElementById("btn-nav-logs");
-
-      if (btnNavCreateStaff) btnNavCreateStaff.style.display = "none";
-      if (btnNavMembers) btnNavMembers.style.display = "none";
-      if (btnNavLogs) btnNavLogs.style.display = "none";
+    // [V3 修正] 解析權限，顯示 ADMIN 或 OPERATOR
+    let role = "USER";
+    if (adminPermissions.includes("CAN_MANAGE_USERS")) {
+      role = "ADMIN";
+    } else if (adminPermissions.length > 0) {
+      role = "OPERATOR";
     }
+    adminWelcome.textContent = `你好, ${adminName} (${role})`; // 顯示角色
   }
+
+  // (B) [*** V3 權限檢查：立刻執行 ***]
   checkAdminPermissions();
-  // (*** 權限檢查結束 ***)
+  // [*** 權限檢查結束 ***]
 
   const logoutBtn = document.getElementById("logoutBtn");
   const filterStatus = document.getElementById("filter-status");
@@ -792,7 +813,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (confirm("確定要登出管理後台吗？")) {
       localStorage.removeItem("admin_token");
       localStorage.removeItem("admin_name");
-      localStorage.removeItem("admin_role"); // [*** V2 修正 ***]
+      localStorage.removeItem("admin_permissions"); // [*** V3 修正 ***]
       window.location.href = "admin-login.html";
     }
   });

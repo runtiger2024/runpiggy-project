@@ -1,4 +1,5 @@
-// 這是 frontend/js/admin-login.js (修改版)
+// 這是 frontend/js/admin-login.js (V3 權限系統版)
+// (儲存 admin_permissions)
 
 document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("admin-login-form");
@@ -12,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const password = document.getElementById("admin-password").value;
 
     try {
-      // (1) 我們使用和「會員」一樣的登入 API
+      // (1) 呼叫登入 API
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -25,34 +26,41 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(data.message || "登入失敗");
       }
 
-      // (2) (關鍵！) 檢查這個人是不是管理員 (ADMIN)
+      // (2) (關鍵！) 取得 'me' 的資料 (包含權限)
       const profileResponse = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${data.token}` },
       });
       const profileData = await profileResponse.json();
 
+      // [*** V3 關鍵修正：檢查 permissions 陣列 ***]
+      // (不再檢查 profileData.user.role)
+      const permissions = profileData.user?.permissions;
       if (
         !profileResponse.ok ||
-        (profileData.user.role !== "ADMIN" &&
-          profileData.user.role !== "OPERATOR")
+        !Array.isArray(permissions) ||
+        permissions.length === 0
       ) {
         throw new Error("權限不足：您不是管理員或操作員");
       }
+      // [*** 修正結束 ***]
 
       // (3) 登入成功！
       showMessage("管理員登入成功！正在跳轉...", "success");
 
-      // (4) (重要！) 我們把 Token 存在 "admin_token"
+      // (4) [*** V3 關鍵修正：儲存權限 ***]
       localStorage.setItem("admin_token", data.token);
       localStorage.setItem(
         "admin_name",
         profileData.user.name || profileData.user.email
       );
+      // 儲存權限陣列的 "字串" 版本
+      localStorage.setItem("admin_permissions", JSON.stringify(permissions));
+      // 移除舊的
+      localStorage.removeItem("admin_role");
+      // [*** 修正結束 ***]
 
-      // 5. [*** 修改重點 ***]
-      //    跳轉到新的「儀表板」頁面
       setTimeout(() => {
-        window.location.href = "admin-dashboard.html"; // <-- 修改
+        window.location.href = "admin-dashboard.html";
       }, 1500);
     } catch (error) {
       console.error("登入錯誤:", error);

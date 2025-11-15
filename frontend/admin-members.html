@@ -19,80 +19,89 @@
             href="admin-register.html"
             class="btn btn-secondary"
             style="background-color: #2ecc71"
+            id="btn-nav-create-staff"
             >新增員工帳號</a
           >
           <a href="admin-parcels.html" class="btn btn-secondary">包裹管理</a>
           <a href="admin-shipments.html" class="btn btn-secondary"
             >集運單管理</a
           >
-          <a href="admin-members.html" class="btn btn-secondary active"
+          <a
+            href="admin-members.html"
+            class="btn btn-secondary active"
+            id="btn-nav-members"
             >會員管理</a
           >
-          <a href="admin-logs.html" class="btn btn-secondary">操作日誌</a>
+          <a href="admin-logs.html" class="btn btn-secondary" id="btn-nav-logs"
+            >操作日誌</a
+          >
+
           <span id="admin-welcome"></span>
           <button id="logoutBtn" class="btn-danger">登出</button>
         </div>
       </div>
 
-      <div class="stats-container">
-        <div class="stat-card total">
-          <h3>總使用者數</h3>
-          <p class="number" id="stats-total">0</p>
+      <div id="admin-only-content">
+        <div class="stats-container">
+          <div class="stat-card total">
+            <h3>總使用者數</h3>
+            <p class="number" id="stats-total">0</p>
+          </div>
+          <div class="stat-card active">
+            <h3>啟用中</h3>
+            <p class="number" id="stats-active">0</p>
+          </div>
+          <div class="stat-card inactive">
+            <h3>已停用</h3>
+            <p class="number" id="stats-inactive">0</p>
+          </div>
         </div>
-        <div class="stat-card active">
-          <h3>啟用中</h3>
-          <p class="number" id="stats-active">0</p>
-        </div>
-        <div class="stat-card inactive">
-          <h3>已停用</h3>
-          <p class="number" id="stats-inactive">0</p>
-        </div>
-      </div>
 
-      <div class="filters-container">
-        <div class="filters">
-          <input
-            type="text"
-            id="search-input"
-            placeholder="搜尋姓名、Email、電話..."
-          />
-          <select id="filter-status">
-            <option value="">所有狀態</option>
-            <option value="true">啟用中</option>
-            <option value="false">已停用</option>
-          </select>
-          <select id="filter-role">
-            <option value="">所有角色</option>
-            <option value="USER">會員 (USER)</option>
-            <option value="ADMIN">管理員 (ADMIN)</option>
-            <option value="OPERATOR">操作員 (OPERATOR)</option>
-          </select>
-          <button class="btn btn-primary" id="filter-btn">搜尋</button>
+        <div class="filters-container">
+          <div class="filters">
+            <input
+              type="text"
+              id="search-input"
+              placeholder="搜尋姓名、Email、電話..."
+            />
+            <select id="filter-status">
+              <option value="">所有狀態</option>
+              <option value="true">啟用中</option>
+              <option value="false">已停用</option>
+            </select>
+            <select id="filter-role">
+              <option value="">所有角色</option>
+              <option value="USER">會員 (USER)</option>
+              <option value="ADMIN">管理員 (ADMIN)</option>
+              <option value="OPERATOR">操作員 (OPERATOR)</option>
+            </select>
+            <button class="btn btn-primary" id="filter-btn">搜尋</button>
+          </div>
         </div>
-      </div>
 
-      <div class="members-table-container">
-        <table class="members-table">
-          <thead>
-            <tr>
-              <th>姓名</th>
-              <th>Email</th>
-              <th>電話</th>
-              <th>角色</th>
-              <th>註冊日期</th>
-              <th>狀態</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody id="membersTableBody">
-            <tr>
-              <td colspan="7" class="loading">
-                <div class="spinner"></div>
-                <p>載入使用者資料中...</p>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="members-table-container">
+          <table class="members-table">
+            <thead>
+              <tr>
+                <th>姓名</th>
+                <th>Email</th>
+                <th>電話</th>
+                <th>角色</th>
+                <th>註冊日期</th>
+                <th>狀態</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="membersTableBody">
+              <tr>
+                <td colspan="7" class="loading">
+                  <div class="spinner"></div>
+                  <p>載入使用者資料中...</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 

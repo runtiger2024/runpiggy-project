@@ -1,8 +1,60 @@
-// 這是 frontend/js/admin-shipments.js (V5 狀態標籤統一版)
+// 這是 frontend/js/admin-shipments.js (V5 狀態標籤 + V3 權限 統一版)
 
 document.addEventListener("DOMContentLoaded", () => {
-  // --- 1. 獲取元素 ---
+  // [*** V3 權限檢查：讀取權限 ***]
+  const adminPermissions = JSON.parse(
+    localStorage.getItem("admin_permissions") || "[]"
+  );
+  const adminToken = localStorage.getItem("admin_token");
+  const adminName = localStorage.getItem("admin_name");
+
+  // [*** V3 權限檢查：檢查函式 ***]
+  function checkAdminPermissions() {
+    // 檢查是否 "沒有" 管理會員的權限 (即 OPERATOR)
+    if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
+      // 1. 隱藏導覽列的 Admin 按鈕
+      const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
+      const btnNavMembers = document.getElementById("btn-nav-members");
+      const btnNavLogs = document.getElementById("btn-nav-logs");
+
+      if (btnNavCreateStaff) btnNavCreateStaff.style.display = "none";
+      if (btnNavMembers) btnNavMembers.style.display = "none";
+      if (btnNavLogs) btnNavLogs.style.display = "none";
+
+      // 2. (特殊) 如果目前頁面是 "僅限 Admin" 頁面，隱藏主要内容
+      const adminOnlyContent = document.getElementById("admin-only-content");
+      if (adminOnlyContent) {
+        adminOnlyContent.innerHTML =
+          '<h2 style="color: red; text-align: center; padding: 40px;">權限不足 (Access Denied)</h2>' +
+          '<p style="text-align: center;">此頁面僅限「系統管理員 (ADMIN)」使用。</p>';
+      }
+    }
+  }
+
+  // (A) 檢查登入
+  if (!adminToken) {
+    alert("偵測到未登入，將跳轉至管理員登入頁面");
+    window.location.href = "admin-login.html";
+    return; // 停止執行
+  }
+
   const adminWelcome = document.getElementById("admin-welcome");
+  if (adminName) {
+    // [V3 修正] 解析權限，顯示 ADMIN 或 OPERATOR
+    let role = "USER";
+    if (adminPermissions.includes("CAN_MANAGE_USERS")) {
+      role = "ADMIN";
+    } else if (adminPermissions.length > 0) {
+      role = "OPERATOR";
+    }
+    adminWelcome.textContent = `你好, ${adminName} (${role})`; // 顯示角色
+  }
+
+  // (B) [*** V3 權限檢查：立刻執行 ***]
+  checkAdminPermissions();
+  // [*** 權限檢查結束 ***]
+
+  // --- 1. 獲取元素 ---
   const logoutBtn = document.getElementById("logoutBtn");
   const shipmentsTableBody = document.getElementById("shipmentsTableBody");
   const filterStatus = document.getElementById("filter-status");
@@ -16,7 +68,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- 2. 狀態變數 ---
   let allShipmentsData = [];
-  const adminToken = localStorage.getItem("admin_token");
 
   // [*** V5 關鍵修正：統一狀態 ***]
   // (此定義基於 admin-shipments.html 的下拉選單)
@@ -32,16 +83,6 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   // [*** 修正結束 ***]
 
-  // --- 3. 初始化 ---
-  if (!adminToken) {
-    alert("請先登入管理員");
-    window.location.href = "admin-login.html";
-    return;
-  }
-
-  const adminName = localStorage.getItem("admin_name");
-  if (adminName) adminWelcome.textContent = `你好, ${adminName}`;
-
   // --- 4. 函式定義 ---
 
   // (A) 載入集運單
@@ -53,7 +94,10 @@ document.addEventListener("DOMContentLoaded", () => {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
       if (!response.ok) {
-        if (response.status === 401) window.location.href = "admin-login.html";
+        if (response.status === 401 || response.status === 403) {
+          alert("登入已過期或權限不足");
+          window.location.href = "admin-login.html";
+        }
         throw new Error("載入失敗");
       }
       const data = await response.json();
@@ -258,6 +302,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (confirm("確定登出？")) {
       localStorage.removeItem("admin_token");
       localStorage.removeItem("admin_name");
+      localStorage.removeItem("admin_permissions"); // [*** V3 修正 ***]
       window.location.href = "admin-login.html";
     }
   });

@@ -1,44 +1,77 @@
-// 這是 frontend/js/admin-members.js (V2 修正版)
-// (新增「模擬登入」功能)
+// 這是 frontend/js/admin-members.js (V3 權限系統版)
+// (使用 permissions 陣列取代 role)
 
 document.addEventListener("DOMContentLoaded", () => {
-  // --- 1. 獲取元素 ---
-  const adminWelcome = document.getElementById("admin-welcome");
-  const logoutBtn = document.getElementById("logoutBtn");
-  const membersTableBody = document.getElementById("membersTableBody");
-
-  // 統計卡片
-  const statsTotal = document.getElementById("stats-total");
-  const statsActive = document.getElementById("stats-active");
-  const statsInactive = document.getElementById("stats-inactive");
-
-  // 篩選器
-  const searchInput = document.getElementById("search-input");
-  const filterStatus = document.getElementById("filter-status");
-  const filterRole = document.getElementById("filter-role");
-  const filterBtn = document.getElementById("filter-btn");
-
-  // --- 2. 狀態變數 ---
-  let allUsersData = []; // 儲存所有使用者
+  // [*** V3 權限檢查：讀取權限 ***]
+  const adminPermissions = JSON.parse(
+    localStorage.getItem("admin_permissions") || "[]"
+  );
   const adminToken = localStorage.getItem("admin_token");
+  const adminName = localStorage.getItem("admin_name");
 
-  // --- 3. 初始化 (檢查登入) ---
+  // [*** V3 權限檢查：檢查函式 ***]
+  function checkAdminPermissions() {
+    // 檢查是否 "沒有" 管理會員的權限
+    if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
+      // 1. 隱藏導覽列的 Admin 按鈕
+      const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
+      const btnNavMembers = document.getElementById("btn-nav-members");
+      const btnNavLogs = document.getElementById("btn-nav-logs");
+
+      if (btnNavCreateStaff) btnNavCreateStaff.style.display = "none";
+      if (btnNavMembers) btnNavMembers.style.display = "none";
+      if (btnNavLogs) btnNavLogs.style.display = "none";
+
+      // 2. (特殊) 隱藏此頁面的主要内容
+      const adminOnlyContent = document.getElementById("admin-only-content");
+      if (adminOnlyContent) {
+        adminOnlyContent.innerHTML =
+          '<h2 style="color: red; text-align: center; padding: 40px;">權限不足 (Access Denied)</h2>' +
+          '<p style="text-align: center;">此頁面僅限具有「管理會員」權限的管理員使用。</p>';
+      }
+    }
+  }
+
+  // (A) 檢查登入
   if (!adminToken) {
     alert("偵測到未登入，將跳轉至管理員登入頁面");
     window.location.href = "admin-login.html";
     return; // 停止執行
   }
 
-  const adminName = localStorage.getItem("admin_name");
+  const adminWelcome = document.getElementById("admin-welcome");
   if (adminName) {
-    adminWelcome.textContent = `你好, ${adminName}`;
+    // [V3 修正] 解析權限，顯示 ADMIN 或 OPERATOR
+    let role = "USER";
+    if (adminPermissions.includes("CAN_MANAGE_USERS")) {
+      role = "ADMIN";
+    } else if (adminPermissions.length > 0) {
+      role = "OPERATOR";
+    }
+    adminWelcome.textContent = `你好, ${adminName} (${role})`; // 顯示角色
   }
+
+  // (B) [*** V3 權限檢查：立刻執行 ***]
+  checkAdminPermissions();
+  // [*** 權限檢查結束 ***]
+
+  // --- 1. 獲取元素 ---
+  const logoutBtn = document.getElementById("logoutBtn");
+  const membersTableBody = document.getElementById("membersTableBody");
+  const statsTotal = document.getElementById("stats-total");
+  const statsActive = document.getElementById("stats-active");
+  const statsInactive = document.getElementById("stats-inactive");
+  const searchInput = document.getElementById("search-input");
+  const filterStatus = document.getElementById("filter-status");
+  const filterRole = document.getElementById("filter-role");
+  const filterBtn = document.getElementById("filter-btn");
+
+  // --- 2. 狀態變數 ---
+  let allUsersData = [];
 
   // --- 4. 函式定義 ---
 
-  // 顯示訊息 (簡易版)
   function showMessage(message, type = "success") {
-    // (V2) 稍微優化提示
     const prefix = type === "error" ? "錯誤" : "成功";
     alert(`${prefix}: ${message}`);
     if (type === "error") console.error(message);
@@ -46,6 +79,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // (A) 載入所有使用者 (呼叫 GET /api/admin/users)
   async function loadAllUsers() {
+    // [V3] 權限檢查：如果沒有權限，不要載入
+    if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
+      membersTableBody.innerHTML =
+        '<tr><td colspan="7" style="text-align: center; color: red;">權限不足</td></tr>';
+      return;
+    }
+
     membersTableBody.innerHTML =
       '<tr><td colspan="7" class="loading"><div class="spinner"></div><p>載入使用者資料中...</p></td></tr>';
 
@@ -78,12 +118,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // (新) 篩選
     const search = searchInput.value.toLowerCase();
-    const status = filterStatus.value; // "true", "false", ""
-    const role = filterRole.value; // "USER", "ADMIN", ""
+    const status = filterStatus.value;
+    const role = filterRole.value; // "USER", "ADMIN", "OPERATOR"
 
     const filteredUsers = allUsersData.filter((user) => {
       const statusMatch = status === "" || user.isActive.toString() === status;
-      const roleMatch = role === "" || user.role === role;
+
+      // [*** V3 修正：篩選角色邏輯 ***]
+      let userRole = "USER"; // 預設為 USER
+      let userPermissions = [];
+      try {
+        // 後端傳來的是 JSON 字串，必須解析
+        userPermissions = JSON.parse(user.permissions || "[]");
+      } catch (e) {}
+
+      if (userPermissions.includes("CAN_MANAGE_USERS")) {
+        userRole = "ADMIN"; // 擁有使用者管理權限 = ADMIN
+      } else if (userPermissions.length > 0) {
+        userRole = "OPERATOR"; // 擁有權限，但不是使用者管理 = OPERATOR
+      }
+      const roleMatch = role === "" || userRole === role;
+      // [*** 修正結束 ***]
+
       const searchMatch =
         !search ||
         (user.name && user.name.toLowerCase().includes(search)) ||
@@ -102,10 +158,26 @@ document.addEventListener("DOMContentLoaded", () => {
       const tr = document.createElement("tr");
       const isActive = user.isActive === true;
 
-      // [*** V3 修正：新增「登入身份」按鈕 ***]
-      // (只有 USER 角色才顯示 "登入身份" 按鈕)
+      // [*** V3 修正：重算 userRole ***]
+      let userRole = "USER";
+      let userPermissions = [];
+      try {
+        userPermissions = JSON.parse(user.permissions || "[]");
+      } catch (e) {}
+
+      if (userPermissions.includes("CAN_MANAGE_USERS")) {
+        userRole = "ADMIN";
+      } else if (userPermissions.length > 0) {
+        userRole = "OPERATOR";
+      }
+      // [*** 修正結束 ***]
+
+      // [*** V3 修正：按鈕權限 ***]
+      // 檢查 "我" (管理員) 是否有模擬登入的權限
+      const canImpersonate = adminPermissions.includes("CAN_IMPERSONATE_USERS");
+
       const loginAsBtn =
-        user.role === "USER"
+        canImpersonate && userRole === "USER" // 只有 ADMIN 且 對象是 USER
           ? `<button class="btn-action btn-login-as" data-id="${
               user.id
             }" data-name="${
@@ -114,13 +186,15 @@ document.addEventListener("DOMContentLoaded", () => {
               登入身份
              </button>`
           : "";
+      // [*** 修正結束 ***]
 
       tr.innerHTML = `
         <td>${user.name || "-"}</td>
         <td>${user.email}</td>
         <td>${user.phone || "-"}</td>
-        <td><span class="role-badge role-${user.role}">${user.role}</span></td>
-        <td>${new Date(user.createdAt).toLocaleDateString()}</td>
+        <td><span class="role-badge role-${userRole}">${userRole}</span></td> <td>${new Date(
+        user.createdAt
+      ).toLocaleDateString()}</td>
         <td>
           <span class="status-badge ${isActive ? "active" : "inactive"}">
             ${isActive ? "啟用" : "停用"}
@@ -152,12 +226,10 @@ document.addEventListener("DOMContentLoaded", () => {
         handleToggleStatus
       );
 
-      // [*** V3 新增：綁定新按鈕的事件 ***]
       const loginAsButton = tr.querySelector(".btn-login-as");
       if (loginAsButton) {
         loginAsButton.addEventListener("click", handleLoginAs);
       }
-      // [*** 修正結束 ***]
 
       membersTableBody.appendChild(tr);
     });
@@ -195,7 +267,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!response.ok) throw new Error(result.message);
 
       showMessage(result.message, "success");
-      // (不需要重載，因為只是改密碼)
     } catch (error) {
       showMessage(error.message, "error");
     }
@@ -229,13 +300,13 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!response.ok) throw new Error(result.message);
 
       showMessage(result.message, "success");
-      loadAllUsers(); // (重要) 重新載入列表和統計
+      loadAllUsers();
     } catch (error) {
       showMessage(error.message, "error");
     }
   }
 
-  // (F) [*** V3 新增：處理模擬登入 ***]
+  // (F) 處理模擬登入
   async function handleLoginAs(e) {
     const userId = e.target.dataset.id;
     const userName = e.target.dataset.name;
@@ -266,11 +337,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // 成功！
       showMessage(data.message, "success");
 
-      // 1. 將 "客戶的 Token" 存入 "客戶的" localStorage key ("token")
       localStorage.setItem("token", data.token);
       localStorage.setItem("userName", data.user.name || data.user.email);
 
-      // 2. 在新分頁中開啟客戶儀表板
       window.open("dashboard.html", "_blank");
     } catch (error) {
       showMessage(error.message, "error");
@@ -279,21 +348,23 @@ document.addEventListener("DOMContentLoaded", () => {
       e.target.textContent = "登入身份";
     }
   }
-  // [*** 修正結束 ***]
 
   // (G) 登出
   logoutBtn.addEventListener("click", () => {
     if (confirm("確定要登出管理後台吗？")) {
       localStorage.removeItem("admin_token");
       localStorage.removeItem("admin_name");
+      localStorage.removeItem("admin_permissions"); // [*** V3 修正 ***]
       window.location.href = "admin-login.html";
     }
   });
 
   // (H) 篩選按鈕
-  filterBtn.addEventListener("click", () => {
-    renderUsers();
-  });
+  if (filterBtn) {
+    filterBtn.addEventListener("click", () => {
+      renderUsers();
+    });
+  }
 
   // --- 5. 初始載入資料 ---
   loadAllUsers();
