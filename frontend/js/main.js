@@ -1,4 +1,4 @@
-// 這是 frontend/js/main.js (已修復分享連結)
+// 這是 frontend/js/main.js (已修復「存入預報」功能)
 
 // --- (1) 計數器邏輯 ---
 function initializeUsageCounter() {
@@ -327,7 +327,7 @@ document.addEventListener("DOMContentLoaded", () => {
       .addEventListener("click", handleForecastRedirect);
   }
 
-  // --- (11) 函式: handleShareQuote [*** 修改重點 ***] ---
+  // --- (11) 函式: handleShareQuote ---
   async function handleShareQuote() {
     const shareButton = document.getElementById("btn-share");
     if (!currentCalculationResult) {
@@ -368,24 +368,39 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- (12) (新) 函式: handleForecastRedirect ---
+  // --- (12) [*** 關鍵修正 ***] 函式: handleForecastRedirect ---
   function handleForecastRedirect() {
     if (!currentCalculationResult || !currentCalculationResult.allItemsData) {
       alert("沒有試算資料可儲存");
       return;
     }
 
-    const firstItem = currentCalculationResult.allItemsData[0];
+    const allItems = currentCalculationResult.allItemsData;
 
-    if (!firstItem) {
+    if (!allItems || allItems.length === 0) {
       alert("試算資料中沒有項目");
       return;
     }
 
+    // [*** 修正 ***]
+    // 1. 合併所有品名
+    const combinedNames = allItems
+      .map((item) => (item.name ? item.name.trim() : "")) // 取得品名並去除頭尾空白
+      .filter((name) => name.length > 0) // 過濾掉空品名
+      .join("、"); // 使用中文頓號合併
+
+    // 2. 加總所有數量
+    const totalQuantity = allItems.reduce((sum, item) => {
+      return sum + (parseInt(item.quantity) || 0);
+    }, 0);
+
+    // 3. 建立新的草稿物件
     const forecastDraft = {
-      productName: firstItem.name,
-      quantity: firstItem.quantity,
+      productName: combinedNames || "多項貨物", // 如果品名皆為空，給一個預設值
+      quantity: totalQuantity > 0 ? totalQuantity : 1, // 總數
     };
+
+    // [*** 修正結束 ***]
 
     localStorage.setItem("forecast_draft", JSON.stringify(forecastDraft));
 
