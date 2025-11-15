@@ -1,6 +1,6 @@
-// 這是 frontend/js/admin-parcels.js (V5 體驗修正版)
-// (1) 修正 V4 中 'input' 事件會重-建 DOM 導致輸入中斷的 Bug
-// (2) 區分「輕量更新 (只算錢)」和「重量更新 (重-建列表)」
+// 這是 frontend/js/admin-parcels.js (V6 錯誤修正版)
+// (1) 修正 V5 的 'input' 事件 Bug
+// (2) 修正 V5 中 'renderSubPackages' 函式會將 0 顯示為空白的 Bug
 
 // --- 1. 定義費率常數 (與 adminController.js 同步) ---
 const RATES = {
@@ -296,6 +296,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const boxEl = document.createElement("div");
       boxEl.className = "sub-package-item";
       boxEl.setAttribute("data-index", index);
+
+      // [*** V6 關鍵修正：修復 0 || "" 的 Bug ***]
       boxEl.innerHTML = `
             <button type="button" class="btn-remove-sub-pkg" data-index="${index}">&times;</button>
             <div class="form-group">
@@ -324,22 +326,24 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
             <div class="form-grid-responsive">
             <div class="form-group"><label>實重(kg)</label><input type="number" class="sub-pkg-weight form-control" value="${
-              box.weight || ""
+              box.weight !== null && box.weight !== undefined ? box.weight : ""
             }"></div>
             <div class="form-group"><label>長(cm)</label><input type="number" class="sub-pkg-length form-control" value="${
-              box.length || ""
+              box.length !== null && box.length !== undefined ? box.length : ""
             }"></div>
             <div class="form-group"><label>寬(cm)</label><input type="number" class="sub-pkg-width form-control" value="${
-              box.width || ""
+              box.width !== null && box.width !== undefined ? box.width : ""
             }"></div>
             <div class="form-group"><label>高(cm)</label><input type="number" class="sub-pkg-height form-control" value="${
-              box.height || ""
+              box.height !== null && box.height !== undefined ? box.height : ""
             }"></div>
             </div>
             <div class="sub-pkg-fee-display">
             單箱運費: $ ${fee.toLocaleString()}
             </div>
         `;
+      // [*** V6 修正結束 ***]
+
       elSubPackageList.appendChild(boxEl);
     });
   }
@@ -434,10 +438,10 @@ document.addEventListener("DOMContentLoaded", () => {
       currentSubPackages.push({
         name: "分箱 1", // 預設名稱
         type: "general", // 預設類型
-        weight: 0,
-        length: 0,
-        width: 0,
-        height: 0,
+        weight: null, // [V6 修正] 預設為 null，才能顯示為空白
+        length: null,
+        width: null,
+        height: null,
       });
     }
 
