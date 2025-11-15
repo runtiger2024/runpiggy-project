@@ -1,4 +1,4 @@
-// 這是 frontend/js/main.js (已修復「存入預報」功能)
+// 這是 frontend/js/main.js (已修復「存入預報」邏輯)
 
 // --- (1) 計數器邏輯 ---
 function initializeUsageCounter() {
@@ -327,7 +327,7 @@ document.addEventListener("DOMContentLoaded", () => {
       .addEventListener("click", handleForecastRedirect);
   }
 
-  // --- (11) 函式: handleShareQuote ---
+  // --- (11) 函式: handleShareQuote [*** 修改重點 ***] ---
   async function handleShareQuote() {
     const shareButton = document.getElementById("btn-share");
     if (!currentCalculationResult) {
@@ -375,34 +375,26 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const allItems = currentCalculationResult.allItemsData;
+    const allItems = currentCalculationResult.allItemsData; // 取得所有項目
 
     if (!allItems || allItems.length === 0) {
       alert("試算資料中沒有項目");
       return;
     }
 
-    // [*** 修正 ***]
-    // 1. 合併所有品名
-    const combinedNames = allItems
-      .map((item) => (item.name ? item.name.trim() : "")) // 取得品名並去除頭尾空白
-      .filter((name) => name.length > 0) // 過濾掉空品名
-      .join("、"); // 使用中文頓號合併
-
-    // 2. 加總所有數量
-    const totalQuantity = allItems.reduce((sum, item) => {
-      return sum + (parseInt(item.quantity) || 0);
-    }, 0);
-
-    // 3. 建立新的草稿物件
+    // 1. 只抓取 *第一筆* 項目作為草稿
+    const firstItem = allItems[0];
     const forecastDraft = {
-      productName: combinedNames || "多項貨物", // 如果品名皆為空，給一個預設值
-      quantity: totalQuantity > 0 ? totalQuantity : 1, // 總數
+      productName: firstItem.name || "試算商品", // 使用第一筆的品名
+      quantity: firstItem.quantity || 1, // 使用第一筆的數量
     };
-
-    // [*** 修正結束 ***]
-
     localStorage.setItem("forecast_draft", JSON.stringify(forecastDraft));
+
+    // 2. 如果試算超過一筆，額外設定一個提示旗標
+    if (allItems.length > 1) {
+      localStorage.setItem("show_multi_item_warning", "true");
+    }
+    // [*** 修正結束 ***]
 
     const token = localStorage.getItem("token");
     if (token) {

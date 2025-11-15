@@ -1,4 +1,4 @@
-// 這是 frontend/js/dashboard.js (支援「客戶上傳圖片」的修改版)
+// 這是 frontend/js/dashboard.js (支援「多筆預報提示」的修改版)
 
 // --- 定義費率 (前端顯示用) ---
 const RATES = {
@@ -703,7 +703,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const originalColor = btnCopyBankInfo.style.backgroundColor;
           btnCopyBankInfo.textContent = "✓ 已複製成功！";
           btnCopyBankInfo.style.backgroundColor = "#27ae60";
-          btnCopyBankInfo.disabled = true;
+          btnCopyBankOne.disabled = true;
           setTimeout(() => {
             btnCopyBankInfo.textContent = originalText;
             btnCopyBankInfo.style.backgroundColor = originalColor;
@@ -722,9 +722,27 @@ document.addEventListener("DOMContentLoaded", () => {
   loadMyPackages();
   loadMyShipments();
 
-  // (M) 檢查草稿
+  // (M) [*** 關鍵修正 ***] 檢查草稿
   const draft = localStorage.getItem("forecast_draft");
-  if (draft) {
+  const multiItemWarning = localStorage.getItem("show_multi_item_warning"); // 1. 檢查旗標
+
+  if (multiItemWarning) {
+    // 2. 如果有多筆商品旗標，優先處理
+    try {
+      const d = JSON.parse(draft);
+      productName.value = d.productName || "";
+      quantity.value = d.quantity || 1;
+      // 3. 顯示多筆提示
+      showMessage(
+        "已帶入第一筆試算資料。您有多筆商品，請逐一為它們填寫物流單號並提交。",
+        "success"
+      );
+    } catch (e) {}
+    localStorage.removeItem("forecast_draft"); // 4. 清除
+    localStorage.removeItem("show_multi_item_warning"); // 4. 清除
+    forecastForm.scrollIntoView({ behavior: "smooth" });
+  } else if (draft) {
+    // 5. 如果只有一般草稿，才執行舊邏輯
     try {
       const d = JSON.parse(draft);
       productName.value = d.productName || "";
@@ -734,4 +752,5 @@ document.addEventListener("DOMContentLoaded", () => {
       forecastForm.scrollIntoView({ behavior: "smooth" });
     } catch (e) {}
   }
+  // [*** 修正結束 ***]
 });
