@@ -1027,6 +1027,72 @@ const updateUserPermissions = async (req, res) => {
   }
 };
 
+// [*** 新增：詳細報表函式 ***]
+const getDailyReport = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res
+        .status(400)
+        .json({ success: false, message: "請提供 startDate 和 endDate" });
+    }
+
+    // 1. 驗證日期格式 (並確保時區正確)
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0); // 設為當天 00:00:00
+
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999); // 設為當天 23:59:59
+
+    // 2. 查詢每日營業額
+    // [注意] 我們假設 "營業額" 是 status = 'CANCEL' (已完成) 的訂單
+    // [注意] $queryRaw 內使用的是 "資料庫欄位名稱" (例如 "Shipment" 和 "totalCost")
+    const revenueByDay = await prisma.$queryRaw`
+      SELECT
+        DATE_TRUNC('day', "updatedAt")::DATE as date,
+        SUM("totalCost") as revenue
+      FROM "Shipment"
+      WHERE "status" = 'CANCEL'
+        AND "updatedAt" >= ${start}
+        AND "updatedAt" <= ${end}
+      GROUP BY date
+      ORDER BY date ASC
+    `;
+
+    // 3. 查詢每日新註冊會員
+    const usersByDay = await prisma.$queryRaw`
+      SELECT
+        DATE_TRUNC('day', "createdAt")::DATE as date,
+        COUNT(id) as newUsers
+      FROM "User"
+      WHERE "createdAt" >= ${start}
+        AND "createdAt" <= ${end}
+      GROUP BY date
+      ORDER BY date ASC
+    `;
+
+    // 4. 回傳數據
+    res.status(200).json({
+      success: true,
+      report: {
+        // $queryRaw 回傳的是 BigInt，轉為 String 避免 JSON 錯誤
+        revenueData: revenueByDay.map((r) => ({
+          date: r.date,
+          revenue: Number(r.revenue || 0),
+        })),
+        userData: usersByDay.map((u) => ({
+          date: u.date,
+          newUsers: Number(u.newusers || 0),
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("取得詳細報表時發生錯誤:", error);
+    res.status(500).json({ success: false, message: "伺服器發生錯誤" });
+  }
+};
+
 // [*** V4.2 修正：匯出所有函式 ***]
 module.exports = {
   getAllPackages,
@@ -1046,4 +1112,5 @@ module.exports = {
   getActivityLogs,
   impersonateUser,
   updateUserPermissions,
+  getDailyReport, // [*** 新增 ***]
 };

@@ -22,6 +22,7 @@ const {
   getActivityLogs,
   impersonateUser,
   updateUserPermissions, // [*** 1. 匯入新函式 ***]
+  getDailyReport, // [*** 1. 匯入新函式 ***]
 } = require("../controllers/adminController");
 
 // [*** V3 修正：匯入新的中介軟體 ***]
@@ -104,5 +105,10 @@ router
 router
   .route("/users/:id/impersonate")
   .post(protect, checkPermission("CAN_IMPERSONATE_USERS"), impersonateUser);
+
+// [*** 新增：儀表板的詳細報表路由 ***]
+router
+  .route("/reports")
+  .get(protect, checkPermission("CAN_VIEW_DASHBOARD"), getDailyReport);
 
 module.exports = router;

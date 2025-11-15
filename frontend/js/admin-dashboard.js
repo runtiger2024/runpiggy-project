@@ -208,6 +208,184 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // --- [*** 新增：詳細報表邏輯 ***] ---
+
+  // (1) 獲取新 UI 元素
+  const dateRangePicker = document.getElementById("report-date-range");
+  const btnFetchReport = document.getElementById("btn-fetch-report");
+  const reportLoading = document.getElementById("report-loading-spinner");
+  const revenueChartCtx = document.getElementById("revenueChart");
+  const userChartCtx = document.getElementById("userChart");
+
+  let revenueChartInstance = null; // 用於存放 Chart.js 實例
+  let userChartInstance = null; // 用於存放 Chart.js 實例
+
+  // (2) 初始化 flatpickr 日期選擇器
+  const fp = flatpickr(dateRangePicker, {
+    mode: "range", // 設為「區間選擇」
+    dateFormat: "Y-m-d", // 日期格式
+    locale: "zh_tw", // 使用中文 (需引入 l10n/zh-tw.js)
+    defaultDate: [getNDaysAgo(30), getNDaysAgo(0)], // 預設 30 天前到今天
+  });
+
+  // (3) 綁定查詢按鈕事件
+  btnFetchReport.addEventListener("click", fetchDetailedReport);
+
+  // (4) 抓取報表 API 的函式
+  async function fetchDetailedReport() {
+    const selectedDates = fp.selectedDates;
+    if (selectedDates.length < 2) {
+      alert("請選擇一個完整的日期區間");
+      return;
+    }
+
+    const startDate = selectedDates[0].toISOString().split("T")[0];
+    const endDate = selectedDates[1].toISOString().split("T")[0];
+
+    reportLoading.style.display = "block";
+    btnFetchReport.disabled = true;
+    btnFetchReport.textContent = "查詢中...";
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/admin/reports?startDate=${startDate}&endDate=${endDate}`,
+        {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("抓取報表失敗");
+      }
+      const data = await response.json();
+
+      // (重要) 處理資料，填補 0
+      const allDates = getDateArray(selectedDates[0], selectedDates[1]);
+      const processedReport = processReportData(data.report, allDates);
+
+      // 渲染圖表
+      renderCharts(processedReport);
+    } catch (error) {
+      console.error("報表錯誤:", error);
+      alert(error.message);
+    } finally {
+      reportLoading.style.display = "none";
+      btnFetchReport.disabled = false;
+      btnFetchReport.textContent = "查詢報表";
+    }
+  }
+
+  // (5) 渲染圖表的函式
+  function renderCharts(report) {
+    // 銷毀舊圖表 (如果存在)
+    if (revenueChartInstance) revenueChartInstance.destroy();
+    if (userChartInstance) userChartInstance.destroy();
+
+    // 渲染營業額圖表
+    revenueChartInstance = new Chart(revenueChartCtx, {
+      type: "line", // 折線圖
+      data: {
+        labels: report.labels, // X 軸 (日期)
+        datasets: [
+          {
+            label: "每日營業額 (NT$)",
+            data: report.revenueData, // Y 軸 (金額)
+            borderColor: "#1a73e8",
+            backgroundColor: "rgba(26, 115, 232, 0.1)",
+            fill: true,
+            tension: 0.1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                return ` 營業額: ${context.raw.toLocaleString()} 元`;
+              },
+            },
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: function (value) {
+                return "NT$ " + value.toLocaleString();
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // 渲染新用戶圖表
+    userChartInstance = new Chart(userChartCtx, {
+      type: "bar", // 柱狀圖
+      data: {
+        labels: report.labels, // X 軸 (日期)
+        datasets: [
+          {
+            label: "每日新註冊會員",
+            data: report.userData, // Y 軸 (人數)
+            borderColor: "#2ecc71",
+            backgroundColor: "rgba(46, 204, 113, 0.5)",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1, // 確保 Y 軸是整數
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // (6) 輔助函式：取得 N 天前的日期
+  function getNDaysAgo(days) {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return d;
+  }
+
+  // (7) 輔助函式：取得日期區間內的所有日期 (用於 X 軸)
+  function getDateArray(start, end) {
+    const arr = [];
+    const dt = new Date(start);
+    while (dt <= end) {
+      arr.push(dt.toISOString().split("T")[0]);
+      dt.setDate(dt.getDate() + 1);
+    }
+    return arr;
+  }
+
+  // (8) 輔助函式：處理 API 回傳的資料，將空缺的日期補 0
+  function processReportData(report, allDates) {
+    const revenueMap = new Map(
+      report.revenueData.map((item) => [item.date.split("T")[0], item.revenue])
+    );
+    const userMap = new Map(
+      report.userData.map((item) => [item.date.split("T")[0], item.newUsers])
+    );
+
+    const labels = allDates;
+    const revenueData = labels.map((date) => revenueMap.get(date) || 0);
+    const userData = labels.map((date) => userMap.get(date) || 0);
+
+    return { labels, revenueData, userData };
+  }
+
+  // --- [*** 新增結束 ***] ---
+
   // --- 5. 初始載入資料 ---
   loadDashboardStats();
+  fetchDetailedReport(); // [*** 新增 ***] 頁面載入時，自動抓取預設(30天)的報表
 });

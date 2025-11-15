@@ -6,6 +6,15 @@
     <title>儀表板 - 管理後台</title>
     <link rel="icon" href="assets/logo.png" type="image/png" />
     <link rel="stylesheet" href="css/style.css?v=2" />
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh-tw.js"></script>
   </head>
   <body>
     <div class="container" style="max-width: 1400px">
@@ -86,6 +95,48 @@
         </div>
       </div>
 
+      <div class="form-section" style="margin-top: 30px; padding-bottom: 30px">
+        <h3 style="margin-top: 0">📈 詳細數據報告</h3>
+
+        <div
+          class="filters-container"
+          style="background: none; padding: 0; border: 0; margin-bottom: 20px"
+        >
+          <div class="filters">
+            <input
+              type="text"
+              id="report-date-range"
+              placeholder="請選擇日期區間..."
+            />
+            <button
+              class="btn btn-primary"
+              id="btn-fetch-report"
+              style="width: auto"
+            >
+              查詢報表
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="report-loading-spinner"
+          style="display: none; text-align: center; padding: 20px"
+        >
+          <div class="spinner"></div>
+          <p>正在抓取報表數據...</p>
+        </div>
+
+        <div class="form-grid-2" style="gap: 30px; margin-top: 20px">
+          <div>
+            <h4>每日營業額 (NT$)</h4>
+            <canvas id="revenueChart"></canvas>
+          </div>
+          <div>
+            <h4>每日新註冊會員</h4>
+            <canvas id="userChart"></canvas>
+          </div>
+        </div>
+      </div>
       <div class="form-grid-2" style="margin-top: 30px; gap: 30px">
         <div class="form-section" style="margin-bottom: 0">
           <h3 style="margin-top: 0">📦 最近 5 筆包裹預報</h3>
