@@ -462,148 +462,191 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (F) [*** V5 修正 ***] 建立集運單 (顯示公式 + 警告)
-  btnCreateShipment.addEventListener("click", () => {
+  // (F) [*** V6 關鍵修正：重新獲取包裹資料 ***]
+  btnCreateShipment.addEventListener("click", async () => {
+    // [*** 變更點 1: 設為 async ***]
     const checked = document.querySelectorAll(".package-checkbox:checked");
     if (checked.length === 0) {
       showMessage("請至少選擇一個包裹", "error");
       return;
     }
 
-    let html = "";
-    let ids = [];
-    let totalFee = 0;
+    // [*** 變更點 2: 增加載入狀態 ***]
+    btnCreateShipment.disabled = true;
+    btnCreateShipment.textContent = "讀取包裹資料中...";
 
-    // [*** V5 新增 ***]
-    let warningHtml = "";
-    let hasAnyOversizedItem = false;
-    let hasAnyOverweightItem = false;
-    // [*** V5 結束 ***]
+    try {
+      // [*** 變更點 3: 重新獲取最新包裹資料 ***]
+      const response = await fetch(`${API_BASE_URL}/api/packages/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "載入包裹失敗");
 
-    checked.forEach((box) => {
-      const p = allPackagesData.find((pkg) => pkg.id === box.dataset.id);
-      if (p) {
-        const packageFee = p.totalCalculatedFee || 0;
-        totalFee += packageFee;
-        ids.push(p.id);
+      // [*** 變更點 4: 更新全域的包裹資料 ***]
+      allPackagesData = data.packages;
 
-        html += `<div class="shipment-pkg-detail-item">`;
-        html += `<h4>${p.productName} (${p.trackingNumber})</h4>`;
+      // [*** 變更點 5: 使用最新的 allPackagesData 執行原邏輯 ***]
+      let html = "";
+      let ids = [];
+      let totalFee = 0;
+      let warningHtml = "";
+      let hasAnyOversizedItem = false;
+      let hasAnyOverweightItem = false;
 
-        const arrivedBoxes = Array.isArray(p.arrivedBoxes)
-          ? p.arrivedBoxes
-          : [];
+      let validCheckedCount = 0; // 計算 *仍然* 有效的包裹
 
-        if (arrivedBoxes.length > 0) {
-          arrivedBoxes.forEach((box) => {
-            // [*** V5 新增：檢查附加費 ***]
-            if (
-              parseFloat(box.length) > OVERSIZED_LIMIT ||
-              parseFloat(box.width) > OVERSIZED_LIMIT ||
-              parseFloat(box.height) > OVERSIZED_LIMIT
-            ) {
-              hasAnyOversizedItem = true;
-            }
-            if (parseFloat(box.weight) > OVERWEIGHT_LIMIT) {
-              hasAnyOverweightItem = true;
-            }
-            // [*** V5 結束 ***]
+      checked.forEach((box) => {
+        const p = allPackagesData.find((pkg) => pkg.id === box.dataset.id);
 
-            const rate = RATES[box.type];
-            if (!rate) {
-              html += `<div class="calc-box"><strong>${
-                box.name || "分箱"
-              }:</strong> <span style="color: red;">(類型錯誤，無法計算)</span></div>`;
-              return;
-            }
+        // [*** 變更點 6: 檢查包裹是否 *仍然* 是 ARRIVED ***]
+        if (p && p.status === "ARRIVED") {
+          validCheckedCount++; // 有效
+          const packageFee = p.totalCalculatedFee || 0;
+          totalFee += packageFee;
+          ids.push(p.id);
 
-            const l = parseFloat(box.length) || 0;
-            const w_dim = parseFloat(box.width) || 0;
-            const h = parseFloat(box.height) || 0;
-            const w = parseFloat(box.weight) || 0;
+          html += `<div class="shipment-pkg-detail-item">`;
+          html += `<h4>${p.productName} (${p.trackingNumber})</h4>`;
 
-            const cai = Math.ceil((l * w_dim * h) / VOLUME_DIVISOR);
-            const volCost = cai * rate.volumeRate;
-            const finalWeight = Math.ceil(w * 10) / 10;
-            const weightCost = finalWeight * rate.weightRate;
-            const finalFee = box.fee || 0;
+          const arrivedBoxes = Array.isArray(p.arrivedBoxes)
+            ? p.arrivedBoxes
+            : [];
 
-            html += `
-              <div class="calc-box">
-                <strong>${box.name || "分箱"} (${rate.name}):</strong>
-                <div class="calc-line">
-                  📦 <strong>材積費:</strong> (${l}x${w_dim}x${h} / ${VOLUME_DIVISOR} ➜ <strong>${cai} 材</strong>) × $${
-              rate.volumeRate
-            } = <span class="cost">$${volCost.toLocaleString()}</span>
+          if (arrivedBoxes.length > 0) {
+            arrivedBoxes.forEach((box) => {
+              // [*** V5 新增：檢查附加費 ***]
+              if (
+                parseFloat(box.length) > OVERSIZED_LIMIT ||
+                parseFloat(box.width) > OVERSIZED_LIMIT ||
+                parseFloat(box.height) > OVERSIZED_LIMIT
+              ) {
+                hasAnyOversizedItem = true;
+              }
+              if (parseFloat(box.weight) > OVERWEIGHT_LIMIT) {
+                hasAnyOverweightItem = true;
+              }
+              // [*** V5 結束 ***]
+
+              const rate = RATES[box.type];
+              if (!rate) {
+                html += `<div class="calc-box"><strong>${
+                  box.name || "分箱"
+                }:</strong> <span style="color: red;">(類型錯誤，無法計算)</span></div>`;
+                return;
+              }
+
+              const l = parseFloat(box.length) || 0;
+              const w_dim = parseFloat(box.width) || 0;
+              const h = parseFloat(box.height) || 0;
+              const w = parseFloat(box.weight) || 0;
+
+              const cai = Math.ceil((l * w_dim * h) / VOLUME_DIVISOR);
+              const volCost = cai * rate.volumeRate;
+              const finalWeight = Math.ceil(w * 10) / 10;
+              const weightCost = finalWeight * rate.weightRate;
+              const finalFee = box.fee || 0;
+
+              html += `
+                <div class="calc-box">
+                  <strong>${box.name || "分箱"} (${rate.name}):</strong>
+                  <div class="calc-line">
+                    📦 <strong>材積費:</strong> (${l}x${w_dim}x${h} / ${VOLUME_DIVISOR} ➜ <strong>${cai} 材</strong>) × $${
+                rate.volumeRate
+              } = <span class="cost">$${volCost.toLocaleString()}</span>
+                  </div>
+                  <div class="calc-line">
+                    ⚖️ <strong>重量費:</strong> (<strong>${finalWeight} kg</strong>) × $${
+                rate.weightRate
+              } = <span class="cost">$${Math.round(
+                weightCost
+              ).toLocaleString()}</span>
+                  </div>
+                  <div class="calc-line final">
+                    → 單箱運費 (取高): <strong>$${finalFee.toLocaleString()}</strong>
+                  </div>
                 </div>
-                <div class="calc-line">
-                  ⚖️ <strong>重量費:</strong> (<strong>${finalWeight} kg</strong>) × $${
-              rate.weightRate
-            } = <span class="cost">$${Math.round(
-              weightCost
-            ).toLocaleString()}</span>
-                </div>
-                <div class="calc-line final">
-                  → 單箱運費 (取高): <strong>$${finalFee.toLocaleString()}</strong>
-                </div>
-              </div>
-            `;
-          });
-        } else {
-          html += `<p style="color: #888; font-style: italic;">此包裹尚未入庫（無分箱資料），運費暫計 $0</p>`;
+              `;
+            });
+          } else {
+            html += `<p style="color: #888; font-style: italic;">此包裹尚未入庫（無分箱資料），運費暫計 $0</p>`;
+          }
+
+          html += `<div class="pkg-subtotal">包裹小計: <strong>$${packageFee.toLocaleString()}</strong></div>`;
+          html += `</div>`;
         }
+        // [*** 變更點 6 結束 ***]
+      });
 
-        html += `<div class="pkg-subtotal">包裹小計: <strong>$${packageFee.toLocaleString()}</strong></div>`;
-        html += `</div>`;
+      // [*** 變更點 7: 檢查是否還有有效包裹 ***]
+      if (validCheckedCount === 0) {
+        showMessage(
+          "您選擇的包裹狀態已變更（可能已被集運），請重新整理頁面。",
+          "error"
+        );
+        loadMyPackages(); // 更新主列表的 UI
+        return; // 停止執行
+      } else if (validCheckedCount < checked.length) {
+        // 勾選的 > 實際有效的
+        showMessage("部分包裹狀態已更新，已自動為您移除無效包裹。", "success");
+        loadMyPackages(); // 更新主列表的 UI
       }
-    });
 
-    // [*** V5 修正：計算最終金額與警告 ***]
-    const totalOverweightFee = hasAnyOverweightItem ? OVERWEIGHT_FEE : 0;
-    const totalOversizedFee = hasAnyOversizedItem ? OVERSIZED_FEE : 0;
+      // [*** V5 修正：計算最終金額與警告 ***]
+      const totalOverweightFee = hasAnyOverweightItem ? OVERWEIGHT_FEE : 0;
+      const totalOversizedFee = hasAnyOversizedItem ? OVERSIZED_FEE : 0;
 
-    let finalBaseCost = totalFee;
-    let noticeHtml = `(基本運費 $${totalFee.toLocaleString()})`;
+      let finalBaseCost = totalFee;
+      let noticeHtml = `(基本運費 $${totalFee.toLocaleString()})`;
 
-    if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
-      finalBaseCost = MINIMUM_CHARGE;
-      noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(基本運費 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE.toLocaleString()})</span>`;
+      if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
+        finalBaseCost = MINIMUM_CHARGE;
+        noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(基本運費 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE.toLocaleString()})</span>`;
+      }
+
+      const finalTotalCost =
+        finalBaseCost + totalOverweightFee + totalOversizedFee;
+
+      if (hasAnyOversizedItem) {
+        warningHtml += `<div>⚠️ 偵測到超長件 (單邊 > ${OVERSIZED_LIMIT}cm)，已加收 $${OVERSIZED_FEE} 超長費。</div>`;
+      }
+      if (hasAnyOverweightItem) {
+        warningHtml += `<div>⚠️ 偵測到超重件 (單件 > ${OVERWEIGHT_LIMIT}kg)，已加收 $${OVERWEIGHT_FEE} 超重費。</div>`;
+        warningHtml += `<div style="font-size: 0.9em;">(超重件台灣收件地，請務必自行安排堆高機下貨)</div>`;
+      }
+      // [*** V5 修正結束 ***]
+
+      shipmentPackageList.innerHTML = html;
+
+      if (shipmentTotalCost)
+        shipmentTotalCost.textContent = finalTotalCost.toLocaleString();
+
+      if (shipmentFeeNotice) {
+        shipmentFeeNotice.innerHTML = noticeHtml;
+      }
+
+      // 填入警告
+      if (shipmentWarnings) {
+        shipmentWarnings.innerHTML = warningHtml;
+      }
+
+      createShipmentForm.dataset.ids = JSON.stringify(ids);
+
+      document.getElementById("ship-name").value = currentUser.name || "";
+      document.getElementById("ship-phone").value = currentUser.phone || "";
+      document.getElementById("ship-address").value =
+        currentUser.defaultAddress || "";
+      document.getElementById("ship-note").value = "";
+      document.getElementById("create-shipment-modal").style.display = "flex";
+    } catch (e) {
+      // [*** 變更點 8: 處理 fetch 失敗 ***]
+      console.error("btnCreateShipment 錯誤:", e);
+      showMessage(`載入包裹資料失敗: ${e.message}`, "error");
+    } finally {
+      // [*** 變更點 9: 恢復按鈕狀態 ***]
+      btnCreateShipment.disabled = false;
+      btnCreateShipment.textContent = "合併打包 (建立集運單)";
     }
-
-    const finalTotalCost =
-      finalBaseCost + totalOverweightFee + totalOversizedFee;
-
-    if (hasAnyOversizedItem) {
-      warningHtml += `<div>⚠️ 偵測到超長件 (單邊 > ${OVERSIZED_LIMIT}cm)，已加收 $${OVERSIZED_FEE} 超長費。</div>`;
-    }
-    if (hasAnyOverweightItem) {
-      warningHtml += `<div>⚠️ 偵測到超重件 (單件 > ${OVERWEIGHT_LIMIT}kg)，已加收 $${OVERWEIGHT_FEE} 超重費。</div>`;
-      warningHtml += `<div style="font-size: 0.9em;">(超重件台灣收件地，請務必自行安排堆高機下貨)</div>`;
-    }
-    // [*** V5 修正結束 ***]
-
-    shipmentPackageList.innerHTML = html;
-
-    if (shipmentTotalCost)
-      shipmentTotalCost.textContent = finalTotalCost.toLocaleString();
-
-    if (shipmentFeeNotice) {
-      shipmentFeeNotice.innerHTML = noticeHtml;
-    }
-
-    // 填入警告
-    if (shipmentWarnings) {
-      shipmentWarnings.innerHTML = warningHtml;
-    }
-
-    createShipmentForm.dataset.ids = JSON.stringify(ids);
-
-    document.getElementById("ship-name").value = currentUser.name || "";
-    document.getElementById("ship-phone").value = currentUser.phone || "";
-    document.getElementById("ship-address").value =
-      currentUser.defaultAddress || "";
-    document.getElementById("ship-note").value = "";
-    document.getElementById("create-shipment-modal").style.display = "flex";
   });
 
   // (G) 提交集運單
