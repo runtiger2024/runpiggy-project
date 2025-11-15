@@ -1,4 +1,5 @@
-// 這是 frontend/js/main.js (已修復「存入預報」邏輯)
+// 這是 frontend/js/main.js (V3 - 佇列版)
+// (修正「存入預報」功能，改為儲存 "佇列")
 
 // --- (1) 計數器邏輯 ---
 function initializeUsageCounter() {
@@ -156,7 +157,15 @@ document.addEventListener("DOMContentLoaded", () => {
         hasError = true;
       }
       items.push({
-        name: itemEl.querySelector(".item-name").value || `貨物 #${id}`,
+        // [*** 邏輯修正 ***]
+        // 確保品名有值，如果為空，使用 item-type 的文字
+        name:
+          itemEl.querySelector(".item-name").value.trim() ||
+          itemEl
+            .querySelector(".item-type")
+            .options[
+              itemEl.querySelector(".item-type").selectedIndex
+            ].text.split(" ")[0], // 例如 "一般家具"
         calcMethod: calcMethod,
         length: parseFloat(itemEl.querySelector(".item-length").value) || 0,
         width: parseFloat(itemEl.querySelector(".item-width").value) || 0,
@@ -327,7 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
       .addEventListener("click", handleForecastRedirect);
   }
 
-  // --- (11) 函式: handleShareQuote [*** 修改重點 ***] ---
+  // --- (11) 函式: handleShareQuote ---
   async function handleShareQuote() {
     const shareButton = document.getElementById("btn-share");
     if (!currentCalculationResult) {
@@ -349,7 +358,6 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(result.error || "產生連結失敗");
       }
 
-      // [修改] 移除了錯誤的 "/frontend"
       const shareUrl = `${window.location.origin}/quote.html?id=${result.id}`;
 
       await navigator.clipboard.writeText(shareUrl);
@@ -368,7 +376,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- (12) [*** 關鍵修正 ***] 函式: handleForecastRedirect ---
+  // --- (12) [*** 關鍵修正 V3 ***] 函式: handleForecastRedirect ---
   function handleForecastRedirect() {
     if (!currentCalculationResult || !currentCalculationResult.allItemsData) {
       alert("沒有試算資料可儲存");
@@ -382,20 +390,16 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // 1. 只抓取 *第一筆* 項目作為草稿
-    const firstItem = allItems[0];
-    const forecastDraft = {
-      productName: firstItem.name || "試算商品", // 使用第一筆的品名
-      quantity: firstItem.quantity || 1, // 使用第一筆的數量
-    };
-    localStorage.setItem("forecast_draft", JSON.stringify(forecastDraft));
+    // 1. [*** 修正 ***]
+    //    清除舊的(單筆)草稿，避免 dashboard.js 混淆
+    localStorage.removeItem("forecast_draft");
+    localStorage.removeItem("show_multi_item_warning");
 
-    // 2. 如果試算超過一筆，額外設定一個提示旗標
-    if (allItems.length > 1) {
-      localStorage.setItem("show_multi_item_warning", "true");
-    }
-    // [*** 修正結束 ***]
+    // 2. [*** 修正 ***]
+    //    將 "所有" 試算項目存成一個 "佇列 (list)"
+    localStorage.setItem("forecast_draft_list", JSON.stringify(allItems));
 
+    // 3. 正常跳轉
     const token = localStorage.getItem("token");
     if (token) {
       window.location.href = "dashboard.html";

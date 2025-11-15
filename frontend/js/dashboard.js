@@ -1,4 +1,5 @@
-// 這是 frontend/js/dashboard.js (支援「多筆預報提示」的修改版)
+// 這是 frontend/js/dashboard.js (V3 - 佇列版)
+// (支援「自動帶入下一筆」功能)
 
 // --- 定義費率 (前端顯示用) ---
 const RATES = {
@@ -215,9 +216,12 @@ document.addEventListener("DOMContentLoaded", () => {
     messageBox.textContent = message;
     messageBox.className = `alert alert-${type}`;
     messageBox.style.display = "block";
+
+    // [*** 修正 ***] 延長提示時間
+    const duration = message.includes("佇列") ? 8000 : 5000;
     setTimeout(() => {
       messageBox.style.display = "none";
-    }, 5000);
+    }, duration);
   }
 
   // (A) 載入資料
@@ -377,21 +381,20 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {}
   }
 
-  // (E) [*** 修改重點：提交預報 (改用 FormData) ***]
+  // (E) [*** 關鍵修正 V3 ***] 提交預報 (支援佇列)
   forecastForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
+    e.preventDefault(); // [*** 修正 ***] 永遠阻止預設提交
     const submitButton = forecastForm.querySelector('button[type="submit"]');
     submitButton.disabled = true;
     submitButton.textContent = "提交中...";
 
-    // 1. 建立 FormData
+    // 1. 建立 FormData (邏輯不變)
     const formData = new FormData();
     formData.append("trackingNumber", trackingNumber.value);
     formData.append("productName", productName.value);
     formData.append("quantity", quantity.value ? parseInt(quantity.value) : 1);
     formData.append("note", note.value);
 
-    // 2. 附加圖片檔案
     const files = imagesInput.files;
     if (files.length > 5) {
       showMessage("照片最多只能上傳 5 張", "error");
@@ -400,21 +403,19 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     for (let i = 0; i < files.length; i++) {
-      formData.append("images", files[i]); // 後端 `upload.array("images", 5)` 會接收
+      formData.append("images", files[i]);
     }
 
     try {
-      // 3. 呼叫 images 路由，並且 *不要* 設定 Content-Type
+      // 2. 呼叫 API (邏輯不變)
       const response = await fetch(
         `${API_BASE_URL}/api/packages/forecast/images`,
         {
-          // <-- [修改] 路由
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
-            // "Content-Type": "application/json", // <-- [移除] 瀏覽器會自動設為 multipart/form-data
           },
-          body: formData, // [修改]
+          body: formData,
         }
       );
 
@@ -424,8 +425,13 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       showMessage("預報成功", "success");
-      forecastForm.reset();
-      loadMyPackages();
+      forecastForm.reset(); // 清空剛剛提交的表單
+      loadMyPackages(); // 重新載入包裹列表
+
+      // [*** 關鍵修正 ***]
+      // 3. 提交成功後，檢查佇列
+      checkForecastDraftQueue(true); // 傳入 true，表示是「提交後」的檢查
+      // [*** 修正結束 ***]
     } catch (e) {
       showMessage(e.message, "error");
     } finally {
@@ -703,7 +709,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const originalColor = btnCopyBankInfo.style.backgroundColor;
           btnCopyBankInfo.textContent = "✓ 已複製成功！";
           btnCopyBankInfo.style.backgroundColor = "#27ae60";
-          btnCopyBankOne.disabled = true;
+          btnCopyBankInfo.disabled = true;
           setTimeout(() => {
             btnCopyBankInfo.textContent = originalText;
             btnCopyBankInfo.style.backgroundColor = originalColor;
@@ -717,40 +723,62 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // (M) [*** 關鍵修正 V3 ***] 檢查草稿佇列
+  function checkForecastDraftQueue(isAfterSubmit = false) {
+    const draftListJSON = localStorage.getItem("forecast_draft_list");
+    if (!draftListJSON) return; // 沒有佇列
+
+    let draftList = [];
+    try {
+      draftList = JSON.parse(draftListJSON);
+    } catch (e) {
+      localStorage.removeItem("forecast_draft_list");
+      return;
+    }
+
+    if (draftList.length === 0) {
+      // 佇列是空的，清除
+      localStorage.removeItem("forecast_draft_list");
+      return;
+    }
+
+    // 1. 取出第一筆
+    const nextItem = draftList.shift(); // .shift() 會取出第一筆，並修改原陣列
+
+    // 2. 填入表單
+    productName.value = nextItem.name || "";
+    quantity.value = nextItem.quantity || 1;
+    note.value = "來自運費試算"; // (新) 增加一個備註
+
+    // 3. 顯示提示訊息
+    if (draftList.length > 0) {
+      // 3a. 告知使用者還有
+      const message = isAfterSubmit
+        ? `已自動帶入下一筆試算資料。您還有 ${draftList.length} 筆在佇列中。`
+        : `已帶入第 1 筆試算資料。您還有 ${draftList.length} 筆在佇列中。`;
+      showMessage(message, "success");
+      // 4a. 將 *剩下的* 存回去
+      localStorage.setItem("forecast_draft_list", JSON.stringify(draftList));
+    } else {
+      // 3b. 告知這是最後一筆
+      const message = isAfterSubmit
+        ? "已自動帶入最後一筆試算資料。"
+        : "已帶入試算資料。";
+      showMessage(message, "success");
+      // 4b. 佇列已空，清除
+      localStorage.removeItem("forecast_draft_list");
+    }
+
+    // 5. 捲動到表單
+    if (!isAfterSubmit) {
+      // 只有在頁面 "載入" 時才捲動，提交後不用
+      forecastForm.scrollIntoView({ behavior: "smooth" });
+    }
+  }
+
   // --- (初始載入) ---
   loadUserProfile();
   loadMyPackages();
   loadMyShipments();
-
-  // (M) [*** 關鍵修正 ***] 檢查草稿
-  const draft = localStorage.getItem("forecast_draft");
-  const multiItemWarning = localStorage.getItem("show_multi_item_warning"); // 1. 檢查旗標
-
-  if (multiItemWarning) {
-    // 2. 如果有多筆商品旗標，優先處理
-    try {
-      const d = JSON.parse(draft);
-      productName.value = d.productName || "";
-      quantity.value = d.quantity || 1;
-      // 3. 顯示多筆提示
-      showMessage(
-        "已帶入第一筆試算資料。您有多筆商品，請逐一為它們填寫物流單號並提交。",
-        "success"
-      );
-    } catch (e) {}
-    localStorage.removeItem("forecast_draft"); // 4. 清除
-    localStorage.removeItem("show_multi_item_warning"); // 4. 清除
-    forecastForm.scrollIntoView({ behavior: "smooth" });
-  } else if (draft) {
-    // 5. 如果只有一般草稿，才執行舊邏輯
-    try {
-      const d = JSON.parse(draft);
-      productName.value = d.productName || "";
-      quantity.value = d.quantity || 1;
-      showMessage("已帶入試算資料", "success");
-      localStorage.removeItem("forecast_draft");
-      forecastForm.scrollIntoView({ behavior: "smooth" });
-    } catch (e) {}
-  }
-  // [*** 修正結束 ***]
+  checkForecastDraftQueue(false); // [*** 修正 ***] 呼叫新的佇列函式 (傳入 false，表示是「載入時」)
 });
