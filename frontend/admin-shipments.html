@@ -44,7 +44,14 @@
       <div class="filters">
         <select id="filter-status">
           <option value="">所有狀態</option>
-          <option value="PENDING_PAYMENT">待付款</option>
+          <option value="PENDING_PAYMENT">待付款 (未上傳)</option>
+
+          <option
+            value="PENDING_REVIEW"
+            style="color: #856404; font-weight: bold"
+          >
+            [新] 已付款，待審核
+          </option>
           <option value="PROCESSING">已收款，安排裝櫃</option>
           <option value="SHIPPED">已裝櫃</option>
           <option value="COMPLETED">海關查驗</option>

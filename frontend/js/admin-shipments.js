@@ -1,4 +1,5 @@
 // 這是 frontend/js/admin-shipments.js (V5 狀態標籤 + V3 權限 統一版)
+// [!! 程式夥伴新增 !!] V6 - 優化：新增「已付款，待審核」虛擬狀態
 
 document.addEventListener("DOMContentLoaded", () => {
   // [*** V3 權限檢查：讀取權限 ***]
@@ -116,12 +117,30 @@ document.addEventListener("DOMContentLoaded", () => {
     const search = searchInput.value.toLowerCase();
 
     const filtered = allShipmentsData.filter((ship) => {
-      const statusMatch = !status || ship.status === status;
+      // [!! 程式夥伴修改 !!] - 狀態過濾邏輯
+      let statusMatch = false;
+      if (!status) {
+        statusMatch = true; // "所有狀態"
+      } else if (status === "PENDING_REVIEW") {
+        // [!! 程式夥伴新增 !!] - 處理新的虛擬狀態
+        // 條件：狀態是 PENDING_PAYMENT "且" 必須有 paymentProof
+        statusMatch = ship.status === "PENDING_PAYMENT" && ship.paymentProof;
+      } else if (status === "PENDING_PAYMENT") {
+        // [!! 程式夥伴新增 !!] - 修正舊的 "待付款" 邏輯
+        // 條件：狀態是 PENDING_PAYMENT "且" "沒有" paymentProof
+        statusMatch = ship.status === "PENDING_PAYMENT" && !ship.paymentProof;
+      } else {
+        // 原始邏輯：比對其他所有狀態
+        statusMatch = ship.status === status;
+      }
+      // [!! 程式夥伴修改結束 !!]
+
       const searchMatch =
         !search ||
         ship.recipientName.toLowerCase().includes(search) ||
         ship.user.email.toLowerCase().includes(search) ||
         (ship.idNumber && ship.idNumber.toLowerCase().includes(search));
+
       return statusMatch && searchMatch;
     });
 
@@ -132,24 +151,34 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     filtered.forEach((ship) => {
-      // [*** V5 修正 ***] 使用統一的 map
-      const statusText = shipmentStatusMap[ship.status] || ship.status;
+      // [!! 程式夥伴修改 !!] - 狀態顯示邏輯
+      let statusText = shipmentStatusMap[ship.status] || ship.status;
+      let statusClass = ship.status;
+
+      // [!! 程式夥伴新增 !!]
+      // 如果狀態是「待付款」但「已有付款憑證」，我們就覆寫文字
+      if (ship.status === "PENDING_PAYMENT" && ship.paymentProof) {
+        statusText = "已付款，待審核";
+        statusClass = "PENDING_REVIEW"; // 使用我們在 style.css 新增的 class
+      }
+      // [!! 程式夥伴新增結束 !!]
+
       const tr = document.createElement("tr");
 
       // [修改] 賦予 tr 一個唯一的 DOM ID
       tr.id = `shipment-row-${ship.id}`;
 
-      // 判斷是否有憑證
-      const hasProof = ship.paymentProof ? " (有憑證)" : "";
+      // [!! 程式夥伴修改 !!] 移除 hasProof，因為新狀態已包含此資訊
+      // const hasProof = ship.paymentProof ? " (有憑證)" : "";
 
       tr.innerHTML = `
         <td><button class="btn btn-secondary btn-sm btn-view-details">查看/編輯</button></td>
         <td>${new Date(ship.createdAt).toLocaleDateString()}</td>
         <td>${ship.user.email}</td>
         <td>${ship.recipientName}</td>
-        <td><span class="status-badge status-${
-          ship.status
-        }">${statusText}${hasProof}</span></td>
+        
+        <td><span class="status-badge status-${statusClass}">${statusText}</span></td>
+        
         <td>${
           ship.totalCost ? `NT$ ${ship.totalCost.toLocaleString()}` : "(待報價)"
         }</td>
@@ -176,11 +205,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!tr) return;
 
     // 3. 重新產生儲存格內容
-    // [*** V5 修正 ***] 使用統一的 map
-    const statusText = shipmentStatusMap[ship.status] || ship.status;
-    const hasProof = ship.paymentProof ? " (有憑證)" : "";
+    // [!! 程式夥伴修改 !!] - 狀態顯示邏輯
+    let statusText = shipmentStatusMap[ship.status] || ship.status;
+    let statusClass = ship.status;
 
-    tr.cells[4].innerHTML = `<span class="status-badge status-${ship.status}">${statusText}${hasProof}</span>`;
+    // [!! 程式夥伴新增 !!]
+    if (ship.status === "PENDING_PAYMENT" && ship.paymentProof) {
+      statusText = "已付款，待審核";
+      statusClass = "PENDING_REVIEW";
+    }
+    // [!! 程式夥伴新增結束 !!]
+
+    // [!! 程式夥伴修改 !!]
+    tr.cells[4].innerHTML = `<span class="status-badge status-${statusClass}">${statusText}</span>`;
     tr.cells[5].textContent = ship.totalCost
       ? `NT$ ${ship.totalCost.toLocaleString()}`
       : "(待報價)";
@@ -286,7 +323,14 @@ document.addEventListener("DOMContentLoaded", () => {
         loadAllShipments();
       } else {
         // 2. 否則，只更新這一列
-        updateShipmentInList(result.shipment);
+        // [!! 程式夥伴修改 !!] - 我們需要傳入完整的 shipment 物件
+        // result.shipment 包含了更新後的 status 和 paymentProof
+        // 我們需要從 allShipmentsData 找到舊的資料來合併
+        const oldData = allShipmentsData.find(
+          (s) => s.id === result.shipment.id
+        );
+        const updatedData = { ...oldData, ...result.shipment }; // 合併
+        updateShipmentInList(updatedData); // 傳入合併後的資料
       }
       // --- [優化結束] ---
     } catch (error) {
