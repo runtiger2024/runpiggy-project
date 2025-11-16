@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>小跑豬傢俱海運試算器</title>
+    <link rel="icon" href="assets/logo.png" type="image/png" />
+    <link rel="stylesheet" href="css/style.css?v=2" />
+  </head>
+  <body>
+    <div class="container">
+      <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
+      <h1>小跑豬傢俱海運試算器</h1>
+
+      <div class="usage-counter">
+        已有 <span id="usageCount">5,000</span> 人使用本傢俱試算器
+      </div>
+
+      <nav class="main-nav"></nav>
+
+      <div class="warehouse-info-section">
+        <h3>倉庫資訊 (傢俱專線)</h3>
+        <div class="address-box" id="warehouseAddressBox">
+          <p>
+            <strong>收件地址:</strong>
+            广东省东莞市虎门镇龙眼工业路28号139铺+小跑豬+<span
+              class="placeholder"
+              >[您的姓名]</span
+            >
+          </p>
+          <p>
+            <strong>收 件 人:</strong> 小跑豬+<span class="placeholder"
+              >[您的姓名]</span
+            >
+          </p>
+          <p><strong>手機號碼:</strong> 13652554906</p>
+          <p><strong>郵遞區號:</strong> 523920</p>
+        </div>
+        <button id="copyAddressBtn" class="btn btn-copy-address">
+          一鍵複製倉庫地址
+        </button>
+        <p class="warehouse-warning">
+          注意：此為家具專線倉庫，只收大型家具、建材，**不**收集運散貨(普貨)。
+        </p>
+      </div>
+
+      <div class="rate-table-container">
+        <h2>收費標準一覽</h2>
+        <table class="rate-table">
+          <thead>
+            <tr>
+              <th>類別</th>
+              <th>品項說明</th>
+              <th>重量收費 (每公斤)</th>
+              <th>材積收費 (每材)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td data-label="類別"><strong>一般家具</strong></td>
+              <td data-label="品項說明">沙發、床架、桌椅、櫃子、書架...</td>
+              <td data-label="重量收費">22 台幣</td>
+              <td data-label="材積收費">125 台幣</td>
+            </tr>
+            <tr>
+              <td data-label="類別"><strong>特殊家具 A</strong></td>
+              <td data-label="品項說明">
+                大理石、岩板家具、普通馬桶、床墊、地板、格柵、屏風、浴室架、水龍頭、浴室櫃、臉盆、浴缸、窗簾...
+              </td>
+              <td data-label="重量收費">32 台幣</td>
+              <td data-label="材積收費">184 台幣</td>
+            </tr>
+            <tr>
+              <td data-label="類別"><strong>特殊家具 B</strong></td>
+              <td data-label="品項說明">
+                門、磁磚、背景岩板、鏡子、玻璃屏風、智能家具、建材類、燈具、保險箱、鏡櫃...
+              </td>
+              <td data-label="重量收費">40 台幣</td>
+              <td data-label="材積收費">224 台幣</td>
+            </tr>
+            <tr>
+              <td data-label="類別"><strong>特殊家具 C</strong></td>
+              <td data-label="品項說明">智能馬桶、冰箱、帶電大家電</td>
+              <td data-label="重量收費">50 台幣</td>
+              <td data-label="材積收費">274 台幣</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="rate-notes">
+          <strong>備註：</strong>
+          <ul>
+            <li>海運低消 <span class="highlight">NT.2000</span> 元</li>
+            <li>
+              整票超過 <span class="highlight">300cm</span> 收取超長費
+              <span class="highlight">NT.800</span> 元
+            </li>
+            <li>
+              整票超過 <span class="highlight">100kg</span> 收取超重費
+              <span class="highlight">NT.800</span> 元
+            </li>
+            <li>超重件台灣收件地請自行安排堆高機</li>
+          </ul>
+        </div>
+      </div>
+
+      <div id="calculator-section" class="calculator-form">
+        <div id="item-list">
+          <div class="item-group" data-id="1">
+            <div class="item-header">
+              <h4>貨物 #1</h4>
+            </div>
+
+            <div class="form-group">
+              <label>品名描述</label>
+              <input
+                type="text"
+                class="item-name"
+                placeholder="例：客廳三人座沙發"
+              />
+            </div>
+
+            <div class="form-group calc-method-toggle">
+              <label
+                ><input
+                  type="radio"
+                  name="calc-method-1"
+                  value="dimensions"
+                  checked
+                />
+                依尺寸 (公分)</label
+              >
+              <label
+                ><input type="radio" name="calc-method-1" value="cbm" />
+                依立方米 (CBM/方)</label
+              >
+            </div>
+
+            <div class="dimensions-inputs">
+              <div class="form-grid-3">
+                <div class="form-group">
+                  <label>長 (cm)</label>
+                  <input
+                    type="number"
+                    class="item-length"
+                    min="0"
+                    step="0.1"
+                    placeholder="180"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>寬 (cm)</label>
+                  <input
+                    type="number"
+                    class="item-width"
+                    min="0"
+                    step="0.1"
+                    placeholder="50"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>高 (cm)</label>
+                  <input
+                    type="number"
+                    class="item-height"
+                    min="0"
+                    step="0.1"
+                    placeholder="200"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="cbm-inputs" style="display: none">
+              <div class="form-group">
+                <label>立方米 (CBM/方)</label>
+                <input type="number" class="item-cbm" min="0" step="0.01" />
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>單件重量 (kg) <span class="required">*</span></label>
+                <input
+                  type="number"
+                  class="item-weight"
+                  min="0.1"
+                  step="0.1"
+                  placeholder="50"
+                />
+              </div>
+              <div class="form-group">
+                <label>數量 <span class="required">*</span></label>
+                <input type="number" class="item-quantity" value="1" min="1" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>家具種類 (影響費率) <span class="required">*</span></label>
+              <select class="item-type">
+                <option value="general">一般家具 (沙發、床架、桌椅...)</option>
+                <option value="special_a">
+                  特殊家具A (大理石、岩板、床墊...)
+                </option>
+                <option value="special_b">特殊家具B (門、磁磚、玻璃...)</option>
+                <option value="special_c">特殊家具C (智能馬桶、冰箱...)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <button type="button" id="btn-add-item" class="btn btn-secondary">
+          + 新增一筆貨物
+        </button>
+
+        <hr />
+
+        <div class="delivery-options">
+          <h3>配送地區 (請務必選擇，以免費用有誤)</h3>
+          <div class="remote-area-notice">
+            <strong>⚠️ 偏遠地區說明：</strong>
+            <p>以下地區需額外收取偏遠地區派送費。請仔細確認您的配送地址。</p>
+          </div>
+          <div class="remote-area-search">
+            <label for="areaSearch">快速搜尋您的地區：</label>
+            <input
+              type="text"
+              id="areaSearch"
+              placeholder="輸入地區名稱（如：阿里山、小琉球、墾丁）"
+            />
+            <div id="searchResults"></div>
+          </div>
+          <select id="deliveryLocation" class="input-wrapper">
+            <option value="" selected disabled>
+              --- 請選擇您的配送地區 ---
+            </option>
+            <option value="0" style="font-weight: bold; color: #27ae60">
+              ✅ 一般地區 (無額外費用)
+            </option>
+            <optgroup label="📍 臺北區域 - NT$4,500/方起">
+              <option value="4500">陽明山</option>
+              <option value="4500">金山</option>
+            </optgroup>
+            <optgroup label="📍 新北區域 - NT$2,000/方起">
+              <option value="2000">三芝</option>
+              <option value="2000">石門</option>
+              <option value="2000">烏來</option>
+              <option value="2000">坪林</option>
+              <option value="2000">石碇區</option>
+              <option value="2000">深坑區</option>
+              <option value="2000">萬里</option>
+              <option value="2000">平溪</option>
+              <option value="2000">雙溪</option>
+              <option value="2000">福隆</option>
+              <option value="2000">貢寮</option>
+              <option value="2000">三峽區</option>
+              <option value="2000">淡水竹圍</option>
+            </optgroup>
+            <optgroup label="📍 桃園區域 - NT$2,000/方起">
+              <option value="2000">復興鄉</option>
+            </optgroup>
+            <optgroup label="📍 新竹苗栗 - NT$2,000/方起">
+              <option value="2000">新埔鎮</option>
+              <option value="2000">關西鎮</option>
+              <option value="2000">橫山鄉</option>
+              <option value="2000">北埔鄉</option>
+              <option value="2000">尖石鄉</option>
+              <option value="2000">五峰鄉</option>
+              <option value="2000">寶山鎮</option>
+              <option value="2000">香山區</option>
+              <option value="2000">造橋鎮</option>
+              <option value="2000">峨嵋鄉</option>
+              <option value="2000">三灣鄉</option>
+              <option value="2000">芎林鄉</option>
+              <option value="2000">頭屋鄉</option>
+              <option value="2000">銅鑼鄉</option>
+              <option value="2000">三義鄉</option>
+              <option value="2000">通霄鎮</option>
+              <option value="2000">苑裡鎮</option>
+              <option value="2000">大湖鄉</option>
+              <option value="2000">卓蘭鎮</option>
+              <option value="2000">泰安鄉</option>
+              <option value="2000">公館鄉</option>
+              <option value="2000">竹南鎮</option>
+            </optgroup>
+            <optgroup label="📍 苗栗山區 - NT$4,000/方起">
+              <option value="4000" style="color: #e74c3c">⛰️ 南莊鄉</option>
+              <option value="4000" style="color: #e74c3c">⛰️ 獅潭鄉</option>
+            </optgroup>
+            <optgroup label="📍 台中 - NT$1,800/方起">
+              <option value="1800">東勢區</option>
+              <option value="1800">新社區</option>
+              <option value="1800">石岡區</option>
+              <option value="1800">和平區</option>
+              <option value="1800">大雪山</option>
+              <option value="1800">穀關</option>
+              <option value="1800">水里鄉</option>
+            </optgroup>
+            <optgroup label="📍 彰化偏遠 - NT$1,800/方起">
+              <option value="1800">伸港鄉</option>
+              <option value="1800">線西鄉</option>
+              <option value="1800">秀水鄉</option>
+              <option value="1800">芬園鄉</option>
+              <option value="1800">芳苑鄉</option>
+              <option value="1800">大村鄉</option>
+              <option value="1800">大城鄉</option>
+              <option value="1800">竹塘鄉</option>
+              <option value="1800">北斗鎮</option>
+              <option value="1800">溪州鄉</option>
+            </optgroup>
+            <optgroup label="📍 南投一般偏遠 - NT$2,500/方起">
+              <option value="2500">名間鄉</option>
+            </optgroup>
+            <optgroup label="📍 南投山區 - NT$4,000/方起">
+              <option value="4000">竹山鎮</option>
+              <option value="4000">鹿谷鄉</option>
+              <option value="4000">集集鎮</option>
+              <option value="4000">中寮鄉</option>
+              <option value="4000">國姓鄉</option>
+              <option value="4000">仁愛鄉</option>
+              <option value="4000">信義鄉</option>
+              <option value="4000">梨山</option>
+              <option value="4000">奧萬大</option>
+              <option value="4000">埔里</option>
+            </optgroup>
+            <optgroup label="📍 南投特殊 - NT$4,500/方起">
+              <option value="4500" style="color: #e74c3c">⛰️ 魚池鄉</option>
+            </optgroup>
+            <optgroup label="📍 雲林偏遠 - NT$2,500/方起">
+              <option value="2500">四湖鄉</option>
+              <option value="2500">東勢鄉</option>
+              <option value="2500">台西鄉</option>
+              <option value="2500">古坑鄉</option>
+              <option value="2500">口湖鄉</option>
+              <option value="2500">崙背鄉</option>
+              <option value="2500">麥寮鄉</option>
+            </optgroup>
+            <optgroup label="📍 嘉義偏遠 - NT$2,500/方起">
+              <option value="2500">東石鄉</option>
+              <option value="2500">六腳鄉</option>
+              <option value="2500">竹崎鄉</option>
+            </optgroup>
+            <optgroup label="📍 嘉義沿海 - NT$3,000/方起">
+              <option value="3000">布袋鎮</option>
+            </optgroup>
+            <optgroup label="📍 嘉義山區 - NT$5,000/方起">
+              <option value="5000" style="color: #dc3545">⛰️ 阿里山</option>
+              <option value="5000" style="color: #dc3545">⛰️ 梅山鄉</option>
+              <option value="5000" style="color: #dc3545">⛰️ 番路</option>
+              <option value="5000" style="color: #dc3545">⛰️ 中埔鄉</option>
+              <option value="5000" style="color: #dc3545">⛰️ 大埔鄉</option>
+            </optgroup>
+            <optgroup label="📍 台南偏遠 - NT$2,500/方起">
+              <option value="2500">白河區</option>
+              <option value="2500">東山區</option>
+              <option value="2500">大內區</option>
+              <option value="2500">玉井區</option>
+              <option value="2500">山上區</option>
+              <option value="2500">龍崎區</option>
+              <option value="2500">後壁區</option>
+              <option value="2500">左鎮區</option>
+            </optgroup>
+            <optgroup label="📍 台南沿海 - NT$3,000/方起">
+              <option value="3000">北門區</option>
+              <option value="3000">將軍區</option>
+              <option value="3000">七股區</option>
+              <option value="3000">楠西區</option>
+              <option value="3000">南化區</option>
+            </optgroup>
+            <optgroup label="📍 高雄偏遠 - NT$2,500/方起">
+              <option value="2500">燕巢</option>
+              <option value="2500">內門區</option>
+              <option value="2500">大樹</option>
+              <option value="2500">茄萣</option>
+              <option value="2500">林園</option>
+              <option value="2500">旗津</option>
+              <option value="2500">杉林</option>
+              <option value="2500">美濃</option>
+              <option value="2500">永安</option>
+              <option value="2500">阿蓮</option>
+              <option value="2500">田寮</option>
+              <option value="2500">旗山</option>
+            </optgroup>
+            <optgroup label="📍 高雄山區 - NT$4,500/方起">
+              <option value="4500" style="color: #e74c3c">⛰️ 那瑪夏區</option>
+              <option value="4500" style="color: #e74c3c">⛰️ 桃源區</option>
+              <option value="4auto" style="color: #e74c3c">⛰️ 茂林</option>
+              <option value="4500" style="color: #e74c3c">⛰️ 甲仙</option>
+              <option value="4500" style="color: #e74c3c">⛰️ 六龜</option>
+            </optgroup>
+            <optgroup label="📍 屏東全區 - NT$4,500/方起">
+              <option value="4500" style="color: #ff6b6b">
+                ⚠️ 屏東縣全區 (基本偏遠費)
+              </option>
+            </optgroup>
+            <optgroup label="📍 屏東特別偏遠 - NT$7,000/方起">
+              <option value="7000" style="color: #dc3545; font-weight: bold">
+                🏝️ 小琉球 (琉球鄉)
+              </option>
+              <option value="7000" style="color: #dc3545">🏖️ 恆春</option>
+              <option value="7000" style="color: #dc3545">🏖️ 墾丁</option>
+              <option value="7000" style="color: #dc3545">🏖️ 鵝鑾鼻</option>
+              <option value="7000" style="color: #dc3545">車城</option>
+              <option value="7000" style="color: #dc3545">滿洲</option>
+              <option value="7000" style="color: #dc3545">牡丹</option>
+              <option value="7000" style="color: #dc3545">獅子</option>
+              <option value="7000" style="color: #dc3545">枋山</option>
+              <option value="7000" style="color: #dc3545">春日</option>
+              <option value="7000" style="color: #dc3545">枋寮</option>
+              <option value="7000" style="color: #dc3545">佳冬</option>
+              <option value="7000" style="color: #dc3545">來義</option>
+              <option value="7000" style="color: #dc3545">泰武</option>
+              <option value="7000" style="color: #dc3545">瑪家</option>
+              <option value="7000" style="color: #dc3545">霧臺</option>
+              <option value="7000" style="color: #dc3545">三地門</option>
+            </optgroup>
+            <optgroup label="📍 東部地區">
+              <option value="7000" style="color: #dc3545">宜蘭：南澳</option>
+              <option value="7000" style="color: #dc3545">宜蘭：釣魚臺</option>
+              <option value="4500" style="color: #ff6b6b">
+                ⚠️ 宜蘭其他地區 (NT$4,500/方起，詳情請詢問客服)
+              </option>
+              <option value="4500" style="color: #ff6b6b">
+                ⚠️ 花蓮全區 (NT$4,500/方起，詳情請詢問客服)
+              </option>
+              <option value="4500" style="color: #ff6b6b">
+                ⚠️ 台東全區 (NT$4,500/方起，詳情請詢問客服)
+              </option>
+            </optgroup>
+          </select>
+          <div id="remoteAreaInfo" style="display: none">
+            <strong>您選擇的地區：</strong>
+            <span id="selectedAreaName"></span><br />
+            <strong>偏遠地區費用：</strong>
+            <span
+              id="selectedAreaFee"
+              style="color: #e74c3c; font-weight: bold"
+            ></span>
+          </div>
+        </div>
+        <button type="button" id="btn-calculate" class="btn btn-primary">
+          計算總運費
+        </button>
+      </div>
+
+      <div id="loading-spinner" style="display: none">
+        <div class="spinner"></div>
+        <p>正在連線後端 API 計算中...</p>
+      </div>
+      <div
+        id="error-message"
+        class="alert alert-error"
+        style="display: none"
+      ></div>
+      <div id="results-container" style="display: none"></div>
+
+      <script>
+        // 偏遠地區資料庫
+        const remoteAreas = {
+          1800: [
+            "東勢區",
+            "新社區",
+            "石岡區",
+            "和平區",
+            "大雪山",
+            "穀關",
+            "水里鄉",
+            "伸港鄉",
+            "線西鄉",
+            "秀水鄉",
+            "芬園鄉",
+            "芳苑鄉",
+            "大村鄉",
+            "大城鄉",
+            "竹塘鄉",
+            "北斗鎮",
+            "溪州鄉",
+          ],
+          2000: [
+            "三芝",
+            "石門",
+            "烏來",
+            "坪林",
+            "石碇區",
+            "深坑區",
+            "萬里",
+            "平溪",
+            "雙溪",
+            "福隆",
+            "貢寮",
+            "三峽區",
+            "淡水竹圍",
+            "復興鄉",
+            "新埔鎮",
+            "關西鎮",
+            "橫山鄉",
+            "北埔鄉",
+            "尖石鄉",
+            "五峰鄉",
+            "寶山鎮",
+            "香山區",
+            "造橋鎮",
+            "峨嵋鄉",
+            "三灣鄉",
+            "芎林鄉",
+            "頭屋鄉",
+            "銅鑼鄉",
+            "三義鄉",
+            "通霄鎮",
+            "苑裡鎮",
+            "大湖鄉",
+            "卓蘭鎮",
+            "泰安鄉",
+            "公館鄉",
+            "竹南鎮",
+          ],
+          2500: [
+            "名間鄉",
+            "四湖鄉",
+            "東勢鄉",
+            "台西鄉",
+            "古坑鄉",
+            "口湖鄉",
+            "崙背鄉",
+            "麥寮鄉",
+            "東石鄉",
+            "六腳鄉",
+            "竹崎鄉",
+            "白河區",
+            "東山區",
+            "大內區",
+            "玉井區",
+            "山上區",
+            "龍崎區",
+            "後壁區",
+            "左鎮區",
+            "燕巢",
+            "內門區",
+            "大樹",
+            "茄萣",
+            "林園",
+            "旗津",
+            "杉林",
+            "美濃",
+            "永安",
+            "阿蓮",
+            "田寮",
+            "旗山",
+          ],
+          3000: ["布袋鎮", "北門區", "將軍區", "七股區", "楠西區", "南化區"],
+          4000: [
+            "南莊鄉",
+            "獅潭鄉",
+            "竹山鎮",
+            "鹿谷鄉",
+            "集集鎮",
+            "中寮鄉",
+            "國姓鄉",
+            "仁愛鄉",
+            "信義鄉",
+            "梨山",
+            "奧萬大",
+            "埔里",
+          ],
+          4500: [
+            "陽明山",
+            "金山",
+            "魚池鄉",
+            "那瑪夏區",
+            "桃源區",
+            "茂林",
+            "甲仙",
+            "六龜",
+            "屏東縣全區",
+            "宜蘭其他地區",
+            "花蓮全區",
+            "台東全區",
+          ],
+          5000: ["阿里山", "梅山鄉", "番路", "中埔鄉", "大埔鄉"],
+          7000: [
+            "小琉球",
+            "琉球鄉",
+            "恆春",
+            "墾丁",
+            "鵝鑾鼻",
+            "車城",
+            "滿洲",
+            "牡丹",
+            "獅子",
+            "枋山",
+            "春日",
+            "枋寮",
+            "佳冬",
+            "來義",
+            "泰武",
+            "瑪家",
+            "霧臺",
+            "三地門",
+            "南澳",
+            "釣魚臺",
+          ],
+        };
+
+        // 監聽配送地區選擇變更
+        document
+          .getElementById("deliveryLocation")
+          .addEventListener("change", function () {
+            const selectedOption = this.options[this.selectedIndex];
+            const remoteAreaInfo = document.getElementById("remoteAreaInfo");
+            const selectedAreaName =
+              document.getElementById("selectedAreaName");
+            const selectedAreaFee = document.getElementById("selectedAreaFee");
+
+            if (this.value === "0") {
+              remoteAreaInfo.style.display = "block";
+              remoteAreaInfo.style.backgroundColor = "#d4edda";
+              remoteAreaInfo.style.borderLeft = "4px solid #28a745";
+              selectedAreaName.textContent = "一般地區";
+              selectedAreaName.style.color = "#155724";
+              selectedAreaFee.textContent = "無額外費用";
+              selectedAreaFee.style.color = "#155724";
+            } else if (this.value) {
+              remoteAreaInfo.style.display = "block";
+              const areaText = selectedOption.textContent
+                .replace(/[⛰️🏝️🏖️⚠️✅]/g, "")
+                .trim();
+              const feeValue = parseInt(this.value);
+              selectedAreaName.textContent = areaText;
+              selectedAreaFee.textContent = `NT$ ${feeValue.toLocaleString()} /方起`;
+
+              if (areaText.includes("客服")) {
+                remoteAreaInfo.style.backgroundColor = "#fff3cd";
+                remoteAreaInfo.style.borderLeft = "4px solid #ff9800";
+                selectedAreaName.style.color = "#ff6b6b";
+                selectedAreaFee.innerHTML = `NT$ ${feeValue.toLocaleString()} /方起 <small style="color: #ff9800;">(詳情請詢問客服)</small>`;
+                selectedAreaFee.style.color = "#e74c3c";
+              } else if (feeValue >= 5000) {
+                remoteAreaInfo.style.backgroundColor = "#f8d7da";
+                remoteAreaInfo.style.borderLeft = "4px solid #dc3545";
+                selectedAreaName.style.color = "#721c24";
+                selectedAreaFee.style.color = "#dc3545";
+              } else {
+                remoteAreaInfo.style.backgroundColor = "#fff3cd";
+                remoteAreaInfo.style.borderLeft = "4px solid #ffc107";
+                selectedAreaName.style.color = "#856404";
+                selectedAreaFee.style.color = "#e74c3c";
+              }
+            } else {
+              remoteAreaInfo.style.display = "none";
+            }
+          });
+
+        // 搜尋功能
+        document
+          .getElementById("areaSearch")
+          .addEventListener("input", function (e) {
+            const searchTerm = e.target.value.trim().toLowerCase();
+            const searchResults = document.getElementById("searchResults");
+
+            if (searchTerm.length < 1) {
+              searchResults.style.display = "none";
+              return;
+            }
+
+            let results = [];
+            for (const [fee, areas] of Object.entries(remoteAreas)) {
+              areas.forEach((area) => {
+                if (area.toLowerCase().includes(searchTerm)) {
+                  results.push({ area: area, fee: parseInt(fee) });
+                }
+              });
+            }
+
+            if (results.length > 0) {
+              searchResults.style.display = "block";
+              searchResults.innerHTML = results
+                .map(
+                  (r) => `
+            <div class="search-result-item" onclick="selectRemoteArea('${
+              r.area
+            }', ${r.fee})">
+              📍 ${r.area} 
+              <span style="color: #e74c3c; font-weight: bold; float: right;">
+                NT$ ${r.fee.toLocaleString()}/方起
+              </span>
+            </div>
+          `
+                )
+                .join("");
+            } else {
+              searchResults.style.display = "block";
+              searchResults.innerHTML = `
+            <div style="padding: 10px; color: #666; background: #f8f9fa;">
+              ✅ 找不到 "${searchTerm}"，可能屬於一般地區。
+            </div>
+          `;
+            }
+          });
+
+        // 選擇搜尋結果
+        window.selectRemoteArea = function (areaName, fee) {
+          const deliveryLocation = document.getElementById("deliveryLocation");
+          for (let i = 0; i < deliveryLocation.options.length; i++) {
+            const option = deliveryLocation.options[i];
+            if (option.value === fee.toString()) {
+              const optionText = option.textContent
+                .replace(/[⛰️🏝️🏖️⚠️]/g, "")
+                .trim();
+              if (optionText.includes(areaName)) {
+                deliveryLocation.selectedIndex = i;
+                deliveryLocation.dispatchEvent(new Event("change"));
+                document.getElementById("areaSearch").value = areaName;
+                document.getElementById("searchResults").style.display = "none";
+                deliveryLocation.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                });
+                break;
+              }
+            }
+          }
+        };
+
+        // 點擊其他地方關閉搜尋結果
+        document.addEventListener("click", function (e) {
+          if (!e.target.closest(".remote-area-search")) {
+            document.getElementById("searchResults").style.display = "none";
+          }
+        });
+      </script>
+
+      <script src="js/apiConfig.js"></script>
+      <script src="js/navigation.js"></script>
+      <script src="js/main.js"></script>
+    </div>
+
+    <footer class="site-footer">
+      <div class="site-footer__container">
+        <h3 class="site-footer__title">公司資訊</h3>
+
+        <div class="site-footer__grid">
+          <div>
+            <p class="site-footer__item">
+              <strong class="site-footer__label">公司名稱：</strong><br />
+              <span class="site-footer__value">兩隻老虎國際貿易有限公司</span>
+            </p>
+            <p class="site-footer__item">
+              <strong class="site-footer__label">統一編號：</strong><br />
+              <span class="site-footer__value">60660304</span>
+            </p>
+          </div>
+
+          <div>
+            <p class="site-footer__item">
+              <strong class="site-footer__label">電子郵件：</strong><br />
+              <a
+                href="mailto:2runtigers@gmail.com"
+                class="site-footer__link site-footer__link--email"
+              >
+                2runtigers@gmail.com
+              </a>
+            </p>
+            <p class="site-footer__item">
+              <strong class="site-footer__label">LINE 客服：</strong><br />
+              <a
+                href="https://lin.ee/eK6HptX"
+                target="_blank"
+                class="site-footer__link site-footer__link--line"
+              >
+                @runpiggy
+              </a>
+            </p>
+          </div>
+        </div>
+
+        <div class="site-footer__copyright">
+          <p class="site-footer__copyright-text">
+            © 2025 兩隻老虎國際貿易有限公司 版權所有
+          </p>
+          <p class="site-footer__copyright-text">
+            Twotigers International Trading CO., LTD.
+
+            <span class="separator">|</span>
+            <a href="admin-login.html" class="admin-stealth-link">管理員登入</a>
+          </p>
+        </div>
+      </div>
+    </footer>
+
+    <a
+      href="https://lin.ee/eK6HptX"
+      target="_blank"
+      class="line-fab"
+      title="聯絡 LINE 客服"
+    >
+      LINE
+    </a>
+  </body>
+</html>

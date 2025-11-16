@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>集運單管理 - 管理後台</title>
+    <link rel="icon" href="assets/logo.png" type="image/png" />
+    <link rel="stylesheet" href="css/style.css?v=2" />
+  </head>
+  <body>
+    <div class="container" style="max-width: 1400px">
+      <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
+
+      <div class="admin-header">
+        <h1>集運單管理</h1>
+        <div class="header-actions">
+          <a href="admin-dashboard.html" class="btn btn-secondary">儀表板</a>
+          <a
+            href="admin-register.html"
+            class="btn btn-secondary"
+            style="background-color: #2ecc71"
+            id="btn-nav-create-staff"
+            >新增員工帳號</a
+          >
+          <a href="admin-parcels.html" class="btn btn-secondary">包裹管理</a>
+          <a href="admin-shipments.html" class="btn btn-secondary active"
+            >集運單管理</a
+          >
+          <a
+            href="admin-members.html"
+            class="btn btn-secondary"
+            id="btn-nav-members"
+            >會員管理</a
+          >
+          <a href="admin-logs.html" class="btn btn-secondary" id="btn-nav-logs"
+            >操作日誌</a
+          >
+
+          <span id="admin-welcome"></span>
+          <button id="logoutBtn" class="btn-danger">登出</button>
+        </div>
+      </div>
+
+      <div class="filters">
+        <select id="filter-status">
+          <option value="">所有狀態</option>
+          <option value="PENDING_PAYMENT">待付款</option>
+          <option value="PROCESSING">已收款，安排裝櫃</option>
+          <option value="SHIPPED">已裝櫃</option>
+          <option value="COMPLETED">海關查驗</option>
+          <option value="CANCELLEDD">清關放行</option>
+          <option value="CANCELL">拆櫃派送</option>
+          <option value="CANCEL">已完成</option>
+          <option value="CANCELLED">已取消/退回</option>
+        </select>
+        <input
+          type="text"
+          id="search-input"
+          placeholder="搜尋收件人/Email/身分證..."
+        />
+        <button class="btn btn-primary" id="filter-btn">搜尋</button>
+      </div>
+
+      <div class="members-table-container">
+        <table class="members-table">
+          <thead>
+            <tr>
+              <th>操作</th>
+              <th>建立時間</th>
+              <th>會員 Email</th>
+              <th>收件人</th>
+              <th>狀態</th>
+              <th>總金額</th>
+              <th>台灣物流單號</th>
+            </tr>
+          </thead>
+          <tbody id="shipmentsTableBody">
+            <tr>
+              <td colspan="7" class="loading">
+                <div class="spinner"></div>
+                <p>載入集運單資料中...</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="edit-shipment-modal" class="modal-overlay" style="display: none">
+      <div class="modal-content modal-lg">
+        <button class="modal-close">&times;</button>
+        <h2>編輯集運單</h2>
+
+        <input type="hidden" id="edit-shipment-id" />
+
+        <form id="edit-shipment-form">
+          <div class="form-section">
+            <h4>訂單資訊</h4>
+            <div class="info-grid">
+              <p><strong>會員:</strong> <span id="modal-user-email">-</span></p>
+              <p>
+                <strong>收件人:</strong>
+                <span id="modal-recipient-name">-</span>
+              </p>
+              <p><strong>電話:</strong> <span id="modal-phone">-</span></p>
+              <p><strong>身分證:</strong> <span id="modal-idNumber">-</span></p>
+              <p><strong>地址:</strong> <span id="modal-address">-</span></p>
+            </div>
+            <h4>包含包裹</h4>
+            <div id="modal-package-list" class="simple-list"></div>
+            <h4>附加服務</h4>
+            <div id="modal-services" class="simple-list"></div>
+          </div>
+
+          <div
+            style="
+              margin-top: 15px;
+              border-top: 1px dashed #ccc;
+              padding-top: 10px;
+            "
+          >
+            <p>
+              <strong>客戶備註:</strong>
+              <span id="modal-note" style="color: #d32f2f">-</span>
+            </p>
+            <p>
+              <strong>付款憑證:</strong> <span id="modal-payment-proof">-</span>
+            </p>
+          </div>
+
+          <div class="form-section">
+            <h4>管理員操作</h4>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label for="modal-status" class="required">訂單狀態</label>
+                <select id="modal-status" class="form-control">
+                  <option value="PENDING_PAYMENT">待付款</option>
+                  <option value="PROCESSING">已收款，安排裝櫃</option>
+                  <option value="SHIPPED">已裝櫃</option>
+                  <option value="COMPLETED">海關查驗</option>
+                  <option value="CANCELLEDD">清關放行</option>
+                  <option value="CANCELL">拆櫃派送</option>
+                  <option value="CANCEL">已完成</option>
+
+                  <option
+                    value="CANCELLED"
+                    style="color: #e74c3c; font-weight: bold"
+                  >
+                    [退回] 取消此單 (釋放包裹)
+                  </option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="modal-totalCost">總金額 (NT$)</label>
+                <input
+                  type="number"
+                  id="modal-totalCost"
+                  class="form-control"
+                  step="1"
+                />
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="modal-trackingNumberTW">台灣物流單號</label>
+              <input
+                type="text"
+                id="modal-trackingNumberTW"
+                class="form-control"
+              />
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">儲存集運單變更</button>
+        </form>
+      </div>
+    </div>
+
+    <script src="js/apiConfig.js"></script>
+    <script src="js/admin-shipments.js"></script>
+  </body>
+</html>

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>包裹預報管理 - 管理後台</title>
+    <link rel="icon" href="assets/logo.png" type="image/png" />
+    <link rel="stylesheet" href="css/style.css?v=2" />
+  </head>
+  <body>
+    <div class="container" style="max-width: 1400px">
+      <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
+
+      <div class="admin-header">
+        <h1>包裹管理</h1>
+        <div class="header-actions">
+          <a href="admin-dashboard.html" class="btn btn-secondary">儀表板</a>
+          <a
+            href="admin-register.html"
+            class="btn btn-secondary"
+            style="background-color: #2ecc71"
+            id="btn-nav-create-staff"
+            >新增員工帳號</a
+          >
+          <a href="admin-parcels.html" class="btn btn-secondary active"
+            >包裹管理</a
+          >
+          <a href="admin-shipments.html" class="btn btn-secondary"
+            >集運單管理</a
+          >
+          <a
+            href="admin-members.html"
+            class="btn btn-secondary"
+            id="btn-nav-members"
+            >管理會員/操作員</a
+          >
+          <a href="admin-logs.html" class="btn btn-secondary" id="btn-nav-logs"
+            >操作日誌</a
+          >
+
+          <span id="admin-welcome"></span>
+          <button id="logoutBtn" class="btn-danger">登出</button>
+        </div>
+      </div>
+
+      <div class="stats-container">
+        <div class="stat-card">
+          <h3>總預報數</h3>
+          <p id="stats-total">0</p>
+        </div>
+        <div class="stat-card pending">
+          <h3>待確認 (PENDING)</h3>
+          <p id="stats-pending">0</p>
+        </div>
+        <div class="stat-card arrived">
+          <h3>已到倉 (ARRIVED)</h3>
+          <p id="stats-arrived">0</p>
+        </div>
+        <div class="stat-card completed">
+          <h3>已集運 (IN_SHIPMENT)</h3>
+          <p id="stats-completed">0</p>
+        </div>
+      </div>
+
+      <div class="filters">
+        <select id="filter-status">
+          <option value="">所有狀態</option>
+          <option value="PENDING">待確認</option>
+          <option value="ARRIVED">已到倉</option>
+          <option value="IN_SHIPMENT">集運中</option>
+          <option value="COMPLETED">已完成</option>
+          <option value="CANCELLED">已取消</option>
+        </select>
+        <input
+          type="text"
+          id="search-input"
+          placeholder="搜尋單號/商品名稱/會員Email..."
+        />
+        <button class="btn btn-primary" id="filter-btn">搜尋</button>
+
+        <button
+          class="btn btn-secondary"
+          id="btn-show-create-modal"
+          style="background-color: #2ecc71; width: auto; margin-left: auto"
+        >
+          + 新增包裹 (代客預報)
+        </button>
+      </div>
+
+      <div class="parcel-management">
+        <div class="admin-table-wrapper">
+          <table class="parcel-table">
+            <thead>
+              <tr>
+                <th>操作</th>
+                <th>預報時間</th>
+                <th>會員 Email</th>
+                <th>物流單號</th>
+                <th>商品名稱</th>
+                <th>狀態</th>
+                <th>實重(kg)</th>
+                <th>尺寸(cm)</th>
+                <th>總運費</th>
+              </tr>
+            </thead>
+            <tbody id="parcelsTableBody">
+              <tr>
+                <td
+                  colspan="9"
+                  style="text-align: center; padding: 30px; color: #999"
+                >
+                  載入中...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="parcel-detail-modal" class="modal-overlay" style="display: none">
+      <div class="modal-content modal-lg">
+        <button class="modal-close-btn">&times;</button>
+        <h2>包裹詳細資訊 (管理員)</h2>
+
+        <form id="update-package-form">
+          <input type="hidden" id="modal-pkg-id" />
+
+          <div class="form-section">
+            <h4>會員資訊</h4>
+            <div class="info-grid">
+              <p>
+                <strong>Email:</strong> <span id="modal-user-email">-</span>
+              </p>
+              <p><strong>姓名:</strong> <span id="modal-user-name">-</span></p>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h4>包裹預報資訊</h4>
+            <div class="info-grid">
+              <p>
+                <strong>物流單號:</strong>
+                <span id="modal-trackingNumber">-</span>
+              </p>
+              <p>
+                <strong>商品名稱:</strong> <span id="modal-productName">-</span>
+              </p>
+              <p><strong>數量:</strong> <span id="modal-quantity">-</span></p>
+              <p><strong>會員備註:</strong> <span id="modal-note">-</span></p>
+            </div>
+            <div id="modal-customer-images" class="parcel-images"></div>
+          </div>
+
+          <div class="form-section">
+            <h4>倉庫回填 (入庫作業)</h4>
+
+            <div class="form-group">
+              <label for="modal-status" class="required">包裹狀態</label>
+              <select id="modal-status" class="form-control">
+                <option value="PENDING">待確認 (PENDING)</option>
+                <option value="ARRIVED">已入庫 (ARRIVED)</option>
+                <option value="IN_SHIPMENT">集運中 (IN_SHIPMENT)</option>
+                <option value="COMPLETED">已完成 (COMPLETED)</option>
+                <option value="CANCELLED">已取消 (CANCELLED)</option>
+              </select>
+            </div>
+
+            <hr />
+
+            <div id="sub-package-list-container">
+              <label style="font-weight: bold; font-size: 1.1em; color: #333"
+                >分箱明細 (請填寫所有抵達的包裹)</label
+              >
+              <div id="sub-package-list" style="margin-top: 10px"></div>
+              <button
+                type="button"
+                id="btn-add-sub-package"
+                class="btn btn-secondary"
+                style="width: auto; margin-top: 10px; background-color: #2ecc71"
+              >
+                + 新增一個分箱
+              </button>
+            </div>
+            <div
+              class="form-group"
+              style="
+                background: #e8f5e9;
+                padding: 15px;
+                border-radius: 5px;
+                margin-top: 20px;
+              "
+            >
+              <label style="color: #2e7d32; font-weight: bold; font-size: 1.2em"
+                >此預報單總運費 (NT$)</label
+              >
+              <input
+                type="text"
+                id="modal-shippingFee"
+                class="form-control"
+                style="
+                  font-weight: bold;
+                  color: #d32f2f;
+                  font-size: 1.5em;
+                  text-align: right;
+                "
+                readonly
+                placeholder="請填寫分箱明細"
+              />
+            </div>
+
+            <div
+              class="form-group"
+              style="
+                border-top: 1px dashed #ccc;
+                padding-top: 15px;
+                margin-top: 20px;
+              "
+            >
+              <label>上傳倉庫照片 (可多選, 最多5張)</label>
+              <input
+                type="file"
+                id="modal-warehouseImages"
+                class="form-control"
+                multiple
+                accept="image/*"
+              />
+            </div>
+            <div
+              id="modal-warehouse-images-preview"
+              class="parcel-images"
+            ></div>
+          </div>
+          <button type="submit" class="btn btn-primary">儲存更新</button>
+        </form>
+      </div>
+    </div>
+
+    <div
+      id="admin-create-package-modal"
+      class="modal-overlay"
+      style="display: none"
+    >
+      <div class="modal-content">
+        <button class="modal-close-btn">&times;</button>
+        <h2>新增包裹 (代客預報)</h2>
+        <p>為客戶建立一個新的包裹預報 (狀態將預設為 PENDING)。</p>
+
+        <div
+          id="admin-create-message-box"
+          class="alert"
+          style="display: none"
+        ></div>
+
+        <form id="admin-create-package-form">
+          <div class="form-group">
+            <label for="admin-customer-search" class="required">搜尋客戶</label>
+            <input
+              type="text"
+              id="admin-customer-search"
+              class="form-control"
+              placeholder="輸入客戶 Email 或姓名..."
+            />
+            <div
+              id="admin-customer-search-results"
+              style="
+                max-height: 150px;
+                overflow-y: auto;
+                border: 1px solid #ccc;
+                display: none;
+                border-top: none;
+              "
+            ></div>
+            <input type="hidden" id="admin-create-userId" />
+            <input
+              type="text"
+              id="admin-create-email-display"
+              class="form-control"
+              style="
+                margin-top: 5px;
+                background-color: #f0f0f0;
+                color: #333;
+                font-weight: bold;
+              "
+              readonly
+              placeholder="請從上方搜尋並選取客戶"
+            />
+          </div>
+          <hr />
+          <div class="form-group">
+            <label for="admin-create-tracking" class="required">物流單號</label>
+            <input
+              type="text"
+              id="admin-create-tracking"
+              class="form-control"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="admin-create-product" class="required">商品名稱</label>
+            <input
+              type="text"
+              id="admin-create-product"
+              class="form-control"
+              required
+            />
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="admin-create-quantity">數量</label>
+              <input
+                type="number"
+                id="admin-create-quantity"
+                class="form-control"
+                value="1"
+                min="1"
+              />
+            </div>
+            <div class="form-group">
+              <label for="admin-create-images">商品圖片 (最多5張)</label>
+              <input
+                type="file"
+                id="admin-create-images"
+                class="form-control"
+                multiple
+                accept="image/*"
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="admin-create-note">備註</label>
+            <textarea
+              id="admin-create-note"
+              class="form-control"
+              rows="3"
+              placeholder="..."
+            ></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">確認新增</button>
+        </form>
+      </div>
+    </div>
+    <script src="js/apiConfig.js"></script>
+    <script src="js/admin-parcels.js"></script>
+  </body>
+</html>

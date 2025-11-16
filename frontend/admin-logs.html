@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>操作日誌 - 管理後台</title>
+    <link rel="icon" href="assets/logo.png" type="image/png" />
+    <link rel="stylesheet" href="css/style.css?v=2" />
+  </head>
+  <body>
+    <div class="container" style="max-width: 1400px">
+      <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
+
+      <div class="admin-header">
+        <h1>操作日誌</h1>
+        <div class="header-actions">
+          <a href="admin-dashboard.html" class="btn btn-secondary">儀表板</a>
+          <a
+            href="admin-register.html"
+            class="btn btn-secondary"
+            style="background-color: #2ecc71"
+            id="btn-nav-create-staff"
+            >新增員工帳號</a
+          >
+          <a href="admin-parcels.html" class="btn btn-secondary">包裹管理</a>
+          <a href="admin-shipments.html" class="btn btn-secondary"
+            >集運單管理</a
+          >
+          <a
+            href="admin-members.html"
+            class="btn btn-secondary"
+            id="btn-nav-members"
+            >會員管理</a
+          >
+          <a
+            href="admin-logs.html"
+            class="btn btn-secondary active"
+            id="btn-nav-logs"
+            >操作日誌</a
+          >
+
+          <span id="admin-welcome"></span>
+          <button id="logoutBtn" class="btn-danger">登出</button>
+        </div>
+      </div>
+
+      <div id="admin-only-content">
+        <div class="members-table-container">
+          <table class="members-table">
+            <thead>
+              <tr>
+                <th style="width: 15%">時間</th>
+                <th style="width: 15%">操作員工</th>
+                <th style="width: 20%">動作 (Action)</th>
+                <th style="width: 20%">目標 ID</th>
+                <th style="width: 30%">詳細資訊</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody">
+              <tr>
+                <td colspan="5" class="loading">
+                  <div class="spinner"></div>
+                  <p>載入日誌資料中...</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/apiConfig.js"></script>
+    <script src="js/admin-logs.js"></script>
+  </body>
+</html>

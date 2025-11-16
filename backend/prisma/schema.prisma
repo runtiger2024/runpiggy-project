@@ -1,0 +1,115 @@
+// 這是 backend/prisma/schema.prisma (V3 權限系統版)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- 1. 會員 (客戶) 資料模型 ---
+model User {
+  id             String     @id @default(cuid())
+  email          String     @unique
+  passwordHash   String
+  name           String?
+  phone          String?
+  defaultAddress String?
+  
+  // [*** V3 關鍵修正：用 permissions 取代 role ***]
+  permissions    String     @default("[]") // 新欄位：儲存 JSON 陣列
+  // [*** 修正結束 ***]
+
+  isActive       Boolean    @default(true) 
+
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  packages       Package[]
+  shipments      Shipment[]
+  activityLogs   ActivityLog[] 
+}
+
+// --- 2. 包裹 (預報) 資料模型 ---
+model Package {
+  id               String    @id @default(cuid())
+  
+  trackingNumber   String    
+  productName      String    
+  quantity         Int       @default(1)
+  note             String?
+  productImages    String    @default("[]") 
+  status           String    @default("PENDING") 
+
+  arrivedBoxesJson   String?   @default("[]") 
+  totalCalculatedFee Float?
+  warehouseImages    String    @default("[]") 
+  warehouseRemark    String?
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+
+  userId           String
+  user             User      @relation(fields: [userId], references: [id])
+
+  shipmentId       String?
+  shipment         Shipment? @relation(fields: [shipmentId], references: [id])
+
+  @@index([userId])
+  @@index([shipmentId])
+}
+
+// --- 3. 集運單資料模型 ---
+model Shipment {
+  id                   String    @id @default(cuid())
+  
+  recipientName        String
+  phone                String
+  shippingAddress      String
+  idNumber             String    
+  taxId                String?   
+  note                 String?   
+
+  additionalServices   String?   
+  deliveryLocationRate Float?    
+  
+  status               String    @default("PENDING_PAYMENT") 
+  totalCost            Float?    
+  trackingNumberTW     String?   
+  paymentProof         String?   
+
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @default(now()) @updatedAt
+
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id])
+  packages             Package[] 
+
+  @@index([userId])
+}
+
+// --- 4. 估價單 (分享連結用) ---
+model CalculationQuote {
+  id                String    @id @default(cuid())
+  createdAt         DateTime  @default(now())
+  calculationResult String    
+}
+
+// --- 5. 操作日誌 (Audit Log) ---
+model ActivityLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  action    String 
+  targetId  String?  
+  details   String?  
+
+  userId    String
+  userEmail String 
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+}
