@@ -1,11 +1,11 @@
-// 這是 frontend/js/dashboard.js (V7.2 - 顯示偏遠地區費公式)
+// 這是 frontend/js/dashboard.js (V7.3 - 優化偏遠地區費顯示)
 // (1) 修正 V3 佇列 Bug
 // (2) 新增 V4 佇列 UI
 // (3) 延長 showMessage
 // (4) 新增「超重/超長/堆高機」警告
 // (5) [V5 修正] 統一集運單狀態 (shipmentStatusMap)
 // (6) [!! 程式夥伴新增 !!] 優化：上傳憑證後，狀態顯示為「已付款，待審核」
-// (7) [!!! V7.2 修正：將偏遠地區費公式顯示在 warnings 區塊 !!!]
+// (7) [!!! V7.3 修正：將偏遠地區費併入基本運費小字中 !!!]
 
 // --- [*** V5 修正：從 calculatorController.js 引入規則 ***] ---
 const RATES = {
@@ -699,19 +699,35 @@ document.addEventListener("DOMContentLoaded", () => {
     const remoteFee = Math.round(totalCbm * deliveryRate);
 
     let finalBaseCost = totalFee;
-    let noticeHtml = ""; // [!!! V7.2 修正 !!!]
+    let noticeHtml = "";
 
+    // 4. [!!! V7.3 關鍵修正：組合小字提示 !!!]
     if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
       finalBaseCost = MINIMUM_CHARGE;
-      noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(基本運費 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE.toLocaleString()})</span>`;
+      // 情況1：有低消
+      noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(基本運費 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE.toLocaleString()}`;
     } else {
-      noticeHtml = `(基本運費 $${totalFee.toLocaleString()})`;
+      // 情況2：無低消
+      noticeHtml = `(基本運費 $${finalBaseCost.toLocaleString()}`;
     }
+
+    // 判斷是否要加上偏遠費
+    if (remoteFee > 0) {
+      noticeHtml += ` + 偏遠費 $${remoteFee.toLocaleString()}`;
+    }
+
+    // 加上結尾括號
+    if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
+      noticeHtml += `)</span>`;
+    } else {
+      noticeHtml += `)`;
+    }
+    // [!!! V7.3 修正結束 !!!]
 
     const finalTotalCost =
       finalBaseCost + totalOverweightFee + totalOversizedFee + remoteFee;
 
-    // 4. [!!! V7.2 關鍵修正：重新組合附加費與偏遠地區費公式 !!!]
+    // 5. [!!! V7.2 關鍵修正：重新組合附加費與偏遠地區費公式 !!!]
     warningHtml = ""; // 清空
 
     // (A) 顯示偏遠地區費公式
@@ -735,7 +751,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     // --- [!!! V7.2 修正結束 !!!] ---
 
-    // 5. 填入 UI
+    // 6. 填入 UI
     shipmentTotalCost.textContent = finalTotalCost.toLocaleString();
     shipmentFeeNotice.innerHTML = noticeHtml;
     shipmentWarnings.innerHTML = warningHtml;
