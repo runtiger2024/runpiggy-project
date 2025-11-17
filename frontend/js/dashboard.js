@@ -1,11 +1,11 @@
-// 這是 frontend/js/dashboard.js (V7.1 - 修正偏遠地區選取邏輯)
+// 這是 frontend/js/dashboard.js (V7.2 - 顯示偏遠地區費公式)
 // (1) 修正 V3 佇列 Bug
 // (2) 新增 V4 佇列 UI
 // (3) 延長 showMessage
 // (4) 新增「超重/超長/堆高機」警告
 // (5) [V5 修正] 統一集運單狀態 (shipmentStatusMap)
 // (6) [!! 程式夥伴新增 !!] 優化：上傳憑證後，狀態顯示為「已付款，待審核」
-// (7) [!!! V7.1 修正：重構運費計算邏輯，修復地區選取 Bug !!!]
+// (7) [!!! V7.2 修正：將偏遠地區費公式顯示在 warnings 區塊 !!!]
 
 // --- [*** V5 修正：從 calculatorController.js 引入規則 ***] ---
 const RATES = {
@@ -635,7 +635,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // [!!! V7.1 修正：建立一個可重用的費用計算函式 !!!]
+  // [!!! V7.2 修正：建立一個可重用的費用計算函式 !!!]
   function recalculateShipmentTotal() {
     const checked = document.querySelectorAll(".package-checkbox:checked");
     if (checked.length === 0) {
@@ -699,32 +699,45 @@ document.addEventListener("DOMContentLoaded", () => {
     const remoteFee = Math.round(totalCbm * deliveryRate);
 
     let finalBaseCost = totalFee;
-    let noticeHtml = `(基本運費 $${totalFee.toLocaleString()}`;
+    let noticeHtml = ""; // [!!! V7.2 修正 !!!]
 
     if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
       finalBaseCost = MINIMUM_CHARGE;
-      noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(基本運費 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE.toLocaleString()})`;
+      noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(基本運費 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE.toLocaleString()})</span>`;
+    } else {
+      noticeHtml = `(基本運費 $${totalFee.toLocaleString()})`;
     }
 
     const finalTotalCost =
       finalBaseCost + totalOverweightFee + totalOversizedFee + remoteFee;
 
-    // 4. 填入 UI
-    shipmentTotalCost.textContent = finalTotalCost.toLocaleString();
+    // 4. [!!! V7.2 關鍵修正：重新組合附加費與偏遠地區費公式 !!!]
+    warningHtml = ""; // 清空
 
+    // (A) 顯示偏遠地區費公式
     if (remoteFee > 0) {
-      noticeHtml += ` + 偏遠費 $${remoteFee.toLocaleString()}`;
+      warningHtml += `<div>🚚 偏遠地區費: (總 ${totalShipmentVolume} 材 / ${CBM_TO_CAI_FACTOR.toFixed(
+        1
+      )} = ${totalCbm.toFixed(
+        2
+      )} CBM) × $${deliveryRate.toLocaleString()} = <strong>$${remoteFee.toLocaleString()}</strong></div>`;
     }
-    noticeHtml += ")";
-    shipmentFeeNotice.innerHTML = noticeHtml;
 
+    // (B) 顯示超長費 (高亮)
     if (hasAnyOversizedItem) {
-      warningHtml += `<div>⚠️ 偵測到超長件 (單邊 > ${OVERSIZED_LIMIT}cm)，已加收 $${OVERSIZED_FEE} 超長費。</div>`;
+      warningHtml += `<div>⚠️ 偵測到超長件 (單邊 > ${OVERSIZED_LIMIT}cm)，已加收 <strong>$${OVERSIZED_FEE.toLocaleString()} 超長費</strong>。</div>`;
     }
+
+    // (C) 顯示超重費 (高亮)
     if (hasAnyOverweightItem) {
-      warningHtml += `<div>⚠️ 偵測到超重件 (單件 > ${OVERWEIGHT_LIMIT}kg)，已加收 $${OVERWEIGHT_FEE} 超重費。</div>`;
-      warningHtml += `<div style="font-size: 0.9em;">(超重件台灣收件地，請務必自行安排堆高機下貨)</div>`;
+      warningHtml += `<div>⚠️ 偵測到超重件 (單件 > ${OVERWEIGHT_LIMIT}kg)，已加收 <strong>$${OVERWEIGHT_FEE.toLocaleString()} 超重費</strong>。</div>`;
+      warningHtml += `<div style="font-size: 0.9em; font-weight: normal;">(超重件台灣收件地，請務必自行安排堆高機下貨)</div>`;
     }
+    // --- [!!! V7.2 修正結束 !!!] ---
+
+    // 5. 填入 UI
+    shipmentTotalCost.textContent = finalTotalCost.toLocaleString();
+    shipmentFeeNotice.innerHTML = noticeHtml;
     shipmentWarnings.innerHTML = warningHtml;
   }
   // --- [!!! V7.1 修正結束 !!!] ---
@@ -1082,7 +1095,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const originalColor = btnCopyBankInfo.style.backgroundColor;
           btnCopyBankInfo.textContent = "✓ 已複製成功！";
           btnCopyBankInfo.style.backgroundColor = "#27ae60";
-          btnCopyBankPlayer.disabled = true;
+          btnCopyBankInfo.disabled = true;
           setTimeout(() => {
             btnCopyBankInfo.textContent = originalText;
             btnCopyBankInfo.style.backgroundColor = originalColor;
