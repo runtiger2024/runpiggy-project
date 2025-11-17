@@ -1,4 +1,4 @@
-// 這是 backend/utils/sendEmail.js (新檔案)
+// 這是 backend/utils/sendEmail.js (修正版)
 
 const sgMail = require("@sendgrid/mail");
 require("dotenv").config(); // 確保 .env 檔案被讀取
@@ -20,7 +20,16 @@ if (!process.env.SENDGRID_API_KEY) {
 }
 
 const SENDER_EMAIL = process.env.SENDER_EMAIL_ADDRESS;
-const RECIPIENT_EMAIL = process.env.ADMIN_EMAIL_RECIPIENT;
+
+// [!!! 關鍵修正 !!!]
+// 讀取環境變數字串，並立即將其處理成一個 Email 陣列
+let RECIPIENT_EMAILS = [];
+if (process.env.ADMIN_EMAIL_RECIPIENT) {
+  RECIPIENT_EMAILS = process.env.ADMIN_EMAIL_RECIPIENT.split(",") // 1. 透過逗號(,)切割字串
+    .map((email) => email.trim()) // 2. 移除每個 email 地址前後可能有的空白
+    .filter((email) => email.length > 0); // 3. 移除空字串 (以防萬一)
+}
+// [!!! 修正結束 !!!]
 
 /**
  * [新功能] 發送「新集運單成立」的通知給管理員
@@ -28,9 +37,16 @@ const RECIPIENT_EMAIL = process.env.ADMIN_EMAIL_RECIPIENT;
  * @param {object} customer - 執行此操作的客戶 (req.user)
  */
 const sendNewShipmentNotification = async (shipment, customer) => {
-  // 如果 .env 變數不完整，則靜默失敗並在後台顯示警告
-  if (!process.env.SENDGRID_API_KEY || !SENDER_EMAIL || !RECIPIENT_EMAIL) {
-    console.warn("SendGrid 環境變數不完整，已跳過 Email 發送程序。");
+  // [!!! 關鍵修正 !!!]
+  // 檢查 SENDER_EMAIL 是否存在，以及 RECIPIENT_EMAILS 陣列是否為空
+  if (
+    !process.env.SENDGRID_API_KEY ||
+    !SENDER_EMAIL ||
+    RECIPIENT_EMAILS.length === 0
+  ) {
+    console.warn(
+      "SendGrid 環境變數不完整 (API Key, 寄件人, 或收件人為空)，已跳過 Email 發送程序。"
+    );
     return; // 不執行
   }
 
@@ -70,7 +86,7 @@ const sendNewShipmentNotification = async (shipment, customer) => {
 
   // 建立 SendGrid 訊息物件
   const msg = {
-    to: RECIPIENT_EMAIL, // 收件人 (可以是用逗號分隔的字串)
+    to: RECIPIENT_EMAILS, // [!!! 關鍵修正 !!!] 這裡現在傳入的是 Email 陣列
     from: SENDER_EMAIL, // 您在 SendGrid 驗證過的寄件人
     subject: subject,
     html: html,
@@ -79,7 +95,9 @@ const sendNewShipmentNotification = async (shipment, customer) => {
   try {
     await sgMail.send(msg);
     console.log(
-      `[Email] 已成功發送新訂單 ${shipment.id} 的通知至 ${RECIPIENT_EMAIL}`
+      `[Email] 已成功發送新訂單 ${shipment.id} 的通知至 ${RECIPIENT_EMAILS.join(
+        ", "
+      )}`
     );
   } catch (error) {
     console.error(`[Email] 發送 SendGrid 郵件時發生嚴重錯誤:`, error);
