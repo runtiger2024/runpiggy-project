@@ -1,5 +1,6 @@
-// 這是 backend/controllers/shipmentController.js (V2 修正版)
+// 這是 backend/controllers/shipmentController.js (V7 - 整合偏遠地區運費計算)
 // (修正：補上「超重費」和「超長費」的計算邏輯)
+// (V7 修正：補上「偏遠地區費」的計算邏輯)
 
 const prisma = require("../config/db.js");
 
@@ -9,6 +10,9 @@ const OVERSIZED_LIMIT = 300;
 const OVERSIZED_FEE = 800;
 const OVERWEIGHT_LIMIT = 100;
 const OVERWEIGHT_FEE = 800;
+// [!!! V7 新增：計算 CBM 用的常數 !!!]
+const VOLUME_DIVISOR = 28317;
+const CBM_TO_CAI_FACTOR = 35.3;
 // [*** 修正結束 ***]
 
 /**
@@ -18,7 +22,7 @@ const OVERWEIGHT_FEE = 800;
  */
 const createShipment = async (req, res) => {
   try {
-    // 1. 從前端取得資訊
+    // 1. [!!! V7 修正：取得新欄位 !!!]
     const {
       packageIds,
       shippingAddress,
@@ -27,6 +31,7 @@ const createShipment = async (req, res) => {
       idNumber,
       taxId,
       note,
+      deliveryLocationRate, // <-- [!!! V7 新增 !!!]
     } = req.body;
 
     const userId = req.user.id;
@@ -41,6 +46,13 @@ const createShipment = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "請提供完整的收件人姓名、電話、地址 和 身分證字號",
+      });
+    }
+    // [!!! V7 新增：驗證 deliveryLocationRate !!!]
+    if (deliveryLocationRate === undefined || deliveryLocationRate === null) {
+      return res.status(400).json({
+        success: false,
+        message: "請提供配送地區費率 (deliveryLocationRate)",
       });
     }
 
@@ -61,30 +73,44 @@ const createShipment = async (req, res) => {
       });
     }
 
-    // 3. [*** 關鍵修正：計算總運費 (包含附加費) ***]
+    // 3. [*** V7 關鍵修正：計算總運費 (包含附加費 + 偏遠地區費) ***]
 
     // (A) 累加所有包裹的 "基本運費"
     const calculatedTotalCost = packagesToShip.reduce((sum, pkg) => {
       return sum + (pkg.totalCalculatedFee || 0);
     }, 0);
 
-    // (B) 檢查是否觸發 "附加費"
+    // (B) 檢查是否觸發 "附加費" + [!!! V7 新增：計算總材積 !!!]
     let hasAnyOversizedItem = false;
     let hasAnyOverweightItem = false;
+    let totalShipmentVolume = 0; // [!!! V7 新增 !!!]
 
     packagesToShip.forEach((pkg) => {
       try {
         const boxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
         boxes.forEach((box) => {
+          const length = parseFloat(box.length) || 0;
+          const width = parseFloat(box.width) || 0;
+          const height = parseFloat(box.height) || 0;
+          const weight = parseFloat(box.weight) || 0;
+
           if (
-            parseFloat(box.length) > OVERSIZED_LIMIT ||
-            parseFloat(box.width) > OVERSIZED_LIMIT ||
-            parseFloat(box.height) > OVERSIZED_LIMIT
+            length > OVERSIZED_LIMIT ||
+            width > OVERSIZED_LIMIT ||
+            height > OVERSIZED_LIMIT
           ) {
             hasAnyOversizedItem = true;
           }
-          if (parseFloat(box.weight) > OVERWEIGHT_LIMIT) {
+          if (weight > OVERWEIGHT_LIMIT) {
             hasAnyOverweightItem = true;
+          }
+
+          // [!!! V7 新增：累加總材積 !!!]
+          if (length > 0 && width > 0 && height > 0) {
+            const singleVolume = Math.ceil(
+              (length * width * height) / VOLUME_DIVISOR
+            );
+            totalShipmentVolume += singleVolume;
           }
         });
       } catch (e) {
@@ -95,15 +121,21 @@ const createShipment = async (req, res) => {
     const totalOverweightFee = hasAnyOverweightItem ? OVERWEIGHT_FEE : 0;
     const totalOversizedFee = hasAnyOversizedItem ? OVERSIZED_FEE : 0;
 
+    // [!!! V7 新增：計算偏遠地區費 !!!]
+    const totalCbm = totalShipmentVolume / CBM_TO_CAI_FACTOR;
+    const remoteFee = Math.round(
+      totalCbm * (parseFloat(deliveryLocationRate) || 0)
+    );
+
     // (C) 套用 "低消" 邏輯
     let finalBaseCost = calculatedTotalCost;
     if (finalBaseCost > 0 && finalBaseCost < MINIMUM_CHARGE) {
       finalBaseCost = MINIMUM_CHARGE;
     }
 
-    // (D) 計算最終總金額
+    // (D) [!!! V7 修正：計算最終總金額 !!!]
     const finalTotalCost =
-      finalBaseCost + totalOverweightFee + totalOversizedFee;
+      finalBaseCost + totalOverweightFee + totalOversizedFee + remoteFee;
 
     // [*** 修正結束 ***]
 
@@ -114,13 +146,14 @@ const createShipment = async (req, res) => {
         data: {
           recipientName: recipientName,
           phone: phone,
-          shippingAddress: shippingAddress,
+          shippingAddress: shippingAddress, // [!!! V7 修正 !!!] 這裡已是組合好的完整地址
           idNumber: idNumber,
           taxId: taxId || null,
           note: note || null,
 
-          // [修改] 寫入 "最終總金額"
+          // [!!! V7 修正 !!!] 寫入 "最終總金額" 和 "費率"
           totalCost: finalTotalCost,
+          deliveryLocationRate: parseFloat(deliveryLocationRate) || 0, // <-- [!!! V7 新增 !!!]
 
           status: "PENDING_PAYMENT",
           userId: userId,

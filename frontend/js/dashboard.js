@@ -1,10 +1,11 @@
-// 這是 frontend/js/dashboard.js (V5 - 狀態標籤統一版)
+// 這是 frontend/js/dashboard.js (V7 - 整合偏遠地區運費計算)
 // (1) 修正 V3 佇列 Bug
 // (2) 新增 V4 佇列 UI
 // (3) 延長 showMessage
 // (4) 新增「超重/超長/堆高機」警告
 // (5) [V5 修正] 統一集運單狀態 (shipmentStatusMap)
 // (6) [!! 程式夥伴新增 !!] 優化：上傳憑證後，狀態顯示為「已付款，待審核」
+// (7) [!!! V7 整合：新增偏遠地區計算 !!!]
 
 // --- [*** V5 修正：從 calculatorController.js 引入規則 ***] ---
 const RATES = {
@@ -14,12 +15,160 @@ const RATES = {
   special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
 };
 const VOLUME_DIVISOR = 28317;
+const CBM_TO_CAI_FACTOR = 35.3; // [!!! V7 新增 !!!]
 const MINIMUM_CHARGE = 2000; // 集運低消常數
 const OVERSIZED_LIMIT = 300;
 const OVERSIZED_FEE = 800;
 const OVERWEIGHT_LIMIT = 100;
 const OVERWEIGHT_FEE = 800;
 // --- [*** 修正結束 ***] ---
+
+// --- [!!! V7 新增：偏遠地區資料庫 (從 index.html 複製) !!!] ---
+const remoteAreas = {
+  1800: [
+    "東勢區",
+    "新社區",
+    "石岡區",
+    "和平區",
+    "大雪山",
+    "穀關",
+    "水里鄉",
+    "伸港鄉",
+    "線西鄉",
+    "秀水鄉",
+    "芬園鄉",
+    "芳苑鄉",
+    "大村鄉",
+    "大城鄉",
+    "竹塘鄉",
+    "北斗鎮",
+    "溪州鄉",
+  ],
+  2000: [
+    "三芝",
+    "石門",
+    "烏來",
+    "坪林",
+    "石碇區",
+    "深坑區",
+    "萬里",
+    "平溪",
+    "雙溪",
+    "福隆",
+    "貢寮",
+    "三峽區",
+    "淡水竹圍",
+    "復興鄉",
+    "新埔鎮",
+    "關西鎮",
+    "橫山鄉",
+    "北埔鄉",
+    "尖石鄉",
+    "五峰鄉",
+    "寶山鎮",
+    "香山區",
+    "造橋鎮",
+    "峨嵋鄉",
+    "三灣鄉",
+    "芎林鄉",
+    "頭屋鄉",
+    "銅鑼鄉",
+    "三義鄉",
+    "通霄鎮",
+    "苑裡鎮",
+    "大湖鄉",
+    "卓蘭鎮",
+    "泰安鄉",
+    "公館鄉",
+    "竹南鎮",
+  ],
+  2500: [
+    "名間鄉",
+    "四湖鄉",
+    "東勢鄉",
+    "台西鄉",
+    "古坑鄉",
+    "口湖鄉",
+    "崙背鄉",
+    "麥寮鄉",
+    "東石鄉",
+    "六腳鄉",
+    "竹崎鄉",
+    "白河區",
+    "東山區",
+    "大內區",
+    "玉井區",
+    "山上區",
+    "龍崎區",
+    "後壁區",
+    "左鎮區",
+    "燕巢",
+    "內門區",
+    "大樹",
+    "茄萣",
+    "林園",
+    "旗津",
+    "杉林",
+    "美濃",
+    "永安",
+    "阿蓮",
+    "田寮",
+    "旗山",
+  ],
+  3000: ["布袋鎮", "北門區", "將軍區", "七股區", "楠西區", "南化區"],
+  4000: [
+    "南莊鄉",
+    "獅潭鄉",
+    "竹山鎮",
+    "鹿谷鄉",
+    "集集鎮",
+    "中寮鄉",
+    "國姓鄉",
+    "仁愛鄉",
+    "信義鄉",
+    "梨山",
+    "奧萬大",
+    "埔里",
+  ],
+  4500: [
+    "陽明山",
+    "金山",
+    "魚池鄉",
+    "那瑪夏區",
+    "桃源區",
+    "茂林",
+    "甲仙",
+    "六龜",
+    "屏東縣全區",
+    "宜蘭其他地區",
+    "花蓮全區",
+    "台東全區",
+  ],
+  5000: ["阿里山", "梅山鄉", "番路", "中埔鄉", "大埔鄉"],
+  7000: [
+    "小琉球",
+    "琉球鄉",
+    "恆春",
+    "墾丁",
+    "鵝鑾鼻",
+    "車城",
+    "滿洲",
+    "牡丹",
+    "獅子",
+    "枋山",
+    "春日",
+    "枋寮",
+    "佳冬",
+    "來義",
+    "泰武",
+    "瑪家",
+    "霧臺",
+    "三地門",
+    "南澳",
+    "釣魚臺",
+  ],
+};
+// --- [!!! V7 新增結束 !!!] ---
 
 // --- [全域函式] 開啟圖片彈窗 ---
 window.openImages = function (images) {
@@ -200,6 +349,20 @@ document.addEventListener("DOMContentLoaded", () => {
   // [*** V5 修正：獲取 V5 警告 UI 元素 ***]
   const shipmentWarnings = document.getElementById("shipment-warnings");
   // [*** 修正結束 ***]
+
+  // --- [!!! V7 新增：獲取集運單彈窗中的地區選擇元素 !!!] ---
+  const shipDeliveryLocation = document.getElementById(
+    "ship-delivery-location"
+  );
+  const shipAreaSearch = document.getElementById("ship-area-search");
+  const shipSearchResults = document.getElementById("ship-search-results");
+  const shipRemoteAreaInfo = document.getElementById("ship-remote-area-info");
+  const shipSelectedAreaName = document.getElementById(
+    "ship-selected-area-name"
+  );
+  const shipSelectedAreaFee = document.getElementById("ship-selected-area-fee");
+  const shipStreetAddress = document.getElementById("ship-street-address");
+  // --- [!!! V7 新增結束 !!!] ---
 
   // --- (狀態變數) ---
   let currentUser = null;
@@ -472,46 +635,43 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (F) [*** V6 關鍵修正：重新獲取包裹資料 ***]
+  // (F) [*** V7 關鍵修正：開啟「建立集運單」彈窗 ***]
   btnCreateShipment.addEventListener("click", async () => {
-    // [*** 變更點 1: 設為 async ***]
     const checked = document.querySelectorAll(".package-checkbox:checked");
     if (checked.length === 0) {
       showMessage("請至少選擇一個包裹", "error");
       return;
     }
 
-    // [*** 變更點 2: 增加載入狀態 ***]
     btnCreateShipment.disabled = true;
     btnCreateShipment.textContent = "讀取包裹資料中...";
 
     try {
-      // [*** 變更點 3: 重新獲取最新包裹資料 ***]
+      // 1. 重新獲取最新包裹資料
       const response = await fetch(`${API_BASE_URL}/api/packages/my`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "載入包裹失敗");
 
-      // [*** 變更點 4: 更新全域的包裹資料 ***]
       allPackagesData = data.packages;
 
-      // [*** 變更點 5: 使用最新的 allPackagesData 執行原邏輯 ***]
+      // 2. 準備變數
       let html = "";
       let ids = [];
       let totalFee = 0;
       let warningHtml = "";
       let hasAnyOversizedItem = false;
       let hasAnyOverweightItem = false;
+      let validCheckedCount = 0;
+      let totalShipmentVolume = 0; // [!!! V7 新增 !!!]
 
-      let validCheckedCount = 0; // 計算 *仍然* 有效的包裹
-
+      // 3. 處理勾選的包裹
       checked.forEach((box) => {
         const p = allPackagesData.find((pkg) => pkg.id === box.dataset.id);
 
-        // [*** 變更點 6: 檢查包裹是否 *仍然* 是 ARRIVED ***]
         if (p && p.status === "ARRIVED") {
-          validCheckedCount++; // 有效
+          validCheckedCount++;
           const packageFee = p.totalCalculatedFee || 0;
           totalFee += packageFee;
           ids.push(p.id);
@@ -525,7 +685,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           if (arrivedBoxes.length > 0) {
             arrivedBoxes.forEach((box) => {
-              // [*** V5 新增：檢查附加費 ***]
+              // 檢查附加費
               if (
                 parseFloat(box.length) > OVERSIZED_LIMIT ||
                 parseFloat(box.width) > OVERSIZED_LIMIT ||
@@ -536,7 +696,18 @@ document.addEventListener("DOMContentLoaded", () => {
               if (parseFloat(box.weight) > OVERWEIGHT_LIMIT) {
                 hasAnyOverweightItem = true;
               }
-              // [*** V5 結束 ***]
+
+              // [!!! V7 新增：累加材積 !!!]
+              const length = parseFloat(box.length) || 0;
+              const width = parseFloat(box.width) || 0;
+              const height = parseFloat(box.height) || 0;
+              if (length > 0 && width > 0 && height > 0) {
+                const singleVolume = Math.ceil(
+                  (length * width * height) / VOLUME_DIVISOR
+                );
+                totalShipmentVolume += singleVolume; // 累加總材積
+              }
+              // [!!! V7 新增結束 !!!]
 
               const rate = RATES[box.type];
               if (!rate) {
@@ -585,38 +756,55 @@ document.addEventListener("DOMContentLoaded", () => {
           html += `<div class="pkg-subtotal">包裹小計: <strong>$${packageFee.toLocaleString()}</strong></div>`;
           html += `</div>`;
         }
-        // [*** 變更點 6 結束 ***]
       });
 
-      // [*** 變更點 7: 檢查是否還有有效包裹 ***]
+      // 4. 檢查有效性
       if (validCheckedCount === 0) {
         showMessage(
           "您選擇的包裹狀態已變更（可能已被集運），請重新整理頁面。",
           "error"
         );
         loadMyPackages(); // 更新主列表的 UI
-        return; // 停止執行
+        return;
       } else if (validCheckedCount < checked.length) {
-        // 勾選的 > 實際有效的
         showMessage("部分包裹狀態已更新，已自動為您移除無效包裹。", "success");
         loadMyPackages(); // 更新主列表的 UI
       }
 
-      // [*** V5 修正：計算最終金額與警告 ***]
+      // 5. [!!! V7 關鍵修改：計算總費用 !!!]
       const totalOverweightFee = hasAnyOversizedItem ? OVERWEIGHT_FEE : 0;
       const totalOversizedFee = hasAnyOversizedItem ? OVERSIZED_FEE : 0;
 
+      // 讀取偏遠地區費率
+      const deliveryRate = parseFloat(shipDeliveryLocation.value) || 0;
+      const totalCbm = totalShipmentVolume / CBM_TO_CAI_FACTOR;
+      const remoteFee = Math.round(totalCbm * deliveryRate); // [!!! V7 新增 !!!]
+
       let finalBaseCost = totalFee;
-      let noticeHtml = `(基本運費 $${totalFee.toLocaleString()})`;
+      let noticeHtml = `(基本運費 $${totalFee.toLocaleString()}`;
 
       if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
         finalBaseCost = MINIMUM_CHARGE;
-        noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(基本運費 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE.toLocaleString()})</span>`;
+        noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(基本運費 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE.toLocaleString()})`;
       }
 
+      // [!!! V7 修改 !!!]
       const finalTotalCost =
-        finalBaseCost + totalOverweightFee + totalOversizedFee;
+        finalBaseCost + totalOverweightFee + totalOversizedFee + remoteFee;
 
+      // 6. 填入 UI
+      shipmentPackageList.innerHTML = html;
+      shipmentTotalCost.textContent = finalTotalCost.toLocaleString();
+
+      // [!!! V7 修改 !!!]
+      if (remoteFee > 0) {
+        noticeHtml += ` + 偏遠費 $${remoteFee.toLocaleString()}`;
+      }
+      noticeHtml += ")";
+      shipmentFeeNotice.innerHTML = noticeHtml;
+      // [!!! V7 修改結束 !!!]
+
+      // 填入警告
       if (hasAnyOversizedItem) {
         warningHtml += `<div>⚠️ 偵測到超長件 (單邊 > ${OVERSIZED_LIMIT}cm)，已加收 $${OVERSIZED_FEE} 超長費。</div>`;
       }
@@ -624,77 +812,86 @@ document.addEventListener("DOMContentLoaded", () => {
         warningHtml += `<div>⚠️ 偵測到超重件 (單件 > ${OVERWEIGHT_LIMIT}kg)，已加收 $${OVERWEIGHT_FEE} 超重費。</div>`;
         warningHtml += `<div style="font-size: 0.9em;">(超重件台灣收件地，請務必自行安排堆高機下貨)</div>`;
       }
-      // [*** V5 修正結束 ***]
+      shipmentWarnings.innerHTML = warningHtml;
 
-      shipmentPackageList.innerHTML = html;
-
-      if (shipmentTotalCost)
-        shipmentTotalCost.textContent = finalTotalCost.toLocaleString();
-
-      if (shipmentFeeNotice) {
-        shipmentFeeNotice.innerHTML = noticeHtml;
-      }
-
-      // 填入警告
-      if (shipmentWarnings) {
-        shipmentWarnings.innerHTML = warningHtml;
-      }
-
+      // 7. 填入表單預設值
       createShipmentForm.dataset.ids = JSON.stringify(ids);
-
       document.getElementById("ship-name").value = currentUser.name || "";
       document.getElementById("ship-phone").value = currentUser.phone || "";
-      document.getElementById("ship-address").value =
-        currentUser.defaultAddress || "";
+
+      // [!!! V7 修改：不自動填入地址，讓用戶自己選 !!!]
+      // document.getElementById("ship-address").value = currentUser.defaultAddress || "";
+      shipDeliveryLocation.value = ""; // 清空地區
+      shipStreetAddress.value = ""; // 清空詳細地址
+      shipRemoteAreaInfo.style.display = "none"; // 隱藏提示
+      // [!!! V7 修改結束 !!!]
+
       document.getElementById("ship-note").value = "";
-      document.getElementById("create-shipment-modal").style.display = "flex";
+      createShipmentModal.style.display = "flex";
     } catch (e) {
-      // [*** 變更點 8: 處理 fetch 失敗 ***]
       console.error("btnCreateShipment 錯誤:", e);
       showMessage(`載入包裹資料失敗: ${e.message}`, "error");
     } finally {
-      // [*** 變更點 9: 恢復按鈕狀態 ***]
       btnCreateShipment.disabled = false;
       btnCreateShipment.textContent = "合併打包 (建立集運單)";
     }
   });
 
-  // (G) 提交集運單
+  // (G) [*** V7 關鍵修正：提交「建立集運單」表單 ***]
   createShipmentForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const ids = JSON.parse(createShipmentForm.dataset.ids);
 
-    // [*** 這裡是修改點 ***]
-    // 1. 取得資料時，使用 .trim() 移除前後空白
+    // [!!! V7 新增：獲取地區資料 !!!]
+    const deliveryRate = parseFloat(shipDeliveryLocation.value);
+    const streetAddress = shipStreetAddress.value.trim();
+
+    if (isNaN(deliveryRate)) {
+      showMessage("錯誤：請務必選擇「配送地區」。", "error");
+      return;
+    }
+
+    if (!streetAddress) {
+      showMessage("錯誤：請務必填寫「詳細地址」。", "error");
+      return;
+    }
+
+    // 組合新地址
+    const selectedOption =
+      shipDeliveryLocation.options[shipDeliveryLocation.selectedIndex];
+    const areaName = selectedOption.text.replace(/[✅📍⛰️🏖️🏝️⚠️]/g, "").trim(); // "一般地區" 或 "陽明山"
+    const fullAddress =
+      (areaName === "一般地區" ? "" : areaName) + streetAddress;
+    // [!!! V7 新增結束 !!!]
+
     const data = {
       packageIds: ids,
       recipientName: document.getElementById("ship-name").value.trim(),
       phone: document.getElementById("ship-phone").value.trim(),
-      shippingAddress: document.getElementById("ship-address").value.trim(),
+      shippingAddress: fullAddress, // [!!! V7 修改 !!!]
+      deliveryLocationRate: deliveryRate, // [!!! V7 新增 !!!]
       idNumber: document.getElementById("ship-idNumber").value.trim(),
       taxId: document.getElementById("ship-taxId").value.trim(),
       note: document.getElementById("ship-note").value.trim(),
     };
 
-    // 2. 新增前端驗證
+    // 驗證
     if (
       !data.recipientName ||
       !data.phone ||
       !data.shippingAddress ||
       !data.idNumber
     ) {
-      // (我們使用 dashboard.js 自己的 showMessage 函式，它會顯示在頁面頂端)
       showMessage(
         "錯誤：收件人姓名、電話、地址、身分證字號為必填欄位。",
         "error"
       );
-      return; // 停止提交
+      return;
     }
     if (!data.packageIds || data.packageIds.length === 0) {
       showMessage("錯誤：沒有選中任何包裹。", "error");
-      return; // 停止提交
+      return;
     }
-    // [*** 修改結束 ***]
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/shipments/create`, {
@@ -706,25 +903,19 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify(data),
       });
 
-      // [*** 這裡是修改點 2 ***]
-      // 檢查 res.ok，如果失敗 (例如 400 錯誤)，就顯示後端傳來的錯誤訊息
       if (res.ok) {
-        // 成功
         document.getElementById("create-shipment-modal").style.display = "none";
         createShipmentForm.reset();
         bankInfoModal.style.display = "flex";
         loadMyPackages();
         loadMyShipments();
       } else {
-        // 失敗
         const err = await res.json();
         throw new Error(err.message || "提交失敗，請檢查欄位");
       }
     } catch (error) {
-      // 捕捉 fetch 失敗或 res.ok=false 的錯誤
       showMessage(error.message, "error");
     }
-    // [*** 修改結束 ***]
   });
 
   // (H) 提交憑證上傳
@@ -769,7 +960,11 @@ document.addEventListener("DOMContentLoaded", () => {
     shipmentsSection.style.display = "block";
   });
   btnEditProfile.addEventListener("click", () => {
-    document.getElementById("edit-profile-modal").style.display = "flex";
+    document.getElementById("edit-name").value = currentUser.name || "";
+    document.getElementById("edit-phone").value = currentUser.phone || "";
+    document.getElementById("edit-address").value =
+      currentUser.defaultAddress || "";
+    editProfileModal.style.display = "flex";
   });
   editProfileForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -960,6 +1155,122 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     trackingNumber.focus(); // 讓使用者可以直接輸入最重要的物流單號
   }
+
+  // --- [!!! V7 新增：綁定集運單彈窗的地區搜尋邏輯 !!!] ---
+  // (複製自 index.html，並修改所有 DOM ID 指向 #ship-...)
+
+  // (N.1) 選擇搜尋結果
+  window.selectShipRemoteArea = function (areaName, fee) {
+    for (let i = 0; i < shipDeliveryLocation.options.length; i++) {
+      const option = shipDeliveryLocation.options[i];
+      if (option.value === fee.toString()) {
+        const optionText = option.textContent.replace(/[⛰️🏝️🏖️⚠️]/g, "").trim();
+        if (optionText.includes(areaName)) {
+          shipDeliveryLocation.selectedIndex = i;
+          shipDeliveryLocation.dispatchEvent(new Event("change"));
+          shipAreaSearch.value = areaName;
+          shipSearchResults.style.display = "none";
+          break;
+        }
+      }
+    }
+  };
+
+  // (N.2) 監聽下拉選單變更
+  shipDeliveryLocation.addEventListener("change", function () {
+    const selectedOption = this.options[this.selectedIndex];
+    const feeValue = this.value;
+
+    if (feeValue === "0") {
+      shipRemoteAreaInfo.style.display = "block";
+      shipRemoteAreaInfo.style.backgroundColor = "#d4edda";
+      shipRemoteAreaInfo.style.borderLeft = "4px solid #28a745";
+      shipSelectedAreaName.textContent = "一般地區";
+      shipSelectedAreaName.style.color = "#155724";
+      shipSelectedAreaFee.textContent = "無額外費用";
+      shipSelectedAreaFee.style.color = "#155724";
+    } else if (feeValue) {
+      shipRemoteAreaInfo.style.display = "block";
+      const areaText = selectedOption.textContent
+        .replace(/[⛰️🏝️🏖️⚠️✅]/g, "")
+        .trim();
+      shipSelectedAreaName.textContent = areaText;
+      shipSelectedAreaFee.textContent = `NT$ ${parseInt(
+        feeValue
+      ).toLocaleString()} /方起`;
+
+      if (areaText.includes("客服")) {
+        shipRemoteAreaInfo.style.backgroundColor = "#fff3cd";
+        shipRemoteAreaInfo.style.borderLeft = "4px solid #ff9800";
+        shipSelectedAreaName.style.color = "#ff6b6b";
+        shipSelectedAreaFee.innerHTML = `NT$ ${parseInt(
+          feeValue
+        ).toLocaleString()} /方起 <small style="color: #ff9800;">(詳情請詢問客服)</small>`;
+        shipSelectedAreaFee.style.color = "#e74c3c";
+      } else if (parseInt(feeValue) >= 5000) {
+        shipRemoteAreaInfo.style.backgroundColor = "#f8d7da";
+        shipRemoteAreaInfo.style.borderLeft = "4px solid #dc3545";
+        shipSelectedAreaName.style.color = "#721c24";
+        shipSelectedAreaFee.style.color = "#dc3545";
+      } else {
+        shipRemoteAreaInfo.style.backgroundColor = "#fff3cd";
+        shipRemoteAreaInfo.style.borderLeft = "4px solid #ffc107";
+        shipSelectedAreaName.style.color = "#856404";
+        shipSelectedAreaFee.style.color = "#e74c3c";
+      }
+    } else {
+      shipRemoteAreaInfo.style.display = "none";
+    }
+
+    // [!!! 關鍵 !!!] 當地區變更時，立即重新計算總價
+    // 手動觸發一次 "合併打包" 按鈕的點擊事件，
+    // 但傳入一個標記，告訴它「不要」重新開啟彈窗，只要「重新計算」
+    btnCreateShipment.click();
+  });
+
+  // (N.3) 監聽搜尋框輸入
+  shipAreaSearch.addEventListener("input", function (e) {
+    const searchTerm = e.target.value.trim().toLowerCase();
+    if (searchTerm.length < 1) {
+      shipSearchResults.style.display = "none";
+      return;
+    }
+
+    let results = [];
+    for (const [fee, areas] of Object.entries(remoteAreas)) {
+      areas.forEach((area) => {
+        if (area.toLowerCase().includes(searchTerm)) {
+          results.push({ area: area, fee: parseInt(fee) });
+        }
+      });
+    }
+
+    if (results.length > 0) {
+      shipSearchResults.style.display = "block";
+      shipSearchResults.innerHTML = results
+        .map(
+          (r) => `
+      <div class="search-result-item" onclick="selectShipRemoteArea('${
+        r.area
+      }', ${r.fee})">
+        📍 ${r.area} 
+        <span style="color: #e74c3c; font-weight: bold; float: right;">
+          NT$ ${r.fee.toLocaleString()}/方起
+        </span>
+      </div>
+    `
+        )
+        .join("");
+    } else {
+      shipSearchResults.style.display = "block";
+      shipSearchResults.innerHTML = `
+      <div style="padding: 10px; color: #666; background: #f8f9fa;">
+        ✅ 找不到 "${searchTerm}"，可能屬於一般地區。
+      </div>
+    `;
+    }
+  });
+  // --- [!!! V7 新增結束 !!!] ---
 
   // --- (初始載入) ---
   loadUserProfile();

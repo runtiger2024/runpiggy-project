@@ -264,11 +264,240 @@
               <input type="tel" id="ship-phone" required />
             </div>
 
-            <div class="form-group">
-              <label for="ship-address" class="required">收件地址</label>
-              <input type="text" id="ship-address" required />
+            <div class="form-group delivery-options">
+              <label for="ship-delivery-location" class="required"
+                >配送地區 (請務必選擇)</label
+              >
+              <div class="remote-area-search" style="margin-top: 5px">
+                <input
+                  type="text"
+                  id="ship-area-search"
+                  placeholder="快速搜尋您的地區（如：阿里山、小琉球）"
+                />
+                <div id="ship-search-results"></div>
+              </div>
+              <select id="ship-delivery-location" class="form-control" required>
+                <option value="" selected disabled>
+                  --- 請選擇您的配送地區 ---
+                </option>
+                <option value="0" style="font-weight: bold; color: #27ae60">
+                  ✅ 一般地區 (無額外費用)
+                </option>
+                <optgroup label="📍 臺北區域 - NT$4,500/方起">
+                  <option value="4500">陽明山</option>
+                  <option value="4500">金山</option>
+                </optgroup>
+                <optgroup label="📍 新北區域 - NT$2,000/方起">
+                  <option value="2000">三芝</option>
+                  <option value="2000">石門</option>
+                  <option value="2000">烏來</option>
+                  <option value="2000">坪林</option>
+                  <option value="2000">石碇區</option>
+                  <option value="2000">深坑區</option>
+                  <option value="2000">萬里</option>
+                  <option value="2000">平溪</option>
+                  <option value="2000">雙溪</option>
+                  <option value="2000">福隆</option>
+                  <option value="2000">貢寮</option>
+                  <option value="2000">三峽區</option>
+                  <option value="2000">淡水竹圍</option>
+                </optgroup>
+                <optgroup label="📍 桃園區域 - NT$2,000/方起">
+                  <option value="2000">復興鄉</option>
+                </optgroup>
+                <optgroup label="📍 新竹苗栗 - NT$2,000/方起">
+                  <option value="2000">新埔鎮</option>
+                  <option value="2000">關西鎮</option>
+                  <option value="2000">橫山鄉</option>
+                  <option value="2000">北埔鄉</option>
+                  <option value="2000">尖石鄉</option>
+                  <option value="2000">五峰鄉</option>
+                  <option value="2000">寶山鎮</option>
+                  <option value="2000">香山區</option>
+                  <option value="2000">造橋鎮</option>
+                  <option value="2000">峨嵋鄉</option>
+                  <option value="2000">三灣鄉</option>
+                  <option value="2000">芎林鄉</option>
+                  <option value="2000">頭屋鄉</option>
+                  <option value="2000">銅鑼鄉</option>
+                  <option value="2000">三義鄉</option>
+                  <option value="2000">通霄鎮</option>
+                  <option value="2000">苑裡鎮</option>
+                  <option value="2000">大湖鄉</option>
+                  <option value="2000">卓蘭鎮</option>
+                  <option value="2000">泰安鄉</option>
+                  <option value="2000">公館鄉</option>
+                  <option value="2000">竹南鎮</option>
+                </optgroup>
+                <optgroup label="📍 苗栗山區 - NT$4,000/方起">
+                  <option value="4000" style="color: #e74c3c">⛰️ 南莊鄉</option>
+                  <option value="4000" style="color: #e74c3c">⛰️ 獅潭鄉</option>
+                </optgroup>
+                <optgroup label="📍 台中 - NT$1,800/方起">
+                  <option value="1800">東勢區</option>
+                  <option value="1800">新社區</option>
+                  <option value="1800">石岡區</option>
+                  <option value="1800">和平區</option>
+                  <option value="1800">大雪山</option>
+                  <option value="1800">穀關</option>
+                  <option value="1800">水里鄉</option>
+                </optgroup>
+                <optgroup label="📍 彰化偏遠 - NT$1,800/方起">
+                  <option value="1800">伸港鄉</option>
+                  <option value="1800">線西鄉</option>
+                  <option value="1800">秀水鄉</option>
+                  <option value="1800">芬園鄉</option>
+                  <option value="1800">芳苑鄉</option>
+                  <option value="1800">大村鄉</option>
+                  <option value="1800">大城鄉</option>
+                  <option value="1800">竹塘鄉</option>
+                  <option value="1800">北斗鎮</option>
+                  <option value="1800">溪州鄉</option>
+                </optgroup>
+                <optgroup label="📍 南投一般偏遠 - NT$2,500/方起">
+                  <option value="2500">名間鄉</option>
+                </optgroup>
+                <optgroup label="📍 南投山區 - NT$4,000/方起">
+                  <option value="4000">竹山鎮</option>
+                  <option value="4000">鹿谷鄉</option>
+                  <option value="4000">集集鎮</option>
+                  <option value="4000">中寮鄉</option>
+                  <option value="4000">國姓鄉</option>
+                  <option value="4000">仁愛鄉</option>
+                  <option value="4000">信義鄉</option>
+                  <option value="4000">梨山</option>
+                  <option value="4000">奧萬大</option>
+                  <option value="4000">埔里</option>
+                </optgroup>
+                <optgroup label="📍 南投特殊 - NT$4,500/方起">
+                  <option value="4500" style="color: #e74c3c">⛰️ 魚池鄉</option>
+                </optgroup>
+                <optgroup label="📍 雲林偏遠 - NT$2,500/方起">
+                  <option value="2500">四湖鄉</option>
+                  <option value="2500">東勢鄉</option>
+                  <option value="2500">台西鄉</option>
+                  <option value="2500">古坑鄉</option>
+                  <option value="2500">口湖鄉</option>
+                  <option value="2500">崙背鄉</option>
+                  <option value="2500">麥寮鄉</option>
+                </optgroup>
+                <optgroup label="📍 嘉義偏遠 - NT$2,500/方起">
+                  <option value="2500">東石鄉</option>
+                  <option value="2500">六腳鄉</option>
+                  <option value="2500">竹崎鄉</option>
+                </optgroup>
+                <optgroup label="📍 嘉義沿海 - NT$3,000/方起">
+                  <option value="3000">布袋鎮</option>
+                </optgroup>
+                <optgroup label="📍 嘉義山區 - NT$5,000/方起">
+                  <option value="5000" style="color: #dc3545">⛰️ 阿里山</option>
+                  <option value="5000" style="color: #dc3545">⛰️ 梅山鄉</option>
+                  <option value="5000" style="color: #dc3545">⛰️ 番路</option>
+                  <option value="5000" style="color: #dc3545">⛰️ 中埔鄉</option>
+                  <option value="5000" style="color: #dc3545">⛰️ 大埔鄉</option>
+                </optgroup>
+                <optgroup label="📍 台南偏遠 - NT$2,500/方起">
+                  <option value="2500">白河區</option>
+                  <option value="2500">東山區</option>
+                  <option value="2500">大內區</option>
+                  <option value="2500">玉井區</option>
+                  <option value="2500">山上區</option>
+                  <option value="2500">龍崎區</option>
+                  <option value="2500">後壁區</option>
+                  <option value="2500">左鎮區</option>
+                </optgroup>
+                <optgroup label="📍 台南沿海 - NT$3,000/方起">
+                  <option value="3000">北門區</option>
+                  <option value="3000">將軍區</option>
+                  <option value="3000">七股區</option>
+                  <option value="3000">楠西區</option>
+                  <option value="3000">南化區</option>
+                </optgroup>
+                <optgroup label="📍 高雄偏遠 - NT$2,500/方起">
+                  <option value="2500">燕巢</option>
+                  <option value="2500">內門區</option>
+                  <option value="2500">大樹</option>
+                  <option value="2500">茄萣</option>
+                  <option value="2500">林園</option>
+                  <option value="2500">旗津</option>
+                  <option value="2500">杉林</option>
+                  <option value="2500">美濃</option>
+                  <option value="2500">永安</option>
+                  <option value="2500">阿蓮</option>
+                  <option value="2500">田寮</option>
+                  <option value="2500">旗山</option>
+                </optgroup>
+                <optgroup label="📍 高雄山區 - NT$4,500/方起">
+                  <option value="4500" style="color: #e74c3c">⛰️ 那瑪夏區</option>
+                  <option value="4500" style="color: #e74c3c">⛰️ 桃源區</option>
+                  <option value"4auto" style="color: #e74c3c">⛰️ 茂林</option>
+                  <option value="4500" style="color: #e74c3c">⛰️ 甲仙</option>
+                  <option value="4500" style="color: #e74c3c">⛰️ 六龜</option>
+                </optgroup>
+                <optgroup label="📍 屏東全區 - NT$4,500/方起">
+                  <option value="4500" style="color: #ff6b6b">
+                    ⚠️ 屏東縣全區 (基本偏遠費)
+                  </option>
+                </optgroup>
+                <optgroup label="📍 屏東特別偏遠 - NT$7,000/方起">
+                  <option value="7000" style="color: #dc3545; font-weight: bold">
+                    🏝️ 小琉球 (琉球鄉)
+                  </option>
+                  <option value="7000" style="color: #dc3545">🏖️ 恆春</option>
+                  <option value="7000" style="color: #dc3545">🏖️ 墾丁</option>
+                  <option value="7000" style="color: #dc3545">🏖️ 鵝鑾鼻</option>
+                  <option value="7000" style="color: #dc3545">車城</option>
+                  <option value="7000" style="color: #dc3545">滿洲</option>
+                  <option value="7000" style="color: #dc3545">牡丹</option>
+                  <option value="7000" style="color: #dc3545">獅子</option>
+                  <option value="7000" style="color: #dc3545">枋山</option>
+                  <option value="7000" style="color: #dc3545">春日</option>
+                  <option value="7000" style="color: #dc3545">枋寮</option>
+                  <option value="7000" style="color: #dc3545">佳冬</option>
+                  <option value="7000" style="color: #dc3545">來義</option>
+                  <option value="7000" style="color: #dc3545">泰武</option>
+                  <option value="7000" style="color: #dc3545">瑪家</option>
+                  <option value="7000" style="color: #dc3545">霧臺</option>
+                  <option value="7000" style="color: #dc3545">三地門</option>
+                </optgroup>
+                <optgroup label="📍 東部地區">
+                  <option value="7000" style="color: #dc3545">宜蘭：南澳</option>
+                  <option value="7000" style="color: #dc3545"
+                    >宜蘭：釣魚臺</option
+                  >
+                  <option value="4500" style="color: #ff6b6b">
+                    ⚠️ 宜蘭其他地區 (NT$4,500/方起，詳情請詢問客服)
+                  </option>
+                  <option value="4500" style="color: #ff6b6b">
+                    ⚠️ 花蓮全區 (NT$4,500/方起，詳情請詢問客服)
+                  </option>
+                  <option value="4500" style="color: #ff6b6b">
+                    ⚠️ 台東全區 (NT$4,500/方起，詳情請詢問客服)
+                  </option>
+                </optgroup>
+              </select>
+              <div id="ship-remote-area-info" style="display: none">
+                <strong>您選擇的地區：</strong>
+                <span id="ship-selected-area-name"></span><br />
+                <strong>偏遠地區費用：</strong>
+                <span
+                  id="ship-selected-area-fee"
+                  style="color: #e74c3c; font-weight: bold"
+                ></span>
+              </div>
             </div>
-
+            <div class="form-group">
+              <label for="ship-street-address" class="required"
+                >詳細地址 (路/巷/弄/號)</label
+              >
+              <input
+                type="text"
+                id="ship-street-address"
+                class="form-control"
+                placeholder="例如：中正路一段100號5樓"
+                required
+              />
+            </div>
             <div class="form-grid-2">
               <div class="form-group">
                 <label for="ship-idNumber" class="required">身分證字號</label>
@@ -469,7 +698,7 @@
           </div>
         </div>
 
-        <div class_="form-section" style="padding: 15px; background: #fdfdfd">
+        <div class_ ="form-section" style="padding: 15px; background: #fdfdfd">
           <h4 style="margin-top: 0">倉庫照片</h4>
           <div id="details-images-gallery" class="image-gallery"></div>
         </div>
