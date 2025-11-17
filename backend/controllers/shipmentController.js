@@ -1,8 +1,12 @@
 // 這是 backend/controllers/shipmentController.js (V7 - 整合偏遠地區運費計算)
-// (修正：補上「超重費」和「超長費」的計算邏輯)
-// (V7 修正：補上「偏遠地區費」的計算邏輯)
+// (V7.1 修正：補上「超重費」和「超長費」的計算邏輯)
+// (V7.2 修正：補上「偏遠地區費」的計算邏輯)
+// (V7.3 修正：整合 SendGrid 通知)
 
 const prisma = require("../config/db.js");
+
+// [!!! V7.3 新增：匯入 Email 函式 !!!]
+const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
 
 // [*** 修正：從 calculatorController.js 引入規則 ***]
 const MINIMUM_CHARGE = 2000; // 集運低消
@@ -118,7 +122,7 @@ const createShipment = async (req, res) => {
       }
     });
 
-    const totalOverweightFee = hasAnyOverweightItem ? OVERWEIGHT_FEE : 0;
+    const totalOverweightFee = hasAnyOversizedItem ? OVERWEIGHT_FEE : 0;
     const totalOversizedFee = hasAnyOversizedItem ? OVERSIZED_FEE : 0;
 
     // [!!! V7 新增：計算偏遠地區費 !!!]
@@ -174,7 +178,22 @@ const createShipment = async (req, res) => {
       return createdShipment;
     });
 
-    // 5. 回傳成功訊息
+    // 5. [!!! V7.3 關鍵新增：發送 Email 通知 !!!]
+    // (在資料庫交易成功後執行)
+    try {
+      // 我們需要 customer 物件，它就在 req.user 上
+      await sendNewShipmentNotification(newShipment, req.user);
+    } catch (emailError) {
+      // (重要) Email 發送失敗不應該影響客戶端的操作結果
+      // 僅在後台記錄錯誤
+      console.warn(
+        `[Non-critical] 訂單 ${newShipment.id} 建立成功，但 Email 通知發送失敗:`,
+        emailError
+      );
+    }
+    // [!!! V7.3 新增結束 !!!]
+
+    // 6. 回傳成功訊息 (原本的步驟 5)
     res.status(201).json({
       success: true,
       message: "集運單建立成功！",
