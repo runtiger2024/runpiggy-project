@@ -1,11 +1,11 @@
-// 這是 frontend/js/dashboard.js (V7 - 整合偏遠地區運費計算)
+// 這是 frontend/js/dashboard.js (V7.1 - 修正偏遠地區選取邏輯)
 // (1) 修正 V3 佇列 Bug
 // (2) 新增 V4 佇列 UI
 // (3) 延長 showMessage
 // (4) 新增「超重/超長/堆高機」警告
 // (5) [V5 修正] 統一集運單狀態 (shipmentStatusMap)
 // (6) [!! 程式夥伴新增 !!] 優化：上傳憑證後，狀態顯示為「已付款，待審核」
-// (7) [!!! V7 整合：新增偏遠地區計算 !!!]
+// (7) [!!! V7.1 修正：重構運費計算邏輯，修復地區選取 Bug !!!]
 
 // --- [*** V5 修正：從 calculatorController.js 引入規則 ***] ---
 const RATES = {
@@ -15,7 +15,7 @@ const RATES = {
   special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
 };
 const VOLUME_DIVISOR = 28317;
-const CBM_TO_CAI_FACTOR = 35.3; // [!!! V7 新增 !!!]
+const CBM_TO_CAI_FACTOR = 35.3;
 const MINIMUM_CHARGE = 2000; // 集運低消常數
 const OVERSIZED_LIMIT = 300;
 const OVERSIZED_FEE = 800;
@@ -635,7 +635,101 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // (F) [*** V7 關鍵修正：開啟「建立集運單」彈窗 ***]
+  // [!!! V7.1 修正：建立一個可重用的費用計算函式 !!!]
+  function recalculateShipmentTotal() {
+    const checked = document.querySelectorAll(".package-checkbox:checked");
+    if (checked.length === 0) {
+      // 如果沒有勾選任何東西，就不用算了
+      return;
+    }
+
+    // 1. 準備變數
+    let totalFee = 0;
+    let warningHtml = "";
+    let hasAnyOversizedItem = false;
+    let hasAnyOverweightItem = false;
+    let totalShipmentVolume = 0;
+
+    // 2. 處理勾選的包裹
+    checked.forEach((box) => {
+      // (重要) 這裡我們依賴 allPackagesData 是最新的
+      const p = allPackagesData.find((pkg) => pkg.id === box.dataset.id);
+
+      if (p && p.status === "ARRIVED") {
+        totalFee += p.totalCalculatedFee || 0;
+
+        const arrivedBoxes = Array.isArray(p.arrivedBoxes)
+          ? p.arrivedBoxes
+          : [];
+
+        if (arrivedBoxes.length > 0) {
+          arrivedBoxes.forEach((box) => {
+            if (
+              parseFloat(box.length) > OVERSIZED_LIMIT ||
+              parseFloat(box.width) > OVERSIZED_LIMIT ||
+              parseFloat(box.height) > OVERSIZED_LIMIT
+            ) {
+              hasAnyOversizedItem = true;
+            }
+            if (parseFloat(box.weight) > OVERWEIGHT_LIMIT) {
+              hasAnyOverweightItem = true;
+            }
+
+            const length = parseFloat(box.length) || 0;
+            const width = parseFloat(box.width) || 0;
+            const height = parseFloat(box.height) || 0;
+            if (length > 0 && width > 0 && height > 0) {
+              const singleVolume = Math.ceil(
+                (length * width * height) / VOLUME_DIVISOR
+              );
+              totalShipmentVolume += singleVolume;
+            }
+          });
+        }
+      }
+    });
+
+    // 3. 計算總費用
+    const totalOverweightFee = hasAnyOversizedItem ? OVERWEIGHT_FEE : 0;
+    const totalOversizedFee = hasAnyOversizedItem ? OVERSIZED_FEE : 0;
+
+    // (關鍵) 從 DOM 讀取 *當前* 選中的地區費率
+    const deliveryRate = parseFloat(shipDeliveryLocation.value) || 0;
+    const totalCbm = totalShipmentVolume / CBM_TO_CAI_FACTOR;
+    const remoteFee = Math.round(totalCbm * deliveryRate);
+
+    let finalBaseCost = totalFee;
+    let noticeHtml = `(基本運費 $${totalFee.toLocaleString()}`;
+
+    if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
+      finalBaseCost = MINIMUM_CHARGE;
+      noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(基本運費 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE.toLocaleString()})`;
+    }
+
+    const finalTotalCost =
+      finalBaseCost + totalOverweightFee + totalOversizedFee + remoteFee;
+
+    // 4. 填入 UI
+    shipmentTotalCost.textContent = finalTotalCost.toLocaleString();
+
+    if (remoteFee > 0) {
+      noticeHtml += ` + 偏遠費 $${remoteFee.toLocaleString()}`;
+    }
+    noticeHtml += ")";
+    shipmentFeeNotice.innerHTML = noticeHtml;
+
+    if (hasAnyOversizedItem) {
+      warningHtml += `<div>⚠️ 偵測到超長件 (單邊 > ${OVERSIZED_LIMIT}cm)，已加收 $${OVERSIZED_FEE} 超長費。</div>`;
+    }
+    if (hasAnyOverweightItem) {
+      warningHtml += `<div>⚠️ 偵測到超重件 (單件 > ${OVERWEIGHT_LIMIT}kg)，已加收 $${OVERWEIGHT_FEE} 超重費。</div>`;
+      warningHtml += `<div style="font-size: 0.9em;">(超重件台灣收件地，請務必自行安排堆高機下貨)</div>`;
+    }
+    shipmentWarnings.innerHTML = warningHtml;
+  }
+  // --- [!!! V7.1 修正結束 !!!] ---
+
+  // (F) [*** V7.1 關鍵修正：重構「開啟集運單」彈窗 ***]
   btnCreateShipment.addEventListener("click", async () => {
     const checked = document.querySelectorAll(".package-checkbox:checked");
     if (checked.length === 0) {
@@ -656,24 +750,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
       allPackagesData = data.packages;
 
-      // 2. 準備變數
+      // 2. 準備變數 (簡化)
       let html = "";
       let ids = [];
-      let totalFee = 0;
-      let warningHtml = "";
-      let hasAnyOversizedItem = false;
-      let hasAnyOverweightItem = false;
       let validCheckedCount = 0;
-      let totalShipmentVolume = 0; // [!!! V7 新增 !!!]
 
-      // 3. 處理勾選的包裹
+      // 3. 處理勾選的包裹 (只產生 HTML 和 ID 列表)
       checked.forEach((box) => {
         const p = allPackagesData.find((pkg) => pkg.id === box.dataset.id);
 
         if (p && p.status === "ARRIVED") {
           validCheckedCount++;
           const packageFee = p.totalCalculatedFee || 0;
-          totalFee += packageFee;
           ids.push(p.id);
 
           html += `<div class="shipment-pkg-detail-item">`;
@@ -685,30 +773,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
           if (arrivedBoxes.length > 0) {
             arrivedBoxes.forEach((box) => {
-              // 檢查附加費
-              if (
-                parseFloat(box.length) > OVERSIZED_LIMIT ||
-                parseFloat(box.width) > OVERSIZED_LIMIT ||
-                parseFloat(box.height) > OVERSIZED_LIMIT
-              ) {
-                hasAnyOversizedItem = true;
-              }
-              if (parseFloat(box.weight) > OVERWEIGHT_LIMIT) {
-                hasAnyOverweightItem = true;
-              }
-
-              // [!!! V7 新增：累加材積 !!!]
-              const length = parseFloat(box.length) || 0;
-              const width = parseFloat(box.width) || 0;
-              const height = parseFloat(box.height) || 0;
-              if (length > 0 && width > 0 && height > 0) {
-                const singleVolume = Math.ceil(
-                  (length * width * height) / VOLUME_DIVISOR
-                );
-                totalShipmentVolume += singleVolume; // 累加總材積
-              }
-              // [!!! V7 新增結束 !!!]
-
               const rate = RATES[box.type];
               if (!rate) {
                 html += `<div class="calc-box"><strong>${
@@ -764,69 +828,34 @@ document.addEventListener("DOMContentLoaded", () => {
           "您選擇的包裹狀態已變更（可能已被集運），請重新整理頁面。",
           "error"
         );
-        loadMyPackages(); // 更新主列表的 UI
+        loadMyPackages();
         return;
       } else if (validCheckedCount < checked.length) {
         showMessage("部分包裹狀態已更新，已自動為您移除無效包裹。", "success");
-        loadMyPackages(); // 更新主列表的 UI
+        loadMyPackages();
       }
 
-      // 5. [!!! V7 關鍵修改：計算總費用 !!!]
-      const totalOverweightFee = hasAnyOversizedItem ? OVERWEIGHT_FEE : 0;
-      const totalOversizedFee = hasAnyOversizedItem ? OVERSIZED_FEE : 0;
-
-      // 讀取偏遠地區費率
-      const deliveryRate = parseFloat(shipDeliveryLocation.value) || 0;
-      const totalCbm = totalShipmentVolume / CBM_TO_CAI_FACTOR;
-      const remoteFee = Math.round(totalCbm * deliveryRate); // [!!! V7 新增 !!!]
-
-      let finalBaseCost = totalFee;
-      let noticeHtml = `(基本運費 $${totalFee.toLocaleString()}`;
-
-      if (totalFee > 0 && totalFee < MINIMUM_CHARGE) {
-        finalBaseCost = MINIMUM_CHARGE;
-        noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(基本運費 $${totalFee.toLocaleString()}，已套用低消 $${MINIMUM_CHARGE.toLocaleString()})`;
-      }
-
-      // [!!! V7 修改 !!!]
-      const finalTotalCost =
-        finalBaseCost + totalOverweightFee + totalOversizedFee + remoteFee;
-
-      // 6. 填入 UI
+      // 5. 填入 UI
       shipmentPackageList.innerHTML = html;
-      shipmentTotalCost.textContent = finalTotalCost.toLocaleString();
 
-      // [!!! V7 修改 !!!]
-      if (remoteFee > 0) {
-        noticeHtml += ` + 偏遠費 $${remoteFee.toLocaleString()}`;
-      }
-      noticeHtml += ")";
-      shipmentFeeNotice.innerHTML = noticeHtml;
-      // [!!! V7 修改結束 !!!]
-
-      // 填入警告
-      if (hasAnyOversizedItem) {
-        warningHtml += `<div>⚠️ 偵測到超長件 (單邊 > ${OVERSIZED_LIMIT}cm)，已加收 $${OVERSIZED_FEE} 超長費。</div>`;
-      }
-      if (hasAnyOverweightItem) {
-        warningHtml += `<div>⚠️ 偵測到超重件 (單件 > ${OVERWEIGHT_LIMIT}kg)，已加收 $${OVERWEIGHT_FEE} 超重費。</div>`;
-        warningHtml += `<div style="font-size: 0.9em;">(超重件台灣收件地，請務必自行安排堆高機下貨)</div>`;
-      }
-      shipmentWarnings.innerHTML = warningHtml;
-
-      // 7. 填入表單預設值
+      // 6. 填入表單預設值
       createShipmentForm.dataset.ids = JSON.stringify(ids);
       document.getElementById("ship-name").value = currentUser.name || "";
       document.getElementById("ship-phone").value = currentUser.phone || "";
 
-      // [!!! V7 修改：不自動填入地址，讓用戶自己選 !!!]
-      // document.getElementById("ship-address").value = currentUser.defaultAddress || "";
-      shipDeliveryLocation.value = ""; // 清空地區
-      shipStreetAddress.value = ""; // 清空詳細地址
-      shipRemoteAreaInfo.style.display = "none"; // 隱藏提示
-      // [!!! V7 修改結束 !!!]
+      // (清空地區)
+      shipDeliveryLocation.value = "";
+      shipStreetAddress.value = "";
+      shipRemoteAreaInfo.style.display = "none";
+      shipAreaSearch.value = "";
+      shipSearchResults.style.display = "none";
 
       document.getElementById("ship-note").value = "";
+
+      // 7. [!!! 關鍵 !!!] 在開啟彈窗前，呼叫一次計算函式 (使用預設的 "0" 費率)
+      recalculateShipmentTotal();
+
+      // 8. 開啟彈窗
       createShipmentModal.style.display = "flex";
     } catch (e) {
       console.error("btnCreateShipment 錯誤:", e);
@@ -861,8 +890,9 @@ document.addEventListener("DOMContentLoaded", () => {
       shipDeliveryLocation.options[shipDeliveryLocation.selectedIndex];
     const areaName = selectedOption.text.replace(/[✅📍⛰️🏖️🏝️⚠️]/g, "").trim(); // "一般地區" 或 "陽明山"
     const fullAddress =
-      (areaName === "一般地區" ? "" : areaName) + streetAddress;
-    // [!!! V7 新增結束 !!!]
+      (areaName === "一般地區" ? "" : areaName + " ") + streetAddress; // [!!! 修正：增加空格 !!!]
+
+    // [!!! V7 修正結束 !!!]
 
     const data = {
       packageIds: ids,
@@ -886,11 +916,11 @@ document.addEventListener("DOMContentLoaded", () => {
         "錯誤：收件人姓名、電話、地址、身分證字號為必填欄位。",
         "error"
       );
-      return;
+      return; // 停止提交
     }
     if (!data.packageIds || data.packageIds.length === 0) {
       showMessage("錯誤：沒有選中任何包裹。", "error");
-      return;
+      return; // 停止提交
     }
 
     try {
@@ -964,7 +994,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("edit-phone").value = currentUser.phone || "";
     document.getElementById("edit-address").value =
       currentUser.defaultAddress || "";
-    editProfileModal.style.display = "flex";
+    document.getElementById("edit-profile-modal").style.display = "flex";
   });
   editProfileForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1052,7 +1082,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const originalColor = btnCopyBankInfo.style.backgroundColor;
           btnCopyBankInfo.textContent = "✓ 已複製成功！";
           btnCopyBankInfo.style.backgroundColor = "#27ae60";
-          btnCopyBankInfo.disabled = true;
+          btnCopyBankPlayer.disabled = true;
           setTimeout(() => {
             btnCopyBankInfo.textContent = originalText;
             btnCopyBankInfo.style.backgroundColor = originalColor;
@@ -1156,8 +1186,7 @@ document.addEventListener("DOMContentLoaded", () => {
     trackingNumber.focus(); // 讓使用者可以直接輸入最重要的物流單號
   }
 
-  // --- [!!! V7 新增：綁定集運單彈窗的地區搜尋邏輯 !!!] ---
-  // (複製自 index.html，並修改所有 DOM ID 指向 #ship-...)
+  // --- [!!! V7.1 修正：綁定集運單彈窗的地區搜尋邏輯 !!!] ---
 
   // (N.1) 選擇搜尋結果
   window.selectShipRemoteArea = function (areaName, fee) {
@@ -1222,10 +1251,10 @@ document.addEventListener("DOMContentLoaded", () => {
       shipRemoteAreaInfo.style.display = "none";
     }
 
-    // [!!! 關鍵 !!!] 當地區變更時，立即重新計算總價
-    // 手動觸發一次 "合併打包" 按鈕的點擊事件，
-    // 但傳入一個標記，告訴它「不要」重新開啟彈窗，只要「重新計算」
-    btnCreateShipment.click();
+    // [!!! 關鍵修正 !!!]
+    // 不再呼叫 btnCreateShipment.click()
+    // 而是直接呼叫新的計算函式
+    recalculateShipmentTotal();
   });
 
   // (N.3) 監聽搜尋框輸入
@@ -1270,11 +1299,11 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
     }
   });
-  // --- [!!! V7 新增結束 !!!] ---
+  // --- [!!! V7.1 修正結束 !!!] ---
 
   // --- (初始載入) ---
   loadUserProfile();
   loadMyPackages();
   loadMyShipments();
-  checkForecastDraftQueue(false); // [*** 修正 ***] 呼叫新的佇列函式 (傳入 false，表示是「載入時」)
+  checkForecastDraftQueue(false);
 });
