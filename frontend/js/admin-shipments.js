@@ -1,5 +1,6 @@
 // 這是 frontend/js/admin-shipments.js (V5 狀態標籤 + V3 權限 統一版)
 // [!! 程式夥伴新增 !!] V6 - 優化：新增「已付款，待審核」虛擬狀態
+// [!! V7.4 新增 !!] 加入「列印/匯出」功能
 
 document.addEventListener("DOMContentLoaded", () => {
   // [*** V3 權限檢查：讀取權限 ***]
@@ -66,6 +67,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const updateForm = document.getElementById("edit-shipment-form");
   const shipmentPackageList = document.getElementById("modal-package-list");
   const modalServices = document.getElementById("modal-services");
+
+  // [!! V7.4 新增：列印按鈕 !!]
+  const btnPrintShipment = document.getElementById("btn-print-shipment");
 
   // --- 2. 狀態變數 ---
   let allShipmentsData = [];
@@ -224,7 +228,7 @@ document.addEventListener("DOMContentLoaded", () => {
     tr.cells[6].textContent = ship.trackingNumberTW || "-";
   }
 
-  // (C) 開啟彈窗
+  // (C) 開啟彈窗 (V7.4 - 新增列印按鈕綁定)
   function openShipmentModal(ship) {
     document.getElementById("edit-shipment-id").value = ship.id;
     document.getElementById("modal-user-email").textContent = ship.user.email;
@@ -255,6 +259,14 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-totalCost").value = ship.totalCost || "";
     document.getElementById("modal-trackingNumberTW").value =
       ship.trackingNumberTW || "";
+
+    // [V7.4 新增] 綁定列印按鈕事件
+    if (btnPrintShipment) {
+      btnPrintShipment.onclick = function () {
+        // 開啟列印頁面，並帶入 ID
+        window.open(`shipment-print.html?id=${ship.id}`, "_blank");
+      };
+    }
 
     modal.style.display = "flex";
   }

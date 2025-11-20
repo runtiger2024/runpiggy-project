@@ -259,7 +259,10 @@
       document.addEventListener("DOMContentLoaded", async () => {
         const params = new URLSearchParams(window.location.search);
         const shipmentId = params.get("id");
-        const token = localStorage.getItem("token");
+
+        // [關鍵修正] 嘗試讀取會員 Token，如果沒有，則讀取管理員 Token
+        const token =
+          localStorage.getItem("token") || localStorage.getItem("admin_token");
 
         if (!shipmentId || !token) {
           alert("無效的連結或未登入");
@@ -340,9 +343,13 @@
               (acc, b) => acc + (parseFloat(b.weight) || 0),
               0
             );
-            weightInfo = `${totalW.toFixed(1)} kg / ${
+            const totalCai = pkg.arrivedBoxes.reduce(
+              (acc, b) => acc + (parseFloat(b.cai) || 0),
+              0
+            ); // 使用解析後的 cain
+            weightInfo = `${totalW.toFixed(1)} kg / ${totalCai} 材 (${
               pkg.arrivedBoxes.length
-            } 箱`;
+            } 箱)`;
           }
 
           tr.innerHTML = `

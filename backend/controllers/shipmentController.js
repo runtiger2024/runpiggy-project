@@ -3,7 +3,7 @@
 // (V7.1 修正：補上「超重費」和「超長費」的計算邏輯)
 // (V7.2 修正：補上「偏遠地區費」的計算邏輯)
 // (V7.3 修正：整合 SendGrid 通知)
-// (V7.4 修正：實作 getShipmentById 用於列印/詳情)
+// (V7.4 修正：實作 getShipmentById 用於列印/詳情，並支援 Admin 權限)
 
 const prisma = require("../config/db.js");
 
@@ -275,21 +275,31 @@ const uploadPaymentProof = async (req, res) => {
 };
 
 /**
- * @description [V7.4 新增] 取得單一集運單詳情 (包含包裹與完整圖片)
+ * @description [V7.4 新增] 取得單一集運單詳情 (支援 Admin 與 User)
  * @route       GET /api/shipments/:id
  * @access      Private
  */
 const getShipmentById = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const user = req.user;
+
+    // 檢查是否擁有管理集運單的權限
+    const isAdmin =
+      user.permissions && user.permissions.includes("CAN_MANAGE_SHIPMENTS");
+
+    const whereCondition = {
+      id: id,
+    };
+
+    // 如果不是管理員 (User)，則強制只能查自己的單
+    if (!isAdmin) {
+      whereCondition.userId = user.id;
+    }
 
     // 查詢集運單，並關聯包裹資料
     const shipment = await prisma.shipment.findFirst({
-      where: {
-        id: id,
-        userId: userId, // 確保只能查自己的
-      },
+      where: whereCondition,
       include: {
         user: { select: { email: true, name: true } },
         packages: true, // 抓取關聯的包裹所有欄位 (包含圖片 JSON)
