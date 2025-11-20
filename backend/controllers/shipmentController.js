@@ -1,23 +1,24 @@
-// 這是 backend/controllers/shipmentController.js (V7 - 整合偏遠地區運費計算)
+// 這是 backend/controllers/shipmentController.js (V7.4 - 新增集運單詳情查詢)
+// (V7 - 整合偏遠地區運費計算)
 // (V7.1 修正：補上「超重費」和「超長費」的計算邏輯)
 // (V7.2 修正：補上「偏遠地區費」的計算邏輯)
 // (V7.3 修正：整合 SendGrid 通知)
+// (V7.4 修正：實作 getShipmentById 用於列印/詳情)
 
 const prisma = require("../config/db.js");
 
-// [!!! V7.3 新增：匯入 Email 函式 !!!]
+// [V7.3 匯入 Email 函式]
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
 
-// [*** 修正：從 calculatorController.js 引入規則 ***]
+// [從 calculatorController.js 引入規則]
 const MINIMUM_CHARGE = 2000; // 集運低消
 const OVERSIZED_LIMIT = 300;
 const OVERSIZED_FEE = 800;
 const OVERWEIGHT_LIMIT = 100;
 const OVERWEIGHT_FEE = 800;
-// [!!! V7 新增：計算 CBM 用的常數 !!!]
+// [V7 新增：計算 CBM 用的常數]
 const VOLUME_DIVISOR = 28317;
 const CBM_TO_CAI_FACTOR = 35.3;
-// [*** 修正結束 ***]
 
 /**
  * @description 建立新的集運單 (合併包裹)
@@ -26,7 +27,6 @@ const CBM_TO_CAI_FACTOR = 35.3;
  */
 const createShipment = async (req, res) => {
   try {
-    // 1. [!!! V7 修正：取得新欄位 !!!]
     const {
       packageIds,
       shippingAddress,
@@ -35,12 +35,12 @@ const createShipment = async (req, res) => {
       idNumber,
       taxId,
       note,
-      deliveryLocationRate, // <-- [!!! V7 新增 !!!]
+      deliveryLocationRate,
     } = req.body;
 
     const userId = req.user.id;
 
-    // 2. 驗證 (保持不變)
+    // 驗證
     if (!packageIds || !Array.isArray(packageIds) || packageIds.length === 0) {
       return res
         .status(400)
@@ -52,7 +52,6 @@ const createShipment = async (req, res) => {
         message: "請提供完整的收件人姓名、電話、地址 和 身分證字號",
       });
     }
-    // [!!! V7 新增：驗證 deliveryLocationRate !!!]
     if (deliveryLocationRate === undefined || deliveryLocationRate === null) {
       return res.status(400).json({
         success: false,
@@ -77,17 +76,14 @@ const createShipment = async (req, res) => {
       });
     }
 
-    // 3. [*** V7 關鍵修正：計算總運費 (包含附加費 + 偏遠地區費) ***]
-
-    // (A) 累加所有包裹的 "基本運費"
+    // 計算總運費
     const calculatedTotalCost = packagesToShip.reduce((sum, pkg) => {
       return sum + (pkg.totalCalculatedFee || 0);
     }, 0);
 
-    // (B) 檢查是否觸發 "附加費" + [!!! V7 新增：計算總材積 !!!]
     let hasAnyOversizedItem = false;
     let hasAnyOverweightItem = false;
-    let totalShipmentVolume = 0; // [!!! V7 新增 !!!]
+    let totalShipmentVolume = 0;
 
     packagesToShip.forEach((pkg) => {
       try {
@@ -109,7 +105,6 @@ const createShipment = async (req, res) => {
             hasAnyOverweightItem = true;
           }
 
-          // [!!! V7 新增：累加總材積 !!!]
           if (length > 0 && width > 0 && height > 0) {
             const singleVolume = Math.ceil(
               (length * width * height) / VOLUME_DIVISOR
@@ -125,46 +120,36 @@ const createShipment = async (req, res) => {
     const totalOverweightFee = hasAnyOversizedItem ? OVERWEIGHT_FEE : 0;
     const totalOversizedFee = hasAnyOversizedItem ? OVERSIZED_FEE : 0;
 
-    // [!!! V7 新增：計算偏遠地區費 !!!]
     const totalCbm = totalShipmentVolume / CBM_TO_CAI_FACTOR;
     const remoteFee = Math.round(
       totalCbm * (parseFloat(deliveryLocationRate) || 0)
     );
 
-    // (C) 套用 "低消" 邏輯
     let finalBaseCost = calculatedTotalCost;
     if (finalBaseCost > 0 && finalBaseCost < MINIMUM_CHARGE) {
       finalBaseCost = MINIMUM_CHARGE;
     }
 
-    // (D) [!!! V7 修正：計算最終總金額 !!!]
     const finalTotalCost =
       finalBaseCost + totalOverweightFee + totalOversizedFee + remoteFee;
 
-    // [*** 修正結束 ***]
-
-    // 4. 使用資料庫「交易」建立集運單
+    // 使用資料庫「交易」建立集運單
     const newShipment = await prisma.$transaction(async (tx) => {
-      // A. 建立集運單
       const createdShipment = await tx.shipment.create({
         data: {
           recipientName: recipientName,
           phone: phone,
-          shippingAddress: shippingAddress, // [!!! V7 修正 !!!] 這裡已是組合好的完整地址
+          shippingAddress: shippingAddress,
           idNumber: idNumber,
           taxId: taxId || null,
           note: note || null,
-
-          // [!!! V7 修正 !!!] 寫入 "最終總金額" 和 "費率"
           totalCost: finalTotalCost,
-          deliveryLocationRate: parseFloat(deliveryLocationRate) || 0, // <-- [!!! V7 新增 !!!]
-
+          deliveryLocationRate: parseFloat(deliveryLocationRate) || 0,
           status: "PENDING_PAYMENT",
           userId: userId,
         },
       });
 
-      // B. 更新所有被選中包裹的狀態 (不變)
       await tx.package.updateMany({
         where: {
           id: { in: packageIds },
@@ -178,22 +163,16 @@ const createShipment = async (req, res) => {
       return createdShipment;
     });
 
-    // 5. [!!! V7.3 關鍵新增：發送 Email 通知 !!!]
-    // (在資料庫交易成功後執行)
+    // 發送 Email 通知
     try {
-      // 我們需要 customer 物件，它就在 req.user 上
       await sendNewShipmentNotification(newShipment, req.user);
     } catch (emailError) {
-      // (重要) Email 發送失敗不應該影響客戶端的操作結果
-      // 僅在後台記錄錯誤
       console.warn(
         `[Non-critical] 訂單 ${newShipment.id} 建立成功，但 Email 通知發送失敗:`,
         emailError
       );
     }
-    // [!!! V7.3 新增結束 !!!]
 
-    // 6. 回傳成功訊息 (原本的步驟 5)
     res.status(201).json({
       success: true,
       message: "集運單建立成功！",
@@ -295,9 +274,73 @@ const uploadPaymentProof = async (req, res) => {
   }
 };
 
-// (保留骨架)
-const getShipmentById = (req, res) => {
-  res.json({ message: "OK, getShipmentById (尚未實作)" });
+/**
+ * @description [V7.4 新增] 取得單一集運單詳情 (包含包裹與完整圖片)
+ * @route       GET /api/shipments/:id
+ * @access      Private
+ */
+const getShipmentById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // 查詢集運單，並關聯包裹資料
+    const shipment = await prisma.shipment.findFirst({
+      where: {
+        id: id,
+        userId: userId, // 確保只能查自己的
+      },
+      include: {
+        user: { select: { email: true, name: true } },
+        packages: true, // 抓取關聯的包裹所有欄位 (包含圖片 JSON)
+      },
+    });
+
+    if (!shipment) {
+      return res
+        .status(404)
+        .json({ success: false, message: "找不到此集運單或無權限查看" });
+    }
+
+    // 解析 JSON 欄位 (包裹圖片、分箱資訊)
+    const processedPackages = shipment.packages.map((pkg) => {
+      let productImages = [];
+      let warehouseImages = [];
+      let arrivedBoxes = [];
+
+      try {
+        productImages = JSON.parse(pkg.productImages || "[]");
+      } catch (e) {}
+      try {
+        warehouseImages = JSON.parse(pkg.warehouseImages || "[]");
+      } catch (e) {}
+      try {
+        arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
+      } catch (e) {}
+
+      return {
+        ...pkg,
+        productImages,
+        warehouseImages,
+        arrivedBoxes,
+        arrivedBoxesJson: undefined, // 移除原始 JSON 字串
+      };
+    });
+
+    const processedShipment = {
+      ...shipment,
+      packages: processedPackages,
+      additionalServices: JSON.parse(shipment.additionalServices || "{}"),
+    };
+
+    res.status(200).json({
+      success: true,
+      shipment: processedShipment,
+    });
+  } catch (error) {
+    console.error("取得集運單詳情失敗:", error);
+    res.status(500).json({ success: false, message: "伺服器發生錯誤" });
+  }
 };
 
 module.exports = {

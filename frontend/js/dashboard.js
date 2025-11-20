@@ -1,11 +1,12 @@
-// 這是 frontend/js/dashboard.js (V7.3 - 優化偏遠地區費顯示)
+// 這是 frontend/js/dashboard.js (V7.4 - 含列印功能完整版)
 // (1) 修正 V3 佇列 Bug
 // (2) 新增 V4 佇列 UI
 // (3) 延長 showMessage
 // (4) 新增「超重/超長/堆高機」警告
 // (5) [V5 修正] 統一集運單狀態 (shipmentStatusMap)
-// (6) [!! 程式夥伴新增 !!] 優化：上傳憑證後，狀態顯示為「已付款，待審核」
-// (7) [!!! V7.3 修正：將偏遠地區費併入基本運費小字中 !!!]
+// (6) [V6 新增] 優化：上傳憑證後，狀態顯示為「已付款，待審核」
+// (7) [V7.3 修正] 將偏遠地區費併入基本運費小字中
+// (8) [V7.4 新增] 加入「列印/匯出」按鈕
 
 // --- [*** V5 修正：從 calculatorController.js 引入規則 ***] ---
 const RATES = {
@@ -522,7 +523,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (D) 載入集運單
+  // (D) 載入集運單 (V7.4 - 新增列印按鈕)
   async function loadMyShipments() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/shipments/my`, {
@@ -540,13 +541,11 @@ document.addEventListener("DOMContentLoaded", () => {
           let statusText = shipmentStatusMap[ship.status] || ship.status;
           let statusClass = ship.status; // 預設的 CSS class
 
-          // [!! 程式夥伴新增：您的新邏輯 !!]
-          // 如果狀態是「待付款」但「已有付款憑證」，我們就覆寫文字
+          // [!! 程式夥伴新增 !!] 優化：上傳憑證後，狀態顯示為「已付款，待審核」
           if (ship.status === "PENDING_PAYMENT" && ship.paymentProof) {
             statusText = "已付款，待審核";
-            statusClass = "PENDING_REVIEW"; // 我們將為這個 class 新增 CSS
+            statusClass = "PENDING_REVIEW";
           }
-          // [!! 程式夥伴新增結束 !!]
 
           let proofBtn = "";
           if (ship.paymentProof) {
@@ -554,6 +553,9 @@ document.addEventListener("DOMContentLoaded", () => {
           } else {
             proofBtn = `<button class="btn btn-primary btn-sm" onclick="window.openUploadProof('${ship.id}')">上傳憑證</button>`;
           }
+
+          // [!!! V7.4 新增：列印/匯出按鈕 !!!]
+          const printBtn = `<button class="btn btn-secondary btn-sm" style="margin-top:5px; background-color: #607d8b;" onclick="window.open('shipment-print.html?id=${ship.id}', '_blank')">列印/匯出</button>`;
 
           return `
           <tr>
@@ -569,7 +571,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 ? `NT$ ${ship.totalCost.toLocaleString()}`
                 : "(待報價)"
             }</td>
-            <td>${proofBtn}</td>
+            <td>
+                ${proofBtn}
+                ${printBtn}
+            </td>
           </tr>`;
         })
         .join("");

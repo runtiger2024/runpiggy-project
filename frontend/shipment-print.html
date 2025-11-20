@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>集運單明細列印 - 小跑豬</title>
+    <link rel="icon" href="assets/logo.png" type="image/png" />
+    <style>
+      /* A4 列印樣式設定 */
+      @media print {
+        @page {
+          size: A4;
+          margin: 10mm;
+        }
+        body {
+          -webkit-print-color-adjust: exact;
+        }
+        .no-print {
+          display: none !important;
+        }
+        .page-container {
+          box-shadow: none !important;
+          margin: 0 !important;
+          width: 100% !important;
+        }
+      }
+
+      body {
+        font-family: "Microsoft JhengHei", Arial, sans-serif;
+        color: #333;
+        background: #555; /* 預覽背景深色 */
+        margin: 0;
+        padding: 20px;
+      }
+
+      .page-container {
+        background: white;
+        max-width: 210mm; /* A4 寬度 */
+        min-height: 297mm; /* A4 高度 */
+        margin: 0 auto;
+        padding: 20mm;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        position: relative;
+        box-sizing: border-box;
+      }
+
+      .header {
+        border-bottom: 2px solid #1a73e8;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .logo-section img {
+        height: 50px;
+      }
+      .company-info {
+        text-align: right;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      h1 {
+        color: #1a73e8;
+        margin: 0;
+        font-size: 24px;
+      }
+
+      .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+        border: 1px solid #ddd;
+        padding: 15px;
+        border-radius: 5px;
+      }
+      .info-item {
+        margin-bottom: 5px;
+        font-size: 14px;
+      }
+      .info-item strong {
+        min-width: 70px;
+        display: inline-block;
+        color: #555;
+      }
+
+      .package-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+        font-size: 13px;
+      }
+      .package-table th,
+      .package-table td {
+        border: 1px solid #ccc;
+        padding: 8px;
+        text-align: left;
+      }
+      .package-table th {
+        background-color: #f0f8ff;
+        color: #1a73e8;
+      }
+
+      .photos-section {
+        margin-top: 20px;
+        page-break-inside: avoid; /* 盡量不被切斷 */
+      }
+      .photos-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr); /* 一行四張 */
+        gap: 10px;
+      }
+      .photo-item {
+        border: 1px solid #eee;
+        padding: 5px;
+        text-align: center;
+      }
+      .photo-item img {
+        width: 100%;
+        height: 100px;
+        object-fit: cover;
+        display: block;
+      }
+      .photo-caption {
+        font-size: 10px;
+        color: #666;
+        margin-top: 3px;
+      }
+
+      .footer {
+        margin-top: 30px;
+        border-top: 1px dashed #ccc;
+        padding-top: 10px;
+        text-align: center;
+        font-size: 12px;
+        color: #888;
+      }
+
+      /* 操作按鈕區 */
+      .action-bar {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .btn {
+        padding: 10px 20px;
+        background: #1a73e8;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+      }
+      .btn-back {
+        background: #666;
+      }
+
+      #loading {
+        text-align: center;
+        padding: 50px;
+        background: white;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="action-bar no-print">
+      <button class="btn" onclick="window.print()">🖨️ 列印 / 存為 PDF</button>
+      <button class="btn btn-back" onclick="window.close()">關閉視窗</button>
+    </div>
+
+    <div id="loading">載入資料中...</div>
+
+    <div id="print-content" class="page-container" style="display: none">
+      <div class="header">
+        <div class="logo-section">
+          <img src="assets/logo.png" alt="Logo" />
+          <h1>集運訂單明細表</h1>
+        </div>
+        <div class="company-info">
+          <strong>兩隻老虎國際貿易有限公司</strong><br />
+          Email: 2runtigers@gmail.com<br />
+          LINE: @runpiggy
+        </div>
+      </div>
+
+      <div class="info-grid">
+        <div>
+          <div class="info-item">
+            <strong>訂單編號：</strong><span id="p-id"></span>
+          </div>
+          <div class="info-item">
+            <strong>建立日期：</strong><span id="p-date"></span>
+          </div>
+          <div class="info-item">
+            <strong>訂單狀態：</strong><span id="p-status"></span>
+          </div>
+          <div class="info-item">
+            <strong>台灣單號：</strong><span id="p-tw-tracking"></span>
+          </div>
+        </div>
+        <div>
+          <div class="info-item">
+            <strong>收件人：</strong><span id="p-name"></span>
+          </div>
+          <div class="info-item">
+            <strong>電話：</strong><span id="p-phone"></span>
+          </div>
+          <div class="info-item">
+            <strong>身分證：</strong><span id="p-idnum"></span>
+          </div>
+          <div class="info-item">
+            <strong>收件地址：</strong><span id="p-address"></span>
+          </div>
+        </div>
+      </div>
+
+      <h3>📦 包裹清單</h3>
+      <table class="package-table">
+        <thead>
+          <tr>
+            <th style="width: 5%">#</th>
+            <th style="width: 25%">物流單號</th>
+            <th style="width: 20%">商品名稱</th>
+            <th style="width: 10%">件數</th>
+            <th style="width: 20%">倉庫數據 (重量/材積)</th>
+            <th style="width: 20%">備註</th>
+          </tr>
+        </thead>
+        <tbody id="p-pkg-body"></tbody>
+      </table>
+
+      <div
+        class="info-item"
+        style="text-align: right; font-size: 16px; margin-top: 10px"
+      >
+        <strong>總運費金額：</strong>
+        <span id="p-total" style="color: #d32f2f; font-weight: bold"></span>
+      </div>
+
+      <div class="photos-section">
+        <h3>📷 商品/倉庫照片</h3>
+        <div class="photos-grid" id="p-photos-grid"></div>
+      </div>
+
+      <div class="footer">
+        本單據由小跑豬集運系統自動產生 · 列印時間：<span id="print-time"></span>
+      </div>
+    </div>
+
+    <script src="js/apiConfig.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", async () => {
+        const params = new URLSearchParams(window.location.search);
+        const shipmentId = params.get("id");
+        const token = localStorage.getItem("token");
+
+        if (!shipmentId || !token) {
+          alert("無效的連結或未登入");
+          window.close();
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/shipments/${shipmentId}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message);
+
+          renderShipment(data.shipment);
+          document.getElementById("loading").style.display = "none";
+          document.getElementById("print-content").style.display = "block";
+        } catch (error) {
+          alert("載入失敗：" + error.message);
+        }
+      });
+
+      function renderShipment(ship) {
+        // 狀態對照表
+        const shipmentStatusMap = {
+          PENDING_PAYMENT: "待付款",
+          PROCESSING: "已收款，安排裝櫃",
+          SHIPPED: "已裝櫃",
+          COMPLETED: "海關查驗",
+          CANCELLEDD: "清關放行",
+          CANCELL: "拆櫃派送",
+          CANCEL: "已完成",
+          CANCELLED: "已取消/退回",
+        };
+        // 特殊狀態：待付款但有憑證
+        let statusText = shipmentStatusMap[ship.status] || ship.status;
+        if (ship.status === "PENDING_PAYMENT" && ship.paymentProof) {
+          statusText = "已付款，待審核";
+        }
+
+        // 填寫基本資料
+        document.getElementById("p-id").textContent = ship.id
+          .slice(-8)
+          .toUpperCase(); // 只顯示後8碼
+        document.getElementById("p-date").textContent = new Date(
+          ship.createdAt
+        ).toLocaleDateString();
+        document.getElementById("p-status").textContent = statusText;
+        document.getElementById("p-tw-tracking").textContent =
+          ship.trackingNumberTW || "(尚未產生)";
+
+        document.getElementById("p-name").textContent = ship.recipientName;
+        document.getElementById("p-phone").textContent = ship.phone;
+        document.getElementById("p-idnum").textContent = ship.idNumber;
+        document.getElementById("p-address").textContent = ship.shippingAddress;
+        document.getElementById("p-total").textContent = `NT$ ${
+          ship.totalCost ? ship.totalCost.toLocaleString() : "0"
+        }`;
+        document.getElementById("print-time").textContent =
+          new Date().toLocaleString();
+
+        // 填寫包裹表格 & 收集照片
+        const tbody = document.getElementById("p-pkg-body");
+        const photosGrid = document.getElementById("p-photos-grid");
+
+        ship.packages.forEach((pkg, index) => {
+          // 表格列
+          const tr = document.createElement("tr");
+
+          // 計算總重與材積 (若有分箱資料)
+          let weightInfo = "-";
+          if (pkg.arrivedBoxes && pkg.arrivedBoxes.length > 0) {
+            const totalW = pkg.arrivedBoxes.reduce(
+              (acc, b) => acc + (parseFloat(b.weight) || 0),
+              0
+            );
+            weightInfo = `${totalW.toFixed(1)} kg / ${
+              pkg.arrivedBoxes.length
+            } 箱`;
+          }
+
+          tr.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${pkg.trackingNumber}</td>
+          <td>${pkg.productName}</td>
+          <td>${pkg.quantity}</td>
+          <td>${weightInfo}</td>
+          <td>${pkg.note || ""}</td>
+        `;
+          tbody.appendChild(tr);
+
+          // 處理照片 (包含客戶上傳 productImages 和 倉庫 warehouseImages)
+          const allImages = [
+            ...(pkg.productImages || []),
+            ...(pkg.warehouseImages || []),
+          ];
+
+          allImages.forEach((imgUrl) => {
+            const div = document.createElement("div");
+            div.className = "photo-item";
+            div.innerHTML = `
+             <img src="${API_BASE_URL}${imgUrl}" alt="photo">
+             <div class="photo-caption">${pkg.productName} (${pkg.trackingNumber})</div>
+           `;
+            photosGrid.appendChild(div);
+          });
+        });
+
+        if (photosGrid.children.length === 0) {
+          photosGrid.innerHTML =
+            '<p style="grid-column: 1/-1; text-align: center; color: #999;">此訂單無相關照片</p>';
+        }
+      }
+    </script>
+  </body>
+</html>
