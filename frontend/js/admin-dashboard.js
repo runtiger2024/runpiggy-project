@@ -1,4 +1,4 @@
-// frontend/js/admin-dashboard.js (V9 旗艦版 - 支援卡片導航)
+// frontend/js/admin-dashboard.js (V10)
 
 document.addEventListener("DOMContentLoaded", () => {
   // 1. 權限檢查與初始化
@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const adminName = localStorage.getItem("admin_name");
 
   function checkAdminPermissions() {
+    // 檢查使用者管理權限
     if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
       const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
       const btnNavMembers = document.getElementById("btn-nav-members");
@@ -17,12 +18,12 @@ document.addEventListener("DOMContentLoaded", () => {
       if (btnNavCreateStaff) btnNavCreateStaff.style.display = "none";
       if (btnNavMembers) btnNavMembers.style.display = "none";
       if (btnNavLogs) btnNavLogs.style.display = "none";
+    }
 
-      const adminOnlyContent = document.getElementById("admin-only-content");
-      if (adminOnlyContent) {
-        adminOnlyContent.innerHTML =
-          '<h2 style="color: red; text-align: center; padding: 40px;">權限不足 (Access Denied)</h2><p style="text-align: center;">此頁面僅限管理員使用。</p>';
-      }
+    // [新增] 檢查系統設定權限 (CAN_MANAGE_SYSTEM)
+    if (!adminPermissions.includes("CAN_MANAGE_SYSTEM")) {
+      const btnNavSettings = document.getElementById("btn-nav-settings");
+      if (btnNavSettings) btnNavSettings.style.display = "none";
     }
   }
 
@@ -45,21 +46,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   checkAdminPermissions();
 
-  // --- 2. [新增] 卡片快速導航 (Drill-down) ---
-  // 設定卡片 ID 與目標 URL 的對應關係
+  // --- 2. 卡片快速導航 (Drill-down) ---
   function setupCardNavigation() {
     const mapping = {
-      // 營收與會員
-      "card-total-revenue": "admin-shipments.html?status=CANCEL", // 完成訂單
+      "card-total-revenue": "admin-shipments.html?status=CANCEL",
       "card-pending-revenue": "admin-shipments.html?status=PENDING_PAYMENT",
       "card-total-users": "admin-members.html",
-      "card-new-users": "admin-members.html?filter=new_today", // 新增的 filter
-
-      // 包裹
+      "card-new-users": "admin-members.html?filter=new_today",
       "card-pkg-pending": "admin-parcels.html?status=PENDING",
       "card-pkg-arrived": "admin-parcels.html?status=ARRIVED",
-
-      // 訂單
       "card-ship-pending": "admin-shipments.html?status=PENDING_PAYMENT",
       "card-ship-processing": "admin-shipments.html?status=PROCESSING",
     };
@@ -74,11 +69,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  setupCardNavigation(); // 執行綁定
+  setupCardNavigation();
 
   // --- 3. 獲取元素與初始化 ---
   const logoutBtn = document.getElementById("logoutBtn");
-  // 統計元素
   const statsTotalRevenue = document.getElementById("stats-total-revenue");
   const statsPendingRevenue = document.getElementById("stats-pending-revenue");
   const statsTotalUsers = document.getElementById("stats-total-users");
@@ -89,28 +83,14 @@ document.addEventListener("DOMContentLoaded", () => {
     "stats-ship-pending-payment"
   );
   const statsShipProcessing = document.getElementById("stats-ship-processing");
-  // 列表元素
   const recentPackagesTable = document.getElementById("recent-packages-table");
   const recentShipmentsTable = document.getElementById(
     "recent-shipments-table"
   );
 
-  // 狀態對照 (使用 shippingData.js 的全域變數，如果有的話。這裡做 fallback)
-  const pkgStatusMap =
-    window.PACKAGE_STATUS_MAP ||
-    {
-      /* fallback */
-    };
-  const shipStatusMap =
-    window.SHIPMENT_STATUS_MAP ||
-    {
-      /* fallback */
-    };
-  const statusClasses =
-    window.STATUS_CLASSES ||
-    {
-      /* fallback */
-    };
+  const pkgStatusMap = window.PACKAGE_STATUS_MAP || {};
+  const shipStatusMap = window.SHIPMENT_STATUS_MAP || {};
+  const statusClasses = window.STATUS_CLASSES || {};
 
   // --- 4. 載入儀表板統計 ---
   async function loadDashboardStats() {
@@ -129,7 +109,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await response.json();
       const stats = data.stats;
 
-      // 填入數字
       statsTotalRevenue.textContent = `NT$ ${stats.totalRevenue.toLocaleString()}`;
       statsPendingRevenue.textContent = `NT$ ${stats.pendingRevenue.toLocaleString()}`;
       statsTotalUsers.textContent = stats.totalUsers.toLocaleString();
@@ -141,7 +120,6 @@ document.addEventListener("DOMContentLoaded", () => {
         stats.shipmentStats.PENDING_PAYMENT || 0;
       statsShipProcessing.textContent = stats.shipmentStats.PROCESSING || 0;
 
-      // 填入最近包裹
       if (stats.recentPackages && stats.recentPackages.length > 0) {
         recentPackagesTable.innerHTML = stats.recentPackages
           .map((pkg) => {
@@ -162,7 +140,6 @@ document.addEventListener("DOMContentLoaded", () => {
           '<tr><td colspan="4" style="text-align: center;">尚無包裹</td></tr>';
       }
 
-      // 填入最近訂單
       if (stats.recentShipments && stats.recentShipments.length > 0) {
         recentShipmentsTable.innerHTML = stats.recentShipments
           .map((ship) => {
@@ -347,5 +324,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 初始載入
   loadDashboardStats();
-  fetchDetailedReport(); // 預設載入報表
+  fetchDetailedReport();
 });

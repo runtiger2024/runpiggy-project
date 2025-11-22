@@ -1,139 +1,141 @@
-// 這是 frontend/js/admin-register.js (V3 權限系統版)
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>新增員工帳號 - 管理後台</title>
+    <link rel="icon" href="assets/logo.png" type="image/png" />
+    <script src="js/styleLoader.js"></script>
+  </head>
+  <body>
+    <div class="container" style="max-width: 500px">
+      <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
 
-document.addEventListener("DOMContentLoaded", () => {
-  // [*** V3 權限檢查：讀取權限 ***]
-  const adminPermissions = JSON.parse(
-    localStorage.getItem("admin_permissions") || "[]"
-  );
-  const adminToken = localStorage.getItem("admin_token");
-  const adminName = localStorage.getItem("admin_name");
+      <h1>新增員工帳號</h1>
 
-  // [*** V3 權限檢查：檢查函式 ***]
-  function checkAdminPermissions() {
-    // 檢查是否 "沒有" 管理會員的權限
-    if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
-      // 1. 隱藏導覽列的 Admin 按鈕 (如果存在)
-      const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
-      const btnNavMembers = document.getElementById("btn-nav-members");
-      const btnNavLogs = document.getElementById("btn-nav-logs");
+      <div id="admin-only-content">
+        <div id="message-box" class="alert" style="display: none"></div>
 
-      if (btnNavCreateStaff) btnNavCreateStaff.style.display = "none";
-      if (btnNavMembers) btnNavMembers.style.display = "none";
-      if (btnNavLogs) btnNavLogs.style.display = "none";
+        <form id="register-form" class="auth-form active">
+          <div class="form-group">
+            <label for="staff-name" class="required">員工姓名</label>
+            <input type="text" id="staff-name" required />
+          </div>
+          <div class="form-group">
+            <label for="staff-email" class="required">登入 Email</label>
+            <input type="email" id="staff-email" required />
+          </div>
+          <div class="form-group">
+            <label for="staff-password" class="required"
+              >登入密碼 (至少6位數)</label
+            >
+            <input type="password" id="staff-password" minlength="6" required />
+          </div>
 
-      // 2. 隱藏此頁面的主要内容
-      const adminOnlyContent = document.getElementById("admin-only-content");
-      if (adminOnlyContent) {
-        adminOnlyContent.innerHTML =
-          '<h2 style="color: red; text-align: center; padding: 40px;">權限不足 (Access Denied)</h2>' +
-          '<p style="text-align: center;">此頁面僅限具有「管理會員」權限的管理員使用。</p>';
-      }
-    }
-  }
+          <div class="form-group">
+            <label class="required">帳號權限</label>
+            <fieldset
+              id="permissions-fieldset"
+              style="border: 1px solid #ccc; padding: 10px; border-radius: 5px"
+            >
+              <div style="margin-bottom: 5px">
+                <input
+                  type="checkbox"
+                  id="perm-CAN_VIEW_DASHBOARD"
+                  value="CAN_VIEW_DASHBOARD"
+                  checked
+                />
+                <label for="perm-CAN_VIEW_DASHBOARD">查看儀表板</label>
+              </div>
+              <div style="margin-bottom: 5px">
+                <input
+                  type="checkbox"
+                  id="perm-CAN_MANAGE_PACKAGES"
+                  value="CAN_MANAGE_PACKAGES"
+                  checked
+                />
+                <label for="perm-CAN_MANAGE_PACKAGES"
+                  >管理包裹 (入庫/更新)</label
+                >
+              </div>
+              <div style="margin-bottom: 5px">
+                <input
+                  type="checkbox"
+                  id="perm-CAN_MANAGE_SHIPMENTS"
+                  value="CAN_MANAGE_SHIPMENTS"
+                  checked
+                />
+                <label for="perm-CAN_MANAGE_SHIPMENTS"
+                  >管理集運單 (出貨/退回)</label
+                >
+              </div>
 
-  // (A) 檢查登入
-  if (!adminToken) {
-    alert("偵測到未登入，將跳轉至管理員登入頁面");
-    window.location.href = "admin-login.html";
-    return; // 停止執行
-  }
+              <hr style="margin: 10px 0" />
 
-  const adminWelcome = document.getElementById("admin-welcome");
-  if (adminName) {
-    // [V3 修正] 解析權限，顯示 ADMIN 或 OPERATOR
-    let role = "USER";
-    if (adminPermissions.includes("CAN_MANAGE_USERS")) {
-      role = "ADMIN";
-    } else if (adminPermissions.length > 0) {
-      role = "OPERATOR";
-    }
-    // (admin-register.html 頁面沒有 admin-welcome 元素，但我們保留這段)
-    if (adminWelcome) {
-      adminWelcome.textContent = `你好, ${adminName} (${role})`;
-    }
-  }
+              <div style="margin-bottom: 5px">
+                <input
+                  type="checkbox"
+                  id="perm-CAN_MANAGE_USERS"
+                  value="CAN_MANAGE_USERS"
+                />
+                <label
+                  for="perm-CAN_MANAGE_USERS"
+                  style="color: #d32f2f; font-weight: bold"
+                  >[A] 管理會員/員工 (高權限)</label
+                >
+              </div>
+              <div style="margin-bottom: 5px">
+                <input
+                  type="checkbox"
+                  id="perm-CAN_VIEW_LOGS"
+                  value="CAN_VIEW_LOGS"
+                />
+                <label
+                  for="perm-CAN_VIEW_LOGS"
+                  style="color: #d32f2f; font-weight: bold"
+                  >[A] 查看操作日誌 (高權限)</label
+                >
+              </div>
+              <div style="margin-bottom: 5px">
+                <input
+                  type="checkbox"
+                  id="perm-CAN_IMPERSONATE_USERS"
+                  value="CAN_IMPERSONATE_USERS"
+                />
+                <label
+                  for="perm-CAN_IMPERSONATE_USERS"
+                  style="color: #d32f2f; font-weight: bold"
+                  >[A] 模擬客戶登入 (高權限)</label
+                >
+              </div>
+              
+              <div style="margin-bottom: 5px">
+                <input
+                  type="checkbox"
+                  id="perm-CAN_MANAGE_SYSTEM"
+                  value="CAN_MANAGE_SYSTEM"
+                />
+                <label
+                  for="perm-CAN_MANAGE_SYSTEM"
+                  style="color: #d32f2f; font-weight: bold; background: #e3f2fd; padding: 2px 5px;"
+                  >[S] 系統全域設定 (最高權限)</label
+                >
+              </div>
+            </fieldset>
+          </div>
+          <button type="submit" class="btn btn-primary">建立新帳號</button>
+        </form>
+      </div>
+      <a
+        href="admin-dashboard.html"
+        class="btn btn-secondary"
+        style="text-decoration: none; text-align: center; margin-top: 10px"
+      >
+        返回儀表板
+      </a>
+    </div>
 
-  // (B) [*** V3 權限檢查：立刻執行 ***]
-  checkAdminPermissions();
-  // [*** 權限檢查結束 ***]
-
-  const registerForm = document.getElementById("register-form");
-  const messageBox = document.getElementById("message-box");
-  const permissionsFieldset = document.getElementById("permissions-fieldset");
-
-  if (!registerForm) return; // 如果內容已被隱藏，就停止
-
-  // (C) 綁定表單提交事件
-  registerForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    showMessage("", "clear");
-
-    // 收集表單資料
-    const name = document.getElementById("staff-name").value;
-    const email = document.getElementById("staff-email").value;
-    const password = document.getElementById("staff-password").value;
-
-    // [*** V3 修正：讀取 Checkboxes ***]
-    const permissions = [];
-    const checkboxes = permissionsFieldset.querySelectorAll(
-      "input[type='checkbox']:checked"
-    );
-    checkboxes.forEach((cb) => {
-      permissions.push(cb.value);
-    });
-
-    if (permissions.length === 0) {
-      showMessage("必須至少勾選一個權限", "error");
-      return;
-    }
-    // [*** 修正結束 ***]
-
-    const requestData = { name, email, password, permissions }; // [*** V3 修正 ***]
-
-    try {
-      // (3) 呼叫 API
-      const response = await fetch(`${API_BASE_URL}/api/admin/users/create`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`, // (重要) 必須帶上管理員 Token
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "建立失敗");
-      }
-
-      // (4) 成功
-      showMessage(
-        `成功建立員工: ${data.user.email} (權限: ${data.user.permissions.length} 個)`,
-        "success"
-      );
-      registerForm.reset(); // 清空表單
-      // 預設勾選
-      document.getElementById("perm-CAN_VIEW_DASHBOARD").checked = true;
-      document.getElementById("perm-CAN_MANAGE_PACKAGES").checked = true;
-      document.getElementById("perm-CAN_MANAGE_SHIPMENTS").checked = true;
-    } catch (error) {
-      console.error("建立員工失敗:", error);
-      showMessage(error.message, "error");
-    }
-  });
-
-  // 訊息顯示工具
-  function showMessage(message, type) {
-    messageBox.textContent = message;
-    if (type === "error") {
-      messageBox.className = "alert alert-error";
-      messageBox.style.display = "block";
-    } else if (type === "success") {
-      messageBox.className = "alert alert-success";
-      messageBox.style.display = "block";
-    } else {
-      messageBox.style.display = "none";
-    }
-  }
-});
+    <script src="js/apiConfig.js"></script>
+    <script src="js/admin-register.js"></script>
+  </body>
+</html>

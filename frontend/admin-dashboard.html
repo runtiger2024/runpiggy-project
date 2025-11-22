@@ -29,6 +29,7 @@
           <a
             href="admin-register.html"
             class="btn btn-secondary"
+            id="btn-nav-create-staff"
             style="background-color: #2ecc71"
             >新增員工帳號</a
           >
@@ -36,153 +37,174 @@
           <a href="admin-shipments.html" class="btn btn-secondary"
             >集運單管理</a
           >
-          <a href="admin-members.html" class="btn btn-secondary">會員管理</a>
-          <a href="admin-logs.html" class="btn btn-secondary">操作日誌</a>
+          <a
+            href="admin-members.html"
+            class="btn btn-secondary"
+            id="btn-nav-members"
+            >會員管理</a
+          >
+          <a href="admin-logs.html" class="btn btn-secondary" id="btn-nav-logs"
+            >操作日誌</a
+          >
+
+          <a
+            href="admin-settings.html"
+            class="btn btn-secondary"
+            id="btn-nav-settings"
+            style="background-color: #607d8b"
+            >系統設定</a
+          >
+
           <span id="admin-welcome"></span>
           <button id="logoutBtn" class="btn-danger">登出</button>
         </div>
       </div>
 
-      <div
-        class="stats-container"
-        style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr))"
-      >
-        <div class="stat-card total clickable" id="card-total-revenue">
-          <h3>總營收 (已完成訂單)</h3>
-          <p class="number" id="stats-total-revenue">
-            <span class="loading-text">...</span>
-          </p>
+      <div id="admin-only-content">
+        <div
+          class="stats-container"
+          style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr))"
+        >
+          <div class="stat-card total clickable" id="card-total-revenue">
+            <h3>總營收 (已完成訂單)</h3>
+            <p class="number" id="stats-total-revenue">
+              <span class="loading-text">...</span>
+            </p>
+          </div>
+          <div class="stat-card pending clickable" id="card-pending-revenue">
+            <h3>待付款金額</h3>
+            <p class="number" id="stats-pending-revenue">
+              <span class="loading-text">...</span>
+            </p>
+          </div>
+          <div class="stat-card active clickable" id="card-total-users">
+            <h3>總會員數</h3>
+            <p class="number" id="stats-total-users">
+              <span class="loading-text">...</span>
+            </p>
+          </div>
+          <div class="stat-card clickable" id="card-new-users">
+            <h3>今日新註冊</h3>
+            <p class="number" id="stats-new-users-today">
+              <span class="loading-text">...</span>
+            </p>
+          </div>
         </div>
-        <div class="stat-card pending clickable" id="card-pending-revenue">
-          <h3>待付款金額</h3>
-          <p class="number" id="stats-pending-revenue">
-            <span class="loading-text">...</span>
-          </p>
-        </div>
-        <div class="stat-card active clickable" id="card-total-users">
-          <h3>總會員數</h3>
-          <p class="number" id="stats-total-users">
-            <span class="loading-text">...</span>
-          </p>
-        </div>
-        <div class="stat-card clickable" id="card-new-users">
-          <h3>今日新註冊</h3>
-          <p class="number" id="stats-new-users-today">
-            <span class="loading-text">...</span>
-          </p>
-        </div>
-      </div>
-
-      <div
-        class="stats-container"
-        style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr))"
-      >
-        <div class="stat-card pending clickable" id="card-pkg-pending">
-          <h3>待確認包裹</h3>
-          <p class="number" id="stats-pkg-pending">...</p>
-        </div>
-        <div class="stat-card arrived clickable" id="card-pkg-arrived">
-          <h3>已到倉包裹</h3>
-          <p class="number" id="stats-pkg-arrived">...</p>
-        </div>
-        <div class="stat-card completed clickable" id="card-ship-pending">
-          <h3>待付款訂單</h3>
-          <p class="number" id="stats-ship-pending-payment">...</p>
-        </div>
-        <div class="stat-card total clickable" id="card-ship-processing">
-          <h3>處理中訂單</h3>
-          <p class="number" id="stats-ship-processing">...</p>
-        </div>
-      </div>
-
-      <div class="form-section" style="margin-top: 30px; padding-bottom: 30px">
-        <h3 style="margin-top: 0">📈 詳細數據報告</h3>
 
         <div
-          class="filters-container"
-          style="background: none; padding: 0; border: 0; margin-bottom: 20px"
+          class="stats-container"
+          style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr))"
         >
-          <div class="filters">
-            <input
-              type="text"
-              id="report-date-range"
-              placeholder="請選擇日期區間..."
-            />
-            <button
-              class="btn btn-primary"
-              id="btn-fetch-report"
-              style="width: auto"
+          <div class="stat-card pending clickable" id="card-pkg-pending">
+            <h3>待確認包裹</h3>
+            <p class="number" id="stats-pkg-pending">...</p>
+          </div>
+          <div class="stat-card arrived clickable" id="card-pkg-arrived">
+            <h3>已到倉包裹</h3>
+            <p class="number" id="stats-pkg-arrived">...</p>
+          </div>
+          <div class="stat-card completed clickable" id="card-ship-pending">
+            <h3>待付款訂單</h3>
+            <p class="number" id="stats-ship-pending-payment">...</p>
+          </div>
+          <div class="stat-card total clickable" id="card-ship-processing">
+            <h3>處理中訂單</h3>
+            <p class="number" id="stats-ship-processing">...</p>
+          </div>
+        </div>
+
+        <div
+          class="form-section"
+          style="margin-top: 30px; padding-bottom: 30px"
+        >
+          <h3 style="margin-top: 0">📈 詳細數據報告</h3>
+
+          <div
+            class="filters-container"
+            style="background: none; padding: 0; border: 0; margin-bottom: 20px"
+          >
+            <div class="filters">
+              <input
+                type="text"
+                id="report-date-range"
+                placeholder="請選擇日期區間..."
+              />
+              <button
+                class="btn btn-primary"
+                id="btn-fetch-report"
+                style="width: auto"
+              >
+                查詢報表
+              </button>
+            </div>
+          </div>
+
+          <div
+            id="report-loading-spinner"
+            style="display: none; text-align: center; padding: 20px"
+          >
+            <div class="spinner"></div>
+            <p>正在抓取報表數據...</p>
+          </div>
+
+          <div class="form-grid-2" style="gap: 30px; margin-top: 20px">
+            <div>
+              <h4>每日營業額 (NT$)</h4>
+              <canvas id="revenueChart"></canvas>
+            </div>
+            <div>
+              <h4>每日新註冊會員</h4>
+              <canvas id="userChart"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="form-grid-2" style="margin-top: 30px; gap: 30px">
+          <div class="form-section" style="margin-bottom: 0">
+            <h3 style="margin-top: 0">📦 最近 5 筆包裹預報</h3>
+            <div
+              class="table-container"
+              style="max-height: 300px; overflow-y: auto"
             >
-              查詢報表
-            </button>
+              <table class="members-table">
+                <thead>
+                  <tr>
+                    <th>時間</th>
+                    <th>會員</th>
+                    <th>商品</th>
+                    <th>狀態</th>
+                  </tr>
+                </thead>
+                <tbody id="recent-packages-table">
+                  <tr>
+                    <td colspan="4" class="loading">載入中...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
 
-        <div
-          id="report-loading-spinner"
-          style="display: none; text-align: center; padding: 20px"
-        >
-          <div class="spinner"></div>
-          <p>正在抓取報表數據...</p>
-        </div>
-
-        <div class="form-grid-2" style="gap: 30px; margin-top: 20px">
-          <div>
-            <h4>每日營業額 (NT$)</h4>
-            <canvas id="revenueChart"></canvas>
-          </div>
-          <div>
-            <h4>每日新註冊會員</h4>
-            <canvas id="userChart"></canvas>
-          </div>
-        </div>
-      </div>
-      <div class="form-grid-2" style="margin-top: 30px; gap: 30px">
-        <div class="form-section" style="margin-bottom: 0">
-          <h3 style="margin-top: 0">📦 最近 5 筆包裹預報</h3>
-          <div
-            class="table-container"
-            style="max-height: 300px; overflow-y: auto"
-          >
-            <table class="members-table">
-              <thead>
-                <tr>
-                  <th>時間</th>
-                  <th>會員</th>
-                  <th>商品</th>
-                  <th>狀態</th>
-                </tr>
-              </thead>
-              <tbody id="recent-packages-table">
-                <tr>
-                  <td colspan="4" class="loading">載入中...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="form-section" style="margin-bottom: 0">
-          <h3 style="margin-top: 0">🚚 最近 5 筆集運單</h3>
-          <div
-            class="table-container"
-            style="max-height: 300px; overflow-y: auto"
-          >
-            <table class="members-table">
-              <thead>
-                <tr>
-                  <th>時間</th>
-                  <th>會員</th>
-                  <th>總金額</th>
-                  <th>狀態</th>
-                </tr>
-              </thead>
-              <tbody id="recent-shipments-table">
-                <tr>
-                  <td colspan="4" class="loading">載入中...</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="form-section" style="margin-bottom: 0">
+            <h3 style="margin-top: 0">🚚 最近 5 筆集運單</h3>
+            <div
+              class="table-container"
+              style="max-height: 300px; overflow-y: auto"
+            >
+              <table class="members-table">
+                <thead>
+                  <tr>
+                    <th>時間</th>
+                    <th>會員</th>
+                    <th>總金額</th>
+                    <th>狀態</th>
+                  </tr>
+                </thead>
+                <tbody id="recent-shipments-table">
+                  <tr>
+                    <td colspan="4" class="loading">載入中...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
