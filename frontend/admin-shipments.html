@@ -11,35 +11,7 @@
     <div class="container" style="max-width: 1400px">
       <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
 
-      <div class="admin-header">
-        <h1>集運單管理</h1>
-        <div class="header-actions">
-          <a href="admin-dashboard.html" class="btn btn-secondary">儀表板</a>
-          <a
-            href="admin-register.html"
-            class="btn btn-secondary"
-            style="background-color: #2ecc71"
-            id="btn-nav-create-staff"
-            >新增員工帳號</a
-          >
-          <a href="admin-parcels.html" class="btn btn-secondary">包裹管理</a>
-          <a href="admin-shipments.html" class="btn btn-secondary active"
-            >集運單管理</a
-          >
-          <a
-            href="admin-members.html"
-            class="btn btn-secondary"
-            id="btn-nav-members"
-            >會員管理</a
-          >
-          <a href="admin-logs.html" class="btn btn-secondary" id="btn-nav-logs"
-            >操作日誌</a
-          >
-
-          <span id="admin-welcome"></span>
-          <button id="logoutBtn" class="btn-danger">登出</button>
-        </div>
-      </div>
+      <div id="admin-header-container" data-title="儀表板"></div>
 
       <div class="filters">
         <select id="filter-status">
