@@ -78,7 +78,11 @@ model Shipment {
   status               String    @default("PENDING_PAYMENT") 
   totalCost            Float?    
   trackingNumberTW     String?   
-  paymentProof         String?   
+  paymentProof         String?
+
+  // [新增] 商品證明欄位
+  productUrl           String?   // 購買連結
+  shipmentProductImages String?  @default("[]") // 商品照片 (JSON陣列)   
 
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @default(now()) @updatedAt

@@ -428,9 +428,11 @@
                   <option value="2500">旗山</option>
                 </optgroup>
                 <optgroup label="📍 高雄山區 - NT$4,500/方起">
-                  <option value="4500" style="color: #e74c3c">⛰️ 那瑪夏區</option>
+                  <option value="4500" style="color: #e74c3c">
+                    ⛰️ 那瑪夏區
+                  </option>
                   <option value="4500" style="color: #e74c3c">⛰️ 桃源區</option>
-                  <option value"4auto" style="color: #e74c3c">⛰️ 茂林</option>
+                  <option value="4auto" style="color: #e74c3c">⛰️ 茂林</option>
                   <option value="4500" style="color: #e74c3c">⛰️ 甲仙</option>
                   <option value="4500" style="color: #e74c3c">⛰️ 六龜</option>
                 </optgroup>
@@ -440,7 +442,10 @@
                   </option>
                 </optgroup>
                 <optgroup label="📍 屏東特別偏遠 - NT$7,000/方起">
-                  <option value="7000" style="color: #dc3545; font-weight: bold">
+                  <option
+                    value="7000"
+                    style="color: #dc3545; font-weight: bold"
+                  >
                     🏝️ 小琉球 (琉球鄉)
                   </option>
                   <option value="7000" style="color: #dc3545">🏖️ 恆春</option>
@@ -461,10 +466,12 @@
                   <option value="7000" style="color: #dc3545">三地門</option>
                 </optgroup>
                 <optgroup label="📍 東部地區">
-                  <option value="7000" style="color: #dc3545">宜蘭：南澳</option>
-                  <option value="7000" style="color: #dc3545"
-                    >宜蘭：釣魚臺</option
-                  >
+                  <option value="7000" style="color: #dc3545">
+                    宜蘭：南澳
+                  </option>
+                  <option value="7000" style="color: #dc3545">
+                    宜蘭：釣魚臺
+                  </option>
                   <option value="4500" style="color: #ff6b6b">
                     ⚠️ 宜蘭其他地區 (NT$4,500/方起，詳情請詢問客服)
                   </option>
@@ -506,6 +513,66 @@
               <div class="form-group">
                 <label for="ship-taxId">統一編號 (選填)</label>
                 <input type="text" id="ship-taxId" />
+              </div>
+            </div>
+
+            <div
+              style="
+                margin-top: 20px;
+                padding-top: 20px;
+                border-top: 1px dashed #ccc;
+              "
+            >
+              <h4 style="margin-top: 0; color: #e67e22">
+                🛒 商品證明 (必填其一)
+              </h4>
+
+              <div class="form-group">
+                <label for="ship-product-url">商品購買連結 (網址)</label>
+                <input
+                  type="url"
+                  id="ship-product-url"
+                  class="form-control"
+                  placeholder="例如：https://item.taobao.com/..."
+                />
+              </div>
+
+              <div
+                style="
+                  text-align: center;
+                  color: #888;
+                  margin: 10px 0;
+                  font-size: 14px;
+                "
+              >
+                —— 或 ——
+              </div>
+
+              <div class="form-group">
+                <label for="ship-product-images"
+                  >上傳商品照片 (截圖或實拍)</label
+                >
+                <input
+                  type="file"
+                  id="ship-product-images"
+                  class="form-control"
+                  multiple
+                  accept="image/*"
+                />
+
+                <p
+                  style="
+                    color: red;
+                    font-weight: bold;
+                    margin-top: 8px;
+                    font-size: 15px;
+                    background: #ffecec;
+                    padding: 5px;
+                    border-radius: 4px;
+                  "
+                >
+                  ⚠️ 商品照片不是入庫照片，請上傳您的訂單截圖或商品實物照
+                </p>
               </div>
             </div>
 
@@ -698,7 +765,7 @@
           </div>
         </div>
 
-        <div class_ ="form-section" style="padding: 15px; background: #fdfdfd">
+        <div class_="form-section" style="padding: 15px; background: #fdfdfd">
           <h4 style="margin-top: 0">倉庫照片</h4>
           <div id="details-images-gallery" class="image-gallery"></div>
         </div>

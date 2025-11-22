@@ -1,4 +1,4 @@
-// backend/controllers/shipmentController.js (V8 完整版 - 支援 ratesManager 與 取消訂單)
+// backend/controllers/shipmentController.js (V8.1 完整版 - 支援商品證明與取消訂單)
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
@@ -10,7 +10,9 @@ const ratesManager = require("../utils/ratesManager.js"); // [V8 新增]
  */
 const createShipment = async (req, res) => {
   try {
-    const {
+    // 因為使用了 multer 處理 multipart/form-data
+    // req.body 中的陣列或物件可能會變成 JSON 字串，需要嘗試解析
+    let {
       packageIds,
       shippingAddress,
       recipientName,
@@ -19,11 +21,42 @@ const createShipment = async (req, res) => {
       taxId,
       note,
       deliveryLocationRate,
+      productUrl, // [新增] 商品購買連結
     } = req.body;
 
     const userId = req.user.id;
 
-    // 驗證輸入
+    // 1. [新增] 驗證商品證明 (連結 或 照片)
+    // req.files 由 multer 處理，若無檔案則為 undefined 或空陣列
+    const files = req.files || [];
+
+    // 檢查：如果沒有連結 且 沒有上傳圖片，則報錯
+    if ((!productUrl || productUrl.trim() === "") && files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "請提供「商品購買連結」或上傳「商品照片」才能提交訂單",
+      });
+    }
+
+    // 2. 處理上傳的圖片路徑
+    let shipmentImagePaths = "[]";
+    if (files.length > 0) {
+      const paths = files.map((file) => `/uploads/${file.filename}`);
+      shipmentImagePaths = JSON.stringify(paths);
+    }
+
+    // 3. 解析 packageIds (FormData 傳送陣列通常會變成 JSON 字串)
+    try {
+      if (typeof packageIds === "string") {
+        packageIds = JSON.parse(packageIds);
+      }
+    } catch (e) {
+      return res
+        .status(400)
+        .json({ success: false, message: "包裹 ID 格式錯誤" });
+    }
+
+    // 4. 基本欄位驗證
     if (!packageIds || !Array.isArray(packageIds) || packageIds.length === 0) {
       return res
         .status(400)
@@ -42,7 +75,7 @@ const createShipment = async (req, res) => {
       });
     }
 
-    // 查詢包裹
+    // 5. 查詢包裹
     const packagesToShip = await prisma.package.findMany({
       where: {
         id: { in: packageIds },
@@ -60,7 +93,7 @@ const createShipment = async (req, res) => {
       });
     }
 
-    // [V8 修改] 使用 ratesManager 讀取動態常數
+    // 6. [V8 修改] 使用 ratesManager 讀取動態常數與計算運費
     const systemRates = ratesManager.getRates();
     const CONSTANTS = systemRates.constants;
 
@@ -124,7 +157,7 @@ const createShipment = async (req, res) => {
     const finalTotalCost =
       finalBaseCost + totalOverweightFee + totalOversizedFee + remoteFee;
 
-    // 使用交易建立集運單
+    // 7. 使用交易建立集運單
     const newShipment = await prisma.$transaction(async (tx) => {
       const createdShipment = await tx.shipment.create({
         data: {
@@ -138,6 +171,9 @@ const createShipment = async (req, res) => {
           deliveryLocationRate: parseFloat(deliveryLocationRate) || 0,
           status: "PENDING_PAYMENT",
           userId: userId,
+          // [新增] 儲存商品連結與照片路徑
+          productUrl: productUrl || null,
+          shipmentProductImages: shipmentImagePaths,
         },
       });
 
@@ -154,7 +190,7 @@ const createShipment = async (req, res) => {
       return createdShipment;
     });
 
-    // 發送通知
+    // 8. 發送通知
     try {
       await sendNewShipmentNotification(newShipment, req.user);
     } catch (emailError) {
@@ -374,12 +410,10 @@ const deleteMyShipment = async (req, res) => {
       });
     });
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "訂單已取消，包裹已釋放回「已入庫」列表",
-      });
+    res.status(200).json({
+      success: true,
+      message: "訂單已取消，包裹已釋放回「已入庫」列表",
+    });
   } catch (error) {
     console.error("取消集運單失敗:", error);
     res.status(500).json({ success: false, message: "取消失敗" });

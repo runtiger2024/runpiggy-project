@@ -746,32 +746,69 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // [新增] 商品證明驗證
+    const productUrl = document.getElementById("ship-product-url").value.trim();
+    const productImagesInput = document.getElementById("ship-product-images");
+    const productImages = productImagesInput.files;
+
+    if (!productUrl && productImages.length === 0) {
+      showMessage(
+        "請提供「商品購買連結」或上傳「商品照片」才能提交訂單",
+        "error"
+      );
+      return;
+    }
+
     const selectedOption =
       shipDeliveryLocation.options[shipDeliveryLocation.selectedIndex];
-    const areaName = selectedOption.text.replace(/[✅📍⛰️🏖️🏝️⚠️]/g, "").trim();
+    const areaName = selectedOption.text.replace(/[✅📍⛰️🏝️🏖️⚠️]/g, "").trim();
     const fullAddress =
       (areaName === "一般地區" ? "" : areaName + " ") + streetAddress;
 
-    const data = {
-      packageIds: ids,
-      recipientName: document.getElementById("ship-name").value.trim(),
-      phone: document.getElementById("ship-phone").value.trim(),
-      shippingAddress: fullAddress,
-      deliveryLocationRate: deliveryRate,
-      idNumber: document.getElementById("ship-idNumber").value.trim(),
-      taxId: document.getElementById("ship-taxId").value.trim(),
-      note: document.getElementById("ship-note").value.trim(),
-    };
+    // [修改] 改用 FormData 傳送資料
+    const formData = new FormData();
+    formData.append("packageIds", JSON.stringify(ids)); // 陣列轉字串
+    formData.append(
+      "recipientName",
+      document.getElementById("ship-name").value.trim()
+    );
+    formData.append(
+      "phone",
+      document.getElementById("ship-phone").value.trim()
+    );
+    formData.append("shippingAddress", fullAddress);
+    formData.append("deliveryLocationRate", deliveryRate);
+    formData.append(
+      "idNumber",
+      document.getElementById("ship-idNumber").value.trim()
+    );
+    formData.append(
+      "taxId",
+      document.getElementById("ship-taxId").value.trim()
+    );
+    formData.append("note", document.getElementById("ship-note").value.trim());
+
+    // 加入新欄位
+    formData.append("productUrl", productUrl);
+    for (let i = 0; i < productImages.length; i++) {
+      formData.append("shipmentImages", productImages[i]);
+    }
+
+    const submitBtn = createShipmentForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = "提交中...";
 
     try {
+      // [修改] 移除 "Content-Type": "application/json"，瀏覽器會自動設定 multipart/form-data
       const res = await fetch(`${API_BASE_URL}/api/shipments/create`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+          // 注意：不要手動設定 Content-Type，fetch 會自己處理 boundary
         },
-        body: JSON.stringify(data),
+        body: formData,
       });
+
       if (res.ok) {
         createShipmentModal.style.display = "none";
         createShipmentForm.reset();
@@ -784,6 +821,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (e) {
       showMessage(e.message, "error");
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "確認送出集運單";
     }
   });
 

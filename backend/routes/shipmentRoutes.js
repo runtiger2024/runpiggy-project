@@ -1,4 +1,4 @@
-// backend/routes/shipmentRoutes.js (V8 完整版 - 支援取消訂單)
+// backend/routes/shipmentRoutes.js (V8.1 完整版 - 支援商品證明上傳)
 
 const express = require("express");
 const router = express.Router();
@@ -18,8 +18,11 @@ const { protect } = require("../middleware/authMiddleware.js");
 
 // 3. --- 設定路由 ---
 
-// 建立集運單
-router.route("/create").post(protect, createShipment);
+// 建立集運單 (支援上傳最多5張商品照片)
+// 注意：前端 input name 必須為 "shipmentImages"
+router
+  .route("/create")
+  .post(protect, upload.array("shipmentImages", 5), createShipment);
 
 // 取得我的集運單
 router.route("/my").get(protect, getMyShipments);
