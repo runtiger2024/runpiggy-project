@@ -38,17 +38,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  const adminWelcome = document.getElementById("admin-welcome");
-  if (adminName) {
-    let role = "USER";
-    if (adminPermissions.includes("CAN_MANAGE_USERS")) {
-      role = "ADMIN";
-    } else if (adminPermissions.length > 0) {
-      role = "OPERATOR";
-    }
-    adminWelcome.textContent = `你好, ${adminName} (${role})`;
-  }
-
   checkAdminPermissions();
 
   // --- 2. 卡片快速導航 (Drill-down) ---
