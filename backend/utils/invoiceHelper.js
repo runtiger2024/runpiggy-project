@@ -98,6 +98,7 @@ const createInvoice = async (shipment, user) => {
       API_URL,
       qs.stringify({
         MerchantID: MERCHANT_ID,
+        invoice: MERCHANT_ID, // [修正] 光貿 API 錯誤代碼 11 要求此欄位
         time: time,
         sign: sign,
         data: dataJson,
