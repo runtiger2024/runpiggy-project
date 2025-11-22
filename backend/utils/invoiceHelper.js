@@ -15,83 +15,87 @@ const generateSign = (dataJson, time) => {
 
 const createInvoice = async (shipment, user) => {
   try {
-    // 1. 基礎資料檢查
     if (!MERCHANT_ID || !HASH_KEY) throw new Error("API 金鑰未設定");
 
-    // 2. 計算金額邏輯
-    const total = Math.round(shipment.totalCost);
-    const hasTaxId = shipment.taxId && shipment.taxId.length === 8;
+    // --- 1. 準備數據 ---
+    // 確保金額是數字
+    const total = Math.round(Number(shipment.totalCost));
+
+    // 檢查統編是否存在且長度為8
+    // 注意：如果是測試用，請填寫 "28080623" (光貿範例) 或其他真實存在的統編
+    const rawTaxId = shipment.taxId ? shipment.taxId.trim() : "";
+    const hasTaxId = rawTaxId.length === 8;
+
+    // 決定傳送給光貿的統編 (關鍵！)
+    // 如果有 8 碼就傳 8 碼，否則一律傳 10 個 0 (B2C)
+    const buyerIdentifier = hasTaxId ? rawTaxId : "0000000000";
 
     // 營業稅計算 (5%)
-    // 若有統編(B2B)：稅額 = 總額 - round(總額 / 1.05)
-    // 若無統編(B2C)：稅額 = 0 (光貿 B2C 預設不顯示稅額)
     let taxAmount = 0;
-    let salesAmount = total; // 銷售額 (未稅)
+    let salesAmount = total;
 
     if (hasTaxId) {
+      // B2B: 銷售額 = 總額 / 1.05 (四捨五入)
       const exclusiveAmount = Math.round(total / 1.05);
       taxAmount = total - exclusiveAmount;
       salesAmount = exclusiveAmount;
     } else {
-      // B2C 情況，SalesAmount 填含稅總額，TaxAmount 填 0
+      // B2C: 銷售額 = 含稅總額, 稅額 = 0
       salesAmount = total;
       taxAmount = 0;
     }
 
-    // 3. 準備商品陣列 (ProductItem)
-    // 注意：單價與金額我們填寫「含稅價」，讓系統自動去拆算
+    // --- 2. 準備商品陣列 (ProductItem) ---
     const productItems = [
       {
         Description: "國際運費",
         Quantity: 1,
-        UnitPrice: total, // 含稅單價
-        Amount: total, // 含稅小計
+        UnitPrice: total, // 光貿建議填含稅單價，讓系統反推
+        Amount: total,
         TaxType: 1, // 1: 應稅
       },
     ];
 
-    // 4. 準備 JSON 資料物件 (依據光貿 MIG 4.0 規格)
+    // --- 3. 準備 JSON 資料物件 (MIG 4.0 精簡版) ---
+    // 移除了非必要的 Category, Device 欄位
     const dataObj = {
-      // 訂單資訊
-      OrderId: shipment.id, // [修正] 欄位名稱為 OrderId
-
-      // 買受人資訊
-      BuyerIdentifier: hasTaxId ? shipment.taxId : "0000000000",
+      OrderId: shipment.id,
+      BuyerIdentifier: buyerIdentifier,
       BuyerName: shipment.invoiceTitle || shipment.recipientName || "個人",
       BuyerEmailAddress: user.email,
 
-      // 金額統計 (必填)
-      SalesAmount: salesAmount, // 應稅銷售額
-      FreeTaxSalesAmount: 0, // 免稅銷售額
-      ZeroTaxSalesAmount: 0, // 零稅率銷售額
-      TaxType: 1, // 1: 應稅
-      TaxRate: 0.05, // 稅率
-      TaxAmount: taxAmount, // 稅額
-      TotalAmount: total, // 總計
+      // 金額欄位 (轉成字串傳送較保險，或保持 Number 皆可，這裡用 Number)
+      SalesAmount: salesAmount,
+      FreeTaxSalesAmount: 0,
+      ZeroTaxSalesAmount: 0,
+      TaxType: 1,
+      TaxRate: 0.05,
+      TaxAmount: taxAmount,
+      TotalAmount: total,
 
-      // 商品明細
-      ProductItem: productItems, // [修正] 欄位名稱為 ProductItem
+      ProductItem: productItems,
 
-      // 其他設定
-      Print: "N", // 不列印
-      CarrierType: hasTaxId ? "" : "", // B2C 若留空則為會員載具(Email通知)
+      Print: "N", // N: 不列印
+      // 若是 B2C (0000000000)，CarrierType 留空代表使用會員載具(Email)
+      // 若是 B2B (有統編)，CarrierType 必須留空
+      CarrierType: "",
     };
 
     const dataJson = JSON.stringify(dataObj);
     const time = Math.floor(Date.now() / 1000);
     const sign = generateSign(dataJson, time);
 
-    // 5. 發送請求
+    // --- 4. 發送請求 ---
     const formData = {
       MerchantID: MERCHANT_ID,
-      invoice: MERCHANT_ID, // 光貿某些版本要求帶此參數
+      invoice: MERCHANT_ID,
       time: time,
       sign: sign,
       data: dataJson,
     };
 
     console.log(
-      `[Invoice] 請求開立: Order=${dataObj.OrderId}, Total=${dataObj.TotalAmount}`
+      `[Invoice] 請求: Order=${dataObj.OrderId}, BuyerID=${dataObj.BuyerIdentifier}`
     );
 
     const response = await axios.post(API_URL, qs.stringify(formData), {
@@ -100,26 +104,21 @@ const createInvoice = async (shipment, user) => {
 
     const resData = response.data;
 
-    // 6. 判斷結果
-    // 光貿成功時可能是 { code: 0, msg: "", ... } 或 { Status: "S" } 視版本而定
-    // 根據您的錯誤訊息 {"code": 3040113}，這版 API 應該是用 code: 0 判斷成功
-
-    if (
-      resData.code === 0 ||
-      resData.Status === "S" ||
-      resData.Status === "Success"
-    ) {
+    // --- 5. 處理結果 ---
+    // 檢查 code: 0 (成功)
+    if (resData.code === 0) {
       return {
         success: true,
-        invoiceNumber: resData.invoice_number || resData.InvoiceNumber,
-        invoiceDate: new Date(), // 或解析 resData.invoice_time
-        randomCode: resData.random_number || resData.RandomNumber,
+        invoiceNumber: resData.invoice_number,
+        invoiceDate: new Date(),
+        randomCode: resData.random_number,
         raw: resData,
       };
     } else {
+      // 失敗
       return {
         success: false,
-        message: resData.msg || resData.Message || `錯誤代碼: ${resData.code}`,
+        message: `API回應錯誤 (${resData.code}): ${resData.msg}`,
         raw: resData,
       };
     }
