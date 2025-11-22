@@ -1,5 +1,4 @@
-// 這是 backend/middleware/authMiddleware.js (V3 權限系統版)
-// (使用 permissions 陣列取代 role)
+// 這是 backend/middleware/authMiddleware.js (V4 超級管理員版)
 
 const jwt = require("jsonwebtoken");
 const prisma = require("../config/db.js");
@@ -15,18 +14,16 @@ const protect = async (req, res, next) => {
       token = req.headers.authorization.split(" ")[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // [*** V3 修正：讀取 permissions ***]
       req.user = await prisma.user.findUnique({
         where: { id: decoded.id },
         select: {
           id: true,
           email: true,
           name: true,
-          permissions: true, // <-- 讀取新的 permissions 欄位
+          permissions: true,
           createdAt: true,
         },
       });
-      // [*** 修正結束 ***]
 
       if (!req.user) {
         return res
@@ -34,14 +31,12 @@ const protect = async (req, res, next) => {
           .json({ success: false, message: "未授權：找不到此使用者" });
       }
 
-      // [*** V3 新增：解析權限 ***]
-      // 將 permissions JSON 字串解析為陣列，並附加到 req.user 上
+      // 解析權限
       try {
         req.user.permissions = JSON.parse(req.user.permissions || "[]");
       } catch (e) {
-        req.user.permissions = []; // 解析失敗，給予空權限
+        req.user.permissions = [];
       }
-      // [*** 新增結束 ***]
 
       next();
     } catch (error) {
@@ -58,18 +53,16 @@ const protect = async (req, res, next) => {
   }
 };
 
-// 2. [*** V3 修正：建立權限檢查中介軟體 ***]
-/**
- * 建立一個中介軟体，檢查 req.user 是否包含指定的權限
- * @param {string} permission - 需要的權限代號 (e.g., "CAN_MANAGE_USERS")
- */
+// 2. [V4 優化] 權限檢查中介軟體
+// 邏輯修正：只要有 "CAN_MANAGE_USERS" (Admin)，就視為擁有所有權限
 const checkPermission = (permission) => {
   return (req, res, next) => {
-    // protect 必須先執行
+    // protect 必須先執行，確保 req.user 存在
+    const userPerms = req.user.permissions || [];
+
     if (
-      req.user &&
-      req.user.permissions &&
-      req.user.permissions.includes(permission)
+      userPerms.includes("CAN_MANAGE_USERS") || // 超級管理員條款
+      userPerms.includes(permission) // 普通權限檢查
     ) {
       next(); // 通過！
     } else {
@@ -80,4 +73,4 @@ const checkPermission = (permission) => {
   };
 };
 
-module.exports = { protect, checkPermission }; // [*** V3 修正 ***]
+module.exports = { protect, checkPermission };
