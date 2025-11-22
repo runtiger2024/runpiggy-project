@@ -7,12 +7,13 @@
     <link rel="icon" href="assets/logo.png" type="image/png" />
     <script src="js/styleLoader.js"></script>
     <style>
-      /* 頁籤樣式 (Tabs) - 內嵌以確保獨立性 */
+      /* 頁籤樣式 (Tabs) */
       .settings-tabs {
         display: flex;
         border-bottom: 2px solid #ddd;
         margin-bottom: 20px;
         gap: 5px;
+        flex-wrap: wrap;
       }
       .tab-btn {
         padding: 12px 25px;
@@ -23,6 +24,7 @@
         font-weight: 500;
         color: #555;
         transition: all 0.2s;
+        white-space: nowrap;
       }
       .tab-btn:hover {
         background: #e9ecef;
@@ -35,7 +37,7 @@
 
       /* 內容區塊 */
       .tab-content {
-        display: none; /* 預設隱藏 */
+        display: none;
         animation: fadeIn 0.3s ease-in-out;
       }
       .tab-content.active {
@@ -65,11 +67,13 @@
         color: #f8f8f2;
         line-height: 1.5;
         font-size: 14px;
+        resize: vertical;
       }
       .json-status {
         font-size: 13px;
         margin-top: 5px;
         font-weight: bold;
+        min-height: 20px;
       }
       .json-valid {
         color: #2ecc71;
@@ -85,13 +89,45 @@
         margin-bottom: 20px;
         color: #333;
       }
+
+      /* 固定類別區塊樣式 */
+      .fixed-category-box {
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+        border-left: 5px solid #ccc; /* 預設顏色 */
+      }
+      .cat-general {
+        border-left-color: #1a73e8;
+      }
+      .cat-special-a {
+        border-left-color: #17a2b8;
+      }
+      .cat-special-b {
+        border-left-color: #ffc107;
+      }
+      .cat-special-c {
+        border-left-color: #e74c3c;
+      }
+
+      .fixed-category-box h4 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        font-size: 1.1em;
+        color: #333;
+        border-bottom: 1px dashed #eee;
+        padding-bottom: 10px;
+      }
     </style>
   </head>
   <body>
     <div class="container" style="max-width: 1000px">
       <img src="assets/logo.png" alt="Logo" class="header-logo" />
 
-      <div id="admin-header-container" data-title="儀表板"></div>
+      <div id="admin-header-container" data-title="系統設定"></div>
 
       <div class="settings-tabs">
         <button class="tab-btn active" data-tab="tab-rates">💰 運費費率</button>
@@ -105,11 +141,142 @@
       <div id="tab-rates" class="tab-content active">
         <form id="form-rates">
           <div class="form-section">
-            <h3 class="section-title">📦 家具類別費率 (Categories)</h3>
+            <h3 class="section-title">📦 家具類別費率 (固定架構)</h3>
             <p style="color: #666; font-size: 0.9em; margin-bottom: 15px">
-              設定各類家具的計費標準 (每公斤/每材)。
+              請在此設定四大類家具的計費標準。若資料庫無數值，請手動填入。
             </p>
-            <div id="rates-categories-container"></div>
+
+            <div class="fixed-category-box cat-general">
+              <h4>一般家具 (General) - 沙發、床架、桌椅...</h4>
+              <div class="form-grid-3">
+                <div class="form-group">
+                  <label>顯示名稱 (前台可見)</label>
+                  <input
+                    type="text"
+                    id="rate-general-name"
+                    class="form-control"
+                    placeholder="一般家具"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>重量費率 (NT$/kg)</label>
+                  <input
+                    type="number"
+                    id="rate-general-weight"
+                    class="form-control"
+                    step="0.1"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>材積費率 (NT$/材)</label>
+                  <input
+                    type="number"
+                    id="rate-general-volume"
+                    class="form-control"
+                    step="0.1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="fixed-category-box cat-special-a">
+              <h4>特殊家具 A (Special A) - 大理石、岩板...</h4>
+              <div class="form-grid-3">
+                <div class="form-group">
+                  <label>顯示名稱</label>
+                  <input
+                    type="text"
+                    id="rate-special_a-name"
+                    class="form-control"
+                    placeholder="特殊家具A"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>重量費率 (NT$/kg)</label>
+                  <input
+                    type="number"
+                    id="rate-special_a-weight"
+                    class="form-control"
+                    step="0.1"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>材積費率 (NT$/材)</label>
+                  <input
+                    type="number"
+                    id="rate-special_a-volume"
+                    class="form-control"
+                    step="0.1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="fixed-category-box cat-special-b">
+              <h4>特殊家具 B (Special B) - 玻璃、燈具...</h4>
+              <div class="form-grid-3">
+                <div class="form-group">
+                  <label>顯示名稱</label>
+                  <input
+                    type="text"
+                    id="rate-special_b-name"
+                    class="form-control"
+                    placeholder="特殊家具B"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>重量費率 (NT$/kg)</label>
+                  <input
+                    type="number"
+                    id="rate-special_b-weight"
+                    class="form-control"
+                    step="0.1"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>材積費率 (NT$/材)</label>
+                  <input
+                    type="number"
+                    id="rate-special_b-volume"
+                    class="form-control"
+                    step="0.1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="fixed-category-box cat-special-c">
+              <h4>特殊家具 C (Special C) - 帶電家電...</h4>
+              <div class="form-grid-3">
+                <div class="form-group">
+                  <label>顯示名稱</label>
+                  <input
+                    type="text"
+                    id="rate-special_c-name"
+                    class="form-control"
+                    placeholder="特殊家具C"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>重量費率 (NT$/kg)</label>
+                  <input
+                    type="number"
+                    id="rate-special_c-weight"
+                    class="form-control"
+                    step="0.1"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>材積費率 (NT$/材)</label>
+                  <input
+                    type="number"
+                    id="rate-special_c-volume"
+                    class="form-control"
+                    step="0.1"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="form-section">
@@ -234,7 +401,6 @@
         <form id="form-invoice" style="margin-top: 30px">
           <div class="form-section">
             <h3 class="section-title">🧾 電子發票設定 (Amego 光貿)</h3>
-
             <div
               class="form-group"
               style="
@@ -259,7 +425,6 @@
                 (PROCESSING)」時，系統將自動呼叫 API 開立發票。</small
               >
             </div>
-
             <div class="form-grid-2">
               <div class="form-group">
                 <label>API 模式</label>
@@ -386,14 +551,12 @@
               >。<br />
               請謹慎編輯，格式錯誤可能導致前台選單無法顯示。
             </p>
-
             <textarea
               id="remote-areas-json"
               class="json-editor"
               spellcheck="false"
             ></textarea>
             <div id="json-validation-msg" class="json-status"></div>
-
             <div style="margin-top: 15px; text-align: right">
               <button
                 type="button"
@@ -411,6 +574,7 @@
         </form>
       </div>
     </div>
+
     <script src="js/admin-header.js"></script>
     <script src="js/apiConfig.js"></script>
     <script src="js/admin-settings.js"></script>
