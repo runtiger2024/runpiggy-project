@@ -1,4 +1,4 @@
-// frontend/js/admin-dashboard.js (V10)
+// frontend/js/admin-dashboard.js (V10.1 - 修正閃爍)
 
 document.addEventListener("DOMContentLoaded", () => {
   // 1. 權限檢查與初始化
@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const adminName = localStorage.getItem("admin_name");
 
   function checkAdminPermissions() {
-    // 檢查使用者管理權限
+    // 檢查使用者管理權限 (反向邏輯：無權限則隱藏)
     if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
       const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
       const btnNavMembers = document.getElementById("btn-nav-members");
@@ -20,10 +20,11 @@ document.addEventListener("DOMContentLoaded", () => {
       if (btnNavLogs) btnNavLogs.style.display = "none";
     }
 
-    // [新增] 檢查系統設定權限 (CAN_MANAGE_SYSTEM)
-    if (!adminPermissions.includes("CAN_MANAGE_SYSTEM")) {
+    // [修正] 檢查系統設定權限 (CAN_MANAGE_SYSTEM)
+    // 正向邏輯：有權限則顯示 (因為 HTML 預設隱藏)
+    if (adminPermissions.includes("CAN_MANAGE_SYSTEM")) {
       const btnNavSettings = document.getElementById("btn-nav-settings");
-      if (btnNavSettings) btnNavSettings.style.display = "none";
+      if (btnNavSettings) btnNavSettings.style.display = "inline-block";
     }
   }
 

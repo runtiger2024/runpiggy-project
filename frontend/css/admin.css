@@ -1,4 +1,4 @@
-/* frontend/css/admin.css (V10 旗艦版 - 包含設定頁面樣式) */
+/* frontend/css/admin.css (V10.1 - 修正排版) */
 
 /* --- 1. Admin 導航列 --- */
 .admin-header {
@@ -15,9 +15,10 @@
   align-items: center;
   flex-wrap: wrap;
 }
-/* 修正按鈕寬度 */
+/* [修正] 強制重置按鈕邊距與寬度，解決對齊問題 */
 .header-actions .btn {
   width: auto;
+  margin: 0; /* 關鍵修正：移除 style.css 帶來的 margin-top */
 }
 .header-actions .btn-secondary.active {
   background-color: var(--primary-color);
@@ -45,7 +46,6 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   transition: transform 0.2s, box-shadow 0.2s;
 }
-/* 可點擊的卡片樣式 */
 .stat-card.clickable {
   cursor: pointer;
 }
@@ -103,7 +103,6 @@
   flex: 1;
   min-width: 150px;
 }
-/* 匯出按鈕樣式 */
 .btn-export {
   background-color: #607d8b;
   color: white;
@@ -137,7 +136,6 @@
   text-align: left;
   border-bottom: 1px solid #ddd;
 }
-/* 複選框欄位寬度 */
 .checkbox-col {
   width: 40px;
   text-align: center !important;
@@ -190,7 +188,7 @@
 
 /* --- 5. 批量操作工具列 --- */
 .bulk-action-bar {
-  display: none; /* 預設隱藏 */
+  display: none;
   background-color: #e3f2fd;
   border: 1px solid #90caf9;
   padding: 10px 15px;
@@ -250,10 +248,6 @@
   margin-top: 20px;
   gap: 10px;
 }
-.page-info {
-  color: #666;
-  font-size: 14px;
-}
 .page-btn {
   padding: 8px 12px;
   border: 1px solid #ddd;
@@ -276,7 +270,7 @@
   border-color: var(--primary-color);
 }
 
-/* --- 7. 彈窗樣式 (照片、分箱) --- */
+/* --- 7. 彈窗樣式 --- */
 .parcel-images {
   display: flex;
   gap: 10px;
@@ -364,9 +358,7 @@
   border-top: 1px dashed #eee;
 }
 
-/* --- 8. [新增] 系統全域設定頁面樣式 (Settings) --- */
-
-/* 頁籤導航 */
+/* --- 8. 系統全域設定頁面樣式 --- */
 .settings-tabs {
   display: flex;
   border-bottom: 2px solid #ddd;
@@ -394,9 +386,8 @@
   font-weight: bold;
 }
 
-/* 內容區塊切換效果 */
 .tab-content {
-  display: none; /* 預設隱藏 */
+  display: none;
   animation: fadeIn 0.3s ease-in-out;
 }
 .tab-content.active {
@@ -413,7 +404,6 @@
   }
 }
 
-/* JSON 編輯器 */
 .json-editor {
   font-family: "Consolas", "Monaco", monospace;
   width: 100%;
@@ -439,8 +429,6 @@
 .json-invalid {
   color: #e74c3c;
 }
-
-/* 區塊標題裝飾 */
 .section-title {
   border-left: 4px solid var(--primary-color);
   padding-left: 10px;
@@ -448,7 +436,6 @@
   color: #333;
 }
 
-/* 響應式 */
 @media (max-width: 768px) {
   .filters {
     flex-direction: column;
