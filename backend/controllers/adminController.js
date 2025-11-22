@@ -1,5 +1,6 @@
 // backend/controllers/adminController.js (V9 旗艦版 - 支援分頁、篩選、批量操作、匯出)
 
+const invoiceHelper = require("../utils/invoiceHelper.js");
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
@@ -652,11 +653,63 @@ const updateShipmentStatus = async (req, res) => {
     const { id } = req.params;
     const { status, totalCost, trackingNumberTW } = req.body;
 
+    // 1. 先撈出這筆訂單 (為了檢查是否已開過發票，並取得 User Email)
+    const originalShipment = await prisma.shipment.findUnique({
+      where: { id },
+      include: { user: true }, // 必須包含 user 才能拿到 email
+    });
+
+    if (!originalShipment) {
+      return res.status(404).json({ success: false, message: "找不到訂單" });
+    }
+
     const dataToUpdate = {};
     if (status) dataToUpdate.status = status;
     if (totalCost !== undefined) dataToUpdate.totalCost = parseFloat(totalCost);
     if (trackingNumberTW !== undefined)
       dataToUpdate.trackingNumberTW = trackingNumberTW;
+
+    // === [發票自動開立邏輯開始] ===
+    // 條件：狀態變成 "PROCESSING" (確認收款) + 尚未開過發票 + 金額大於 0
+    if (
+      status === "PROCESSING" &&
+      !originalShipment.invoiceNumber &&
+      originalShipment.totalCost > 0
+    ) {
+      console.log(`[Admin] 訂單 ${id} 確認收款，準備開立發票...`);
+
+      // 呼叫發票工具
+      const result = await invoiceHelper.createInvoice(
+        originalShipment,
+        originalShipment.user
+      );
+
+      if (result.success) {
+        // 成功：把發票資訊寫入更新資料中
+        dataToUpdate.invoiceNumber = result.invoiceNumber;
+        dataToUpdate.invoiceStatus = "ISSUED";
+        dataToUpdate.invoiceDate = result.invoiceDate;
+        // dataToUpdate.invoiceRandomCode = result.randomCode; // 如果 schema 有加這個欄位
+
+        // 寫入成功日誌
+        await createLog(
+          req.user.id,
+          "CREATE_INVOICE",
+          id,
+          `發票開立成功: ${result.invoiceNumber}`
+        );
+      } else {
+        // 失敗：只寫錯誤日誌，不阻擋訂單狀態更新 (避免卡住流程)
+        console.error("發票開立失敗:", result.message);
+        await createLog(
+          req.user.id,
+          "INVOICE_FAILED",
+          id,
+          `發票開立失敗: ${result.message}`
+        );
+      }
+    }
+    // === [發票自動開立邏輯結束] ===
 
     const updated = await prisma.shipment.update({
       where: { id },
