@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>系統設定 - 管理後台</title>
+    <link rel="icon" href="assets/logo.png" type="image/png" />
+    <link rel="stylesheet" href="css/style.css?v=2" />
+  </head>
+  <body>
+    <div class="container" style="max-width: 1000px">
+      <img src="assets/logo.png" alt="Logo" class="header-logo" />
+      <div class="admin-header">
+        <h1>系統參數與費率設定</h1>
+        <div class="header-actions">
+          <a href="admin-dashboard.html" class="btn btn-secondary"
+            >返回儀表板</a
+          >
+          <button id="logoutBtn" class="btn-danger">登出</button>
+        </div>
+      </div>
+
+      <form id="settings-form">
+        <div class="form-section">
+          <h3>💰 運費費率 (Categories)</h3>
+          <div id="rates-container"></div>
+        </div>
+
+        <div class="form-section">
+          <h3>⚙️ 系統常數 (Constants)</h3>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label>海運低消 (MINIMUM_CHARGE)</label>
+              <input
+                type="number"
+                id="const-MINIMUM_CHARGE"
+                class="form-control"
+              />
+            </div>
+            <div class="form-group">
+              <label>體積除數 (VOLUME_DIVISOR)</label>
+              <input
+                type="number"
+                id="const-VOLUME_DIVISOR"
+                class="form-control"
+              />
+            </div>
+            <div class="form-group">
+              <label>CBM換算材積 (CBM_TO_CAI_FACTOR)</label>
+              <input
+                type="number"
+                id="const-CBM_TO_CAI_FACTOR"
+                step="0.1"
+                class="form-control"
+              />
+            </div>
+            <div class="form-group">
+              <label>超重限制 kg (OVERWEIGHT_LIMIT)</label>
+              <input
+                type="number"
+                id="const-OVERWEIGHT_LIMIT"
+                class="form-control"
+              />
+            </div>
+            <div class="form-group">
+              <label>超重費 (OVERWEIGHT_FEE)</label>
+              <input
+                type="number"
+                id="const-OVERWEIGHT_FEE"
+                class="form-control"
+              />
+            </div>
+            <div class="form-group">
+              <label>超長限制 cm (OVERSIZED_LIMIT)</label>
+              <input
+                type="number"
+                id="const-OVERSIZED_LIMIT"
+                class="form-control"
+              />
+            </div>
+            <div class="form-group">
+              <label>超長費 (OVERSIZED_FEE)</label>
+              <input
+                type="number"
+                id="const-OVERSIZED_FEE"
+                class="form-control"
+              />
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">儲存設定</button>
+      </form>
+    </div>
+    <script src="js/apiConfig.js"></script>
+    <script src="js/admin-settings.js"></script>
+  </body>
+</html>

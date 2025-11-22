@@ -1,20 +1,6 @@
-// 這是 backend/controllers/calculatorController.js (最終版，含無條件進位)
+// backend/controllers/calculatorController.js (V8 完整版 - 動態費率)
 
-// --- 1. 資料定義 (來自 public/script.js) ---
-const rates = {
-  general: { name: "一般家具", weightRate: 22, volumeRate: 125 },
-  special_a: { name: "特殊家具A", weightRate: 32, volumeRate: 184 },
-  special_b: { name: "特殊家具B", weightRate: 40, volumeRate: 224 },
-  special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
-};
-const MINIMUM_CHARGE = 2000;
-const VOLUME_DIVISOR = 28317; // (長*寬*高) / 28317 = 材
-const CBM_TO_CAI_FACTOR = 35.3; // 1 CBM = 35.3 材
-const OVERSIZED_LIMIT = 300;
-const OVERSIZED_FEE = 800;
-const OVERWEIGHT_LIMIT = 100;
-const OVERWEIGHT_FEE = 800;
-// ---------------------------------------------------
+const ratesManager = require("../utils/ratesManager.js");
 
 /**
  * @description 計算海運運費 (核心邏輯)
@@ -25,21 +11,22 @@ const calculateSeaFreight = (req, res) => {
   const { items, deliveryLocationRate } = req.body;
 
   if (!items || !Array.isArray(items) || items.length === 0) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "輸入錯誤：必須至少提供一個計算項目 (items 陣列)。",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "輸入錯誤：必須至少提供一個計算項目 (items 陣列)。",
+    });
   }
   if (deliveryLocationRate === undefined || deliveryLocationRate === null) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "輸入錯誤：必須提供配送地區費率 (deliveryLocationRate)。",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "輸入錯誤：必須提供配送地區費率 (deliveryLocationRate)。",
+    });
   }
+
+  // [V8 修改] 從費率管理器讀取最新的設定
+  const systemRates = ratesManager.getRates();
+  const RATES = systemRates.categories;
+  const CONSTANTS = systemRates.constants;
 
   let allItemsData = [];
   let initialSeaFreightCost = 0;
@@ -51,7 +38,7 @@ const calculateSeaFreight = (req, res) => {
     const name = item.name || `貨物 ${index + 1}`;
     const quantity = parseInt(item.quantity) || 1;
 
-    // --- (規則修改 1) 重量：無條件進位到小數點後1位 ---
+    // 重量：無條件進位到小數點後1位
     const singleWeight = Math.ceil(parseFloat(item.weight) * 10) / 10;
 
     const type = item.type || "general";
@@ -62,22 +49,18 @@ const calculateSeaFreight = (req, res) => {
     const cbm = parseFloat(item.cbm) || 0;
 
     if (isNaN(singleWeight) || singleWeight <= 0) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: `項目 "${name}" 的重量 (weight) 必須是 > 0 的數字。`,
-        });
+      return res.status(400).json({
+        success: false,
+        message: `項目 "${name}" 的重量必須是 > 0 的數字。`,
+      });
     }
 
-    const rateInfo = rates[type];
+    const rateInfo = RATES[type];
     if (!rateInfo) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: `項目 "${name}" 的家具種類 (type) "${type}" 無效。`,
-        });
+      return res.status(400).json({
+        success: false,
+        message: `項目 "${name}" 的家具種類 (type) "${type}" 無效。`,
+      });
     }
 
     let singleVolume = 0; // 單件材積
@@ -85,37 +68,35 @@ const calculateSeaFreight = (req, res) => {
 
     if (calcMethod === "dimensions") {
       if (length <= 0 || width <= 0 || height <= 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: `項目 "${name}" 選擇依尺寸計算，但 長/寬/高 必須是 > 0 的數字。`,
-          });
+        return res.status(400).json({
+          success: false,
+          message: `項目 "${name}" 選擇依尺寸計算，但 長/寬/高 必須是 > 0 的數字。`,
+        });
       }
-      // --- (規則修改 2) 材積：(L*W*H) / 28317，結果無條件進位 ---
-      singleVolume = Math.ceil((length * width * height) / VOLUME_DIVISOR);
+      // 材積：(L*W*H) / VOLUME_DIVISOR，結果無條件進位
+      singleVolume = Math.ceil(
+        (length * width * height) / CONSTANTS.VOLUME_DIVISOR
+      );
 
       if (
-        length > OVERSIZED_LIMIT ||
-        width > OVERSIZED_LIMIT ||
-        height > OVERSIZED_LIMIT
+        length > CONSTANTS.OVERSIZED_LIMIT ||
+        width > CONSTANTS.OVERSIZED_LIMIT ||
+        height > CONSTANTS.OVERSIZED_LIMIT
       ) {
         isItemOversized = true;
       }
     } else if (calcMethod === "cbm") {
       if (cbm <= 0) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: `項目 "${name}" 選擇依立方米計算，但 cbm 必須是 > 0 的數字。`,
-          });
+        return res.status(400).json({
+          success: false,
+          message: `項目 "${name}" 選擇依立方米計算，但 cbm 必須是 > 0 的數字。`,
+        });
       }
-      // --- (規則修改 2) 材積：CBM * 35.3，結果無條件進位 ---
-      singleVolume = Math.ceil(cbm * CBM_TO_CAI_FACTOR);
+      // 材積：CBM * CBM_TO_CAI_FACTOR，結果無條件進位
+      singleVolume = Math.ceil(cbm * CONSTANTS.CBM_TO_CAI_FACTOR);
     }
 
-    const isItemOverweight = singleWeight > OVERWEIGHT_LIMIT;
+    const isItemOverweight = singleWeight > CONSTANTS.OVERWEIGHT_LIMIT;
 
     if (isItemOversized) hasAnyOversizedItem = true;
     if (isItemOverweight) hasAnyOverweightItem = true;
@@ -130,14 +111,14 @@ const calculateSeaFreight = (req, res) => {
     initialSeaFreightCost += itemFinalCost;
     totalShipmentVolume += totalItemVolume;
 
-    // 儲存明細時，使用 "已經" 進位過的數字
+    // 儲存明細
     allItemsData.push({
       id: index + 1,
       name,
       quantity,
-      singleWeight, // <-- 已進位 (例: 50.0)
+      singleWeight,
       type,
-      singleVolume, // <-- 已進位 (例: 64)
+      singleVolume,
       cbm,
       calcMethod,
       length,
@@ -154,19 +135,23 @@ const calculateSeaFreight = (req, res) => {
     });
   }
 
-  // 彙總計算 (保持不變)
-  const finalSeaFreightCost = Math.max(initialSeaFreightCost, MINIMUM_CHARGE);
-  const totalOverweightFee = hasAnyOverweightItem ? OVERWEIGHT_FEE : 0;
-  const totalOversizedFee = hasAnyOversizedItem ? OVERSIZED_FEE : 0;
-  const totalCbm = totalShipmentVolume / CBM_TO_CAI_FACTOR;
+  // 彙總計算
+  const finalSeaFreightCost = Math.max(
+    initialSeaFreightCost,
+    CONSTANTS.MINIMUM_CHARGE
+  );
+  const totalOverweightFee = hasAnyOverweightItem
+    ? CONSTANTS.OVERWEIGHT_FEE
+    : 0;
+  const totalOversizedFee = hasAnyOversizedItem ? CONSTANTS.OVERSIZED_FEE : 0;
+  const totalCbm = totalShipmentVolume / CONSTANTS.CBM_TO_CAI_FACTOR;
   const remoteFee = totalCbm * parseFloat(deliveryLocationRate);
   const finalTotal =
     finalSeaFreightCost + remoteFee + totalOverweightFee + totalOversizedFee;
 
-  // 回傳 JSON (保持不變)
   res.status(200).json({
     success: true,
-    message: "運費試算成功 (RUNPIGGY-V2 標準, 含進位)",
+    message: "運費試算成功",
     inputs: {
       itemCount: items.length,
       deliveryLocationRate: parseFloat(deliveryLocationRate),
@@ -185,19 +170,10 @@ const calculateSeaFreight = (req, res) => {
       totalOversizedFee,
       finalTotal: Math.round(finalTotal),
     },
-    rulesApplied: {
-      VOLUME_DIVISOR,
-      CBM_TO_CAI_FACTOR,
-      MINIMUM_CHARGE,
-      OVERWEIGHT_LIMIT,
-      OVERWEIGHT_FEE,
-      OVERSIZED_LIMIT,
-      OVERSIZED_FEE,
-    },
+    rulesApplied: CONSTANTS, // 回傳當前使用的規則
   });
 };
 
-// (空運的函式我們先放著不動)
 const calculateAirFreight = (req, res) => {
   console.log("Controller: calculateAirFreight 觸發", req.body);
   res.json({

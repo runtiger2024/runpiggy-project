@@ -1,7 +1,8 @@
-// 這是 packageRoutes.js (支援 JSON 和 圖片 兩種上傳)
+// backend/routes/packageRoutes.js (V8 完整版 - 支援圖片更新與刪除)
+
 const express = require("express");
 const router = express.Router();
-const upload = require("../utils/upload.js"); // 載入 upload 設定
+const upload = require("../utils/upload.js"); // 載入 multer 設定
 
 const {
   createPackageForecast,
@@ -12,25 +13,20 @@ const {
 
 const { protect } = require("../middleware/authMiddleware.js");
 
-// --- (新) 建立兩條 POST 路由 (參考 RUNPIGGY-V2) ---
-
-// (1) 處理 "純 JSON" (沒有圖片) 的請求
-// (我們的前端會先用這個)
-router.route("/forecast/json").post(protect, createPackageForecast);
-
-// (2) 處理 "FormData" (有圖片) 的請求
-// (我們未來會用到這個)
+// 1. 建立包裹預報 (支援圖片上傳)
 router
   .route("/forecast/images")
   .post(protect, upload.array("images", 5), createPackageForecast);
 
-// --- 結束 ---
-
+// 2. 取得我的包裹列表
 router.route("/my").get(protect, getMyPackages);
 
+// 3. 單一包裹操作 (修改與刪除)
 router
   .route("/:id")
-  .put(protect, updateMyPackage)
+  // [V8 修改] 修改包裹現在支援圖片上傳 (multipart/form-data)
+  .put(protect, upload.array("images", 5), updateMyPackage)
+  // [V8 新增] 刪除包裹
   .delete(protect, deleteMyPackage);
 
 module.exports = router;
