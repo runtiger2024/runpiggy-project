@@ -1,6 +1,7 @@
-// 這是 frontend/js/admin-shipments.js (V8 完整版 - 含永久刪除功能)
+// 這是 frontend/js/admin-shipments.js (V8.2 完整版 - 含商品證明顯示與永久刪除)
 
 document.addEventListener("DOMContentLoaded", () => {
+  // 1. 權限檢查與初始化
   const adminPermissions = JSON.parse(
     localStorage.getItem("admin_permissions") || "[]"
   );
@@ -41,7 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   checkAdminPermissions();
 
-  // --- 元素 ---
+  // --- 2. 獲取元素 ---
   const shipmentsTableBody = document.getElementById("shipmentsTableBody");
   const filterStatus = document.getElementById("filter-status");
   const searchInput = document.getElementById("search-input");
@@ -67,6 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
     CANCELLED: "已取消/退回",
   };
 
+  // --- 3. 載入資料列表 ---
   async function loadAllShipments() {
     shipmentsTableBody.innerHTML =
       '<tr><td colspan="7" class="loading"><div class="spinner"></div><p>載入中...</p></td></tr>';
@@ -141,43 +143,107 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function openShipmentModal(ship) {
-    document.getElementById("edit-shipment-id").value = ship.id;
-    document.getElementById("modal-user-email").textContent = ship.user.email;
+  // --- 4. 彈窗操作 (含商品證明邏輯) ---
+  async function openShipmentModal(ship) {
+    // 為了確保取得完整的 shipmentProductImages，建議重新 fetch 單一筆資料
+    let fullShipment = ship;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/shipments/${ship.id}`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        fullShipment = data.shipment;
+      }
+    } catch (e) {
+      console.warn("Fetching full shipment details failed, using list data.");
+    }
+
+    // 填入基本資料
+    document.getElementById("edit-shipment-id").value = fullShipment.id;
+    document.getElementById("modal-user-email").textContent =
+      fullShipment.user.email;
     document.getElementById("modal-recipient-name").textContent =
-      ship.recipientName;
-    document.getElementById("modal-phone").textContent = ship.phone;
-    document.getElementById("modal-idNumber").textContent = ship.idNumber;
-    document.getElementById("modal-address").textContent = ship.shippingAddress;
+      fullShipment.recipientName;
+    document.getElementById("modal-phone").textContent = fullShipment.phone;
+    document.getElementById("modal-idNumber").textContent =
+      fullShipment.idNumber;
+    document.getElementById("modal-address").textContent =
+      fullShipment.shippingAddress;
 
     const noteEl = document.getElementById("modal-note");
-    if (noteEl) noteEl.textContent = ship.note || "(無)";
+    if (noteEl) noteEl.textContent = fullShipment.note || "(無)";
 
     const proofEl = document.getElementById("modal-payment-proof");
     if (proofEl) {
-      if (ship.paymentProof) {
-        proofEl.innerHTML = `<a href="${API_BASE_URL}${ship.paymentProof}" target="_blank" style="color:#1a73e8;font-weight:bold;">查看憑證</a>`;
+      if (fullShipment.paymentProof) {
+        proofEl.innerHTML = `<a href="${API_BASE_URL}${fullShipment.paymentProof}" target="_blank" style="color:#1a73e8;font-weight:bold;">查看憑證</a>`;
       } else {
         proofEl.textContent = "尚未上傳";
       }
     }
 
-    shipmentPackageList.innerHTML = ship.packages
+    // [新增] 顯示商品證明：連結
+    const productUrlEl = document.getElementById("modal-product-url");
+    if (productUrlEl) {
+      if (fullShipment.productUrl) {
+        productUrlEl.href = fullShipment.productUrl;
+        productUrlEl.textContent = fullShipment.productUrl;
+        productUrlEl.style.display = "inline";
+      } else {
+        productUrlEl.textContent = "(無連結)";
+        productUrlEl.removeAttribute("href");
+      }
+    }
+
+    // [新增] 顯示商品證明：圖片
+    const productImagesContainer = document.getElementById(
+      "modal-product-images-container"
+    );
+    if (productImagesContainer) {
+      productImagesContainer.innerHTML = "";
+
+      // shipmentProductImages 已經由後端解析為陣列
+      const pImages = fullShipment.shipmentProductImages || [];
+      if (pImages.length > 0) {
+        pImages.forEach((imgUrl) => {
+          const img = document.createElement("img");
+          img.src = `${API_BASE_URL}${imgUrl}`;
+          img.style.width = "80px";
+          img.style.height = "80px";
+          img.style.objectFit = "cover";
+          img.style.marginRight = "5px";
+          img.style.border = "1px solid #ccc";
+          img.style.borderRadius = "4px";
+          img.style.cursor = "pointer";
+          img.onclick = () => window.open(img.src, "_blank");
+          productImagesContainer.appendChild(img);
+        });
+      } else {
+        productImagesContainer.innerHTML =
+          "<small style='color:#999'>無上傳照片</small>";
+      }
+    }
+
+    // 填入包裹列表
+    shipmentPackageList.innerHTML = fullShipment.packages
       .map((p) => `<p>${p.productName} (<b>${p.trackingNumber}</b>)</p>`)
       .join("");
     modalServices.innerHTML = "<p>(無附加服務)</p>";
 
-    document.getElementById("modal-status").value = ship.status;
-    document.getElementById("modal-totalCost").value = ship.totalCost || "";
+    // 填入狀態與金額
+    document.getElementById("modal-status").value = fullShipment.status;
+    document.getElementById("modal-totalCost").value =
+      fullShipment.totalCost || "";
     document.getElementById("modal-trackingNumberTW").value =
-      ship.trackingNumberTW || "";
+      fullShipment.trackingNumberTW || "";
 
     if (btnPrintShipment) {
       btnPrintShipment.onclick = () =>
-        window.open(`shipment-print.html?id=${ship.id}`, "_blank");
+        window.open(`shipment-print.html?id=${fullShipment.id}`, "_blank");
     }
 
-    // [V8 新增] 檢查並插入刪除按鈕 (避免重複插入)
+    // [V8] 檢查並插入「永久刪除」按鈕
     let delBtn = document.getElementById("btn-admin-delete-shipment");
     if (!delBtn) {
       delBtn = document.createElement("button");
@@ -192,8 +258,7 @@ document.addEventListener("DOMContentLoaded", () => {
       updateForm.appendChild(delBtn);
     }
 
-    // 重新綁定事件 (因為 ship 變數變了)
-    // 使用 cloneNode 移除舊的 listener
+    // 重新綁定刪除事件 (使用 cloneNode 移除舊的 listener)
     const newDelBtn = delBtn.cloneNode(true);
     delBtn.parentNode.replaceChild(newDelBtn, delBtn);
 
@@ -209,7 +274,7 @@ document.addEventListener("DOMContentLoaded", () => {
         newDelBtn.disabled = true;
         newDelBtn.textContent = "刪除中...";
         const res = await fetch(
-          `${API_BASE_URL}/api/admin/shipments/${ship.id}`,
+          `${API_BASE_URL}/api/admin/shipments/${fullShipment.id}`,
           {
             method: "DELETE",
             headers: { Authorization: `Bearer ${adminToken}` },
@@ -234,11 +299,13 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.style.display = "flex";
   }
 
+  // 關閉彈窗
   closeModalBtn.addEventListener("click", () => (modal.style.display = "none"));
   modal.addEventListener("click", (e) => {
     if (e.target === modal) modal.style.display = "none";
   });
 
+  // 提交更新
   updateForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("edit-shipment-id").value;
@@ -292,6 +359,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // 登出與篩選
   logoutBtn.addEventListener("click", () => {
     if (confirm("確定登出？")) {
       localStorage.removeItem("admin_token");
@@ -300,5 +368,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   filterBtn.addEventListener("click", renderShipments);
+
+  // 初始載入
   loadAllShipments();
 });

@@ -1,8 +1,8 @@
-// backend/controllers/shipmentController.js (V8.1 完整版 - 支援商品證明與取消訂單)
+// backend/controllers/shipmentController.js (V8.2 完整版 - 支援商品證明存取與取消訂單)
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
-const ratesManager = require("../utils/ratesManager.js"); // [V8 新增]
+const ratesManager = require("../utils/ratesManager.js");
 
 /**
  * @description 建立新的集運單 (合併包裹)
@@ -352,10 +352,19 @@ const getShipmentById = async (req, res) => {
       };
     });
 
+    // [V8.2] 解析商品證明圖片 (重要：讓前端可以讀取)
+    let shipmentProductImages = [];
+    try {
+      shipmentProductImages = JSON.parse(
+        shipment.shipmentProductImages || "[]"
+      );
+    } catch (e) {}
+
     const processedShipment = {
       ...shipment,
       packages: processedPackages,
       additionalServices: JSON.parse(shipment.additionalServices || "{}"),
+      shipmentProductImages: shipmentProductImages, // [新增]
     };
 
     res.status(200).json({
