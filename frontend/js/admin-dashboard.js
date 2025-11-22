@@ -66,7 +66,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setupCardNavigation();
 
   // --- 3. 獲取元素與初始化 ---
-  const logoutBtn = document.getElementById("logoutBtn");
   const statsTotalRevenue = document.getElementById("stats-total-revenue");
   const statsPendingRevenue = document.getElementById("stats-pending-revenue");
   const statsTotalUsers = document.getElementById("stats-total-users");
@@ -305,16 +304,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     return { labels, revenueData, userData };
   }
-
-  // --- 6. 登出 ---
-  logoutBtn.addEventListener("click", () => {
-    if (confirm("確定要登出管理後台嗎？")) {
-      localStorage.removeItem("admin_token");
-      localStorage.removeItem("admin_name");
-      localStorage.removeItem("admin_permissions");
-      window.location.href = "admin-login.html";
-    }
-  });
 
   // 初始載入
   loadDashboardStats();
