@@ -1,6 +1,59 @@
-// backend/controllers/calculatorController.js (V10 旗艦版 - 支援動態費率)
+// backend/controllers/calculatorController.js (V11 旗艦版 - 支援動態費率與公開設定)
 
+const prisma = require("../config/db.js");
 const ratesManager = require("../utils/ratesManager.js");
+
+/**
+ * @description 取得公開的計算機設定 (費率、公告、銀行、偏遠地區)
+ * @route       GET /api/calculator/config
+ * @access      Public
+ */
+const getCalculatorConfig = async (req, res) => {
+  try {
+    // 1. 取得費率 (透過 ratesManager 封裝好的邏輯)
+    const rates = await ratesManager.getRates();
+
+    // 2. 取得其他公開設定 (偏遠地區、銀行資訊、公告、倉庫資訊)
+    // 我們只查詢需要的 key，避免洩漏敏感資訊 (如 invoice_config, email_config)
+    const keysToFetch = [
+      "remote_areas",
+      "bank_info",
+      "announcement",
+      "warehouse_info",
+    ];
+
+    const settingsList = await prisma.systemSetting.findMany({
+      where: { key: { in: keysToFetch } },
+    });
+
+    // 轉換為簡單的 Key-Value 物件
+    const settingsMap = {};
+    settingsList.forEach((item) => {
+      try {
+        settingsMap[item.key] = JSON.parse(item.value);
+      } catch (e) {
+        settingsMap[item.key] = item.value;
+      }
+    });
+
+    // 3. 回傳前端需要的格式
+    res.status(200).json({
+      success: true,
+      rates: rates, // 包含 categories 和 constants
+      remoteAreas: settingsMap.remote_areas || null,
+      bankInfo: settingsMap.bank_info || null,
+      announcement: settingsMap.announcement || null,
+      warehouseInfo: settingsMap.warehouse_info || null,
+    });
+  } catch (error) {
+    console.error("取得計算機設定失敗:", error);
+    // 即使資料庫失敗，也回傳 false 讓前端使用預設值，而不是 500 讓畫面掛掉
+    res.status(200).json({
+      success: false,
+      message: "無法載入設定，請使用預設值",
+    });
+  }
+};
 
 /**
  * @description 計算海運運費 (核心邏輯)
@@ -190,6 +243,7 @@ const calculateAirFreight = (req, res) => {
 };
 
 module.exports = {
+  getCalculatorConfig, // [新增] 匯出設定 API
   calculateSeaFreight,
   calculateAirFreight,
 };
