@@ -786,6 +786,11 @@ document.addEventListener("DOMContentLoaded", () => {
       "taxId",
       document.getElementById("ship-taxId").value.trim()
     );
+    // [新增] 抓取發票抬頭並加入 FormData
+    formData.append(
+      "invoiceTitle",
+      document.getElementById("ship-invoiceTitle").value.trim()
+    );
     formData.append("note", document.getElementById("ship-note").value.trim());
 
     // 加入新欄位

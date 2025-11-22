@@ -19,6 +19,7 @@ const createShipment = async (req, res) => {
       phone,
       idNumber,
       taxId,
+      invoiceTitle, // [新增] 接收 invoiceTitle
       note,
       deliveryLocationRate,
       productUrl, // [新增] 商品購買連結
@@ -166,6 +167,7 @@ const createShipment = async (req, res) => {
           shippingAddress: shippingAddress,
           idNumber: idNumber,
           taxId: taxId || null,
+          invoiceTitle: invoiceTitle || null, // [新增] 將抬頭寫入資料庫
           note: note || null,
           totalCost: finalTotalCost,
           deliveryLocationRate: parseFloat(deliveryLocationRate) || 0,

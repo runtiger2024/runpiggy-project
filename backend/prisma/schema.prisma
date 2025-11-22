@@ -1,4 +1,4 @@
-// 這是 backend/prisma/schema.prisma (V3 權限系統版)
+// 這是 backend/prisma/schema.prisma (V3 權限系統版 - 含發票功能)
 
 generator client {
   provider = "prisma-client-js"
@@ -69,16 +69,25 @@ model Shipment {
   phone                String
   shippingAddress      String
   idNumber             String    
-  taxId                String?   
-  note                 String?   
+  taxId                String?   // 統一編號 (既有欄位)
+  
+  // [新增] 發票抬頭 (B2B 需要，或 B2C 客戶想要顯示公司名)
+  invoiceTitle         String?   
 
+  note                 String?
   additionalServices   String?   
   deliveryLocationRate Float?    
   
   status               String    @default("PENDING_PAYMENT") 
-  totalCost            Float?    
+  totalCost            Float?
   trackingNumberTW     String?   
   paymentProof         String?
+
+  // [新增] 發票相關欄位 (API 回傳結果)
+  invoiceNumber        String?   // 發票號碼 (例如 AB12345678)
+  invoiceDate          DateTime? // 開立時間
+  invoiceRandomCode    String?   // 隨機碼 (查詢發票用)
+  invoiceStatus        String?   // 狀態 (例如: ISSUED, FAILED)
 
   // [新增] 商品證明欄位
   productUrl           String?   // 購買連結

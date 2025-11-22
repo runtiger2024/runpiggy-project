@@ -511,8 +511,24 @@
                 <input type="text" id="ship-idNumber" required />
               </div>
               <div class="form-group">
-                <label for="ship-taxId">統一編號 (選填)</label>
-                <input type="text" id="ship-taxId" />
+                <label for="ship-taxId">統一編號 (若需開立統編請填)</label>
+                <input
+                  type="text"
+                  id="ship-taxId"
+                  class="form-control"
+                  placeholder="8碼統編"
+                />
+              </div>
+              <div class="form-group">
+                <label for="ship-invoiceTitle"
+                  >發票抬頭 (選填，公司戶建議填寫)</label
+                >
+                <input
+                  type="text"
+                  id="ship-invoiceTitle"
+                  class="form-control"
+                  placeholder="公司名稱或買受人名稱"
+                />
               </div>
             </div>
 
