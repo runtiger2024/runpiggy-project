@@ -608,6 +608,7 @@ const exportShipments = async (req, res) => {
       地址: s.shippingAddress,
       狀態: s.status,
       總金額: s.totalCost || 0,
+      發票號碼: s.invoiceNumber || "未開立",
       台灣單號: s.trackingNumberTW || "",
       備註: s.note || "",
     }));

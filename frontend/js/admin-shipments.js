@@ -1,4 +1,4 @@
-// frontend/js/admin-shipments.js (V9 旗艦版 - 支援分頁、批量、匯出)
+// frontend/js/admin-shipments.js (V10.1 - 支援分頁、批量、匯出、發票顯示)
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 權限與初始化 ---
@@ -87,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- 4. 資料載入 (分頁) ---
   async function loadShipments() {
     shipmentsTableBody.innerHTML =
-      '<tr><td colspan="8" style="text-align: center;">載入中...</td></tr>';
+      '<tr><td colspan="9" style="text-align: center;">載入中...</td></tr>';
     selectedIds.clear();
     updateBulkActionBar();
 
@@ -109,7 +109,7 @@ document.addEventListener("DOMContentLoaded", () => {
       updateUrlParams();
     } catch (e) {
       console.error(e);
-      shipmentsTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: red;">載入錯誤: ${e.message}</td></tr>`;
+      shipmentsTableBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: red;">載入錯誤: ${e.message}</td></tr>`;
     }
   }
 
@@ -118,7 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
     shipmentsTableBody.innerHTML = "";
     if (shipments.length === 0) {
       shipmentsTableBody.innerHTML =
-        '<tr><td colspan="8" style="text-align: center;">無符合資料</td></tr>';
+        '<tr><td colspan="9" style="text-align: center;">無符合資料</td></tr>';
       return;
     }
 
@@ -140,6 +140,26 @@ document.addEventListener("DOMContentLoaded", () => {
           statusClasses["PENDING_REVIEW"] || "status-PENDING_REVIEW";
       }
 
+      // 發票顯示邏輯
+      let invoiceDisplay =
+        '<span style="color: #ccc; font-size: 12px;">未開立</span>';
+      if (ship.invoiceNumber) {
+        invoiceDisplay = `
+          <div style="display:flex; align-items:center; gap:5px;">
+            <span style="color: #28a745; font-size: 1.2em;">🧾</span>
+            <div>
+                <strong style="color: #2e7d32; font-size: 13px;">${
+                  ship.invoiceNumber
+                }</strong>
+                <div style="font-size: 10px; color: #666;">${new Date(
+                  ship.invoiceDate || Date.now()
+                ).toLocaleDateString()}</div>
+            </div>
+          </div>`;
+      } else if (ship.invoiceStatus === "FAILED") {
+        invoiceDisplay = `<span style="color: #dc3545; font-weight: bold;">⚠️ 開立失敗</span>`;
+      }
+
       tr.innerHTML = `
         <td class="checkbox-col">
           <input type="checkbox" class="ship-checkbox" value="${ship.id}" ${
@@ -154,6 +174,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>${
           ship.totalCost ? `NT$ ${ship.totalCost.toLocaleString()}` : "(待報價)"
         }</td>
+        <td>${invoiceDisplay}</td>
         <td>${ship.trackingNumberTW || "-"}</td>
       `;
 
@@ -406,6 +427,50 @@ document.addEventListener("DOMContentLoaded", () => {
       proofEl.innerHTML = `<a href="${API_BASE_URL}${fullShipment.paymentProof}" target="_blank" style="color:#1a73e8;font-weight:bold;">查看憑證</a>`;
     } else {
       proofEl.textContent = "尚未上傳";
+    }
+
+    // 發票資訊顯示
+    let invoiceInfoBox = document.getElementById("modal-invoice-info-box");
+    if (!invoiceInfoBox) {
+      invoiceInfoBox = document.createElement("div");
+      invoiceInfoBox.id = "modal-invoice-info-box";
+      invoiceInfoBox.style.marginTop = "15px";
+      invoiceInfoBox.style.padding = "10px";
+      invoiceInfoBox.style.backgroundColor = "#f1f8e9";
+      invoiceInfoBox.style.borderRadius = "5px";
+      invoiceInfoBox.style.border = "1px solid #c5e1a5";
+      proofEl.parentNode.insertBefore(invoiceInfoBox, proofEl.nextSibling);
+    }
+
+    if (fullShipment.invoiceNumber) {
+      invoiceInfoBox.style.display = "block";
+      invoiceInfoBox.style.backgroundColor = "#f1f8e9";
+      invoiceInfoBox.style.border = "1px solid #c5e1a5";
+      invoiceInfoBox.innerHTML = `
+            <p style="margin:0; font-weight:bold; color:#33691e;">🧾 電子發票已開立</p>
+            <ul style="margin:5px 0 0 20px; font-size:14px; color:#558b2f;">
+                <li>號碼: <strong>${fullShipment.invoiceNumber}</strong></li>
+                <li>日期: ${new Date(
+                  fullShipment.invoiceDate
+                ).toLocaleString()}</li>
+                <li>隨機碼: ${fullShipment.invoiceRandomCode || "-"}</li>
+                <li>抬頭: ${fullShipment.invoiceTitle || "(個人)"}</li>
+                <li>統編: ${fullShipment.taxId || "(無)"}</li>
+            </ul>
+        `;
+    } else {
+      if (
+        fullShipment.status === "PROCESSING" ||
+        fullShipment.status === "SHIPPED" ||
+        fullShipment.status === "COMPLETED"
+      ) {
+        invoiceInfoBox.style.display = "block";
+        invoiceInfoBox.style.backgroundColor = "#fff3e0";
+        invoiceInfoBox.style.border = "1px solid #ffe0b2";
+        invoiceInfoBox.innerHTML = `<p style="margin:0; color:#e65100;">⚠️ 此訂單尚未開立發票 (或開立失敗)</p>`;
+      } else {
+        invoiceInfoBox.style.display = "none";
+      }
     }
 
     // 商品證明 (連結)
