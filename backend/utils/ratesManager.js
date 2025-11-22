@@ -1,9 +1,8 @@
-const fs = require("fs");
-const path = require("path");
+// backend/utils/ratesManager.js (V10 旗艦版 - 資料庫驅動)
 
-const RATES_FILE = path.join(__dirname, "../config/rates.json");
+const prisma = require("../config/db.js");
 
-// 預設費率 (當檔案不存在時使用)
+// 預設費率 (當資料庫尚未設定或連線失敗時的備案)
 const DEFAULT_RATES = {
   categories: {
     general: { name: "一般家具", weightRate: 22, volumeRate: 125 },
@@ -22,34 +21,25 @@ const DEFAULT_RATES = {
   },
 };
 
-// 確保 config 資料夾存在
-const configDir = path.dirname(RATES_FILE);
-if (!fs.existsSync(configDir)) {
-  fs.mkdirSync(configDir, { recursive: true });
-}
-
-// 讀取費率
-const getRates = () => {
+/**
+ * 從資料庫讀取運費設定
+ * @returns {Promise<Object>} 包含 categories 和 constants 的設定物件
+ */
+const getRates = async () => {
   try {
-    if (fs.existsSync(RATES_FILE)) {
-      const data = fs.readFileSync(RATES_FILE, "utf8");
-      return JSON.parse(data);
+    // 嘗試從 SystemSetting 資料表讀取
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: "rates_config" },
+    });
+
+    if (setting && setting.value) {
+      return JSON.parse(setting.value);
     }
   } catch (error) {
-    console.error("讀取費率設定失敗，使用預設值:", error);
+    console.error("讀取運費設定失敗 (將使用預設值):", error.message);
   }
+  // 若無設定或發生錯誤，回傳預設值
   return DEFAULT_RATES;
 };
 
-// 寫入費率
-const updateRates = (newRates) => {
-  try {
-    fs.writeFileSync(RATES_FILE, JSON.stringify(newRates, null, 2), "utf8");
-    return true;
-  } catch (error) {
-    console.error("寫入費率設定失敗:", error);
-    return false;
-  }
-};
-
-module.exports = { getRates, updateRates };
+module.exports = { getRates, DEFAULT_RATES };

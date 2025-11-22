@@ -1,33 +1,89 @@
-// backend/utils/invoiceHelper.js
+// backend/utils/invoiceHelper.js (V10 旗艦版 - 資料庫驅動設定)
 
 const axios = require("axios");
 const crypto = require("crypto");
 const qs = require("qs");
+const prisma = require("../config/db.js");
+require("dotenv").config();
 
-const MERCHANT_ID = process.env.AMEGO_MERCHANT_ID;
-const HASH_KEY = process.env.AMEGO_HASH_KEY;
-const API_URL = process.env.AMEGO_API_URL;
+// 發票 API 網址 (測試與正式)
+// 注意：請依實際光貿文件確認測試網址，以下為範例
+const API_URLS = {
+  TEST: "https://test-api-invoice.amego.tw/invoice/create",
+  PROD:
+    process.env.AMEGO_API_URL || "https://api-invoice.amego.tw/invoice/create",
+};
 
-const generateSign = (dataJson, time) => {
-  const rawString = dataJson + time + HASH_KEY;
+/**
+ * 取得發票設定 (優先讀取資料庫)
+ */
+const getInvoiceConfig = async () => {
+  // 預設值：使用環境變數，預設為關閉與測試模式
+  let config = {
+    enabled: false,
+    mode: "TEST",
+    merchantId: process.env.AMEGO_MERCHANT_ID,
+    hashKey: process.env.AMEGO_HASH_KEY,
+    apiUrl: null,
+  };
+
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: "invoice_config" },
+    });
+
+    if (setting && setting.value) {
+      const dbConfig = JSON.parse(setting.value);
+      // 資料庫設定覆蓋預設值
+      if (typeof dbConfig.enabled === "boolean")
+        config.enabled = dbConfig.enabled;
+      if (dbConfig.mode) config.mode = dbConfig.mode;
+      // 允許 DB 覆蓋金鑰 (若管理員在後台輸入)
+      if (dbConfig.merchantId) config.merchantId = dbConfig.merchantId;
+      if (dbConfig.hashKey) config.hashKey = dbConfig.hashKey;
+    }
+  } catch (error) {
+    console.warn("[Invoice] 讀取 invoice_config 失敗，使用預設環境變數");
+  }
+
+  // 根據模式決定 URL
+  if (config.mode === "PROD") {
+    config.apiUrl = API_URLS.PROD;
+  } else {
+    config.apiUrl = API_URLS.TEST;
+  }
+
+  return config;
+};
+
+const generateSign = (dataJson, time, hashKey) => {
+  const rawString = dataJson + time + hashKey;
   return crypto.createHash("md5").update(rawString).digest("hex");
 };
 
 const createInvoice = async (shipment, user) => {
   try {
-    if (!MERCHANT_ID || !HASH_KEY) throw new Error("API 金鑰未設定");
+    // 1. 讀取動態設定
+    const config = await getInvoiceConfig();
 
-    // --- 1. 準備數據 ---
-    // 確保金額是數字
+    // 檢查總開關
+    if (!config.enabled) {
+      console.log("[Invoice] 系統設定為關閉，跳過發票開立");
+      // 回傳特定訊息，讓 controller 知道是「設定關閉」而非「錯誤」
+      return { success: false, message: "系統設定：電子發票功能已關閉" };
+    }
+
+    if (!config.merchantId || !config.hashKey) {
+      return {
+        success: false,
+        message: "API 金鑰未設定 (MerchantID 或 HashKey)",
+      };
+    }
+
+    // --- 2. 準備數據 ---
     const total = Math.round(Number(shipment.totalCost));
-
-    // 檢查統編是否存在且長度為8
-    // 注意：如果是測試用，請填寫 "28080623" (光貿範例) 或其他真實存在的統編
     const rawTaxId = shipment.taxId ? shipment.taxId.trim() : "";
     const hasTaxId = rawTaxId.length === 8;
-
-    // 決定傳送給光貿的統編 (關鍵！)
-    // 如果有 8 碼就傳 8 碼，否則一律傳 10 個 0 (B2C)
     const buyerIdentifier = hasTaxId ? rawTaxId : "0000000000";
 
     // 營業稅計算 (5%)
@@ -35,7 +91,7 @@ const createInvoice = async (shipment, user) => {
     let salesAmount = total;
 
     if (hasTaxId) {
-      // B2B: 銷售額 = 總額 / 1.05 (四捨五入)
+      // B2B: 銷售額 = 總額 / 1.05
       const exclusiveAmount = Math.round(total / 1.05);
       taxAmount = total - exclusiveAmount;
       salesAmount = exclusiveAmount;
@@ -45,26 +101,21 @@ const createInvoice = async (shipment, user) => {
       taxAmount = 0;
     }
 
-    // --- 2. 準備商品陣列 (ProductItem) ---
     const productItems = [
       {
         Description: "國際運費",
         Quantity: 1,
-        UnitPrice: total, // 光貿建議填含稅單價，讓系統反推
+        UnitPrice: total,
         Amount: total,
         TaxType: 1, // 1: 應稅
       },
     ];
 
-    // --- 3. 準備 JSON 資料物件 (MIG 4.0 精簡版) ---
-    // 移除了非必要的 Category, Device 欄位
     const dataObj = {
       OrderId: shipment.id,
       BuyerIdentifier: buyerIdentifier,
       BuyerName: shipment.invoiceTitle || shipment.recipientName || "個人",
       BuyerEmailAddress: user.email,
-
-      // 金額欄位 (轉成字串傳送較保險，或保持 Number 皆可，這裡用 Number)
       SalesAmount: salesAmount,
       FreeTaxSalesAmount: 0,
       ZeroTaxSalesAmount: 0,
@@ -72,40 +123,37 @@ const createInvoice = async (shipment, user) => {
       TaxRate: 0.05,
       TaxAmount: taxAmount,
       TotalAmount: total,
-
       ProductItem: productItems,
-
-      Print: "N", // N: 不列印
-      // 若是 B2C (0000000000)，CarrierType 留空代表使用會員載具(Email)
-      // 若是 B2B (有統編)，CarrierType 必須留空
-      CarrierType: "",
+      Print: "N",
+      CarrierType: "", // 視需求調整
     };
 
     const dataJson = JSON.stringify(dataObj);
     const time = Math.floor(Date.now() / 1000);
-    const sign = generateSign(dataJson, time);
 
-    // --- 4. 發送請求 ---
+    // 使用動態取得的 Hash Key 進行簽章
+    const sign = generateSign(dataJson, time, config.hashKey);
+
+    // --- 3. 發送請求 ---
     const formData = {
-      MerchantID: MERCHANT_ID,
-      invoice: MERCHANT_ID,
+      MerchantID: config.merchantId,
+      invoice: config.merchantId,
       time: time,
       sign: sign,
       data: dataJson,
     };
 
     console.log(
-      `[Invoice] 請求: Order=${dataObj.OrderId}, BuyerID=${dataObj.BuyerIdentifier}`
+      `[Invoice] 請求 (${config.mode}): Order=${dataObj.OrderId}, API=${config.apiUrl}`
     );
 
-    const response = await axios.post(API_URL, qs.stringify(formData), {
+    const response = await axios.post(config.apiUrl, qs.stringify(formData), {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
 
     const resData = response.data;
 
-    // --- 5. 處理結果 ---
-    // 檢查 code: 0 (成功)
+    // --- 4. 處理結果 ---
     if (resData.code === 0) {
       return {
         success: true,
@@ -115,7 +163,6 @@ const createInvoice = async (shipment, user) => {
         raw: resData,
       };
     } else {
-      // 失敗
       return {
         success: false,
         message: `API回應錯誤 (${resData.code}): ${resData.msg}`,

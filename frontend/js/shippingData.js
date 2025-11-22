@@ -1,26 +1,37 @@
-// frontend/js/shippingData.js (V9 - 集中設定檔)
-// 包含：費率常數、狀態對照表、顏色 Class 對照、偏遠地區資料
+// frontend/js/shippingData.js (V10 - 資料庫驅動備案版)
+// 此檔案提供全站共用的常數與預設資料。
+// 注意：RATES, CONSTANTS, REMOTE_AREAS 設為可變變數 (var/window)，
+// 允許 main.js 或 admin.js 在載入後透過 API 從資料庫拉取最新設定並覆蓋。
 
-// --- 1. 基礎運費與計算常數 ---
-const RATES = {
+// --- 1. 基礎運費與計算常數 (預設值) ---
+var RATES = {
   general: { name: "一般家具", weightRate: 22, volumeRate: 125 },
   special_a: { name: "特殊家具A", weightRate: 32, volumeRate: 184 },
   special_b: { name: "特殊家具B", weightRate: 40, volumeRate: 224 },
   special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
 };
 
-// --- 2. 計算係數與門檻 ---
-const VOLUME_DIVISOR = 28317; // 材積換算除數
-const CBM_TO_CAI_FACTOR = 35.3; // CBM 換算材積係數
-const MINIMUM_CHARGE = 2000; // 最低消費
-const OVERSIZED_LIMIT = 300; // 超長限制 (cm)
-const OVERSIZED_FEE = 800; // 超長費
-const OVERWEIGHT_LIMIT = 100; // 超重限制 (kg)
-const OVERWEIGHT_FEE = 800; // 超重費
+// --- 2. 計算係數與門檻 (預設值) ---
+var VOLUME_DIVISOR = 28317; // 材積換算除數
+var CBM_TO_CAI_FACTOR = 35.3; // CBM 換算材積係數
+var MINIMUM_CHARGE = 2000; // 最低消費
+var OVERSIZED_LIMIT = 300; // 超長限制 (cm)
+var OVERSIZED_FEE = 800; // 超長費
+var OVERWEIGHT_LIMIT = 100; // 超重限制 (kg)
+var OVERWEIGHT_FEE = 800; // 超重費
 
-// --- 3. 狀態對照表 (UI顯示用) ---
-// 集中管理，修改一處全站生效
+// 為了方便程式存取，我們也建立一個 CONSTANTS 物件 (模擬後端結構)
+var CONSTANTS = {
+  VOLUME_DIVISOR,
+  CBM_TO_CAI_FACTOR,
+  MINIMUM_CHARGE,
+  OVERSIZED_LIMIT,
+  OVERSIZED_FEE,
+  OVERWEIGHT_LIMIT,
+  OVERWEIGHT_FEE,
+};
 
+// --- 3. 狀態對照表 (UI顯示用 - 靜態邏輯) ---
 const PACKAGE_STATUS_MAP = {
   PENDING: "待確認",
   ARRIVED: "已入庫",
@@ -31,18 +42,17 @@ const PACKAGE_STATUS_MAP = {
 
 const SHIPMENT_STATUS_MAP = {
   PENDING_PAYMENT: "待付款",
-  PENDING_REVIEW: "已付款(待審核)", // 前端虛擬狀態
+  PENDING_REVIEW: "已付款(待審核)",
   PROCESSING: "已收款，安排裝櫃",
   SHIPPED: "已裝櫃",
   COMPLETED: "海關查驗",
-  CANCELLEDD: "清關放行", // 相容舊資料
-  CANCELL: "拆櫃派送", // 相容舊資料
-  CANCEL: "已完成", // 相容舊資料
+  CANCELLEDD: "清關放行",
+  CANCELL: "拆櫃派送",
+  CANCEL: "已完成",
   CANCELLED: "已取消/退回",
 };
 
-// --- 4. 狀態顏色對照 (Badge Class) ---
-// 用於動態生成 <span class="...">
+// --- 4. 狀態顏色對照 (Badge Class - 靜態邏輯) ---
 const STATUS_CLASSES = {
   // 包裹
   PENDING: "status-PENDING",
@@ -55,15 +65,16 @@ const STATUS_CLASSES = {
   SHIPPED: "status-SHIPPED",
   // 共用
   COMPLETED: "status-COMPLETED",
-  CANCEL: "status-COMPLETED", // 已完成 (綠色)
-  CANCELLED: "status-CANCELLED", // 取消 (紅色)
+  CANCEL: "status-COMPLETED",
+  CANCELLED: "status-CANCELLED",
   // 舊相容
   CANCELLEDD: "status-IN_SHIPMENT",
   CANCELL: "status-IN_SHIPMENT",
 };
 
-// --- 5. 偏遠地區資料庫 ---
-const REMOTE_AREAS = {
+// --- 5. 偏遠地區資料庫 (預設值) ---
+// 若 API 尚未載入，將使用此列表
+var REMOTE_AREAS = {
   1800: [
     "東勢區",
     "新社區",
@@ -207,3 +218,11 @@ const REMOTE_AREAS = {
     "釣魚臺",
   ],
 };
+
+// 確保全域存取 (讓 main.js 或 admin.js 可以覆蓋)
+window.RATES = RATES;
+window.CONSTANTS = CONSTANTS;
+window.REMOTE_AREAS = REMOTE_AREAS;
+window.PACKAGE_STATUS_MAP = PACKAGE_STATUS_MAP;
+window.SHIPMENT_STATUS_MAP = SHIPMENT_STATUS_MAP;
+window.STATUS_CLASSES = STATUS_CLASSES;

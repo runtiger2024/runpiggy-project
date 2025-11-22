@@ -3,15 +3,96 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>系統設定 - 管理後台</title>
+    <title>系統全域設定 - 管理後台</title>
     <link rel="icon" href="assets/logo.png" type="image/png" />
     <script src="js/styleLoader.js"></script>
+    <style>
+      /* 頁籤樣式 (Tabs) - 內嵌以確保獨立性 */
+      .settings-tabs {
+        display: flex;
+        border-bottom: 2px solid #ddd;
+        margin-bottom: 20px;
+        gap: 5px;
+      }
+      .tab-btn {
+        padding: 12px 25px;
+        background: #f1f1f1;
+        border: none;
+        border-radius: 5px 5px 0 0;
+        cursor: pointer;
+        font-weight: 500;
+        color: #555;
+        transition: all 0.2s;
+      }
+      .tab-btn:hover {
+        background: #e9ecef;
+      }
+      .tab-btn.active {
+        background: var(--primary-color);
+        color: white;
+        font-weight: bold;
+      }
+
+      /* 內容區塊 */
+      .tab-content {
+        display: none; /* 預設隱藏 */
+        animation: fadeIn 0.3s ease-in-out;
+      }
+      .tab-content.active {
+        display: block;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(5px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* JSON 編輯器樣式 */
+      .json-editor {
+        font-family: "Consolas", "Monaco", monospace;
+        width: 100%;
+        min-height: 300px;
+        padding: 15px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        background: #2d2d2d;
+        color: #f8f8f2;
+        line-height: 1.5;
+        font-size: 14px;
+      }
+      .json-status {
+        font-size: 13px;
+        margin-top: 5px;
+        font-weight: bold;
+      }
+      .json-valid {
+        color: #2ecc71;
+      }
+      .json-invalid {
+        color: #e74c3c;
+      }
+
+      /* 區塊標題 */
+      .section-title {
+        border-left: 4px solid var(--primary-color);
+        padding-left: 10px;
+        margin-bottom: 20px;
+        color: #333;
+      }
+    </style>
   </head>
   <body>
     <div class="container" style="max-width: 1000px">
       <img src="assets/logo.png" alt="Logo" class="header-logo" />
+
       <div class="admin-header">
-        <h1>系統參數與費率設定</h1>
+        <h1>系統全域設定</h1>
         <div class="header-actions">
           <a href="admin-dashboard.html" class="btn btn-secondary"
             >返回儀表板</a
@@ -20,77 +101,323 @@
         </div>
       </div>
 
-      <form id="settings-form">
-        <div class="form-section">
-          <h3>💰 運費費率 (Categories)</h3>
-          <div id="rates-container"></div>
-        </div>
+      <div class="settings-tabs">
+        <button class="tab-btn active" data-tab="tab-rates">💰 運費費率</button>
+        <button class="tab-btn" data-tab="tab-finance">🏦 財務與發票</button>
+        <button class="tab-btn" data-tab="tab-notify">📧 通知與公告</button>
+        <button class="tab-btn" data-tab="tab-advanced">
+          🛠️ 進階設定 (偏遠)
+        </button>
+      </div>
 
-        <div class="form-section">
-          <h3>⚙️ 系統常數 (Constants)</h3>
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label>海運低消 (MINIMUM_CHARGE)</label>
-              <input
-                type="number"
-                id="const-MINIMUM_CHARGE"
-                class="form-control"
-              />
-            </div>
-            <div class="form-group">
-              <label>體積除數 (VOLUME_DIVISOR)</label>
-              <input
-                type="number"
-                id="const-VOLUME_DIVISOR"
-                class="form-control"
-              />
-            </div>
-            <div class="form-group">
-              <label>CBM換算材積 (CBM_TO_CAI_FACTOR)</label>
-              <input
-                type="number"
-                id="const-CBM_TO_CAI_FACTOR"
-                step="0.1"
-                class="form-control"
-              />
-            </div>
-            <div class="form-group">
-              <label>超重限制 kg (OVERWEIGHT_LIMIT)</label>
-              <input
-                type="number"
-                id="const-OVERWEIGHT_LIMIT"
-                class="form-control"
-              />
-            </div>
-            <div class="form-group">
-              <label>超重費 (OVERWEIGHT_FEE)</label>
-              <input
-                type="number"
-                id="const-OVERWEIGHT_FEE"
-                class="form-control"
-              />
-            </div>
-            <div class="form-group">
-              <label>超長限制 cm (OVERSIZED_LIMIT)</label>
-              <input
-                type="number"
-                id="const-OVERSIZED_LIMIT"
-                class="form-control"
-              />
-            </div>
-            <div class="form-group">
-              <label>超長費 (OVERSIZED_FEE)</label>
-              <input
-                type="number"
-                id="const-OVERSIZED_FEE"
-                class="form-control"
-              />
+      <div id="tab-rates" class="tab-content active">
+        <form id="form-rates">
+          <div class="form-section">
+            <h3 class="section-title">📦 家具類別費率 (Categories)</h3>
+            <p style="color: #666; font-size: 0.9em; margin-bottom: 15px">
+              設定各類家具的計費標準 (每公斤/每材)。
+            </p>
+            <div id="rates-categories-container"></div>
+          </div>
+
+          <div class="form-section">
+            <h3 class="section-title">⚙️ 運算常數 (Constants)</h3>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>海運低消 (MINIMUM_CHARGE)</label>
+                <input
+                  type="number"
+                  id="const-MINIMUM_CHARGE"
+                  class="form-control"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>體積除數 (VOLUME_DIVISOR)</label>
+                <input
+                  type="number"
+                  id="const-VOLUME_DIVISOR"
+                  class="form-control"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>CBM換算材積 (CBM_TO_CAI_FACTOR)</label>
+                <input
+                  type="number"
+                  id="const-CBM_TO_CAI_FACTOR"
+                  step="0.1"
+                  class="form-control"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label>超重限制 kg (OVERWEIGHT_LIMIT)</label>
+                <input
+                  type="number"
+                  id="const-OVERWEIGHT_LIMIT"
+                  class="form-control"
+                />
+              </div>
+              <div class="form-group">
+                <label>超重費 (OVERWEIGHT_FEE)</label>
+                <input
+                  type="number"
+                  id="const-OVERWEIGHT_FEE"
+                  class="form-control"
+                />
+              </div>
+              <div class="form-group">
+                <label>超長限制 cm (OVERSIZED_LIMIT)</label>
+                <input
+                  type="number"
+                  id="const-OVERSIZED_LIMIT"
+                  class="form-control"
+                />
+              </div>
+              <div class="form-group">
+                <label>超長費 (OVERSIZED_FEE)</label>
+                <input
+                  type="number"
+                  id="const-OVERSIZED_FEE"
+                  class="form-control"
+                />
+              </div>
             </div>
           </div>
-        </div>
+          <button type="submit" class="btn btn-primary">儲存運費設定</button>
+        </form>
+      </div>
 
-        <button type="submit" class="btn btn-primary">儲存設定</button>
-      </form>
+      <div id="tab-finance" class="tab-content">
+        <form id="form-bank">
+          <div class="form-section">
+            <h3 class="section-title">🏦 銀行匯款資訊</h3>
+            <p style="color: #666; font-size: 0.9em; margin-bottom: 15px">
+              顯示於前端「集運單建立成功」後的彈窗中。
+            </p>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>銀行名稱 (代碼)</label>
+                <input
+                  type="text"
+                  id="bank-name"
+                  class="form-control"
+                  placeholder="例如：第一銀行 (007)"
+                />
+              </div>
+              <div class="form-group">
+                <label>分行名稱</label>
+                <input
+                  type="text"
+                  id="bank-branch"
+                  class="form-control"
+                  placeholder="例如：台南分行"
+                />
+              </div>
+              <div class="form-group">
+                <label>銀行帳號</label>
+                <input
+                  type="text"
+                  id="bank-account"
+                  class="form-control"
+                  style="color: #d32f2f; font-weight: bold"
+                />
+              </div>
+              <div class="form-group">
+                <label>戶名</label>
+                <input type="text" id="bank-holder" class="form-control" />
+              </div>
+            </div>
+            <button
+              type="submit"
+              class="btn btn-secondary"
+              style="background-color: #27ae60"
+            >
+              更新銀行資訊
+            </button>
+          </div>
+        </form>
+
+        <form id="form-invoice" style="margin-top: 30px">
+          <div class="form-section">
+            <h3 class="section-title">🧾 電子發票設定 (Amego 光貿)</h3>
+
+            <div
+              class="form-group"
+              style="
+                background: #fff3cd;
+                padding: 10px;
+                border-radius: 5px;
+                margin-bottom: 20px;
+              "
+            >
+              <label
+                style="font-weight: bold; display: flex; align-items: center"
+              >
+                <input
+                  type="checkbox"
+                  id="invoice-enabled"
+                  style="width: 20px; height: 20px; margin-right: 10px"
+                />
+                啟用自動開立發票功能
+              </label>
+              <small style="display: block; margin-top: 5px; color: #856404"
+                >開啟後，當集運單狀態轉為「已收款
+                (PROCESSING)」時，系統將自動呼叫 API 開立發票。</small
+              >
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label>API 模式</label>
+                <select id="invoice-mode" class="form-control">
+                  <option value="TEST">測試模式 (Test Environment)</option>
+                  <option value="PROD">正式模式 (Production)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Merchant ID (商店代號)</label>
+                <input
+                  type="text"
+                  id="invoice-merchant-id"
+                  class="form-control"
+                  placeholder="留空則使用 .env 設定"
+                />
+              </div>
+              <div class="form-group" style="grid-column: 1 / -1">
+                <label>Hash Key (加密金鑰)</label>
+                <input
+                  type="password"
+                  id="invoice-hash-key"
+                  class="form-control"
+                  placeholder="留空則使用 .env 設定 (建議)"
+                />
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">儲存發票設定</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="tab-notify" class="tab-content">
+        <form id="form-email">
+          <div class="form-section">
+            <h3 class="section-title">📧 Email 通知設定</h3>
+            <div class="form-group">
+              <label>寄件人名稱</label>
+              <input
+                type="text"
+                id="email-sender-name"
+                class="form-control"
+                placeholder="例如：小跑豬物流中心"
+              />
+            </div>
+            <div class="form-group">
+              <label>寄件人 Email</label>
+              <input
+                type="email"
+                id="email-sender-addr"
+                class="form-control"
+                placeholder="必須是 SendGrid 驗證過的 Sender"
+              />
+            </div>
+            <div class="form-group">
+              <label>管理員收件列表 (新訂單通知)</label>
+              <textarea
+                id="email-recipients"
+                class="form-control"
+                rows="3"
+                placeholder="輸入 Email，多個請用逗號 (,) 分隔"
+              ></textarea>
+              <small style="color: #666"
+                >當客戶建立集運單時，系統會發信通知這些信箱。</small
+              >
+            </div>
+            <button type="submit" class="btn btn-secondary">
+              更新 Email 設定
+            </button>
+          </div>
+        </form>
+
+        <form id="form-announcement" style="margin-top: 30px">
+          <div class="form-section">
+            <h3 class="section-title">📢 網站全域公告</h3>
+            <div class="form-group">
+              <label style="display: flex; align-items: center">
+                <input
+                  type="checkbox"
+                  id="announcement-enabled"
+                  style="width: 20px; height: 20px; margin-right: 10px"
+                />
+                啟用公告顯示
+              </label>
+            </div>
+            <div class="form-group">
+              <label>公告內容</label>
+              <textarea
+                id="announcement-text"
+                class="form-control"
+                rows="2"
+                placeholder="例如：因颱風影響，明日暫停出貨..."
+              ></textarea>
+            </div>
+            <div class="form-group">
+              <label>背景顏色</label>
+              <select id="announcement-color" class="form-control">
+                <option value="info">藍色 (資訊)</option>
+                <option value="warning">黃色 (警告)</option>
+                <option value="danger">紅色 (緊急)</option>
+                <option value="success">綠色 (成功)</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">發布公告</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="tab-advanced" class="tab-content">
+        <form id="form-remote">
+          <div class="form-section">
+            <h3 class="section-title">⛰️ 偏遠地區列表 (JSON)</h3>
+            <p
+              style="
+                background: #e8f4f8;
+                padding: 10px;
+                border-radius: 5px;
+                color: #0c5460;
+              "
+            >
+              <strong>說明：</strong>
+              此處定義「運費試算」與「集運單」的偏遠地區加價規則。<br />
+              格式為 JSON 物件：<code>"費用": ["地區1", "地區2", ...]</code
+              >。<br />
+              請謹慎編輯，格式錯誤可能導致前台選單無法顯示。
+            </p>
+
+            <textarea
+              id="remote-areas-json"
+              class="json-editor"
+              spellcheck="false"
+            ></textarea>
+            <div id="json-validation-msg" class="json-status"></div>
+
+            <div style="margin-top: 15px; text-align: right">
+              <button
+                type="button"
+                id="btn-format-json"
+                class="btn btn-secondary"
+                style="width: auto; margin-right: 10px"
+              >
+                格式化 JSON
+              </button>
+              <button type="submit" class="btn btn-danger" style="width: auto">
+                確認並覆蓋設定
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
     </div>
     <script src="js/apiConfig.js"></script>
     <script src="js/admin-settings.js"></script>

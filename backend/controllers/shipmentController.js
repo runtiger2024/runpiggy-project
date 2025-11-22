@@ -95,7 +95,7 @@ const createShipment = async (req, res) => {
     }
 
     // 6. [V8 修改] 使用 ratesManager 讀取動態常數與計算運費
-    const systemRates = ratesManager.getRates();
+    const systemRates = await ratesManager.getRates(); // [修正] 加入 await 支援資料庫讀取
     const CONSTANTS = systemRates.constants;
 
     // 計算總運費
@@ -354,7 +354,7 @@ const getShipmentById = async (req, res) => {
       };
     });
 
-    // [V8.2] 解析商品證明圖片 (重要：讓前端可以讀取)
+    // [V8.2] 解析商品證明圖片
     let shipmentProductImages = [];
     try {
       shipmentProductImages = JSON.parse(
@@ -366,7 +366,7 @@ const getShipmentById = async (req, res) => {
       ...shipment,
       packages: processedPackages,
       additionalServices: JSON.parse(shipment.additionalServices || "{}"),
-      shipmentProductImages: shipmentProductImages, // [新增]
+      shipmentProductImages: shipmentProductImages,
     };
 
     res.status(200).json({
