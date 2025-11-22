@@ -1,141 +1,116 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>新增員工帳號 - 管理後台</title>
-    <link rel="icon" href="assets/logo.png" type="image/png" />
-    <script src="js/styleLoader.js"></script>
-  </head>
-  <body>
-    <div class="container" style="max-width: 500px">
-      <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
+// frontend/js/admin-register.js (修正版)
 
-      <h1>新增員工帳號</h1>
+document.addEventListener("DOMContentLoaded", () => {
+  // --- 1. 權限檢查 ---
+  const adminToken = localStorage.getItem("admin_token");
+  const adminPermissions = JSON.parse(
+    localStorage.getItem("admin_permissions") || "[]"
+  );
 
-      <div id="admin-only-content">
-        <div id="message-box" class="alert" style="display: none"></div>
+  if (!adminToken) {
+    alert("請先登入");
+    window.location.href = "admin-login.html";
+    return;
+  }
 
-        <form id="register-form" class="auth-form active">
-          <div class="form-group">
-            <label for="staff-name" class="required">員工姓名</label>
-            <input type="text" id="staff-name" required />
-          </div>
-          <div class="form-group">
-            <label for="staff-email" class="required">登入 Email</label>
-            <input type="email" id="staff-email" required />
-          </div>
-          <div class="form-group">
-            <label for="staff-password" class="required"
-              >登入密碼 (至少6位數)</label
-            >
-            <input type="password" id="staff-password" minlength="6" required />
-          </div>
+  // 檢查是否有「管理會員 (CAN_MANAGE_USERS)」權限
+  if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
+    alert("權限不足：您無法新增員工帳號");
+    window.location.href = "admin-dashboard.html";
+    return;
+  }
 
-          <div class="form-group">
-            <label class="required">帳號權限</label>
-            <fieldset
-              id="permissions-fieldset"
-              style="border: 1px solid #ccc; padding: 10px; border-radius: 5px"
-            >
-              <div style="margin-bottom: 5px">
-                <input
-                  type="checkbox"
-                  id="perm-CAN_VIEW_DASHBOARD"
-                  value="CAN_VIEW_DASHBOARD"
-                  checked
-                />
-                <label for="perm-CAN_VIEW_DASHBOARD">查看儀表板</label>
-              </div>
-              <div style="margin-bottom: 5px">
-                <input
-                  type="checkbox"
-                  id="perm-CAN_MANAGE_PACKAGES"
-                  value="CAN_MANAGE_PACKAGES"
-                  checked
-                />
-                <label for="perm-CAN_MANAGE_PACKAGES"
-                  >管理包裹 (入庫/更新)</label
-                >
-              </div>
-              <div style="margin-bottom: 5px">
-                <input
-                  type="checkbox"
-                  id="perm-CAN_MANAGE_SHIPMENTS"
-                  value="CAN_MANAGE_SHIPMENTS"
-                  checked
-                />
-                <label for="perm-CAN_MANAGE_SHIPMENTS"
-                  >管理集運單 (出貨/退回)</label
-                >
-              </div>
+  // --- 2. 處理表單提交 ---
+  const registerForm = document.getElementById("register-form");
+  const messageBox = document.getElementById("message-box");
 
-              <hr style="margin: 10px 0" />
+  registerForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    showMessage("正在建立帳號...", "info"); // 暫時顯示狀態
 
-              <div style="margin-bottom: 5px">
-                <input
-                  type="checkbox"
-                  id="perm-CAN_MANAGE_USERS"
-                  value="CAN_MANAGE_USERS"
-                />
-                <label
-                  for="perm-CAN_MANAGE_USERS"
-                  style="color: #d32f2f; font-weight: bold"
-                  >[A] 管理會員/員工 (高權限)</label
-                >
-              </div>
-              <div style="margin-bottom: 5px">
-                <input
-                  type="checkbox"
-                  id="perm-CAN_VIEW_LOGS"
-                  value="CAN_VIEW_LOGS"
-                />
-                <label
-                  for="perm-CAN_VIEW_LOGS"
-                  style="color: #d32f2f; font-weight: bold"
-                  >[A] 查看操作日誌 (高權限)</label
-                >
-              </div>
-              <div style="margin-bottom: 5px">
-                <input
-                  type="checkbox"
-                  id="perm-CAN_IMPERSONATE_USERS"
-                  value="CAN_IMPERSONATE_USERS"
-                />
-                <label
-                  for="perm-CAN_IMPERSONATE_USERS"
-                  style="color: #d32f2f; font-weight: bold"
-                  >[A] 模擬客戶登入 (高權限)</label
-                >
-              </div>
-              
-              <div style="margin-bottom: 5px">
-                <input
-                  type="checkbox"
-                  id="perm-CAN_MANAGE_SYSTEM"
-                  value="CAN_MANAGE_SYSTEM"
-                />
-                <label
-                  for="perm-CAN_MANAGE_SYSTEM"
-                  style="color: #d32f2f; font-weight: bold; background: #e3f2fd; padding: 2px 5px;"
-                  >[S] 系統全域設定 (最高權限)</label
-                >
-              </div>
-            </fieldset>
-          </div>
-          <button type="submit" class="btn btn-primary">建立新帳號</button>
-        </form>
-      </div>
-      <a
-        href="admin-dashboard.html"
-        class="btn btn-secondary"
-        style="text-decoration: none; text-align: center; margin-top: 10px"
-      >
-        返回儀表板
-      </a>
-    </div>
+    // 獲取輸入值
+    const name = document.getElementById("staff-name").value;
+    const email = document.getElementById("staff-email").value;
+    const password = document.getElementById("staff-password").value;
 
-    <script src="js/apiConfig.js"></script>
-    <script src="js/admin-register.js"></script>
-  </body>
-</html>
+    // 獲取勾選的權限
+    const selectedPerms = [];
+    const checkboxes = document.querySelectorAll(
+      "#permissions-fieldset input[type='checkbox']:checked"
+    );
+    checkboxes.forEach((cb) => {
+      selectedPerms.push(cb.value);
+    });
+
+    // 簡單驗證
+    if (password.length < 6) {
+      showMessage("密碼長度至少需 6 位數", "error");
+      return;
+    }
+
+    try {
+      const submitBtn = registerForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      submitBtn.textContent = "處理中...";
+
+      // 發送 API 請求
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/create`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          name: name,
+          email: email,
+          password: password,
+          permissions: selectedPerms,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "建立失敗");
+      }
+
+      // 成功
+      showMessage(`成功建立員工帳號：${data.user.email}`, "success");
+      registerForm.reset();
+
+      // 恢復預設勾選 (可選)
+      document.getElementById("perm-CAN_VIEW_DASHBOARD").checked = true;
+      document.getElementById("perm-CAN_MANAGE_PACKAGES").checked = true;
+      document.getElementById("perm-CAN_MANAGE_SHIPMENTS").checked = true;
+
+      // 滾動到頂部顯示訊息
+      window.scrollTo(0, 0);
+    } catch (error) {
+      console.error(error);
+      showMessage(error.message, "error");
+    } finally {
+      const submitBtn = registerForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = false;
+      submitBtn.textContent = "建立新帳號";
+    }
+  });
+
+  // --- 3. 訊息顯示工具 ---
+  function showMessage(message, type) {
+    messageBox.textContent = message;
+    messageBox.className = "alert"; // 重置 class
+
+    if (type === "error") {
+      messageBox.classList.add("alert-error");
+      messageBox.style.display = "block";
+    } else if (type === "success") {
+      messageBox.classList.add("alert-success");
+      messageBox.style.display = "block";
+    } else {
+      // info 或其他
+      messageBox.style.display = "block";
+      messageBox.style.backgroundColor = "#e3f2fd";
+      messageBox.style.color = "#0d47a1";
+    }
+  }
+});
