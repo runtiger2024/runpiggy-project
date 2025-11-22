@@ -1,4 +1,4 @@
-// frontend/js/admin-dashboard.js (V10.1 - 修正閃爍)
+// frontend/js/admin-dashboard.js (V10.2 - 修正權限與閃爍)
 
 document.addEventListener("DOMContentLoaded", () => {
   // 1. 權限檢查與初始化
@@ -20,9 +20,13 @@ document.addEventListener("DOMContentLoaded", () => {
       if (btnNavLogs) btnNavLogs.style.display = "none";
     }
 
-    // [修正] 檢查系統設定權限 (CAN_MANAGE_SYSTEM)
-    // 正向邏輯：有權限則顯示 (因為 HTML 預設隱藏)
-    if (adminPermissions.includes("CAN_MANAGE_SYSTEM")) {
+    // [修正] 檢查系統設定權限
+    // 邏輯調整：只要擁有 "CAN_MANAGE_SYSTEM" (系統管理)
+    // 或者 "CAN_MANAGE_USERS" (超級管理員/ADMIN)，都可以看到系統設定按鈕
+    if (
+      adminPermissions.includes("CAN_MANAGE_SYSTEM") ||
+      adminPermissions.includes("CAN_MANAGE_USERS")
+    ) {
       const btnNavSettings = document.getElementById("btn-nav-settings");
       if (btnNavSettings) btnNavSettings.style.display = "inline-block";
     }
