@@ -1,23 +1,24 @@
-// 這是 frontend/js/admin-members.js (V8 完整版 - 含編輯個資與刪除功能 - Prettier 修正版)
+// frontend/js/admin-members.js (V9 旗艦版 - 支援分頁、篩選、安全刪除)
 
 document.addEventListener("DOMContentLoaded", () => {
-  // [*** V3 權限檢查：讀取權限 ***]
+  // --- 1. 權限檢查與初始化 ---
   const adminPermissions = JSON.parse(
     localStorage.getItem("admin_permissions") || "[]"
   );
   const adminToken = localStorage.getItem("admin_token");
   const adminName = localStorage.getItem("admin_name");
 
-  // [*** V3 權限檢查：檢查函式 ***]
   function checkAdminPermissions() {
     if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
-      const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
-      const btnNavMembers = document.getElementById("btn-nav-members");
-      const btnNavLogs = document.getElementById("btn-nav-logs");
-
-      if (btnNavCreateStaff) btnNavCreateStaff.style.display = "none";
-      if (btnNavMembers) btnNavMembers.style.display = "none";
-      if (btnNavLogs) btnNavLogs.style.display = "none";
+      const elements = [
+        "btn-nav-create-staff",
+        "btn-nav-members",
+        "btn-nav-logs",
+      ];
+      elements.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = "none";
+      });
 
       const adminOnlyContent = document.getElementById("admin-only-content");
       if (adminOnlyContent) {
@@ -27,9 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (A) 檢查登入
   if (!adminToken) {
-    alert("偵測到未登入，將跳轉至管理員登入頁面");
     window.location.href = "admin-login.html";
     return;
   }
@@ -37,19 +36,24 @@ document.addEventListener("DOMContentLoaded", () => {
   const adminWelcome = document.getElementById("admin-welcome");
   if (adminName) {
     let role = "USER";
-    if (adminPermissions.includes("CAN_MANAGE_USERS")) {
-      role = "ADMIN";
-    } else if (adminPermissions.length > 0) {
-      role = "OPERATOR";
-    }
+    if (adminPermissions.includes("CAN_MANAGE_USERS")) role = "ADMIN";
+    else if (adminPermissions.length > 0) role = "OPERATOR";
     adminWelcome.textContent = `你好, ${adminName} (${role})`;
   }
 
   checkAdminPermissions();
 
-  // --- 1. 獲取元素 ---
-  const logoutBtn = document.getElementById("logoutBtn");
+  // --- 2. 變數與元素 ---
+  let currentPage = 1;
+  const limit = 20;
+  let currentStatus = "";
+  let currentSearch = "";
+  let currentRole = "";
+  let currentFilter = ""; // for "new_today"
+
+  // DOM
   const membersTableBody = document.getElementById("membersTableBody");
+  const paginationContainer = document.getElementById("pagination");
   const statsTotal = document.getElementById("stats-total");
   const statsActive = document.getElementById("stats-active");
   const statsInactive = document.getElementById("stats-inactive");
@@ -57,162 +61,114 @@ document.addEventListener("DOMContentLoaded", () => {
   const filterStatus = document.getElementById("filter-status");
   const filterRole = document.getElementById("filter-role");
   const filterBtn = document.getElementById("filter-btn");
+  const logoutBtn = document.getElementById("logoutBtn");
 
-  // 權限編輯相關 (V4.2)
+  // 彈窗與表單
   const permsModal = document.getElementById("edit-permissions-modal");
-  const permsModalCloseBtn = permsModal
-    ? permsModal.querySelector(".modal-close-btn")
-    : null;
   const permsForm = document.getElementById("edit-permissions-form");
-  const permsUserIdInput = document.getElementById("edit-perms-userId");
-  const permsEmailDisplay = document.getElementById("edit-perms-email");
-  const permsMessageBox = document.getElementById("edit-perms-message-box");
-  const permsFieldset = document.getElementById("edit-perms-fieldset");
-  const allPermissionCheckboxes = [
-    "CAN_VIEW_DASHBOARD",
-    "CAN_MANAGE_PACKAGES",
-    "CAN_MANAGE_SHIPMENTS",
-    "CAN_MANAGE_USERS",
-    "CAN_VIEW_LOGS",
-    "CAN_IMPERSONATE_USERS",
-  ];
-
-  // --- [V8 新增] 自動建立「編輯會員個資」彈窗 (如果 HTML 沒有) ---
-  let editProfileModal = document.getElementById("admin-edit-user-modal");
-  if (!editProfileModal) {
-    const modalHTML = `
-      <div id="admin-edit-user-modal" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-          <button class="modal-close-btn">&times;</button>
-          <h2>編輯會員資料</h2>
-          <form id="admin-edit-user-form">
-            <input type="hidden" id="admin-edit-user-id">
-            <div class="form-group">
-              <label>Email (不可修改)</label>
-              <input type="text" id="admin-edit-user-email" class="form-control" disabled style="background:#f0f0f0;">
-            </div>
-            <div class="form-group">
-              <label>姓名</label>
-              <input type="text" id="admin-edit-user-name" class="form-control">
-            </div>
-            <div class="form-group">
-              <label>電話</label>
-              <input type="text" id="admin-edit-user-phone" class="form-control">
-            </div>
-            <div class="form-group">
-              <label>預設地址</label>
-              <textarea id="admin-edit-user-address" class="form-control" rows="2"></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary">儲存變更</button>
-          </form>
-        </div>
-      </div>
-    `;
-    document.body.insertAdjacentHTML("beforeend", modalHTML);
-    editProfileModal = document.getElementById("admin-edit-user-modal");
-  }
-
+  const editProfileModal = document.getElementById("admin-edit-user-modal");
   const editProfileForm = document.getElementById("admin-edit-user-form");
-  const editProfileCloseBtn =
-    editProfileModal.querySelector(".modal-close-btn");
+  const deleteModal = document.getElementById("delete-user-modal");
+  const deleteInput = document.getElementById("delete-confirmation-input");
+  const btnConfirmDelete = document.getElementById("btn-confirm-delete");
 
-  // --- 2. 狀態變數 ---
-  let allUsersData = [];
+  let userToDelete = null; // 暫存要刪除的對象
 
-  // --- 4. 函式定義 ---
+  // --- 3. 初始化邏輯 (讀取 URL 參數) ---
+  function init() {
+    const params = new URLSearchParams(window.location.search);
+    const pStatus = params.get("status");
+    const pSearch = params.get("search");
+    const pRole = params.get("role");
+    const pFilter = params.get("filter"); // "new_today"
+    const pPage = params.get("page");
 
-  function showMessage(message, type = "success") {
-    alert(`${type === "error" ? "錯誤" : "成功"}: ${message}`);
-  }
-
-  function showPermsMessage(message, type) {
-    if (permsMessageBox) {
-      permsMessageBox.textContent = message;
-      permsMessageBox.className = `alert alert-${type}`;
-      permsMessageBox.style.display = "block";
+    if (pStatus) {
+      currentStatus = pStatus;
+      filterStatus.value = pStatus;
     }
+    if (pSearch) {
+      currentSearch = pSearch;
+      searchInput.value = pSearch;
+    }
+    if (pRole) {
+      currentRole = pRole;
+      filterRole.value = pRole;
+    }
+    if (pFilter) {
+      currentFilter = pFilter;
+      // 可選：在 UI 上顯示提示「正在檢視今日新註冊」
+      if (pFilter === "new_today") {
+        searchInput.placeholder = "🔍 正在篩選：今日新註冊會員";
+        searchInput.style.backgroundColor = "#e8f5e9";
+      }
+    }
+    if (pPage) {
+      currentPage = parseInt(pPage) || 1;
+    }
+
+    loadUsers();
   }
 
-  // (A) 載入所有使用者
-  async function loadAllUsers() {
+  // --- 4. 資料載入 (分頁) ---
+  async function loadUsers() {
     if (!adminPermissions.includes("CAN_MANAGE_USERS")) return;
 
     membersTableBody.innerHTML =
-      '<tr><td colspan="7" class="loading"><div class="spinner"></div><p>載入使用者資料中...</p></td></tr>';
+      '<tr><td colspan="7" style="text-align: center; padding: 30px;">載入中...</td></tr>';
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
+      let url = `${API_BASE_URL}/api/admin/users?page=${currentPage}&limit=${limit}`;
+      if (currentStatus) url += `&status=${currentStatus}`;
+      if (currentSearch)
+        url += `&search=${encodeURIComponent(currentSearch.trim())}`;
+      if (currentRole) url += `&role=${currentRole}`;
+      if (currentFilter) url += `&filter=${currentFilter}`;
+
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
+      const data = await res.json();
 
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          window.location.href = "admin-login.html";
-        }
-        throw new Error("載入使用者失敗");
-      }
+      if (!res.ok) throw new Error(data.message || "載入失敗");
 
-      const data = await response.json();
-      allUsersData = data.users || [];
-      renderUsers();
-      updateStats();
-    } catch (error) {
-      console.error(error);
-      membersTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: red;">載入失敗: ${error.message}</td></tr>`;
+      renderTable(data.users || []);
+      renderPagination(data.pagination);
+      updateUrlParams();
+
+      // 更新統計數字 (注意：這裡只更新總數，若要精確統計需另呼叫 stats API)
+      // 這裡簡單顯示本次查詢的總數
+      statsTotal.textContent = data.pagination.total;
+      // 由於是後端分頁，無法直接算出 active/inactive 總數，
+      // 這裡可以選擇隱藏 active/inactive 卡片，或另外呼叫 /api/admin/stats
+      // 為了保持介面，我們暫時顯示 '-' 或保留 0
+    } catch (e) {
+      console.error(e);
+      membersTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: red;">載入錯誤: ${e.message}</td></tr>`;
     }
   }
 
-  // (B) 渲染列表
-  function renderUsers() {
+  // --- 5. 渲染邏輯 ---
+  function renderTable(users) {
     membersTableBody.innerHTML = "";
-    const search = searchInput.value.toLowerCase();
-    const status = filterStatus.value;
-    const role = filterRole.value;
-
-    const filteredUsers = allUsersData.filter((user) => {
-      const statusMatch = status === "" || user.isActive.toString() === status;
-
-      let userRole = "USER";
-      let userPermissions = [];
-      try {
-        userPermissions = JSON.parse(user.permissions || "[]");
-      } catch (e) {}
-      if (userPermissions.includes("CAN_MANAGE_USERS")) {
-        userRole = "ADMIN";
-      } else if (userPermissions.length > 0) {
-        userRole = "OPERATOR";
-      }
-
-      const roleMatch = role === "" || userRole === role;
-      const searchMatch =
-        !search ||
-        (user.name && user.name.toLowerCase().includes(search)) ||
-        (user.email && user.email.toLowerCase().includes(search)) ||
-        (user.phone && user.phone.includes(search));
-
-      return statusMatch && roleMatch && searchMatch;
-    });
-
-    if (filteredUsers.length === 0) {
+    if (users.length === 0) {
       membersTableBody.innerHTML =
         '<tr><td colspan="7" style="text-align: center;">無符合資料</td></tr>';
       return;
     }
 
-    filteredUsers.forEach((user) => {
+    users.forEach((user) => {
       const tr = document.createElement("tr");
       const isActive = user.isActive === true;
 
+      // 判斷角色
       let userRole = "USER";
-      let userPermissions = [];
+      let userPerms = [];
       try {
-        userPermissions = JSON.parse(user.permissions || "[]");
+        userPerms = JSON.parse(user.permissions || "[]");
       } catch (e) {}
-      if (userPermissions.includes("CAN_MANAGE_USERS")) {
-        userRole = "ADMIN";
-      } else if (userPermissions.length > 0) {
-        userRole = "OPERATOR";
-      }
+      if (userPerms.includes("CAN_MANAGE_USERS")) userRole = "ADMIN";
+      else if (userPerms.length > 0) userRole = "OPERATOR";
 
       const myName = localStorage.getItem("admin_name");
       const canImpersonate = adminPermissions.includes("CAN_IMPERSONATE_USERS");
@@ -220,33 +176,28 @@ document.addEventListener("DOMContentLoaded", () => {
       // 按鈕生成
       let buttonsHTML = "";
 
-      // 1. 模擬登入 (僅限對 USER)
+      // 模擬登入
       if (canImpersonate && userRole === "USER") {
         buttonsHTML += `<button class="btn-action btn-login-as" style="background-color: #3498db;" title="模擬登入">登入</button>`;
       }
-
-      // 2. 編輯權限 (不能改自己)
+      // 權限 & 刪除 (不能操作自己)
       if (user.email !== myName) {
         buttonsHTML += `<button class="btn-action btn-edit-perms" style="background-color: #f39c12;" title="修改權限">權限</button>`;
+        buttonsHTML += `<button class="btn-action btn-delete-user" style="background-color: #e74c3c;" title="永久刪除">刪除</button>`;
       }
-
-      // 3. [V8 新增] 編輯資料
+      // 編輯個資 & 重設密碼
       buttonsHTML += `<button class="btn-action btn-edit-profile" style="background-color: #17a2b8;" title="編輯基本資料">編輯</button>`;
-
-      // 4. 重設密碼
       buttonsHTML += `<button class="btn-action btn-reset-password" style="background-color: #ffc107; color: #000;" title="重設密碼為8888">密碼</button>`;
-
-      // 5. 停用/啟用
+      // 停用/啟用
       buttonsHTML += `<button class="btn-action btn-toggle-status ${
         isActive ? "activate" : ""
       }" style="background-color: ${isActive ? "#6c757d" : "#28a745"};">${
         isActive ? "停用" : "啟用"
       }</button>`;
 
-      // 6. [V8 新增] 刪除 (不能刪自己)
-      if (user.email !== myName) {
-        buttonsHTML += `<button class="btn-action btn-delete-user" style="background-color: #e74c3c;" title="永久刪除">刪除</button>`;
-      }
+      // 安全跳脫 (防止 JSON.stringify 破壞 HTML)
+      // 這裡不需要把整個 user 塞進 data attr，直接用 ID 即可
+      // 但為了方便模擬登入等操作，我們閉包處理事件
 
       tr.innerHTML = `
         <td>${user.name || "-"}</td>
@@ -261,17 +212,15 @@ document.addEventListener("DOMContentLoaded", () => {
       `;
 
       // 綁定事件
-      if (tr.querySelector(".btn-login-as")) {
-        tr.querySelector(".btn-login-as").addEventListener("click", () =>
-          handleLoginAs(user)
-        );
-      }
+      const btnLoginAs = tr.querySelector(".btn-login-as");
+      if (btnLoginAs)
+        btnLoginAs.addEventListener("click", () => handleLoginAs(user));
 
-      if (tr.querySelector(".btn-edit-perms")) {
-        tr.querySelector(".btn-edit-perms").addEventListener("click", () =>
+      const btnEditPerms = tr.querySelector(".btn-edit-perms");
+      if (btnEditPerms)
+        btnEditPerms.addEventListener("click", () =>
           handleEditPermissions(user)
         );
-      }
 
       tr.querySelector(".btn-edit-profile").addEventListener("click", () =>
         openEditProfileModal(user)
@@ -283,51 +232,129 @@ document.addEventListener("DOMContentLoaded", () => {
         handleToggleStatus(user)
       );
 
-      if (tr.querySelector(".btn-delete-user")) {
-        tr.querySelector(".btn-delete-user").addEventListener("click", () =>
-          handleDeleteUser(user)
-        );
-      }
+      const btnDelete = tr.querySelector(".btn-delete-user");
+      if (btnDelete)
+        btnDelete.addEventListener("click", () => openDeleteModal(user));
 
       membersTableBody.appendChild(tr);
     });
   }
 
-  function updateStats() {
-    statsTotal.textContent = allUsersData.length;
-    statsActive.textContent = allUsersData.filter((u) => u.isActive).length;
-    statsInactive.textContent = allUsersData.filter((u) => !u.isActive).length;
+  function renderPagination(pg) {
+    paginationContainer.innerHTML = "";
+    if (pg.totalPages <= 1) return;
+
+    const createBtn = (text, page, isActive = false, isDisabled = false) => {
+      const btn = document.createElement("button");
+      btn.className = `page-btn ${isActive ? "active" : ""}`;
+      btn.textContent = text;
+      btn.disabled = isDisabled;
+      if (!isDisabled) {
+        btn.addEventListener("click", () => {
+          currentPage = page;
+          loadUsers();
+        });
+      }
+      return btn;
+    };
+
+    paginationContainer.appendChild(
+      createBtn("<", currentPage - 1, false, currentPage === 1)
+    );
+
+    for (let i = 1; i <= pg.totalPages; i++) {
+      if (
+        i === 1 ||
+        i === pg.totalPages ||
+        (i >= currentPage - 2 && i <= currentPage + 2)
+      ) {
+        paginationContainer.appendChild(createBtn(i, i, i === currentPage));
+      } else if (
+        paginationContainer.lastChild.textContent !== "..." &&
+        (i < currentPage - 2 || i > currentPage + 2)
+      ) {
+        const span = document.createElement("span");
+        span.textContent = "...";
+        span.style.margin = "0 5px";
+        paginationContainer.appendChild(span);
+      }
+    }
+
+    paginationContainer.appendChild(
+      createBtn(">", currentPage + 1, false, currentPage === pg.totalPages)
+    );
   }
 
-  // --- 功能實作 ---
+  function updateUrlParams() {
+    const url = new URL(window.location);
+    if (currentStatus) url.searchParams.set("status", currentStatus);
+    else url.searchParams.delete("status");
 
-  // 1. 重設密碼
-  async function handleResetPassword(user) {
-    if (
-      !confirm(`確定要將 "${user.name || user.email}" 的密碼重設為 "8888" 嗎？`)
-    )
-      return;
+    if (currentSearch) url.searchParams.set("search", currentSearch);
+    else url.searchParams.delete("search");
+
+    if (currentRole) url.searchParams.set("role", currentRole);
+    else url.searchParams.delete("role");
+
+    if (currentFilter) url.searchParams.set("filter", currentFilter);
+    else url.searchParams.delete("filter");
+
+    url.searchParams.set("page", currentPage);
+    window.history.pushState({}, "", url);
+  }
+
+  // --- 6. 功能實作 ---
+
+  // (A) 安全刪除 (Modal 流程)
+  function openDeleteModal(user) {
+    userToDelete = user;
+    document.getElementById("delete-target-email").textContent = user.email;
+    deleteInput.value = "";
+    btnConfirmDelete.disabled = true;
+    btnConfirmDelete.style.opacity = "0.5";
+    deleteModal.style.display = "flex";
+  }
+
+  deleteInput.addEventListener("input", (e) => {
+    if (!userToDelete) return;
+    if (e.target.value === userToDelete.email) {
+      btnConfirmDelete.disabled = false;
+      btnConfirmDelete.style.opacity = "1";
+    } else {
+      btnConfirmDelete.disabled = true;
+      btnConfirmDelete.style.opacity = "0.5";
+    }
+  });
+
+  btnConfirmDelete.addEventListener("click", async () => {
+    if (!userToDelete) return;
+    btnConfirmDelete.textContent = "刪除中...";
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/admin/users/${user.id}/reset-password`,
+        `${API_BASE_URL}/api/admin/users/${userToDelete.id}`,
         {
-          method: "PUT",
+          method: "DELETE",
           headers: { Authorization: `Bearer ${adminToken}` },
         }
       );
       const result = await res.json();
       if (!res.ok) throw new Error(result.message);
-      showMessage(result.message);
-    } catch (e) {
-      showMessage(e.message, "error");
-    }
-  }
 
-  // 2. 切換狀態
+      alert("會員已永久刪除");
+      deleteModal.style.display = "none";
+      loadUsers();
+    } catch (e) {
+      alert("錯誤: " + e.message);
+    } finally {
+      btnConfirmDelete.textContent = "確認永久刪除";
+    }
+  });
+
+  // (B) 切換狀態
   async function handleToggleStatus(user) {
     const newStatus = !user.isActive;
     const action = newStatus ? "啟用" : "停用";
-    if (!confirm(`確定要 ${action} 此使用者嗎？`)) return;
+    if (!confirm(`確定要 ${action} "${user.email}" 嗎？`)) return;
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/admin/users/${user.id}/status`,
@@ -340,17 +367,36 @@ document.addEventListener("DOMContentLoaded", () => {
           body: JSON.stringify({ isActive: newStatus }),
         }
       );
-      if (!res.ok) throw new Error("更新失敗");
-      showMessage(`已${action}`);
-      loadAllUsers();
+      if (res.ok) {
+        alert(`已${action}`);
+        loadUsers();
+      } else alert("失敗");
     } catch (e) {
-      showMessage(e.message, "error");
+      alert("錯誤");
     }
   }
 
-  // 3. 模擬登入
+  // (C) 重設密碼
+  async function handleResetPassword(user) {
+    if (!confirm(`將 "${user.email}" 密碼重設為 8888？`)) return;
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/users/${user.id}/reset-password`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${adminToken}` },
+        }
+      );
+      if (res.ok) alert("重設成功");
+      else alert("失敗");
+    } catch (e) {
+      alert("錯誤");
+    }
+  }
+
+  // (D) 模擬登入
   async function handleLoginAs(user) {
-    if (!confirm(`以 "${user.name || user.email}" 身分登入前台？`)) return;
+    if (!confirm(`登入為 "${user.email}"？`)) return;
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/admin/users/${user.id}/impersonate`,
@@ -359,75 +405,18 @@ document.addEventListener("DOMContentLoaded", () => {
           headers: { Authorization: `Bearer ${adminToken}` },
         }
       );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("userName", data.user.name || data.user.email);
-      window.open("dashboard.html", "_blank");
+      const d = await res.json();
+      if (res.ok) {
+        localStorage.setItem("token", d.token);
+        localStorage.setItem("userName", d.user.name || d.user.email);
+        window.open("dashboard.html", "_blank");
+      } else alert(d.message);
     } catch (e) {
-      showMessage(e.message, "error");
+      alert("錯誤");
     }
   }
 
-  // 4. 編輯權限 (UI邏輯)
-  function handleEditPermissions(user) {
-    if (permsMessageBox) permsMessageBox.style.display = "none";
-    permsForm.reset();
-    permsEmailDisplay.textContent = user.email;
-    permsUserIdInput.value = user.id;
-
-    let userPerms = [];
-    try {
-      userPerms = JSON.parse(user.permissions || "[]");
-    } catch (e) {}
-
-    allPermissionCheckboxes.forEach((key) => {
-      const cb = document.getElementById(`edit-perm-${key}`);
-      if (cb) cb.checked = userPerms.includes(key);
-    });
-    permsModal.style.display = "flex";
-  }
-
-  if (permsForm) {
-    permsForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const id = permsUserIdInput.value;
-      const newPerms = [];
-      permsFieldset
-        .querySelectorAll("input[type='checkbox']:checked")
-        .forEach((cb) => newPerms.push(cb.value));
-
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/api/admin/users/${id}/permissions`,
-          {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${adminToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ permissions: newPerms }),
-          }
-        );
-        if (!res.ok) throw new Error("更新失敗");
-        showPermsMessage("權限更新成功", "success");
-        loadAllUsers();
-        setTimeout(() => (permsModal.style.display = "none"), 1000);
-      } catch (e) {
-        showPermsMessage(e.message, "error");
-      }
-    });
-  }
-
-  if (permsModalCloseBtn) {
-    permsModalCloseBtn.addEventListener(
-      "click",
-      () => (permsModal.style.display = "none")
-    );
-  }
-
-  // 5. [V8 新增] 編輯個人資料 (開啟彈窗)
+  // (E) 編輯個資
   function openEditProfileModal(user) {
     document.getElementById("admin-edit-user-id").value = user.id;
     document.getElementById("admin-edit-user-email").value = user.email;
@@ -438,7 +427,6 @@ document.addEventListener("DOMContentLoaded", () => {
     editProfileModal.style.display = "flex";
   }
 
-  // 6. [V8 新增] 提交個人資料變更
   editProfileForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("admin-edit-user-id").value;
@@ -447,7 +435,6 @@ document.addEventListener("DOMContentLoaded", () => {
       phone: document.getElementById("admin-edit-user-phone").value,
       defaultAddress: document.getElementById("admin-edit-user-address").value,
     };
-
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}/profile`, {
         method: "PUT",
@@ -457,66 +444,89 @@ document.addEventListener("DOMContentLoaded", () => {
         },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("更新失敗");
-      showMessage("資料更新成功");
-      editProfileModal.style.display = "none";
-      loadAllUsers();
+      if (res.ok) {
+        alert("更新成功");
+        editProfileModal.style.display = "none";
+        loadUsers();
+      } else alert("失敗");
     } catch (e) {
-      showMessage(e.message, "error");
+      alert("錯誤");
     }
   });
 
-  if (editProfileCloseBtn) {
-    editProfileCloseBtn.addEventListener(
-      "click",
-      () => (editProfileModal.style.display = "none")
-    );
+  // (F) 編輯權限
+  function handleEditPermissions(user) {
+    document.getElementById("edit-perms-email").textContent = user.email;
+    document.getElementById("edit-perms-userId").value = user.id;
+    let userPerms = [];
+    try {
+      userPerms = JSON.parse(user.permissions || "[]");
+    } catch (e) {}
+    document
+      .querySelectorAll("#edit-perms-fieldset input[type='checkbox']")
+      .forEach((cb) => {
+        cb.checked = userPerms.includes(cb.value);
+      });
+    permsModal.style.display = "flex";
   }
 
-  // 7. [V8 新增] 刪除會員
-  async function handleDeleteUser(user) {
-    if (
-      !confirm(
-        `【危險操作】\n\n確定要永久刪除會員 "${user.email}" 嗎？\n這將會連同刪除該會員的所有包裹、訂單與紀錄，且無法復原！`
-      )
-    )
-      return;
-
-    if (!confirm("請再次確認：您真的要刪除此會員嗎？")) return;
+  permsForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("edit-perms-userId").value;
+    const newPerms = [];
+    document
+      .querySelectorAll("#edit-perms-fieldset input[type='checkbox']:checked")
+      .forEach((cb) => newPerms.push(cb.value));
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/users/${user.id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.message);
-
-      showMessage("會員已永久刪除");
-      loadAllUsers();
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/users/${id}/permissions`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ permissions: newPerms }),
+        }
+      );
+      if (res.ok) {
+        alert("權限更新成功");
+        permsModal.style.display = "none";
+        loadUsers();
+      } else alert("失敗");
     } catch (e) {
-      showMessage(e.message, "error");
+      alert("錯誤");
     }
-  }
+  });
 
-  // --- 通用 ---
+  // --- 7. 搜尋與事件 ---
+  filterBtn.addEventListener("click", () => {
+    currentSearch = searchInput.value;
+    currentStatus = filterStatus.value;
+    currentRole = filterRole.value;
+    currentFilter = ""; // 搜尋時清除特殊 filter
+    currentPage = 1;
+    loadUsers();
+  });
+
+  // 關閉彈窗通用
+  document.querySelectorAll(".modal-close-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      permsModal.style.display = "none";
+      editProfileModal.style.display = "none";
+      deleteModal.style.display = "none";
+    });
+  });
+
+  // 登出
   logoutBtn.addEventListener("click", () => {
-    if (confirm("確定登出？")) {
+    if (confirm("登出?")) {
       localStorage.removeItem("admin_token");
-      localStorage.removeItem("admin_name");
-      localStorage.removeItem("admin_permissions");
       window.location.href = "admin-login.html";
     }
   });
 
-  if (filterBtn) filterBtn.addEventListener("click", renderUsers);
-
-  // 點擊遮罩關閉
-  window.addEventListener("click", (e) => {
-    if (e.target === permsModal) permsModal.style.display = "none";
-    if (e.target === editProfileModal) editProfileModal.style.display = "none";
-  });
-
-  // 初始載入
-  loadAllUsers();
+  // 啟動
+  init();
 });

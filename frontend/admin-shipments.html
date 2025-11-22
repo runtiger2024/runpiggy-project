@@ -45,7 +45,6 @@
         <select id="filter-status">
           <option value="">所有狀態</option>
           <option value="PENDING_PAYMENT">待付款 (未上傳)</option>
-
           <option
             value="PENDING_REVIEW"
             style="color: #856404; font-weight: bold"
@@ -66,30 +65,67 @@
           placeholder="搜尋收件人/Email/身分證..."
         />
         <button class="btn btn-primary" id="filter-btn">搜尋</button>
+        <button class="btn btn-export" id="btn-export">匯出 CSV</button>
+      </div>
+
+      <div id="bulk-action-bar" class="bulk-action-bar">
+        <div class="bulk-actions-left">
+          已選取 <span id="selected-count">0</span> 筆資料
+        </div>
+        <div class="bulk-actions-right">
+          <button
+            class="bulk-btn btn-bulk-status"
+            onclick="performBulkAction('PROCESSING')"
+          >
+            批量確認收款 (PROCESSING)
+          </button>
+          <button
+            class="bulk-btn btn-bulk-status"
+            onclick="performBulkAction('SHIPPED')"
+            style="background-color: #9c27b0"
+          >
+            批量已裝櫃
+          </button>
+          <button
+            class="bulk-btn btn-bulk-delete"
+            onclick="performBulkDelete()"
+          >
+            批量刪除
+          </button>
+        </div>
       </div>
 
       <div class="members-table-container">
-        <table class="members-table">
-          <thead>
-            <tr>
-              <th>操作</th>
-              <th>建立時間</th>
-              <th>會員 Email</th>
-              <th>收件人</th>
-              <th>狀態</th>
-              <th>總金額</th>
-              <th>備註</th>
-            </tr>
-          </thead>
-          <tbody id="shipmentsTableBody">
-            <tr>
-              <td colspan="7" class="loading">
-                <div class="spinner"></div>
-                <p>載入集運單資料中...</p>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="admin-table-wrapper">
+          <table class="members-table">
+            <thead>
+              <tr>
+                <th class="checkbox-col">
+                  <input type="checkbox" id="select-all" />
+                </th>
+                <th>操作</th>
+                <th>建立時間</th>
+                <th>會員 Email</th>
+                <th>收件人</th>
+                <th>狀態</th>
+                <th>總金額</th>
+                <th>備註</th>
+              </tr>
+            </thead>
+            <tbody id="shipmentsTableBody">
+              <tr>
+                <td
+                  colspan="8"
+                  style="text-align: center; padding: 30px; color: #999"
+                >
+                  載入中...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="pagination" class="pagination-container"></div>
       </div>
     </div>
 
@@ -176,7 +212,6 @@
                   <option value="CANCELLEDD">清關放行</option>
                   <option value="CANCELL">拆櫃派送</option>
                   <option value="CANCEL">已完成</option>
-
                   <option
                     value="CANCELLED"
                     style="color: #e74c3c; font-weight: bold"
@@ -196,7 +231,7 @@
               </div>
             </div>
             <div class="form-group">
-              <label for="modal-trackingNumberTW">備註:</label>
+              <label for="modal-trackingNumberTW">台灣端單號 / 備註:</label>
               <input
                 type="text"
                 id="modal-trackingNumberTW"
@@ -220,6 +255,7 @@
     </div>
 
     <script src="js/apiConfig.js"></script>
+    <script src="js/shippingData.js"></script>
     <script src="js/admin-shipments.js"></script>
   </body>
 </html>

@@ -32,7 +32,7 @@
             href="admin-members.html"
             class="btn btn-secondary"
             id="btn-nav-members"
-            >管理會員/操作員</a
+            >會員管理</a
           >
           <a href="admin-logs.html" class="btn btn-secondary" id="btn-nav-logs"
             >操作日誌</a
@@ -46,19 +46,19 @@
       <div class="stats-container">
         <div class="stat-card">
           <h3>總預報數</h3>
-          <p id="stats-total">0</p>
+          <p id="stats-total">...</p>
         </div>
         <div class="stat-card pending">
           <h3>待確認 (PENDING)</h3>
-          <p id="stats-pending">0</p>
+          <p id="stats-pending">...</p>
         </div>
         <div class="stat-card arrived">
           <h3>已到倉 (ARRIVED)</h3>
-          <p id="stats-arrived">0</p>
+          <p id="stats-arrived">...</p>
         </div>
         <div class="stat-card completed">
-          <h3>已集運 (IN_SHIPMENT)</h3>
-          <p id="stats-completed">0</p>
+          <h3>已集運/完成</h3>
+          <p id="stats-completed">...</p>
         </div>
       </div>
 
@@ -66,7 +66,7 @@
         <select id="filter-status">
           <option value="">所有狀態</option>
           <option value="PENDING">待確認</option>
-          <option value="ARRIVED">已到倉</option>
+          <option value="ARRIVED">已入庫</option>
           <option value="IN_SHIPMENT">集運中</option>
           <option value="COMPLETED">已完成</option>
           <option value="CANCELLED">已取消</option>
@@ -77,6 +77,7 @@
           placeholder="搜尋單號/商品名稱/會員Email..."
         />
         <button class="btn btn-primary" id="filter-btn">搜尋</button>
+        <button class="btn btn-export" id="btn-export">匯出 CSV</button>
 
         <button
           class="btn btn-secondary"
@@ -87,11 +88,41 @@
         </button>
       </div>
 
+      <div id="bulk-action-bar" class="bulk-action-bar">
+        <div class="bulk-actions-left">
+          已選取 <span id="selected-count">0</span> 筆資料
+        </div>
+        <div class="bulk-actions-right">
+          <button
+            class="bulk-btn btn-bulk-status"
+            onclick="performBulkAction('ARRIVED')"
+          >
+            批量入庫 (ARRIVED)
+          </button>
+          <button
+            class="bulk-btn btn-bulk-status"
+            onclick="performBulkAction('PENDING')"
+            style="background-color: #f0ad4e"
+          >
+            設為待確認
+          </button>
+          <button
+            class="bulk-btn btn-bulk-delete"
+            onclick="performBulkDelete()"
+          >
+            批量刪除
+          </button>
+        </div>
+      </div>
+
       <div class="parcel-management">
         <div class="admin-table-wrapper">
           <table class="parcel-table">
             <thead>
               <tr>
+                <th class="checkbox-col">
+                  <input type="checkbox" id="select-all" />
+                </th>
                 <th>操作</th>
                 <th>預報時間</th>
                 <th>會員 Email</th>
@@ -106,7 +137,7 @@
             <tbody id="parcelsTableBody">
               <tr>
                 <td
-                  colspan="9"
+                  colspan="10"
                   style="text-align: center; padding: 30px; color: #999"
                 >
                   載入中...
@@ -115,6 +146,8 @@
             </tbody>
           </table>
         </div>
+
+        <div id="pagination" class="pagination-container"></div>
       </div>
     </div>
 
@@ -340,7 +373,9 @@
         </form>
       </div>
     </div>
+
     <script src="js/apiConfig.js"></script>
+    <script src="js/shippingData.js"></script>
     <script src="js/admin-parcels.js"></script>
   </body>
 </html>

@@ -1,6 +1,5 @@
-// frontend/js/shippingData.js
-// 專門存放：費率常數、計算規則係數、偏遠地區資料
-// 這樣可以讓 dashboard.js 專注於邏輯，避免檔案過大
+// frontend/js/shippingData.js (V9 - 集中設定檔)
+// 包含：費率常數、狀態對照表、顏色 Class 對照、偏遠地區資料
 
 // --- 1. 基礎運費與計算常數 ---
 const RATES = {
@@ -20,6 +19,8 @@ const OVERWEIGHT_LIMIT = 100; // 超重限制 (kg)
 const OVERWEIGHT_FEE = 800; // 超重費
 
 // --- 3. 狀態對照表 (UI顯示用) ---
+// 集中管理，修改一處全站生效
+
 const PACKAGE_STATUS_MAP = {
   PENDING: "待確認",
   ARRIVED: "已入庫",
@@ -30,16 +31,38 @@ const PACKAGE_STATUS_MAP = {
 
 const SHIPMENT_STATUS_MAP = {
   PENDING_PAYMENT: "待付款",
+  PENDING_REVIEW: "已付款(待審核)", // 前端虛擬狀態
   PROCESSING: "已收款，安排裝櫃",
   SHIPPED: "已裝櫃",
   COMPLETED: "海關查驗",
-  CANCELLEDD: "清關放行", // (保留錯字相容)
-  CANCELL: "拆櫃派送", // (保留錯字相容)
-  CANCEL: "已完成", // (保留錯字相容)
+  CANCELLEDD: "清關放行", // 相容舊資料
+  CANCELL: "拆櫃派送", // 相容舊資料
+  CANCEL: "已完成", // 相容舊資料
   CANCELLED: "已取消/退回",
 };
 
-// --- 4. 偏遠地區資料庫 ---
+// --- 4. 狀態顏色對照 (Badge Class) ---
+// 用於動態生成 <span class="...">
+const STATUS_CLASSES = {
+  // 包裹
+  PENDING: "status-PENDING",
+  ARRIVED: "status-ARRIVED",
+  IN_SHIPMENT: "status-IN_SHIPMENT",
+  // 集運單
+  PENDING_PAYMENT: "status-PENDING_PAYMENT",
+  PENDING_REVIEW: "status-PENDING_REVIEW",
+  PROCESSING: "status-PROCESSING",
+  SHIPPED: "status-SHIPPED",
+  // 共用
+  COMPLETED: "status-COMPLETED",
+  CANCEL: "status-COMPLETED", // 已完成 (綠色)
+  CANCELLED: "status-CANCELLED", // 取消 (紅色)
+  // 舊相容
+  CANCELLEDD: "status-IN_SHIPMENT",
+  CANCELL: "status-IN_SHIPMENT",
+};
+
+// --- 5. 偏遠地區資料庫 ---
 const REMOTE_AREAS = {
   1800: [
     "東勢區",

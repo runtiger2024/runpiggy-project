@@ -47,25 +47,25 @@
         class="stats-container"
         style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr))"
       >
-        <div class="stat-card total">
+        <div class="stat-card total clickable" id="card-total-revenue">
           <h3>總營收 (已完成訂單)</h3>
           <p class="number" id="stats-total-revenue">
             <span class="loading-text">...</span>
           </p>
         </div>
-        <div class="stat-card pending">
+        <div class="stat-card pending clickable" id="card-pending-revenue">
           <h3>待付款金額</h3>
           <p class="number" id="stats-pending-revenue">
             <span class="loading-text">...</span>
           </p>
         </div>
-        <div class="stat-card active">
+        <div class="stat-card active clickable" id="card-total-users">
           <h3>總會員數</h3>
           <p class="number" id="stats-total-users">
             <span class="loading-text">...</span>
           </p>
         </div>
-        <div class="stat-card">
+        <div class="stat-card clickable" id="card-new-users">
           <h3>今日新註冊</h3>
           <p class="number" id="stats-new-users-today">
             <span class="loading-text">...</span>
@@ -77,19 +77,19 @@
         class="stats-container"
         style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr))"
       >
-        <div class="stat-card pending">
+        <div class="stat-card pending clickable" id="card-pkg-pending">
           <h3>待確認包裹</h3>
           <p class="number" id="stats-pkg-pending">...</p>
         </div>
-        <div class="stat-card arrived">
+        <div class="stat-card arrived clickable" id="card-pkg-arrived">
           <h3>已到倉包裹</h3>
           <p class="number" id="stats-pkg-arrived">...</p>
         </div>
-        <div class="stat-card completed">
+        <div class="stat-card completed clickable" id="card-ship-pending">
           <h3>待付款訂單</h3>
           <p class="number" id="stats-ship-pending-payment">...</p>
         </div>
-        <div class="stat-card total">
+        <div class="stat-card total clickable" id="card-ship-processing">
           <h3>處理中訂單</h3>
           <p class="number" id="stats-ship-processing">...</p>
         </div>
@@ -189,6 +189,7 @@
     </div>
 
     <script src="js/apiConfig.js"></script>
+    <script src="js/shippingData.js"></script>
     <script src="js/admin-dashboard.js"></script>
   </body>
 </html>

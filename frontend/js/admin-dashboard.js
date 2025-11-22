@@ -1,18 +1,15 @@
-// 這是 frontend/js/admin-dashboard.js (V5 狀態標籤 + V3 權限 統一版)
+// frontend/js/admin-dashboard.js (V9 旗艦版 - 支援卡片導航)
 
 document.addEventListener("DOMContentLoaded", () => {
-  // [*** V3 權限檢查：讀取權限 ***]
+  // 1. 權限檢查與初始化
   const adminPermissions = JSON.parse(
     localStorage.getItem("admin_permissions") || "[]"
   );
   const adminToken = localStorage.getItem("admin_token");
   const adminName = localStorage.getItem("admin_name");
 
-  // [*** V3 權限檢查：檢查函式 ***]
   function checkAdminPermissions() {
-    // 檢查是否 "沒有" 管理會員的權限 (即 OPERATOR)
     if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
-      // 1. 隱藏導覽列的 Admin 按鈕
       const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
       const btnNavMembers = document.getElementById("btn-nav-members");
       const btnNavLogs = document.getElementById("btn-nav-logs");
@@ -21,41 +18,67 @@ document.addEventListener("DOMContentLoaded", () => {
       if (btnNavMembers) btnNavMembers.style.display = "none";
       if (btnNavLogs) btnNavLogs.style.display = "none";
 
-      // 2. (特殊) 如果目前頁面是 "僅限 Admin" 頁面，隱藏主要内容
       const adminOnlyContent = document.getElementById("admin-only-content");
       if (adminOnlyContent) {
         adminOnlyContent.innerHTML =
-          '<h2 style="color: red; text-align: center; padding: 40px;">權限不足 (Access Denied)</h2>' +
-          '<p style="text-align: center;">此頁面僅限「系統管理員 (ADMIN)」使用。</p>';
+          '<h2 style="color: red; text-align: center; padding: 40px;">權限不足 (Access Denied)</h2><p style="text-align: center;">此頁面僅限管理員使用。</p>';
       }
     }
   }
 
-  // (A) 檢查登入
   if (!adminToken) {
     alert("偵測到未登入，將跳轉至管理員登入頁面");
     window.location.href = "admin-login.html";
-    return; // 停止執行
+    return;
   }
 
   const adminWelcome = document.getElementById("admin-welcome");
   if (adminName) {
-    // [V3 修正] 解析權限，顯示 ADMIN 或 OPERATOR
     let role = "USER";
     if (adminPermissions.includes("CAN_MANAGE_USERS")) {
       role = "ADMIN";
     } else if (adminPermissions.length > 0) {
       role = "OPERATOR";
     }
-    adminWelcome.textContent = `你好, ${adminName} (${role})`; // 顯示角色
+    adminWelcome.textContent = `你好, ${adminName} (${role})`;
   }
 
-  // (B) [*** V3 權限檢查：立刻執行 ***]
   checkAdminPermissions();
-  // [*** 權限檢查結束 ***]
 
-  // --- 1. 獲取元素 ---
+  // --- 2. [新增] 卡片快速導航 (Drill-down) ---
+  // 設定卡片 ID 與目標 URL 的對應關係
+  function setupCardNavigation() {
+    const mapping = {
+      // 營收與會員
+      "card-total-revenue": "admin-shipments.html?status=CANCEL", // 完成訂單
+      "card-pending-revenue": "admin-shipments.html?status=PENDING_PAYMENT",
+      "card-total-users": "admin-members.html",
+      "card-new-users": "admin-members.html?filter=new_today", // 新增的 filter
+
+      // 包裹
+      "card-pkg-pending": "admin-parcels.html?status=PENDING",
+      "card-pkg-arrived": "admin-parcels.html?status=ARRIVED",
+
+      // 訂單
+      "card-ship-pending": "admin-shipments.html?status=PENDING_PAYMENT",
+      "card-ship-processing": "admin-shipments.html?status=PROCESSING",
+    };
+
+    Object.keys(mapping).forEach((cardId) => {
+      const card = document.getElementById(cardId);
+      if (card) {
+        card.addEventListener("click", () => {
+          window.location.href = mapping[cardId];
+        });
+      }
+    });
+  }
+
+  setupCardNavigation(); // 執行綁定
+
+  // --- 3. 獲取元素與初始化 ---
   const logoutBtn = document.getElementById("logoutBtn");
+  // 統計元素
   const statsTotalRevenue = document.getElementById("stats-total-revenue");
   const statsPendingRevenue = document.getElementById("stats-pending-revenue");
   const statsTotalUsers = document.getElementById("stats-total-users");
@@ -66,46 +89,30 @@ document.addEventListener("DOMContentLoaded", () => {
     "stats-ship-pending-payment"
   );
   const statsShipProcessing = document.getElementById("stats-ship-processing");
+  // 列表元素
   const recentPackagesTable = document.getElementById("recent-packages-table");
   const recentShipmentsTable = document.getElementById(
     "recent-shipments-table"
   );
 
-  // [*** V5 新增：報表卡片 ***]
-  const statsWeeklyRevenue = document.getElementById("stats-weekly-revenue");
-  const statsMonthlyRevenue = document.getElementById("stats-monthly-revenue");
-  const statsWeeklyPackages = document.getElementById("stats-weekly-packages");
-  const statsMonthlyPackages = document.getElementById(
-    "stats-monthly-packages"
-  );
-  const statsWeeklyNewUsers = document.getElementById("stats-weekly-new-users");
-  const statsMonthlyNewUsers = document.getElementById(
-    "stats-monthly-new-users"
-  );
+  // 狀態對照 (使用 shippingData.js 的全域變數，如果有的話。這裡做 fallback)
+  const pkgStatusMap =
+    window.PACKAGE_STATUS_MAP ||
+    {
+      /* fallback */
+    };
+  const shipStatusMap =
+    window.SHIPMENT_STATUS_MAP ||
+    {
+      /* fallback */
+    };
+  const statusClasses =
+    window.STATUS_CLASSES ||
+    {
+      /* fallback */
+    };
 
-  // --- 2. 狀態變數 ---
-  const packageStatusMap = {
-    PENDING: "待確認",
-    ARRIVED: "已入庫",
-    IN_SHIPMENT: "集運中",
-    COMPLETED: "已完成",
-    CANCELLED: "已取消",
-  };
-
-  const shipmentStatusMap = {
-    PENDING_PAYMENT: "待付款",
-    PROCESSING: "已收款，安排裝櫃",
-    SHIPPED: "已裝櫃",
-    COMPLETED: "海關查驗",
-    CANCELLEDD: "清關放行", // (保留錯字鍵名)
-    CANCELL: "拆櫃派送", // (保留錯字鍵名)
-    CANCEL: "已完成", // (保留錯字鍵名)
-    CANCELLED: "已取消/退回", // (這是"取消"的狀態)
-  };
-
-  // --- 4. 函式定義 ---
-
-  // (A) 載入儀表板統計
+  // --- 4. 載入儀表板統計 ---
   async function loadDashboardStats() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
@@ -122,27 +129,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await response.json();
       const stats = data.stats;
 
-      // 填入主要卡片
+      // 填入數字
       statsTotalRevenue.textContent = `NT$ ${stats.totalRevenue.toLocaleString()}`;
       statsPendingRevenue.textContent = `NT$ ${stats.pendingRevenue.toLocaleString()}`;
       statsTotalUsers.textContent = stats.totalUsers.toLocaleString();
       statsNewUsersToday.textContent = stats.newUsersToday.toLocaleString();
 
-      // [*** V5 新增：填入報表卡片 ***]
-      if (statsWeeklyRevenue)
-        statsWeeklyRevenue.textContent = `NT$ ${stats.weeklyRevenue.toLocaleString()}`;
-      if (statsMonthlyRevenue)
-        statsMonthlyRevenue.textContent = `NT$ ${stats.monthlyRevenue.toLocaleString()}`;
-      if (statsWeeklyPackages)
-        statsWeeklyPackages.textContent = `${stats.weeklyPackages} 件`;
-      if (statsMonthlyPackages)
-        statsMonthlyPackages.textContent = `${stats.monthlyPackages} 件`;
-      if (statsWeeklyNewUsers)
-        statsWeeklyNewUsers.textContent = `${stats.weeklyNewUsers} 人`;
-      if (statsMonthlyNewUsers)
-        statsMonthlyNewUsers.textContent = `${stats.monthlyNewUsers} 人`;
-
-      // 填入次要卡片
       statsPkgPending.textContent = stats.packageStats.PENDING || 0;
       statsPkgArrived.textContent = stats.packageStats.ARRIVED || 0;
       statsShipPendingPayment.textContent =
@@ -152,18 +144,18 @@ document.addEventListener("DOMContentLoaded", () => {
       // 填入最近包裹
       if (stats.recentPackages && stats.recentPackages.length > 0) {
         recentPackagesTable.innerHTML = stats.recentPackages
-          .map(
-            (pkg) => `
+          .map((pkg) => {
+            const statusText = pkgStatusMap[pkg.status] || pkg.status;
+            const statusClass = statusClasses[pkg.status] || pkg.status;
+            return `
           <tr>
             <td>${new Date(pkg.createdAt).toLocaleDateString()}</td>
             <td>${pkg.user.email}</td>
             <td>${pkg.productName}</td>
-            <td><span class="status-badge status-${pkg.status}">${
-              packageStatusMap[pkg.status] || pkg.status
-            }</span></td>
+            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
           </tr>
-        `
-          )
+        `;
+          })
           .join("");
       } else {
         recentPackagesTable.innerHTML =
@@ -173,20 +165,20 @@ document.addEventListener("DOMContentLoaded", () => {
       // 填入最近訂單
       if (stats.recentShipments && stats.recentShipments.length > 0) {
         recentShipmentsTable.innerHTML = stats.recentShipments
-          .map(
-            (ship) => `
+          .map((ship) => {
+            const statusText = shipStatusMap[ship.status] || ship.status;
+            const statusClass = statusClasses[ship.status] || ship.status;
+            return `
           <tr>
             <td>${new Date(ship.createdAt).toLocaleDateString()}</td>
             <td>${ship.user.email}</td>
             <td>${
               ship.totalCost ? `NT$ ${ship.totalCost.toLocaleString()}` : "-"
             }</td>
-            <td><span class="status-badge status-${ship.status}">${
-              shipmentStatusMap[ship.status] || ship.status
-            }</span></td>
+            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
           </tr>
-        `
-          )
+        `;
+          })
           .join("");
       } else {
         recentShipmentsTable.innerHTML =
@@ -194,44 +186,28 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (error) {
       console.error("載入儀表板失敗:", error);
-      // 在某個地方顯示錯誤
     }
   }
 
-  // (B) 登出
-  logoutBtn.addEventListener("click", () => {
-    if (confirm("確定要登出管理後台嗎？")) {
-      localStorage.removeItem("admin_token");
-      localStorage.removeItem("admin_name");
-      localStorage.removeItem("admin_permissions"); // [*** V3 修正 ***]
-      window.location.href = "admin-login.html";
-    }
-  });
-
-  // --- [*** 新增：詳細報表邏輯 ***] ---
-
-  // (1) 獲取新 UI 元素
+  // --- 5. 詳細報表圖表邏輯 ---
   const dateRangePicker = document.getElementById("report-date-range");
   const btnFetchReport = document.getElementById("btn-fetch-report");
   const reportLoading = document.getElementById("report-loading-spinner");
   const revenueChartCtx = document.getElementById("revenueChart");
   const userChartCtx = document.getElementById("userChart");
 
-  let revenueChartInstance = null; // 用於存放 Chart.js 實例
-  let userChartInstance = null; // 用於存放 Chart.js 實例
+  let revenueChartInstance = null;
+  let userChartInstance = null;
 
-  // (2) 初始化 flatpickr 日期選擇器
   const fp = flatpickr(dateRangePicker, {
-    mode: "range", // 設為「區間選擇」
-    dateFormat: "Y-m-d", // 日期格式
-    locale: "zh_tw", // 使用中文 (需引入 l10n/zh-tw.js)
-    defaultDate: [getNDaysAgo(30), getNDaysAgo(0)], // 預設 30 天前到今天
+    mode: "range",
+    dateFormat: "Y-m-d",
+    locale: "zh_tw",
+    defaultDate: [getNDaysAgo(30), getNDaysAgo(0)],
   });
 
-  // (3) 綁定查詢按鈕事件
   btnFetchReport.addEventListener("click", fetchDetailedReport);
 
-  // (4) 抓取報表 API 的函式
   async function fetchDetailedReport() {
     const selectedDates = fp.selectedDates;
     if (selectedDates.length < 2) {
@@ -254,16 +230,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       );
 
-      if (!response.ok) {
-        throw new Error("抓取報表失敗");
-      }
+      if (!response.ok) throw new Error("抓取報表失敗");
       const data = await response.json();
 
-      // (重要) 處理資料，填補 0
       const allDates = getDateArray(selectedDates[0], selectedDates[1]);
       const processedReport = processReportData(data.report, allDates);
 
-      // 渲染圖表
       renderCharts(processedReport);
     } catch (error) {
       console.error("報表錯誤:", error);
@@ -275,21 +247,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // (5) 渲染圖表的函式
   function renderCharts(report) {
-    // 銷毀舊圖表 (如果存在)
     if (revenueChartInstance) revenueChartInstance.destroy();
     if (userChartInstance) userChartInstance.destroy();
 
-    // 渲染營業額圖表
     revenueChartInstance = new Chart(revenueChartCtx, {
-      type: "line", // 折線圖
+      type: "line",
       data: {
-        labels: report.labels, // X 軸 (日期)
+        labels: report.labels,
         datasets: [
           {
             label: "每日營業額 (NT$)",
-            data: report.revenueData, // Y 軸 (金額)
+            data: report.revenueData,
             borderColor: "#1a73e8",
             backgroundColor: "rgba(26, 115, 232, 0.1)",
             fill: true,
@@ -299,37 +268,25 @@ document.addEventListener("DOMContentLoaded", () => {
       },
       options: {
         responsive: true,
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: function (context) {
-                return ` 營業額: ${context.raw.toLocaleString()} 元`;
-              },
-            },
-          },
-        },
         scales: {
           y: {
             beginAtZero: true,
             ticks: {
-              callback: function (value) {
-                return "NT$ " + value.toLocaleString();
-              },
+              callback: (value) => "NT$ " + value.toLocaleString(),
             },
           },
         },
       },
     });
 
-    // 渲染新用戶圖表
     userChartInstance = new Chart(userChartCtx, {
-      type: "bar", // 柱狀圖
+      type: "bar",
       data: {
-        labels: report.labels, // X 軸 (日期)
+        labels: report.labels,
         datasets: [
           {
             label: "每日新註冊會員",
-            data: report.userData, // Y 軸 (人數)
+            data: report.userData,
             borderColor: "#2ecc71",
             backgroundColor: "rgba(46, 204, 113, 0.5)",
           },
@@ -340,23 +297,19 @@ document.addEventListener("DOMContentLoaded", () => {
         scales: {
           y: {
             beginAtZero: true,
-            ticks: {
-              stepSize: 1, // 確保 Y 軸是整數
-            },
+            ticks: { stepSize: 1 },
           },
         },
       },
     });
   }
 
-  // (6) 輔助函式：取得 N 天前的日期
   function getNDaysAgo(days) {
     const d = new Date();
     d.setDate(d.getDate() - days);
     return d;
   }
 
-  // (7) 輔助函式：取得日期區間內的所有日期 (用於 X 軸)
   function getDateArray(start, end) {
     const arr = [];
     const dt = new Date(start);
@@ -367,7 +320,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return arr;
   }
 
-  // (8) 輔助函式：處理 API 回傳的資料，將空缺的日期補 0
   function processReportData(report, allDates) {
     const revenueMap = new Map(
       report.revenueData.map((item) => [item.date.split("T")[0], item.revenue])
@@ -383,9 +335,17 @@ document.addEventListener("DOMContentLoaded", () => {
     return { labels, revenueData, userData };
   }
 
-  // --- [*** 新增結束 ***] ---
+  // --- 6. 登出 ---
+  logoutBtn.addEventListener("click", () => {
+    if (confirm("確定要登出管理後台嗎？")) {
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("admin_name");
+      localStorage.removeItem("admin_permissions");
+      window.location.href = "admin-login.html";
+    }
+  });
 
-  // --- 5. 初始載入資料 ---
+  // 初始載入
   loadDashboardStats();
-  fetchDetailedReport(); // [*** 新增 ***] 頁面載入時，自動抓取預設(30天)的報表
+  fetchDetailedReport(); // 預設載入報表
 });

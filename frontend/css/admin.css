@@ -1,5 +1,4 @@
-/* frontend/css/admin.css */
-/* 管理端專用樣式 */
+/* frontend/css/admin.css (V9 - 包含分頁、批量操作樣式) */
 
 /* --- 1. Admin 導航列 --- */
 .admin-header {
@@ -16,11 +15,10 @@
   align-items: center;
   flex-wrap: wrap;
 }
-/* 修正 Admin 導覽列按鈕在電腦版不要滿版 */
+/* 修正按鈕寬度 */
 .header-actions .btn {
   width: auto;
 }
-/* 當前頁面高亮 */
 .header-actions .btn-secondary.active {
   background-color: var(--primary-color);
   color: white;
@@ -31,7 +29,7 @@
   color: #555;
 }
 
-/* --- 2. Admin 統計卡片 --- */
+/* --- 2. Admin 統計卡片 (儀表板) --- */
 .stats-container {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -45,7 +43,18 @@
   border: 1px solid #e9ecef;
   text-align: center;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s, box-shadow 0.2s; /* 加入動畫 */
 }
+/* [新增] 可點擊的卡片樣式 */
+.stat-card.clickable {
+  cursor: pointer;
+}
+.stat-card.clickable:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  border-color: var(--primary-color);
+}
+
 .stat-card h3 {
   color: #666;
   font-size: 0.9em;
@@ -72,7 +81,7 @@
   color: #dc3545;
 }
 
-/* --- 3. Admin 篩選器 --- */
+/* --- 3. 篩選器與工具列 --- */
 .filters-container,
 .parcel-management {
   background: #f8f9fa;
@@ -87,14 +96,24 @@
   gap: 10px;
   flex-wrap: wrap;
   width: 100%;
+  align-items: center;
 }
 .filters input,
 .filters select {
   flex: 1;
-  min-width: 200px;
+  min-width: 150px;
+}
+/* [新增] 匯出按鈕樣式 */
+.btn-export {
+  background-color: #607d8b;
+  color: white;
+  width: auto;
+}
+.btn-export:hover {
+  background-color: #546e7a;
 }
 
-/* --- 4. Admin 表格 (繼承 base.css 但有微調) --- */
+/* --- 4. Admin 表格 --- */
 .admin-table-wrapper {
   overflow-x: auto;
   margin-top: 15px;
@@ -110,8 +129,21 @@
   background: #f8f9fa;
   border-bottom: 2px solid #dee2e6;
 }
+.members-table th,
+.parcel-table th,
+.members-table td,
+.parcel-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+/* [新增] 複選框欄位寬度 */
+.checkbox-col {
+  width: 40px;
+  text-align: center !important;
+}
 
-/* Admin 表格操作按鈕群組 */
+/* 操作按鈕群組 */
 .action-buttons {
   display: flex;
   gap: 5px;
@@ -136,6 +168,7 @@
   background: #28a745;
 }
 
+/* 角色標籤 */
 .role-badge {
   padding: 3px 8px;
   border-radius: 12px;
@@ -155,9 +188,95 @@
   color: #401099;
 }
 
-/* --- 5. Admin 彈窗元件 --- */
+/* --- 5. [新增] 批量操作工具列 --- */
+.bulk-action-bar {
+  display: none; /* 預設隱藏 */
+  background-color: #e3f2fd;
+  border: 1px solid #90caf9;
+  padding: 10px 15px;
+  border-radius: 5px;
+  margin-bottom: 15px;
+  align-items: center;
+  justify-content: space-between;
+  animation: slideDown 0.3s ease-out;
+}
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.bulk-actions-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: bold;
+  color: #1565c0;
+}
+.bulk-actions-right {
+  display: flex;
+  gap: 10px;
+}
+.bulk-btn {
+  padding: 6px 12px;
+  font-size: 14px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: white;
+}
+.btn-bulk-status {
+  background-color: #1976d2;
+}
+.btn-bulk-status:hover {
+  background-color: #1565c0;
+}
+.btn-bulk-delete {
+  background-color: #d32f2f;
+}
+.btn-bulk-delete:hover {
+  background-color: #c62828;
+}
 
-/* 包裹照片預覽 */
+/* --- 6. [新增] 分頁控制項 --- */
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+  gap: 10px;
+}
+.page-info {
+  color: #666;
+  font-size: 14px;
+}
+.page-btn {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  background-color: white;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.page-btn:hover:not(:disabled) {
+  background-color: #f0f0f0;
+  border-color: #ccc;
+}
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.page-btn.active {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+/* --- 7. 彈窗樣式 (照片、分箱) --- */
 .parcel-images {
   display: flex;
   gap: 10px;
@@ -206,7 +325,6 @@
   background-color: var(--danger-hover);
 }
 
-/* 分箱項目 */
 .sub-package-item {
   background: #fff;
   border: 1px solid #ccc;
@@ -250,19 +368,21 @@
 @media (max-width: 768px) {
   .filters {
     flex-direction: column;
+    align-items: stretch;
   }
   .filters input,
   .filters select,
   .filters button {
     width: 100%;
   }
-  .action-buttons {
+  .bulk-action-bar {
     flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
-  .action-buttons .btn-action {
+  .bulk-actions-right {
     width: 100%;
-    text-align: center;
-    margin-bottom: 5px;
+    justify-content: space-between;
   }
   .stats-container {
     grid-template-columns: 1fr;
