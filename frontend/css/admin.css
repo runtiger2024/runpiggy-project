@@ -1,0 +1,270 @@
+/* frontend/css/admin.css */
+/* 管理端專用樣式 */
+
+/* --- 1. Admin 導航列 --- */
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+/* 修正 Admin 導覽列按鈕在電腦版不要滿版 */
+.header-actions .btn {
+  width: auto;
+}
+/* 當前頁面高亮 */
+.header-actions .btn-secondary.active {
+  background-color: var(--primary-color);
+  color: white;
+  box-shadow: 0 2px 5px rgba(26, 115, 232, 0.3);
+}
+#admin-welcome {
+  font-weight: bold;
+  color: #555;
+}
+
+/* --- 2. Admin 統計卡片 --- */
+.stats-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+  margin-bottom: 30px;
+}
+.stat-card {
+  background-color: #fff;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+.stat-card h3 {
+  color: #666;
+  font-size: 0.9em;
+  font-weight: normal;
+  margin-bottom: 8px;
+}
+.stat-card p {
+  color: var(--primary-color);
+  font-size: 2em;
+  font-weight: bold;
+  margin: 0;
+}
+.stat-card.pending p {
+  color: #d63031;
+}
+.stat-card.arrived p {
+  color: #0984e3;
+}
+.stat-card.completed p,
+.stat-card.active p {
+  color: #28a745;
+}
+.stat-card.inactive p {
+  color: #dc3545;
+}
+
+/* --- 3. Admin 篩選器 --- */
+.filters-container,
+.parcel-management {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+  margin-top: 20px;
+  width: 100%;
+}
+.filters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+.filters input,
+.filters select {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* --- 4. Admin 表格 (繼承 base.css 但有微調) --- */
+.admin-table-wrapper {
+  overflow-x: auto;
+  margin-top: 15px;
+}
+.members-table,
+.parcel-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+}
+.members-table thead,
+.parcel-table thead {
+  background: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+}
+
+/* Admin 表格操作按鈕群組 */
+.action-buttons {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.btn-action {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: white;
+}
+.btn-reset-password {
+  background: #ffc107;
+  color: #212529;
+}
+.btn-toggle-status {
+  background: #6c757d;
+}
+.btn-toggle-status.activate {
+  background: #28a745;
+}
+
+.role-badge {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.role-USER {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+.role-ADMIN {
+  background-color: #fff3cd;
+  color: #856404;
+}
+.role-OPERATOR {
+  background-color: #e2d9f3;
+  color: #401099;
+}
+
+/* --- 5. Admin 彈窗元件 --- */
+
+/* 包裹照片預覽 */
+.parcel-images {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 15px;
+}
+.parcel-images h4 {
+  width: 100%;
+  margin-bottom: 10px;
+}
+.img-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 100px;
+  height: 100px;
+  margin-right: 10px;
+  margin-bottom: 10px;
+}
+.img-wrapper img,
+.parcel-images img {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+  cursor: pointer;
+}
+.btn-delete-img {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background-color: var(--danger-color);
+  color: white;
+  border: 2px solid white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  text-align: center;
+  line-height: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.btn-delete-img:hover {
+  background-color: var(--danger-hover);
+}
+
+/* 分箱項目 */
+.sub-package-item {
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  position: relative;
+}
+.sub-package-item .btn-remove-sub-pkg {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: var(--danger-color);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+  line-height: 24px;
+  text-align: center;
+  cursor: pointer;
+  font-weight: bold;
+}
+.sub-package-item .form-grid-responsive {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+.sub-pkg-fee-display {
+  text-align: right;
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #d32f2f;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #eee;
+}
+
+/* 響應式 */
+@media (max-width: 768px) {
+  .filters {
+    flex-direction: column;
+  }
+  .filters input,
+  .filters select,
+  .filters button {
+    width: 100%;
+  }
+  .action-buttons {
+    flex-direction: column;
+  }
+  .action-buttons .btn-action {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 5px;
+  }
+  .stats-container {
+    grid-template-columns: 1fr;
+  }
+}
