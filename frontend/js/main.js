@@ -1,5 +1,5 @@
-// frontend/js/main.js (V17 - 錯誤處理強化版)
-// 包含：前端預設值、後端API整合、詳細算式渲染
+// frontend/js/main.js (V18 - 新增分享估價單功能)
+// 包含：前端預設值、後端API整合、詳細算式渲染、分享功能
 
 // --- 前端備案設定 (當後端完全掛掉時使用) ---
 const fallbackSettings = {
@@ -54,7 +54,6 @@ async function loadPublicSettings() {
     if (res.ok) {
       const data = await res.json();
       // 使用後端回傳的資料更新 UI
-      // 注意：calculatorController.js (V12) 已保證即使 DB 為空也會回傳預設結構
       if (data.rates) {
         window.RATES = data.rates.categories;
         window.CONSTANTS = data.rates.constants;
@@ -70,7 +69,7 @@ async function loadPublicSettings() {
     }
   } catch (e) {
     console.warn("後端連線失敗，使用前端備案設定:", e);
-    // 如果連線失敗，確保 UI 顯示的是備案資料 (已在 DOMContentLoaded 執行過，這裡可選再次確認)
+    // 如果連線失敗，確保 UI 顯示的是備案資料
     updateUIWithSettings(fallbackSettings);
   }
 }
@@ -97,7 +96,7 @@ function updateUIWithSettings(data) {
     renderAnnouncement(data.announcement);
   }
 
-  // 3. 更新費率表與地區選單 (依賴 window.RATES / window.REMOTE_AREAS)
+  // 3. 更新費率表與地區選單
   renderRateTable();
   renderRemoteAreaOptions();
   updateItemTypeSelects();
@@ -160,7 +159,6 @@ function renderRemoteAreaOptions() {
 
   const sortedFees = Object.keys(window.REMOTE_AREAS).sort((a, b) => a - b);
   sortedFees.forEach((fee) => {
-    // 忽略 key 為 "0" 的項目 (如果資料庫有存)
     if (fee === "0") return;
 
     const areas = window.REMOTE_AREAS[fee];
@@ -183,8 +181,6 @@ function updateItemTypeSelects() {
 
   document.querySelectorAll(".item-type").forEach((sel) => {
     const val = sel.value;
-    // 只有當內容為空，或為了更新顯示時才覆蓋
-    // 為了簡單起見，這裡每次都更新，但嘗試保留值
     sel.innerHTML = opts;
     if (val) sel.value = val;
   });
@@ -303,7 +299,7 @@ async function handleCalculate() {
 
   btn.disabled = true;
   btn.textContent = "計算中...";
-  spinner.style.display = "flex"; // 使用 flex 讓它置中
+  spinner.style.display = "flex";
   results.style.display = "none";
   errorMsg.style.display = "none";
 
@@ -336,7 +332,6 @@ async function handleCalculate() {
 }
 
 function setupEventListeners() {
-  // 新增商品按鈕
   const addBtn = document.getElementById("btn-add-item");
   if (addBtn) {
     addBtn.addEventListener("click", () => {
@@ -347,13 +342,11 @@ function setupEventListeners() {
     });
   }
 
-  // 計算按鈕 (底部懸浮欄)
   const calcBtn = document.getElementById("btn-calculate");
   if (calcBtn) {
     calcBtn.addEventListener("click", handleCalculate);
   }
 
-  // 複製地址按鈕
   const copyBtn = document.getElementById("copyAddressBtn");
   if (copyBtn) {
     copyBtn.addEventListener("click", () => {
@@ -367,7 +360,6 @@ function setupEventListeners() {
     });
   }
 
-  // Header 搜尋功能
   const searchInput = document.getElementById("areaSearch");
   const searchResults = document.getElementById("searchResults");
 
@@ -410,7 +402,6 @@ function setupEventListeners() {
     });
   }
 
-  // 地區選擇後的顯示
   const delivSelect = document.getElementById("deliveryLocation");
   if (delivSelect) {
     delivSelect.addEventListener("change", () => {
@@ -463,7 +454,6 @@ function renderDetailedResults(result, rules) {
   result.allItemsData.forEach((item, index) => {
     const isVolWin = item.itemVolumeCost >= item.itemWeightCost;
 
-    // 公式 HTML
     let formulaHtml = "";
     if (item.calcMethod === "dimensions") {
       formulaHtml = `<span class="formula-box">(${item.length}x${item.width}x${item.height})÷${rules.VOLUME_DIVISOR}</span>`;
@@ -538,7 +528,7 @@ function renderDetailedResults(result, rules) {
     `;
   });
 
-  // 2. 總結卡片
+  // 2. 總結卡片 (包含分享按鈕)
   html += `
     <div class="result-summary-card">
       <h3>💰 費用總結</h3>
@@ -577,9 +567,12 @@ function renderDetailedResults(result, rules) {
         NT$ ${result.finalTotal.toLocaleString()}
       </div>
       
-      <div style="padding:0 20px 20px 20px;">
-        <button class="btn btn-secondary" style="width:100%;" onclick="window.saveToForecast()">
-          <i class="fas fa-box-open"></i> 將試算結果帶入預報單
+      <div style="padding:0 20px 20px 20px; display: flex; gap: 10px;">
+        <button class="btn btn-secondary" style="flex: 1;" onclick="window.saveToForecast()">
+          <i class="fas fa-box-open"></i> 帶入預報
+        </button>
+        <button class="btn btn-outline-primary" style="flex: 1; border-color: var(--color-primary); color: var(--color-primary);" onclick="window.createShareLink()">
+          <i class="fas fa-share-alt"></i> 分享結果
         </button>
       </div>
     </div>
@@ -588,7 +581,6 @@ function renderDetailedResults(result, rules) {
   container.innerHTML = html;
   container.style.display = "block";
 
-  // 平滑捲動到結果區
   setTimeout(() => {
     container.scrollIntoView({ behavior: "smooth", block: "start" });
   }, 100);
@@ -596,6 +588,7 @@ function renderDetailedResults(result, rules) {
   window.currentCalculationResult = result;
 }
 
+// --- 功能 1: 帶入預報 ---
 window.saveToForecast = function () {
   if (!window.currentCalculationResult) return;
   localStorage.setItem(
@@ -608,6 +601,50 @@ window.saveToForecast = function () {
   } else {
     if (confirm("您尚未登入。要現在登入以儲存這些預報資料嗎？")) {
       window.location.href = "login.html";
+    }
+  }
+};
+
+// --- 功能 2: 產生分享連結 (新增) ---
+window.createShareLink = async function () {
+  if (!window.currentCalculationResult) {
+    alert("目前沒有試算結果可分享！");
+    return;
+  }
+
+  // 按鈕防呆
+  const shareBtn = document.querySelector(
+    ".result-summary-card .btn-outline-primary"
+  );
+  if (shareBtn) {
+    shareBtn.disabled = true;
+    shareBtn.textContent = "產生連結中...";
+  }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/quotes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        calculationResult: window.currentCalculationResult,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error("無法建立分享連結");
+    }
+
+    const data = await res.json();
+    const shareUrl = `${window.location.origin}/quote.html?id=${data.id}`;
+
+    // 使用 Prompt 讓使用者複製
+    prompt("複製下方連結分享給朋友：", shareUrl);
+  } catch (e) {
+    alert("分享失敗: " + e.message);
+  } finally {
+    if (shareBtn) {
+      shareBtn.disabled = false;
+      shareBtn.innerHTML = '<i class="fas fa-share-alt"></i> 分享結果';
     }
   }
 };
