@@ -1,8 +1,115 @@
-// backend/controllers/shipmentController.js (V8.2 完整版 - 支援商品證明存取與取消訂單)
+// backend/controllers/shipmentController.js (V9 優化版 - 包含運費預估)
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
 const ratesManager = require("../utils/ratesManager.js");
+
+/**
+ * @description 預估集運單費用 (不建立訂單)
+ * @route POST /api/shipments/preview
+ */
+const previewShipmentCost = async (req, res) => {
+  try {
+    let { packageIds, deliveryLocationRate } = req.body;
+    const userId = req.user.id;
+
+    if (!packageIds || !Array.isArray(packageIds) || packageIds.length === 0) {
+      return res.status(400).json({ success: false, message: "請選擇包裹" });
+    }
+
+    // 1. 查詢包裹 (確保是自己的且已入庫)
+    const packagesToShip = await prisma.package.findMany({
+      where: {
+        id: { in: packageIds },
+        userId: userId,
+        status: "ARRIVED",
+        shipmentId: null,
+      },
+    });
+
+    if (packagesToShip.length !== packageIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: "包含無效包裹 (可能狀態已變更)",
+      });
+    }
+
+    // 2. 取得最新費率
+    const systemRates = await ratesManager.getRates();
+    const CONSTANTS = systemRates.constants;
+
+    // 3. 計算邏輯 (與 createShipment 保持一致)
+    const calculatedTotalFee = packagesToShip.reduce(
+      (sum, pkg) => sum + (pkg.totalCalculatedFee || 0),
+      0
+    );
+    let totalVolumeDivisor = 0;
+    let hasAnyOversizedItem = false;
+    let hasAnyOverweightItem = false;
+
+    packagesToShip.forEach((pkg) => {
+      try {
+        const boxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
+        boxes.forEach((box) => {
+          const l = parseFloat(box.length) || 0;
+          const w = parseFloat(box.width) || 0;
+          const h = parseFloat(box.height) || 0;
+          const weight = parseFloat(box.weight) || 0;
+
+          if (
+            l > CONSTANTS.OVERSIZED_LIMIT ||
+            w > CONSTANTS.OVERSIZED_LIMIT ||
+            h > CONSTANTS.OVERSIZED_LIMIT
+          )
+            hasAnyOversizedItem = true;
+
+          if (weight > CONSTANTS.OVERWEIGHT_LIMIT) hasAnyOverweightItem = true;
+
+          if (l > 0 && w > 0 && h > 0) {
+            totalVolumeDivisor += Math.ceil(
+              (l * w * h) / CONSTANTS.VOLUME_DIVISOR
+            );
+          }
+        });
+      } catch (e) {}
+    });
+
+    const totalOverweightFee = hasAnyOverweightItem
+      ? CONSTANTS.OVERWEIGHT_FEE
+      : 0;
+    const totalOversizedFee = hasAnyOversizedItem ? CONSTANTS.OVERSIZED_FEE : 0;
+    const totalCbm = totalVolumeDivisor / CONSTANTS.CBM_TO_CAI_FACTOR;
+    const remoteFee = Math.round(
+      totalCbm * (parseFloat(deliveryLocationRate) || 0)
+    );
+
+    let finalBaseCost = calculatedTotalFee;
+    if (finalBaseCost > 0 && finalBaseCost < CONSTANTS.MINIMUM_CHARGE) {
+      finalBaseCost = CONSTANTS.MINIMUM_CHARGE;
+    }
+
+    const finalTotalCost =
+      finalBaseCost + totalOverweightFee + totalOversizedFee + remoteFee;
+
+    // 4. 回傳預估結果
+    res.status(200).json({
+      success: true,
+      preview: {
+        totalCost: finalTotalCost,
+        baseCost: finalBaseCost,
+        remoteFee: remoteFee,
+        overweightFee: totalOverweightFee,
+        oversizedFee: totalOversizedFee,
+        isMinimumChargeApplied:
+          finalBaseCost === CONSTANTS.MINIMUM_CHARGE &&
+          calculatedTotalFee < CONSTANTS.MINIMUM_CHARGE,
+      },
+    });
+  } catch (error) {
+    console.error("預估運費失敗:", error);
+    res.status(500).json({ success: false, message: "預估失敗" });
+  }
+};
 
 /**
  * @description 建立新的集運單 (合併包裹)
@@ -19,19 +126,16 @@ const createShipment = async (req, res) => {
       phone,
       idNumber,
       taxId,
-      invoiceTitle, // [新增] 接收 invoiceTitle
+      invoiceTitle,
       note,
       deliveryLocationRate,
-      productUrl, // [新增] 商品購買連結
+      productUrl,
     } = req.body;
 
     const userId = req.user.id;
 
-    // 1. [新增] 驗證商品證明 (連結 或 照片)
-    // req.files 由 multer 處理，若無檔案則為 undefined 或空陣列
+    // 1. 驗證商品證明 (連結 或 照片)
     const files = req.files || [];
-
-    // 檢查：如果沒有連結 且 沒有上傳圖片，則報錯
     if ((!productUrl || productUrl.trim() === "") && files.length === 0) {
       return res.status(400).json({
         success: false,
@@ -46,7 +150,7 @@ const createShipment = async (req, res) => {
       shipmentImagePaths = JSON.stringify(paths);
     }
 
-    // 3. 解析 packageIds (FormData 傳送陣列通常會變成 JSON 字串)
+    // 3. 解析 packageIds
     try {
       if (typeof packageIds === "string") {
         packageIds = JSON.parse(packageIds);
@@ -94,20 +198,19 @@ const createShipment = async (req, res) => {
       });
     }
 
-    // 6. [V8 修改] 使用 ratesManager 讀取動態常數與計算運費
-    const systemRates = await ratesManager.getRates(); // [修正] 加入 await 支援資料庫讀取
+    // 6. 計算運費 (需與 previewCost 邏輯一致)
+    const systemRates = await ratesManager.getRates();
     const CONSTANTS = systemRates.constants;
 
-    // 計算總運費
-    const calculatedTotalFee = packagesToShip.reduce((sum, pkg) => {
-      return sum + (pkg.totalCalculatedFee || 0);
-    }, 0);
+    const calculatedTotalFee = packagesToShip.reduce(
+      (sum, pkg) => sum + (pkg.totalCalculatedFee || 0),
+      0
+    );
 
     let hasAnyOversizedItem = false;
     let hasAnyOverweightItem = false;
     let totalShipmentVolume = 0;
 
-    // 遍歷包裹計算附加費與總材積
     packagesToShip.forEach((pkg) => {
       try {
         const boxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
@@ -121,12 +224,10 @@ const createShipment = async (req, res) => {
             length > CONSTANTS.OVERSIZED_LIMIT ||
             width > CONSTANTS.OVERSIZED_LIMIT ||
             height > CONSTANTS.OVERSIZED_LIMIT
-          ) {
+          )
             hasAnyOversizedItem = true;
-          }
-          if (weight > CONSTANTS.OVERWEIGHT_LIMIT) {
-            hasAnyOverweightItem = true;
-          }
+
+          if (weight > CONSTANTS.OVERWEIGHT_LIMIT) hasAnyOverweightItem = true;
 
           if (length > 0 && width > 0 && height > 0) {
             const singleVolume = Math.ceil(
@@ -136,7 +237,7 @@ const createShipment = async (req, res) => {
           }
         });
       } catch (e) {
-        console.error(`解析包裹 ${pkg.id} 的 arrivedBoxesJson 失敗`, e);
+        console.error(`解析包裹 ${pkg.id} 失敗`, e);
       }
     });
 
@@ -144,7 +245,6 @@ const createShipment = async (req, res) => {
       ? CONSTANTS.OVERWEIGHT_FEE
       : 0;
     const totalOversizedFee = hasAnyOversizedItem ? CONSTANTS.OVERSIZED_FEE : 0;
-
     const totalCbm = totalShipmentVolume / CONSTANTS.CBM_TO_CAI_FACTOR;
     const remoteFee = Math.round(
       totalCbm * (parseFloat(deliveryLocationRate) || 0)
@@ -167,22 +267,19 @@ const createShipment = async (req, res) => {
           shippingAddress: shippingAddress,
           idNumber: idNumber,
           taxId: taxId || null,
-          invoiceTitle: invoiceTitle || null, // [新增] 將抬頭寫入資料庫
+          invoiceTitle: invoiceTitle || null,
           note: note || null,
           totalCost: finalTotalCost,
           deliveryLocationRate: parseFloat(deliveryLocationRate) || 0,
           status: "PENDING_PAYMENT",
           userId: userId,
-          // [新增] 儲存商品連結與照片路徑
           productUrl: productUrl || null,
           shipmentProductImages: shipmentImagePaths,
         },
       });
 
       await tx.package.updateMany({
-        where: {
-          id: { in: packageIds },
-        },
+        where: { id: { in: packageIds } },
         data: {
           status: "IN_SHIPMENT",
           shipmentId: createdShipment.id,
@@ -234,7 +331,6 @@ const getMyShipments = async (req, res) => {
       },
     });
 
-    // 解析 JSON 資料
     const processedShipments = shipments.map((ship) => ({
       ...ship,
       additionalServices: JSON.parse(ship.additionalServices || "{}"),
@@ -283,9 +379,7 @@ const uploadPaymentProof = async (req, res) => {
 
     const updatedShipment = await prisma.shipment.update({
       where: { id: id },
-      data: {
-        paymentProof: imagePath,
-      },
+      data: { paymentProof: imagePath },
     });
 
     res.status(200).json({
@@ -300,14 +394,13 @@ const uploadPaymentProof = async (req, res) => {
 };
 
 /**
- * @description 取得單一集運單詳情 (支援 Admin 與 User)
+ * @description 取得單一集運單詳情
  * @route GET /api/shipments/:id
  */
 const getShipmentById = async (req, res) => {
   try {
     const { id } = req.params;
     const user = req.user;
-
     const isAdmin =
       user.permissions && user.permissions.includes("CAN_MANAGE_SHIPMENTS");
 
@@ -334,7 +427,6 @@ const getShipmentById = async (req, res) => {
       let productImages = [];
       let warehouseImages = [];
       let arrivedBoxes = [];
-
       try {
         productImages = JSON.parse(pkg.productImages || "[]");
       } catch (e) {}
@@ -354,7 +446,6 @@ const getShipmentById = async (req, res) => {
       };
     });
 
-    // [V8.2] 解析商品證明圖片
     let shipmentProductImages = [];
     try {
       shipmentProductImages = JSON.parse(
@@ -369,10 +460,7 @@ const getShipmentById = async (req, res) => {
       shipmentProductImages: shipmentProductImages,
     };
 
-    res.status(200).json({
-      success: true,
-      shipment: processedShipment,
-    });
+    res.status(200).json({ success: true, shipment: processedShipment });
   } catch (error) {
     console.error("取得集運單詳情失敗:", error);
     res.status(500).json({ success: false, message: "伺服器發生錯誤" });
@@ -380,7 +468,7 @@ const getShipmentById = async (req, res) => {
 };
 
 /**
- * @description [V8 新增] 客戶自行取消/刪除待付款的集運單
+ * @description 客戶自行取消/刪除待付款的集運單
  * @route DELETE /api/shipments/:id
  */
 const deleteMyShipment = async (req, res) => {
@@ -388,7 +476,6 @@ const deleteMyShipment = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
 
-    // 1. 查詢訂單
     const shipment = await prisma.shipment.findFirst({
       where: { id: id, userId: userId },
     });
@@ -397,28 +484,18 @@ const deleteMyShipment = async (req, res) => {
       return res.status(404).json({ success: false, message: "找不到集運單" });
     }
 
-    // 2. 檢查狀態
     if (shipment.status !== "PENDING_PAYMENT") {
       return res
         .status(400)
         .json({ success: false, message: "只能取消「待付款」狀態的訂單" });
     }
 
-    // 3. 使用 Transaction：釋放包裹並刪除訂單
     await prisma.$transaction(async (tx) => {
-      // 釋放包裹回到 ARRIVED 狀態
       await tx.package.updateMany({
         where: { shipmentId: id },
-        data: {
-          status: "ARRIVED",
-          shipmentId: null,
-        },
+        data: { status: "ARRIVED", shipmentId: null },
       });
-
-      // 刪除集運單
-      await tx.shipment.delete({
-        where: { id: id },
-      });
+      await tx.shipment.delete({ where: { id: id } });
     });
 
     res.status(200).json({
@@ -437,4 +514,5 @@ module.exports = {
   getShipmentById,
   uploadPaymentProof,
   deleteMyShipment,
+  previewShipmentCost, // 匯出新功能
 };

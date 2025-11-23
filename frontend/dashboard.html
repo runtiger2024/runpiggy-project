@@ -3,169 +3,203 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>會員中心 - 小跑豬</title>
+    <title>會員中心 | 我的家具專線</title>
     <link rel="icon" href="assets/logo.png" type="image/png" />
     <script src="js/styleLoader.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
   </head>
-  <body>
-    <div class="container">
-      <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
-      <h1>會員中心</h1>
-
-      <nav class="main-nav"></nav>
+  <body class="dashboard-theme">
+    <div class="container dashboard-container">
+      <header class="dashboard-header">
+        <div class="header-left">
+          <img src="assets/logo.png" alt="Logo" class="header-logo-sm" />
+          <h1>會員中心</h1>
+        </div>
+        <nav class="main-nav header-nav-right"></nav>
+      </header>
 
       <div id="message-box" class="alert" style="display: none"></div>
 
-      <div class="user-info-box">
-        <h2 id="welcome-message">歡迎回來，...</h2>
-        <div class="info-grid">
-          <p><strong>Email:</strong> <span id="user-email">-</span></p>
-          <p><strong>電話:</strong> <span id="user-phone">-</span></p>
-          <p><strong>預設地址:</strong> <span id="user-address">-</span></p>
-        </div>
-        <div class="action-buttons">
-          <button id="btn-edit-profile" class="btn btn-secondary">
-            編輯資料
+      <div class="user-profile-card">
+        <div class="profile-bg"></div>
+        <div class="profile-content">
+          <div class="avatar-circle">
+            <i class="fas fa-user"></i>
+          </div>
+          <div class="profile-details">
+            <h2 id="welcome-message">歡迎回來</h2>
+            <div class="user-meta">
+              <span class="meta-item"
+                ><i class="fas fa-envelope"></i>
+                <span id="user-email">-</span></span
+              >
+              <span class="meta-item"
+                ><i class="fas fa-phone"></i>
+                <span id="user-phone">-</span></span
+              >
+            </div>
+            <div class="user-address">
+              <i class="fas fa-map-marker-alt"></i>
+              <span id="user-address">-</span>
+            </div>
+          </div>
+          <button
+            id="btn-edit-profile"
+            class="btn btn-outline-light btn-sm btn-edit-profile"
+          >
+            <i class="fas fa-pen"></i> 編輯
           </button>
         </div>
       </div>
 
       <div
         id="draft-queue-container"
-        class="form-section"
-        style="
-          display: none;
-          background-color: #fff3cd;
-          border-color: #ffeeba;
-          margin-bottom: 15px;
-        "
+        class="notice-card warning"
+        style="display: none"
       >
-        <h4 style="color: #856404; margin-top: 0">⏳ 待處理的試算包裹</h4>
-        <p>以下是您從試算表帶入的商品，請逐一為它們補上「物流單號」並提交：</p>
-        <ul
-          id="draft-queue-list"
-          style="
-            list-style-type: decimal;
-            padding-left: 25px;
-            margin: 0;
-            font-weight: bold;
-            color: #555;
-          "
-        ></ul>
+        <div class="notice-icon"><i class="fas fa-clock"></i></div>
+        <div class="notice-content">
+          <h4>待處理的試算包裹</h4>
+          <p>您有從試算表帶入的商品，請補上物流單號：</p>
+          <ul id="draft-queue-list"></ul>
+        </div>
       </div>
-      <div class="form-section">
-        <h3>📦 新增包裹預報</h3>
-        <form id="forecast-form">
-          <div class="form-grid-2">
+
+      <div class="section-card forecast-section">
+        <div class="card-header">
+          <h3><i class="fas fa-box-open"></i> 預報新包裹</h3>
+        </div>
+        <div class="card-body">
+          <form id="forecast-form" class="forecast-form-grid">
             <div class="form-group">
-              <label for="trackingNumber" class="required">物流單號</label>
-              <input type="text" id="trackingNumber" required />
+              <label class="required">物流單號</label>
+              <input
+                type="text"
+                id="trackingNumber"
+                placeholder="掃描或輸入單號"
+                required
+              />
             </div>
             <div class="form-group">
-              <label for="productName" class="required">商品名稱</label>
-              <input type="text" id="productName" required />
+              <label class="required">商品名稱</label>
+              <input
+                type="text"
+                id="productName"
+                placeholder="例：書桌"
+                required
+              />
             </div>
-          </div>
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label for="quantity">數量</label>
+            <div class="form-group short">
+              <label>數量</label>
               <input type="number" id="quantity" value="1" min="1" />
             </div>
-
-            <div class="form-group">
-              <label for="images">商品圖片 (最多5張, 報關用)</label>
-              <input type="file" id="images" multiple accept="image/*" />
+            <div class="form-group short">
+              <label>照片 (報關用)</label>
+              <label class="file-upload-btn">
+                <i class="fas fa-camera"></i> 上傳
+                <input
+                  type="file"
+                  id="images"
+                  multiple
+                  accept="image/*"
+                  style="display: none"
+                />
+              </label>
+              <span class="file-count" id="file-count-display"></span>
             </div>
-          </div>
-          <div class="form-group">
-            <label for="note">備註</label>
-            <textarea
-              id="note"
-              rows="3"
-              placeholder="特殊需求或注意事項..."
-            ></textarea>
-          </div>
-          <button type="submit" class="btn btn-primary">提交預報</button>
-        </form>
+            <div class="form-group full">
+              <label>備註</label>
+              <input type="text" id="note" placeholder="特殊需求..." />
+            </div>
+            <div class="form-group action">
+              <button type="submit" class="btn btn-primary btn-add-cart">
+                <i class="fas fa-plus-circle"></i> 提交預報
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
 
-      <div class="auth-tabs" style="margin-top: 30px">
-        <button id="tab-packages" class="tab-btn active">我的包裹</button>
-        <button id="tab-shipments" class="tab-btn">我的集運單</button>
+      <div class="dashboard-tabs">
+        <button id="tab-packages" class="tab-btn active">
+          <i class="fas fa-boxes"></i> 我的包裹 (待入庫)
+        </button>
+        <button id="tab-shipments" class="tab-btn">
+          <i class="fas fa-shipping-fast"></i> 我的集運單 (訂單)
+        </button>
       </div>
 
       <div id="packages-section" class="tab-content active">
-        <div class="table-container">
+        <div class="table-responsive cart-style">
           <table>
             <thead>
               <tr>
-                <th style="width: 50px">勾選</th>
+                <th width="40">選</th>
                 <th>狀態</th>
-                <th>物流單號</th>
-                <th>商品名稱</th>
-                <th>件數</th>
-                <th>總實重 (kg)</th>
-                <th>總運費</th>
-                <th>包裹詳情</th>
+                <th>物流單號/商品</th>
+                <th>規格(件數/重/費)</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody id="packages-table-body">
               <tr>
-                <td colspan="9" style="text-align: center">載入中...</td>
+                <td colspan="5" class="text-center">載入中...</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <div class="shipment-action-bar">
-          <button id="btn-create-shipment" class="btn btn-primary">
-            合併打包 (建立集運單)
+
+        <div class="sticky-checkout-bar">
+          <div class="checkout-info">
+            已選 <span id="selected-pkg-count" class="highlight">0</span> 件包裹
+          </div>
+          <button id="btn-create-shipment" class="btn btn-primary btn-checkout">
+            合併打包 (去結帳)
           </button>
         </div>
       </div>
 
       <div id="shipments-section" class="tab-content" style="display: none">
-        <div class="table-container">
+        <div class="order-status-filter"></div>
+
+        <div class="table-responsive order-style">
           <table>
             <thead>
               <tr>
-                <th>建立時間</th>
+                <th>訂單時間</th>
                 <th>狀態</th>
-                <th>收件人</th>
-                <th>身分證</th>
-                <th>包裹數量</th>
+                <th>收件資訊</th>
                 <th>總金額</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody id="shipments-table-body">
               <tr>
-                <td colspan="7" style="text-align: center">載入中...</td>
+                <td colspan="5" class="text-center">載入中...</td>
               </tr>
             </tbody>
           </table>
         </div>
       </div>
     </div>
-
     <div id="edit-profile-modal" class="modal-overlay" style="display: none">
       <div class="modal-content">
         <button class="modal-close">&times;</button>
-        <h2>編輯個人資料</h2>
+        <h3>編輯個人資料</h3>
         <form id="edit-profile-form">
           <div class="form-group">
-            <label for="edit-name">姓名</label>
-            <input type="text" id="edit-name" />
+            <label>姓名</label><input type="text" id="edit-name" />
           </div>
           <div class="form-group">
-            <label for="edit-phone">電話</label>
-            <input type="tel" id="edit-phone" />
+            <label>電話</label><input type="tel" id="edit-phone" />
           </div>
           <div class="form-group">
-            <label for="edit-address">預設地址</label>
-            <input type="text" id="edit-address" />
+            <label>預設地址</label><input type="text" id="edit-address" />
           </div>
-          <button type="submit" class="btn btn-primary">儲存變更</button>
+          <button type="submit" class="btn btn-primary">儲存</button>
         </form>
       </div>
     </div>
@@ -173,556 +207,188 @@
     <div id="edit-package-modal" class="modal-overlay" style="display: none">
       <div class="modal-content">
         <button class="modal-close">&times;</button>
-        <h2>編輯包裹預報</h2>
-        <p style="color: #666; font-size: 14px">
-          注意：包裹入庫後 (狀態非 PENDING) 即無法修改
-        </p>
+        <h3>編輯包裹</h3>
         <input type="hidden" id="edit-package-id" />
         <form id="edit-package-form">
           <div class="form-group">
-            <label for="edit-trackingNumber" class="required">物流單號</label>
-            <input type="text" id="edit-trackingNumber" required />
+            <label>物流單號</label
+            ><input type="text" id="edit-trackingNumber" required />
           </div>
           <div class="form-group">
-            <label for="edit-productName" class="required">商品名稱</label>
-            <input type="text" id="edit-productName" required />
+            <label>商品名稱</label
+            ><input type="text" id="edit-productName" required />
           </div>
           <div class="form-group">
-            <label for="edit-quantity">數量</label>
-            <input type="number" id="edit-quantity" value="1" min="1" />
+            <label>數量</label
+            ><input type="number" id="edit-quantity" min="1" />
           </div>
           <div class="form-group">
-            <label for="edit-note">備註</label>
-            <textarea id="edit-note" rows="3"></textarea>
+            <label>備註</label><input type="text" id="edit-note" />
           </div>
-          <button type="submit" class="btn btn-primary">儲存包裹變更</button>
+
+          <div id="edit-package-images-container"></div>
+
+          <button type="submit" class="btn btn-primary">儲存變更</button>
         </form>
       </div>
     </div>
 
     <div id="create-shipment-modal" class="modal-overlay" style="display: none">
-      <div class="modal-content modal-lg">
+      <div class="modal-content modal-lg checkout-modal">
         <button class="modal-close">&times;</button>
-        <h2 style="border-bottom: 1px solid #eee; padding-bottom: 10px">
-          建立集運單 (合併打包)
-        </h2>
+        <div class="modal-header">
+          <h3>確認訂單 (合併打包)</h3>
+        </div>
 
         <form id="create-shipment-form">
-          <div
-            class="form-section"
-            style="padding: 15px; background-color: #f8f9fa"
-          >
-            <h4 style="margin-top: 0">📦 包裹明細</h4>
-            <div
-              id="shipment-package-list"
-              style="
-                margin-bottom: 15px;
-                max-height: 250px;
-                overflow-y: auto;
-                padding-right: 10px;
-              "
-            ></div>
+          <div class="checkout-layout">
+            <div class="checkout-items">
+              <h4>📦 包裹清單</h4>
+              <div id="shipment-package-list" class="pkg-list-scroll"></div>
 
-            <div
-              style="
-                border-top: 2px solid #ddd;
-                padding-top: 10px;
-                text-align: right;
-              "
-            >
-              <p style="margin: 5px 0; color: #666">預估總運費：</p>
-              <div style="font-size: 2em; color: #d32f2f; font-weight: bold">
-                NT$ <span id="shipment-total-cost">0</span>
-              </div>
-              <small id="shipment-fee-notice" style="color: #888"
-                >(實際費用以管理員審核後為準)</small
-              >
-
-              <div
-                id="shipment-warnings"
-                style="
-                  color: #d32f2f;
-                  font-weight: bold;
-                  margin-top: 10px;
-                  text-align: right;
-                  line-height: 1.6;
-                "
-              ></div>
-            </div>
-          </div>
-
-          <div class="form-section" style="padding: 20px">
-            <h4 style="margin-top: 0">📝 台灣收件資訊 (必填)</h4>
-
-            <div class="form-group">
-              <label for="ship-name" class="required">收件人姓名</label>
-              <input type="text" id="ship-name" required />
-            </div>
-
-            <div class="form-group">
-              <label for="ship-phone" class="required">聯絡電話</label>
-              <input type="tel" id="ship-phone" required />
-            </div>
-
-            <div class="form-group delivery-options">
-              <label for="ship-delivery-location" class="required"
-                >配送地區 (請務必選擇)</label
-              >
-              <div class="remote-area-search" style="margin-top: 5px">
-                <input
-                  type="text"
-                  id="ship-area-search"
-                  placeholder="快速搜尋您的地區（如：阿里山、小琉球）"
-                />
-                <div id="ship-search-results"></div>
-              </div>
-              <select id="ship-delivery-location" class="form-control" required>
-                <option value="" selected disabled>
-                  --- 請選擇您的配送地區 ---
-                </option>
-                <option value="0" style="font-weight: bold; color: #27ae60">
-                  ✅ 一般地區 (無額外費用)
-                </option>
-                <optgroup label="📍 臺北區域 - NT$4,500/方起">
-                  <option value="4500">陽明山</option>
-                  <option value="4500">金山</option>
-                </optgroup>
-                <optgroup label="📍 新北區域 - NT$2,000/方起">
-                  <option value="2000">三芝</option>
-                  <option value="2000">石門</option>
-                  <option value="2000">烏來</option>
-                  <option value="2000">坪林</option>
-                  <option value="2000">石碇區</option>
-                  <option value="2000">深坑區</option>
-                  <option value="2000">萬里</option>
-                  <option value="2000">平溪</option>
-                  <option value="2000">雙溪</option>
-                  <option value="2000">福隆</option>
-                  <option value="2000">貢寮</option>
-                  <option value="2000">三峽區</option>
-                  <option value="2000">淡水竹圍</option>
-                </optgroup>
-                <optgroup label="📍 桃園區域 - NT$2,000/方起">
-                  <option value="2000">復興鄉</option>
-                </optgroup>
-                <optgroup label="📍 新竹苗栗 - NT$2,000/方起">
-                  <option value="2000">新埔鎮</option>
-                  <option value="2000">關西鎮</option>
-                  <option value="2000">橫山鄉</option>
-                  <option value="2000">北埔鄉</option>
-                  <option value="2000">尖石鄉</option>
-                  <option value="2000">五峰鄉</option>
-                  <option value="2000">寶山鎮</option>
-                  <option value="2000">香山區</option>
-                  <option value="2000">造橋鎮</option>
-                  <option value="2000">峨嵋鄉</option>
-                  <option value="2000">三灣鄉</option>
-                  <option value="2000">芎林鄉</option>
-                  <option value="2000">頭屋鄉</option>
-                  <option value="2000">銅鑼鄉</option>
-                  <option value="2000">三義鄉</option>
-                  <option value="2000">通霄鎮</option>
-                  <option value="2000">苑裡鎮</option>
-                  <option value="2000">大湖鄉</option>
-                  <option value="2000">卓蘭鎮</option>
-                  <option value="2000">泰安鄉</option>
-                  <option value="2000">公館鄉</option>
-                  <option value="2000">竹南鎮</option>
-                </optgroup>
-                <optgroup label="📍 苗栗山區 - NT$4,000/方起">
-                  <option value="4000" style="color: #e74c3c">⛰️ 南莊鄉</option>
-                  <option value="4000" style="color: #e74c3c">⛰️ 獅潭鄉</option>
-                </optgroup>
-                <optgroup label="📍 台中 - NT$1,800/方起">
-                  <option value="1800">東勢區</option>
-                  <option value="1800">新社區</option>
-                  <option value="1800">石岡區</option>
-                  <option value="1800">和平區</option>
-                  <option value="1800">大雪山</option>
-                  <option value="1800">穀關</option>
-                  <option value="1800">水里鄉</option>
-                </optgroup>
-                <optgroup label="📍 彰化偏遠 - NT$1,800/方起">
-                  <option value="1800">伸港鄉</option>
-                  <option value="1800">線西鄉</option>
-                  <option value="1800">秀水鄉</option>
-                  <option value="1800">芬園鄉</option>
-                  <option value="1800">芳苑鄉</option>
-                  <option value="1800">大村鄉</option>
-                  <option value="1800">大城鄉</option>
-                  <option value="1800">竹塘鄉</option>
-                  <option value="1800">北斗鎮</option>
-                  <option value="1800">溪州鄉</option>
-                </optgroup>
-                <optgroup label="📍 南投一般偏遠 - NT$2,500/方起">
-                  <option value="2500">名間鄉</option>
-                </optgroup>
-                <optgroup label="📍 南投山區 - NT$4,000/方起">
-                  <option value="4000">竹山鎮</option>
-                  <option value="4000">鹿谷鄉</option>
-                  <option value="4000">集集鎮</option>
-                  <option value="4000">中寮鄉</option>
-                  <option value="4000">國姓鄉</option>
-                  <option value="4000">仁愛鄉</option>
-                  <option value="4000">信義鄉</option>
-                  <option value="4000">梨山</option>
-                  <option value="4000">奧萬大</option>
-                  <option value="4000">埔里</option>
-                </optgroup>
-                <optgroup label="📍 南投特殊 - NT$4,500/方起">
-                  <option value="4500" style="color: #e74c3c">⛰️ 魚池鄉</option>
-                </optgroup>
-                <optgroup label="📍 雲林偏遠 - NT$2,500/方起">
-                  <option value="2500">四湖鄉</option>
-                  <option value="2500">東勢鄉</option>
-                  <option value="2500">台西鄉</option>
-                  <option value="2500">古坑鄉</option>
-                  <option value="2500">口湖鄉</option>
-                  <option value="2500">崙背鄉</option>
-                  <option value="2500">麥寮鄉</option>
-                </optgroup>
-                <optgroup label="📍 嘉義偏遠 - NT$2,500/方起">
-                  <option value="2500">東石鄉</option>
-                  <option value="2500">六腳鄉</option>
-                  <option value="2500">竹崎鄉</option>
-                </optgroup>
-                <optgroup label="📍 嘉義沿海 - NT$3,000/方起">
-                  <option value="3000">布袋鎮</option>
-                </optgroup>
-                <optgroup label="📍 嘉義山區 - NT$5,000/方起">
-                  <option value="5000" style="color: #dc3545">⛰️ 阿里山</option>
-                  <option value="5000" style="color: #dc3545">⛰️ 梅山鄉</option>
-                  <option value="5000" style="color: #dc3545">⛰️ 番路</option>
-                  <option value="5000" style="color: #dc3545">⛰️ 中埔鄉</option>
-                  <option value="5000" style="color: #dc3545">⛰️ 大埔鄉</option>
-                </optgroup>
-                <optgroup label="📍 台南偏遠 - NT$2,500/方起">
-                  <option value="2500">白河區</option>
-                  <option value="2500">東山區</option>
-                  <option value="2500">大內區</option>
-                  <option value="2500">玉井區</option>
-                  <option value="2500">山上區</option>
-                  <option value="2500">龍崎區</option>
-                  <option value="2500">後壁區</option>
-                  <option value="2500">左鎮區</option>
-                </optgroup>
-                <optgroup label="📍 台南沿海 - NT$3,000/方起">
-                  <option value="3000">北門區</option>
-                  <option value="3000">將軍區</option>
-                  <option value="3000">七股區</option>
-                  <option value="3000">楠西區</option>
-                  <option value="3000">南化區</option>
-                </optgroup>
-                <optgroup label="📍 高雄偏遠 - NT$2,500/方起">
-                  <option value="2500">燕巢</option>
-                  <option value="2500">內門區</option>
-                  <option value="2500">大樹</option>
-                  <option value="2500">茄萣</option>
-                  <option value="2500">林園</option>
-                  <option value="2500">旗津</option>
-                  <option value="2500">杉林</option>
-                  <option value="2500">美濃</option>
-                  <option value="2500">永安</option>
-                  <option value="2500">阿蓮</option>
-                  <option value="2500">田寮</option>
-                  <option value="2500">旗山</option>
-                </optgroup>
-                <optgroup label="📍 高雄山區 - NT$4,500/方起">
-                  <option value="4500" style="color: #e74c3c">
-                    ⛰️ 那瑪夏區
-                  </option>
-                  <option value="4500" style="color: #e74c3c">⛰️ 桃源區</option>
-                  <option value="4auto" style="color: #e74c3c">⛰️ 茂林</option>
-                  <option value="4500" style="color: #e74c3c">⛰️ 甲仙</option>
-                  <option value="4500" style="color: #e74c3c">⛰️ 六龜</option>
-                </optgroup>
-                <optgroup label="📍 屏東全區 - NT$4,500/方起">
-                  <option value="4500" style="color: #ff6b6b">
-                    ⚠️ 屏東縣全區 (基本偏遠費)
-                  </option>
-                </optgroup>
-                <optgroup label="📍 屏東特別偏遠 - NT$7,000/方起">
-                  <option
-                    value="7000"
-                    style="color: #dc3545; font-weight: bold"
+              <div class="checkout-summary">
+                <div class="warning-box" id="shipment-warnings"></div>
+                <div class="total-box">
+                  預估運費：<span class="total-price"
+                    >NT$ <span id="shipment-total-cost">0</span></span
                   >
-                    🏝️ 小琉球 (琉球鄉)
-                  </option>
-                  <option value="7000" style="color: #dc3545">🏖️ 恆春</option>
-                  <option value="7000" style="color: #dc3545">🏖️ 墾丁</option>
-                  <option value="7000" style="color: #dc3545">🏖️ 鵝鑾鼻</option>
-                  <option value="7000" style="color: #dc3545">車城</option>
-                  <option value="7000" style="color: #dc3545">滿洲</option>
-                  <option value="7000" style="color: #dc3545">牡丹</option>
-                  <option value="7000" style="color: #dc3545">獅子</option>
-                  <option value="7000" style="color: #dc3545">枋山</option>
-                  <option value="7000" style="color: #dc3545">春日</option>
-                  <option value="7000" style="color: #dc3545">枋寮</option>
-                  <option value="7000" style="color: #dc3545">佳冬</option>
-                  <option value="7000" style="color: #dc3545">來義</option>
-                  <option value="7000" style="color: #dc3545">泰武</option>
-                  <option value="7000" style="color: #dc3545">瑪家</option>
-                  <option value="7000" style="color: #dc3545">霧臺</option>
-                  <option value="7000" style="color: #dc3545">三地門</option>
-                </optgroup>
-                <optgroup label="📍 東部地區">
-                  <option value="7000" style="color: #dc3545">
-                    宜蘭：南澳
-                  </option>
-                  <option value="7000" style="color: #dc3545">
-                    宜蘭：釣魚臺
-                  </option>
-                  <option value="4500" style="color: #ff6b6b">
-                    ⚠️ 宜蘭其他地區 (NT$4,500/方起，詳情請詢問客服)
-                  </option>
-                  <option value="4500" style="color: #ff6b6b">
-                    ⚠️ 花蓮全區 (NT$4,500/方起，詳情請詢問客服)
-                  </option>
-                  <option value="4500" style="color: #ff6b6b">
-                    ⚠️ 台東全區 (NT$4,500/方起，詳情請詢問客服)
-                  </option>
-                </optgroup>
-              </select>
-              <div id="ship-remote-area-info" style="display: none">
-                <strong>您選擇的地區：</strong>
-                <span id="ship-selected-area-name"></span><br />
-                <strong>偏遠地區費用：</strong>
-                <span
-                  id="ship-selected-area-fee"
-                  style="color: #e74c3c; font-weight: bold"
-                ></span>
+                  <small id="shipment-fee-notice"></small>
+                </div>
               </div>
             </div>
-            <div class="form-group">
-              <label for="ship-street-address" class="required"
-                >詳細地址 (路/巷/弄/號)</label
-              >
-              <input
-                type="text"
-                id="ship-street-address"
-                class="form-control"
-                placeholder="例如：中正路一段100號5樓"
-                required
-              />
-            </div>
-            <div class="form-grid-2">
+
+            <div class="checkout-info-form">
+              <h4>📝 收件資訊</h4>
               <div class="form-group">
-                <label for="ship-idNumber" class="required">身分證字號</label>
-                <input type="text" id="ship-idNumber" required />
+                <label class="required">收件人</label
+                ><input type="text" id="ship-name" required />
               </div>
               <div class="form-group">
-                <label for="ship-taxId">統一編號 (若需開立統編請填)</label>
-                <input
-                  type="text"
-                  id="ship-taxId"
+                <label class="required">電話</label
+                ><input type="tel" id="ship-phone" required />
+              </div>
+
+              <div class="form-group">
+                <label class="required">配送地區 (含偏遠費)</label>
+                <div class="search-box-mini">
+                  <input
+                    type="text"
+                    id="ship-area-search"
+                    placeholder="搜尋地區..."
+                  />
+                  <div id="ship-search-results" class="search-dropdown"></div>
+                </div>
+                <select
+                  id="ship-delivery-location"
                   class="form-control"
-                  placeholder="8碼統編"
-                />
-              </div>
-              <div class="form-group">
-                <label for="ship-invoiceTitle"
-                  >發票抬頭 (選填，公司戶建議填寫)</label
+                  required
                 >
-                <input
-                  type="text"
-                  id="ship-invoiceTitle"
-                  class="form-control"
-                  placeholder="公司名稱或買受人名稱"
-                />
+                  <option value="" selected disabled>--- 載入中 ---</option>
+                </select>
+                <div
+                  id="ship-remote-area-info"
+                  class="area-info-box"
+                  style="display: none"
+                >
+                  選定：<span id="ship-selected-area-name"></span> (<span
+                    id="ship-selected-area-fee"
+                    class="fee-text"
+                  ></span
+                  >)
+                </div>
               </div>
-            </div>
-
-            <div
-              style="
-                margin-top: 20px;
-                padding-top: 20px;
-                border-top: 1px dashed #ccc;
-              "
-            >
-              <h4 style="margin-top: 0; color: #e67e22">
-                🛒 商品證明 (必填其一)
-              </h4>
 
               <div class="form-group">
-                <label for="ship-product-url">商品購買連結 (網址)</label>
+                <label class="required">詳細地址</label
+                ><input
+                  type="text"
+                  id="ship-street-address"
+                  placeholder="路/街/號/樓"
+                  required
+                />
+              </div>
+
+              <div class="form-row">
+                <div class="form-group half">
+                  <label class="required">身分證</label
+                  ><input type="text" id="ship-idNumber" required />
+                </div>
+                <div class="form-group half">
+                  <label>統編 (選填)</label
+                  ><input type="text" id="ship-taxId" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label>發票抬頭</label
+                ><input type="text" id="ship-invoiceTitle" />
+              </div>
+
+              <div class="proof-section">
+                <label>🛒 商品證明 (必填其一)</label>
                 <input
                   type="url"
                   id="ship-product-url"
-                  class="form-control"
-                  placeholder="例如：https://item.taobao.com/..."
+                  placeholder="購買連結網址"
                 />
-              </div>
-
-              <div
-                style="
-                  text-align: center;
-                  color: #888;
-                  margin: 10px 0;
-                  font-size: 14px;
-                "
-              >
-                —— 或 ——
+                <div class="or-divider">或</div>
+                <label class="file-upload-box">
+                  <span>上傳訂單截圖</span>
+                  <input
+                    type="file"
+                    id="ship-product-images"
+                    multiple
+                    accept="image/*"
+                  />
+                </label>
               </div>
 
               <div class="form-group">
-                <label for="ship-product-images"
-                  >上傳商品照片 (截圖或實拍)</label
-                >
-                <input
-                  type="file"
-                  id="ship-product-images"
-                  class="form-control"
-                  multiple
-                  accept="image/*"
-                />
-
-                <p
-                  style="
-                    color: red;
-                    font-weight: bold;
-                    margin-top: 8px;
-                    font-size: 15px;
-                    background: #ffecec;
-                    padding: 5px;
-                    border-radius: 4px;
-                  "
-                >
-                  ⚠️ 商品照片不是入庫照片，請上傳您的訂單截圖或商品實物照
-                </p>
+                <label>備註</label><input type="text" id="ship-note" />
               </div>
-            </div>
-
-            <div class="form-group">
-              <label for="ship-note">備註 (給管理員的留言)</label>
-              <textarea
-                id="ship-note"
-                class="form-control"
-                rows="2"
-                placeholder="例如：請幫我加強包裝..."
-              ></textarea>
             </div>
           </div>
 
-          <button type="submit" class="btn btn-primary">確認送出集運單</button>
+          <div class="modal-footer">
+            <button
+              type="submit"
+              class="btn btn-primary btn-block btn-place-order"
+            >
+              提交訂單
+            </button>
+          </div>
         </form>
       </div>
     </div>
 
-    <div id="view-images-modal" class="modal-overlay" style="display: none">
-      <div class="modal-content">
-        <button class="modal-close">&times;</button>
-        <h2>包裹倉庫照片</h2>
-        <div id="images-gallery" class="image-gallery"></div>
-        <div class="text-center" style="margin-top: 20px">
-          <button class="btn btn-primary modal-close-btn">關閉</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="fee-details-modal" class="modal-overlay" style="display: none">
-      <div class="modal-content">
-        <button class="modal-close">&times;</button>
-        <h2
-          style="
-            color: #1a73e8;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-          "
-        >
-          運費計算詳情
-        </h2>
-        <div
-          id="fee-details-content"
-          style="line-height: 1.8; font-size: 15px; color: #333"
-        ></div>
-        <div class="text-center" style="margin-top: 20px">
-          <button class="btn btn-primary modal-close-btn">我知道了</button>
-        </div>
-      </div>
-    </div>
-
     <div id="bank-info-modal" class="modal-overlay" style="display: none">
-      <div class="modal-content">
+      <div class="modal-content success-modal">
         <button class="modal-close">&times;</button>
-        <h2 style="text-align: center; color: #1a73e8">🎉 集運單建立成功！</h2>
-        <div
-          style="
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #ddd;
-            margin-top: 15px;
-          "
-        >
-          <p style="margin-bottom: 10px; font-weight: bold; color: #555">
-            請匯款至以下帳戶：
-          </p>
-          <ul
-            id="bank-info-list"
-            style="
-              list-style: none;
-              padding: 0;
-              line-height: 2;
-              font-size: 1.1em;
-            "
-          >
-            <li>
-              🏦 <strong>銀行：</strong>
-              <span id="bank-name">第一銀行 (007) 台南分行</span>
-            </li>
-            <li>
-              💰 <strong>帳號：</strong>
-              <span id="bank-account" style="color: #d32f2f; font-weight: bold"
-                >60110066477</span
-              >
-            </li>
-            <li>
-              👤 <strong>戶名：</strong>
-              <span id="bank-holder">跑得快國際貿易有限公司</span>
-            </li>
-          </ul>
+        <div class="success-icon"><i class="fas fa-check-circle"></i></div>
+        <h3>訂單建立成功！</h3>
 
+        <div class="bank-details">
+          <p>請匯款至：</p>
+          <div class="bank-card">
+            <div class="bank-row">
+              <span>銀行：</span><span id="bank-name">第一銀行 (007)</span>
+            </div>
+            <div class="bank-row">
+              <span>帳號：</span
+              ><span id="bank-account" class="copy-target">60110066477</span>
+            </div>
+            <div class="bank-row">
+              <span>戶名：</span><span id="bank-holder">跑得快國際貿易</span>
+            </div>
+          </div>
           <button
-            type="button"
             id="btn-copy-bank-info"
-            class="btn btn-secondary"
-            style="width: 100%; margin-top: 15px; background-color: #1abc9c"
+            class="btn btn-outline-success btn-sm"
           >
-            一鍵複製匯款資訊
+            複製資訊
           </button>
         </div>
-        <p style="font-weight: bold; color: #d32f2f">
-          匯款後請回傳轉帳憑證，並填寫電子信箱
-        </p>
-        <p style="font-weight: bold; color: #d32f2f; margin-top: 10px">
-          待財務核對後無誤後，馬上為您安排裝櫃
-        </p>
-        <p style="color: #e74c3c; font-weight: 500; margin-top: 15px">
-          🔺 傢俱、玻璃、陶瓷、大理石、岩板等，請廠家加強保護，破損不理賠！
-        </p>
-        <p style="margin-top: 10px">
-          🔺
-          海運派送到台灣指定地點(不上樓、不進門)，其他可加價上樓服務，重物請協助。
-        </p>
-        <p style="margin-top: 10px">
-          🔺
-          超重貨物請自行聯繫台灣端堆高機業者，費用由客戶支付，若需要堆高機聯繫方式可詢問司機。
-        </p>
-        <p style="margin-top: 10px">
-          🔺 易碎品原則上不承運，如客戶自行加強包裝，並自願承擔破碎風險者例外。
-        </p>
-        <p style="margin-top: 10px">🔺 保丟不保損，以上請知悉。</p>
-        <p
-          style="
-            margin-top: 15px;
-            font-weight: bold;
-            color: #27ae60;
-            font-size: 1.1em;
-          "
-        >
-          ☑️ 付款完成即表示同意上述說明。
-        </p>
-        <div class="text-center" style="margin-top: 20px">
+
+        <div class="modal-footer">
           <button class="btn btn-primary modal-close-btn">我知道了</button>
         </div>
       </div>
@@ -731,24 +397,13 @@
     <div id="upload-proof-modal" class="modal-overlay" style="display: none">
       <div class="modal-content">
         <button class="modal-close">&times;</button>
-        <h2>上傳付款憑證</h2>
+        <h3>上傳付款憑證</h3>
         <input type="hidden" id="upload-proof-id" />
         <form id="upload-proof-form">
           <div class="form-group">
-            <label>請上傳匯款截圖或收據照片</label>
             <input type="file" id="proof-file" accept="image/*" required />
           </div>
-          <div
-            id="proof-preview"
-            style="margin-top: 10px; text-align: center"
-          ></div>
-          <button
-            type="submit"
-            class="btn btn-primary"
-            style="margin-top: 15px"
-          >
-            確認上傳
-          </button>
+          <button type="submit" class="btn btn-primary">上傳</button>
         </form>
       </div>
     </div>
@@ -756,122 +411,29 @@
     <div id="package-details-modal" class="modal-overlay" style="display: none">
       <div class="modal-content modal-lg">
         <button class="modal-close">&times;</button>
-        <h2>包裹詳情</h2>
-
-        <div class="form-section" style="padding: 15px; background: #fdfdfd">
-          <h4 style="margin-top: 0">分箱明細</h4>
-
-          <div
-            id="details-boxes-list"
-            style="max-height: 250px; overflow-y: auto; padding-right: 10px"
-          ></div>
-
-          <div
-            class="detail-summary"
-            style="
-              border-top: 2px solid #ddd;
-              padding-top: 15px;
-              margin-top: 15px;
-            "
-          >
-            <strong>總計：</strong>
-            <span id="details-total-boxes">0</span> 箱,
-            <span id="details-total-weight">0.0</span> kg, 總運費
-            <span id="details-total-fee">NT$ 0</span>
-          </div>
+        <h3>包裹入庫詳情</h3>
+        <div id="details-boxes-list" class="box-list"></div>
+        <div class="detail-total-row">
+          <span>總重：<span id="details-total-weight"></span> kg</span>
+          <span>運費：<span id="details-total-fee" class="price"></span></span>
         </div>
-
-        <div class_="form-section" style="padding: 15px; background: #fdfdfd">
-          <h4 style="margin-top: 0">倉庫照片</h4>
-          <div id="details-images-gallery" class="image-gallery"></div>
-        </div>
-
+        <hr />
+        <h4>倉庫實拍</h4>
+        <div id="details-images-gallery" class="gallery-grid"></div>
         <button
-          type="button"
-          class="btn btn-primary modal-close-btn"
-          style="width: 100%"
+          class="btn btn-light modal-close-btn"
+          style="margin-top: 15px; width: 100%"
         >
           關閉
         </button>
       </div>
     </div>
 
-    <div
-      id="shipment-details-modal"
-      class="modal-overlay"
-      style="display: none"
-    >
-      <div class="modal-content modal-lg">
+    <div id="view-images-modal" class="modal-overlay" style="display: none">
+      <div class="modal-content">
         <button class="modal-close">&times;</button>
-        <h2
-          style="
-            color: #1a73e8;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-          "
-        >
-          集運單詳情
-        </h2>
-
-        <div class="shipment-details-grid">
-          <div class="form-section">
-            <h4 style="margin-top: 0">📝 收件人資訊</h4>
-            <div class="info-grid-simple">
-              <p>
-                <strong>收件人:</strong> <span id="detail-ship-name">-</span>
-              </p>
-              <p>
-                <strong>連絡電話:</strong> <span id="detail-ship-phone">-</span>
-              </p>
-              <p>
-                <strong>身分證號:</strong> <span id="detail-ship-id"></span>
-              </p>
-              <p>
-                <strong>收件地址:</strong>
-                <span id="detail-ship-address">-</span>
-              </p>
-              <p>
-                <strong>客戶備註:</strong>
-                <span id="detail-ship-note" style="color: #d32f2f">-</span>
-              </p>
-            </div>
-          </div>
-
-          <div class="form-section">
-            <h4 style="margin-top: 0">🚚 物流與付款</h4>
-            <div class="info-grid-simple">
-              <p>
-                <strong>訂單狀態:</strong>
-                <span id="detail-ship-status" class="status-badge">-</span>
-              </p>
-              <p>
-                <strong>總運費:</strong>
-                <span
-                  id="detail-ship-cost"
-                  style="font-weight: bold; color: #d32f2f; font-size: 1.2em"
-                  >-</span
-                >
-              </p>
-              <p>
-                <strong>付款憑證:</strong>
-                <span id="detail-ship-payment">-</span>
-              </p>
-              <p>
-                <strong>備註:</strong>
-                <span id="detail-ship-tw-tracking">-</span>
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div class="form-section" style="margin-top: 15px; background: #fdfdfd">
-          <h4 style="margin-top: 0">📦 包含包裹清單</h4>
-          <div id="detail-package-list"></div>
-        </div>
-
-        <div class="text-center" style="margin-top: 20px">
-          <button class="btn btn-primary modal-close-btn">關閉</button>
-        </div>
+        <h3>照片瀏覽</h3>
+        <div id="images-gallery" class="gallery-grid"></div>
       </div>
     </div>
 

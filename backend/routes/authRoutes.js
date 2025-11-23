@@ -1,4 +1,5 @@
-// 這是 authRoutes.js (路由)
+// backend/routes/authRoutes.js (V9 完整版 - 含忘記密碼路由)
+
 const express = require("express");
 const router = express.Router();
 
@@ -7,23 +8,26 @@ const {
   registerUser,
   loginUser,
   getMe,
-  updateMe, // <-- 匯入新函式
+  updateMe,
+  forgotPassword, // [New]
+  resetPassword, // [New]
 } = require("../controllers/authController");
 
-// 2. 匯入我們的「保全」中介軟體
+// 2. 匯入保全中介軟體
 const { protect } = require("../middleware/authMiddleware.js");
 
-// 3. 建立路由規則
+// 3. --- 設定路由 ---
 
-// "公開" 路由 (不需要 Token)
+// 註冊與登入 (公開)
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 
-// "保護" 路由 (必須要有合法的 Token)
-// GET /api/auth/me -> 取得資料
-// PUT /api/auth/me -> 更新資料
-// (這與 RUNPIGGY-V2 的 customerRoutes.js /profile 邏輯一致)
-router.route("/me").get(protect, getMe).put(protect, updateMe); // <-- 新增
+// 忘記密碼流程 (公開)
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password/:token", resetPassword);
 
-// 匯出這個 router
+// 會員個人資料 (受保護)
+// GET: 取得資料, PUT: 更新資料
+router.route("/me").get(protect, getMe).put(protect, updateMe);
+
 module.exports = router;

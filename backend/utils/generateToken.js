@@ -1,15 +1,24 @@
-// 這是 backend/utils/generateToken.js
+// backend/utils/generateToken.js (V10 優化版 - 支援權限 Payload)
 
 const jwt = require("jsonwebtoken");
 
-// 這是一個函式，專門用來產生 Token
-// 它需要傳入一個 userId
-const generateToken = (id) => {
-  // jwt.sign() 是 'jsonwebtoken' 的功能
+/**
+ * 產生 JWT Token
+ * @param {string} id - 使用者 ID
+ * @param {object} [payload={}] - 額外的 Payload 資料 (例如 permissions)
+ * @returns {string} JWT Token
+ */
+const generateToken = (id, payload = {}) => {
+  // 合併基本 ID 與額外資料
+  const tokenPayload = {
+    id,
+    ...payload, // 允許將 permissions 等資訊放入 Token，減少 DB 查詢
+  };
+
   return jwt.sign(
-    { id }, // 這是我們要加密的資料 (payload)
-    process.env.JWT_SECRET, // 這是我們在 .env 裡設定的秘密鑰匙
-    { expiresIn: "30d" } // 設定通行證的有效期限 (例如 30 天)
+    tokenPayload,
+    process.env.JWT_SECRET,
+    { expiresIn: "30d" } // Token 有效期
   );
 };
 

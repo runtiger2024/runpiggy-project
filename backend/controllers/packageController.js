@@ -1,8 +1,32 @@
-// backend/controllers/packageController.js (V8 完整版 - 支援圖片 CRUD)
+// backend/controllers/packageController.js (V9 優化版 - 整合檔案管理)
 
 const prisma = require("../config/db.js");
 const fs = require("fs");
 const path = require("path");
+
+// --- 輔助函式：安全刪除多個檔案 ---
+const deleteFiles = (filePaths) => {
+  if (!Array.isArray(filePaths) || filePaths.length === 0) return;
+
+  const uploadDir = path.join(__dirname, "../public/uploads");
+
+  filePaths.forEach((filePath) => {
+    try {
+      // 確保只處理 uploads 目錄下的檔案，防止路徑遍歷
+      const fileName = path.basename(filePath);
+      if (!fileName) return;
+
+      const absolutePath = path.join(uploadDir, fileName);
+
+      // 檢查檔案是否存在再刪除
+      if (fs.existsSync(absolutePath)) {
+        fs.unlinkSync(absolutePath);
+      }
+    } catch (err) {
+      console.warn(`[File Warning] 刪除檔案失敗 (${filePath}):`, err.message);
+    }
+  });
+};
 
 /**
  * @description 包裹預報 (支援純 JSON 或 FormData 圖片上傳)
@@ -20,10 +44,9 @@ const createPackageForecast = async (req, res) => {
     }
 
     // 處理上傳的圖片
-    let imagePaths = "[]";
+    let imagePaths = [];
     if (req.files && req.files.length > 0) {
-      const paths = req.files.map((file) => `/uploads/${file.filename}`);
-      imagePaths = JSON.stringify(paths);
+      imagePaths = req.files.map((file) => `/uploads/${file.filename}`);
     }
 
     const newPackage = await prisma.package.create({
@@ -32,9 +55,10 @@ const createPackageForecast = async (req, res) => {
         productName: productName,
         quantity: quantity ? parseInt(quantity) : 1,
         note: note,
-        productImages: imagePaths, // 儲存圖片路徑陣列
+        productImages: JSON.stringify(imagePaths), // 儲存圖片路徑陣列
         warehouseImages: "[]", // 倉庫圖片預設為空
         userId: userId,
+        status: "PENDING",
       },
     });
 
@@ -82,7 +106,7 @@ const getMyPackages = async (req, res) => {
         productImages,
         warehouseImages,
         arrivedBoxes,
-        arrivedBoxesJson: undefined, // 移除原始 JSON 字串
+        arrivedBoxesJson: undefined, // 移除原始 JSON 字串，保持回應乾淨
       };
     });
 
@@ -132,7 +156,8 @@ const updateMyPackage = async (req, res) => {
 
     let keepImagesList = [];
     try {
-      keepImagesList = JSON.parse(existingImages || "[]");
+      // existingImages 若為空字串或 undefined，parse 會報錯，需處理
+      keepImagesList = existingImages ? JSON.parse(existingImages) : [];
       if (!Array.isArray(keepImagesList)) keepImagesList = [];
     } catch (e) {
       keepImagesList = [];
@@ -142,24 +167,9 @@ const updateMyPackage = async (req, res) => {
     const imagesToDelete = originalImagesList.filter(
       (img) => !keepImagesList.includes(img)
     );
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
 
-    imagesToDelete.forEach((imgUrl) => {
-      try {
-        const filename = imgUrl.split("/").pop();
-        if (filename) {
-          const absolutePath = path.join(uploadDir, filename);
-          if (fs.existsSync(absolutePath)) {
-            fs.unlink(absolutePath, (err) => {
-              if (err)
-                console.warn(`刪除舊圖失敗 (不影響流程): ${err.message}`);
-            });
-          }
-        }
-      } catch (err) {
-        console.warn(`處理刪除圖片錯誤: ${err.message}`);
-      }
-    });
+    // 使用輔助函式刪除舊圖
+    deleteFiles(imagesToDelete);
 
     // 3. 加入新上傳的圖片
     if (req.files && req.files.length > 0) {
@@ -219,26 +229,21 @@ const deleteMyPackage = async (req, res) => {
         .json({ success: false, message: "包裹已入庫或處理中，無法刪除" });
     }
 
-    // 1. 物理刪除圖片
+    // 1. 物理刪除圖片 (會員上傳的)
+    let productImages = [];
     try {
-      const imgs = JSON.parse(pkg.productImages || "[]");
-      imgs.forEach((imgUrl) => {
-        const filename = imgUrl.split("/").pop();
-        if (filename) {
-          const filePath = path.join(
-            process.cwd(),
-            "public",
-            "uploads",
-            filename
-          );
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        }
-      });
-    } catch (e) {
-      console.warn("刪除圖片時發生錯誤:", e.message);
-    }
+      productImages = JSON.parse(pkg.productImages || "[]");
+    } catch (e) {}
 
-    // 2. 刪除資料庫紀錄
+    // 2. 物理刪除倉庫圖片 (理論上 PENDING 狀態不應有，但保險起見)
+    let warehouseImages = [];
+    try {
+      warehouseImages = JSON.parse(pkg.warehouseImages || "[]");
+    } catch (e) {}
+
+    deleteFiles([...productImages, ...warehouseImages]);
+
+    // 3. 刪除資料庫紀錄
     await prisma.package.delete({
       where: { id: id },
     });

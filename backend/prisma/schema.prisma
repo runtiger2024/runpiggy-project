@@ -1,4 +1,4 @@
-// 這是 backend/prisma/schema.prisma (V4 系統設定版)
+// backend/prisma/schema.prisma (V5 完整優化版)
 
 generator client {
   provider = "prisma-client-js"
@@ -11,50 +11,62 @@ datasource db {
 
 // --- 1. 會員 (客戶) 資料模型 ---
 model User {
-  id             String     @id @default(cuid())
-  email          String     @unique
-  passwordHash   String
-  name           String?
-  phone          String?
-  defaultAddress String?
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  passwordHash        String
+  name                String?
+  phone               String?
+  defaultAddress      String?
   
-  // 用 permissions 陣列取代 role，儲存如 ["CAN_MANAGE_USERS", "CAN_VIEW_LOGS"]
-  permissions    String     @default("[]") 
+  // 權限控制 (JSON 陣列字串，如 ["CAN_MANAGE_USERS"])
+  permissions         String    @default("[]") 
+  
+  // 帳號狀態
+  isActive            Boolean   @default(true) 
 
-  isActive       Boolean    @default(true) 
+  // 忘記密碼欄位 [New]
+  resetPasswordToken  String?
+  resetPasswordExpire DateTime?
 
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  packages       Package[]
-  shipments      Shipment[]
-  activityLogs   ActivityLog[] 
+  // 關聯
+  packages            Package[]
+  shipments           Shipment[]
+  activityLogs        ActivityLog[] 
 }
 
 // --- 2. 包裹 (預報) 資料模型 ---
 model Package {
-  id                 String    @id @default(cuid())
+  id                  String    @id @default(cuid())
   
-  trackingNumber     String    
-  productName        String    
-  quantity           Int       @default(1)
-  note               String?
-  productImages      String    @default("[]") // JSON 陣列字串
-  status             String    @default("PENDING") 
-
-  arrivedBoxesJson   String?   @default("[]") // 倉庫測量的分箱數據 JSON
-  totalCalculatedFee Float?
-  warehouseImages    String    @default("[]") // 倉庫拍攝的照片 JSON
-  warehouseRemark    String?
+  trackingNumber      String    
+  productName         String    
+  quantity            Int       @default(1)
+  note                String?
   
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @default(now()) @updatedAt
+  // 圖片儲存 (JSON 字串陣列)
+  productImages       String    @default("[]") 
+  warehouseImages     String    @default("[]") 
+  warehouseThumbnails String    @default("[]") // [New] 縮圖路徑，優化前端載入
 
-  userId             String
-  user               User      @relation(fields: [userId], references: [id])
+  status              String    @default("PENDING") 
+  
+  // 倉庫數據
+  arrivedBoxesJson    String?   @default("[]") // 分箱數據 JSON
+  totalCalculatedFee  Float?
+  warehouseRemark     String?
 
-  shipmentId         String?
-  shipment           Shipment? @relation(fields: [shipmentId], references: [id])
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  // 關聯
+  userId              String
+  user                User      @relation(fields: [userId], references: [id])
+
+  shipmentId          String?
+  shipment            Shipment? @relation(fields: [shipmentId], references: [id])
 
   @@index([userId])
   @@index([shipmentId])
@@ -62,40 +74,42 @@ model Package {
 
 // --- 3. 集運單資料模型 ---
 model Shipment {
-  id                   String    @id @default(cuid())
+  id                    String    @id @default(cuid())
   
-  recipientName        String
-  phone                String
-  shippingAddress      String
-  idNumber             String    
-  taxId                String?   // 統一編號
-  invoiceTitle         String?   // 發票抬頭
+  // 收件資訊
+  recipientName         String
+  phone                 String
+  shippingAddress       String
+  idNumber              String    
+  taxId                 String?   // 統編
+  invoiceTitle          String?   // 發票抬頭
   
-  note                 String?
-  additionalServices   String?   // JSON 物件字串
-  deliveryLocationRate Float?    
+  note                  String?
+  additionalServices    String?   // JSON
+  deliveryLocationRate  Float?
   
-  status               String    @default("PENDING_PAYMENT") 
-  totalCost            Float?
-  trackingNumberTW     String?   
-  paymentProof         String?
+  status                String    @default("PENDING_PAYMENT") 
+  totalCost             Float?
+  trackingNumberTW      String?   
+  paymentProof          String?
 
-  // 發票相關欄位
-  invoiceNumber        String?   // 發票號碼 (例如 AB12345678)
-  invoiceDate          DateTime? // 開立時間
-  invoiceRandomCode    String?   // 隨機碼
-  invoiceStatus        String?   // 狀態 (ISSUED, FAILED)
+  // 發票相關
+  invoiceNumber         String?
+  invoiceDate           DateTime?
+  invoiceRandomCode     String?
+  invoiceStatus         String?
 
-  // 商品證明
-  productUrl           String?   // 購買連結
-  shipmentProductImages String?  @default("[]") // 商品照片 (JSON陣列)   
+  // 商品證明 [New]
+  productUrl            String?
+  shipmentProductImages String?   @default("[]")
 
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @default(now()) @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
 
-  userId               String
-  user                 User      @relation(fields: [userId], references: [id])
-  packages             Package[] 
+  // 關聯
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id])
+  packages              Package[] 
 
   @@index([userId])
 }
@@ -104,7 +118,7 @@ model Shipment {
 model CalculationQuote {
   id                String    @id @default(cuid())
   createdAt         DateTime  @default(now())
-  calculationResult String    // 儲存當下的計算結果 JSON
+  calculationResult String    // JSON
 }
 
 // --- 5. 操作日誌 (Audit Log) ---
@@ -124,11 +138,10 @@ model ActivityLog {
   @@index([action])
 }
 
-// --- 6. [新增] 系統全域設定 (System Settings) ---
-// 用於儲存運費費率、銀行帳號、公告等設定，取代寫死的 JSON 檔案
+// --- 6. 系統全域設定 (System Settings) ---
 model SystemSetting {
-  key         String   @id  // 設定鍵名 (如: "rates_config", "bank_info")
-  value       String        // 設定內容 (通常是 JSON 字串)
-  description String?       // 用途說明
+  key         String   @id  // e.g., "rates_config", "announcement"
+  value       String        // JSON string
+  description String?
   updatedAt   DateTime @updatedAt
 }

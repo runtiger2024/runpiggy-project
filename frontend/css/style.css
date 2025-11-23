@@ -1,196 +1,139 @@
-/* frontend/css/style.css - 結構優化版 */
+/* frontend/css/style.css */
+/* 全站基礎樣式 (Base & Global Components) */
 
 /* =========================================
-   1. 全域設定 & 基礎樣式 (Global & Reset)
+   1. 基礎變數與重置 (Variables & Reset)
    ========================================= */
+:root {
+  --primary-color: #1a73e8; /* 品牌藍 */
+  --primary-hover: #1558b8;
+  --secondary-color: #f39c12; /* 警告/次要橘 */
+  --danger-color: #e74c3c; /* 錯誤紅 */
+  --success-color: #28a745; /* 成功綠 */
+  --text-color: #333;
+  --text-grey: #666;
+  --border-color: #ddd;
+  --bg-light: #f8f9fa;
+  --radius-base: 5px;
+}
+
 * {
   box-sizing: border-box;
 }
 
-html {
-  scroll-behavior: smooth;
-}
-
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background-color: #f4f7f9;
-  color: #333;
-  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei",
+    "Segoe UI", Roboto, sans-serif;
+  color: var(--text-color);
+  line-height: 1.6;
   margin: 0;
-  overflow-x: hidden;
+  background-color: #f4f7f9;
 }
 
-h1 {
-  text-align: center;
-  color: #1a73e8;
-  margin-bottom: 30px;
-}
-
+h1,
 h2,
 h3,
 h4 {
-  color: #333;
+  margin-bottom: 15px;
+  font-weight: 600;
 }
 
-hr {
-  border: none;
-  border-top: 1px solid #eee;
-  margin: 20px 0;
+a {
+  text-decoration: none;
+  color: var(--primary-color);
+  transition: 0.2s;
+}
+a:hover {
+  color: var(--primary-hover);
 }
 
 img {
   max-width: 100%;
-  height: auto;
-}
-
-/* =========================================
-   2. 佈局容器 (Layout)
-   ========================================= */
-.container {
-  max-width: 800px;
-  margin: 0 auto;
-  background-color: #fff;
-  padding: 30px;
-  border-radius: 10px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-}
-
-.header-logo {
   display: block;
-  margin: 0 auto 20px auto;
-  max-width: 150px;
 }
 
 /* =========================================
-   3. 通用元件 (Components)
+   2. 共用元件 (Components)
    ========================================= */
 
-/* --- 3.1 導航列 (User Navigation) --- */
-.main-nav {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 30px;
-  flex-wrap: wrap;
-}
-
-.nav-link {
-  padding: 10px 20px;
-  text-decoration: none;
-  color: #555;
-  font-weight: 500;
-  border-radius: 5px;
-  transition: all 0.3s ease;
-  background-color: #fff;
-  border: 1px solid #ddd;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.nav-link.active {
-  background-color: #1a73e8;
-  color: white;
-  border-color: #1a73e8;
-  box-shadow: 0 2px 5px rgba(26, 115, 232, 0.3);
-}
-
-.nav-link:hover {
-  background-color: #f0f0f0;
-  border-color: #ccc;
-}
-.nav-link.active:hover {
-  background-color: #1558b8;
-  border-color: #1558b8;
-}
-
-.nav-link.btn-logout {
-  background-color: #7f8c8d;
-  color: white;
-  border-color: #7f8c8d;
-}
-.nav-link.btn-logout:hover {
-  background-color: #c0392b;
-  border-color: #c0392b;
-}
-
-/* --- 3.2 按鈕 (Buttons) --- */
+/* --- 按鈕 (Buttons) --- */
 .btn {
-  padding: 12px 25px;
-  font-size: 16px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  width: 100%;
-  transition: background-color 0.3s, opacity 0.3s;
-  text-align: center;
-  text-decoration: none;
   display: inline-block;
+  padding: 10px 20px;
+  font-size: 15px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-base);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.3s ease;
+  width: 100%; /* 預設全寬，特定區塊再改 */
 }
 
-.btn:disabled {
-  background-color: #95a5a6 !important;
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
+/* 主按鈕 (藍色實心) */
 .btn-primary {
-  background-color: #1a73e8;
+  background-color: var(--primary-color);
   color: white;
 }
 .btn-primary:hover {
-  background-color: #1558b8;
+  background-color: var(--primary-hover);
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.3);
 }
 
+/* 次要按鈕 (橘色實心) */
 .btn-secondary {
-  background-color: #f39c12;
+  background-color: var(--secondary-color);
   color: white;
-  margin-top: 10px;
 }
 .btn-secondary:hover {
   background-color: #e67e22;
 }
 
+/* 危險按鈕 */
 .btn-danger {
-  background-color: #e74c3c;
+  background-color: var(--danger-color);
   color: white;
 }
 .btn-danger:hover {
   background-color: #c0392b;
 }
 
-.btn-share {
-  background-color: #f39c12;
+/* 描邊按鈕 (Outline) */
+.btn-outline-primary {
+  background: transparent;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+.btn-outline-primary:hover {
+  background: var(--primary-color);
   color: white;
-  margin-top: 15px;
-}
-.btn-share:hover {
-  background-color: #e67e22;
 }
 
-/* 表格內的小按鈕 */
-td .btn {
-  width: auto;
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #95a5a6 !important;
+}
+
+.btn-sm {
   padding: 5px 10px;
-  font-size: 14px;
-  margin-right: 5px;
-  margin-top: 0;
+  font-size: 13px;
+  width: auto; /* 小按鈕自動寬度 */
 }
 
-/* --- 3.3 表單元素 (Forms) --- */
+/* --- 表單 (Forms) --- */
 .form-group {
   margin-bottom: 15px;
 }
-
-.form-group label {
+label {
   display: block;
   margin-bottom: 5px;
+  font-weight: 500;
   font-size: 14px;
-  color: #666;
 }
-
-.form-group .required {
-  color: #e74c3c;
+.required::after {
+  content: "*";
+  color: var(--danger-color);
+  margin-left: 3px;
 }
 
 .form-control,
@@ -202,76 +145,89 @@ input[type="tel"],
 select,
 textarea {
   width: 100%;
-  padding: 10px;
+  padding: 10px 12px;
   border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 16px;
+  border-radius: var(--radius-base);
+  font-size: 15px;
   background-color: #fff;
+  transition: border 0.2s;
 }
 
-input[type="file"] {
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  width: 100%;
+.form-control:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
 }
 
-textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-.form-grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-}
-
-.form-grid-3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 15px;
-}
-
-.form-grid-4 {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-}
-
-/* --- 3.4 提示訊息 (Alerts) --- */
+/* --- 提示框 (Alerts) --- */
 .alert {
-  padding: 15px;
-  border-radius: 5px;
-  margin-top: 20px;
+  padding: 12px 15px;
+  border-radius: var(--radius-base);
   margin-bottom: 20px;
-  display: none;
+  font-size: 14px;
 }
 .alert-error {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+  background-color: #ffecec;
+  color: #d63031;
+  border: 1px solid #fab1a0;
 }
 .alert-success {
-  background-color: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
+  background-color: #e3fcef;
+  color: #00b894;
+  border: 1px solid #55efc4;
 }
 
-/* --- 3.5 載入動畫 (Loader) --- */
-#loading-spinner,
-.loading {
+/* --- 狀態標籤 (Badges) --- */
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+/* 狀態顏色定義 (請保留既有邏輯) */
+.status-PENDING {
+  background: #fff3cd;
+  color: #856404;
+}
+.status-ARRIVED {
+  background: #d1e7dd;
+  color: #0f5132;
+}
+.status-IN_SHIPMENT,
+.status-SHIPPED {
+  background: #cff4fc;
+  color: #055160;
+}
+.status-COMPLETED {
+  background: #d4edda;
+  color: #155724;
+}
+.status-CANCELLED {
+  background: #f8d7da;
+  color: #721c24;
+}
+.status-PENDING_PAYMENT {
+  background: #ffeeba;
+  color: #856404;
+}
+
+/* --- 載入動畫 --- */
+.loading-overlay {
   text-align: center;
   padding: 20px;
 }
 .spinner {
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #1a73e8;
-  border-radius: 50%;
   width: 40px;
   height: 40px;
+  margin: 0 auto 10px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid var(--primary-color);
+  border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin: 0 auto 10px auto;
 }
 @keyframes spin {
   0% {
@@ -281,1246 +237,137 @@ textarea {
     transform: rotate(360deg);
   }
 }
-.loading-text {
-  font-size: 1.5rem;
-  color: #999;
-}
 
-/* --- 3.6 標籤 (Badges) --- */
-.status-badge {
-  padding: 3px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-  display: inline-block;
-}
-.status-badge.active {
-  background: #d4edda;
-  color: #155724;
-}
-.status-badge.inactive {
-  background: #f8d7da;
-  color: #721c24;
-}
-.status-PENDING {
-  background-color: #fff3cd;
-  color: #856404;
-}
-.status-ARRIVED {
-  background-color: #d4edda;
-  color: #155724;
-}
-.status-IN_SHIPMENT {
-  background-color: #d1ecf1;
-  color: #0c5460;
-}
-.status-PENDING_PAYMENT {
-  background-color: #ffeeba;
-  color: #856404;
-}
-/* [!! 程式夥伴新增：用於「已付款，待審核」的視覺狀態 !!] */
-.status-PENDING_REVIEW {
-  background-color: #ffeeba; /* 同 PENDING_PAYMENT (黃色) */
-  color: #856404;
-}
-.status-PROCESSING {
-  background-color: #cce5ff;
-  color: #004085;
-}
-.status-SHIPPED {
-  background-color: #e2d9f3;
-  color: #401099;
-}
-.status-COMPLETED,
-.status-CANCEL {
-  /* CANCEL = 已完成 */
-  background-color: #d4edda;
-  color: #155724;
-}
-.status-CANCELLED {
-  /* CANCELLED = 已取消/退回 */
-  background-color: #f8d7da;
-  color: #721c24;
-}
-/* (相容舊的狀態) */
-.status-CANCELLEDD {
-  background-color: #d1ecf1;
-  color: #0c5460;
-}
-.status-CANCELL {
-  background-color: #d1ecf1;
-  color: #0c5460;
-}
-
-.role-badge {
-  padding: 3px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-.role-USER {
-  background-color: #d1ecf1;
-  color: #0c5460;
-}
-.role-ADMIN {
-  background-color: #fff3cd;
-  color: #856404;
-}
-.role-OPERATOR {
-  background-color: #e2d9f3;
-  color: #401099;
-}
-
-/* --- 3.7 彈窗 (Modal) --- */
+/* =========================================
+   3. 彈窗 (Modals)
+   ========================================= */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2000;
+  display: none; /* JS控制 */
   align-items: center;
   justify-content: center;
-  z-index: 2000;
-  padding: 20px;
+  backdrop-filter: blur(2px);
 }
+
 .modal-content {
-  background-color: #fff;
-  padding: 30px;
-  border-radius: 10px;
-  width: 100%;
+  background: #fff;
+  width: 90%;
   max-width: 500px;
+  border-radius: 10px;
+  padding: 25px;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
   max-height: 90vh;
   overflow-y: auto;
-  position: relative;
+  animation: slideUp 0.3s ease;
 }
 .modal-content.modal-lg {
   max-width: 800px;
 }
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 .modal-close,
 .modal-close-btn {
   position: absolute;
   top: 15px;
-  right: 15px;
-  font-size: 2em;
-  cursor: pointer;
+  right: 20px;
+  font-size: 24px;
+  background: none;
+  border: none;
   color: #999;
-  background: none;
-  border: none;
-  line-height: 1;
+  cursor: pointer;
 }
-.modal-close:hover,
-.modal-close-btn:hover {
+.modal-close:hover {
   color: #333;
-}
-
-/* --- 3.8 通用表格 (Tables) --- */
-.table-container {
-  overflow-x: auto;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-}
-
-/* 排除首頁的費率表 */
-table:not(.rate-table) {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 600px;
-  background-color: white;
-}
-
-th,
-td {
-  padding: 12px 15px;
-  text-align: left;
-  border-bottom: 1px solid #ddd;
-}
-
-/* 排除首頁的費率表 */
-table:not(.rate-table) th {
-  background-color: #f8f9fa;
-  font-weight: 600;
-  white-space: nowrap;
-}
-table:not(.rate-table) td {
-  white-space: nowrap;
 }
 
 /* =========================================
-   4. 頁面: 首頁 & 試算器 (index.html)
+   4. 其他工具 (Utilities)
    ========================================= */
-#calculator-section {
-  scroll-margin-top: 20px;
-}
-
-.usage-counter {
+.text-center {
   text-align: center;
-  margin-bottom: 20px;
-  color: #555;
-  font-size: 1.1em;
-  font-weight: bold;
-  background-color: #e9f5ff;
-  padding: 10px;
-  border-radius: 5px;
 }
-.usage-counter span {
-  color: #1a73e8;
+.text-right {
+  text-align: right;
 }
-
-.warehouse-info-section {
-  background-color: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
+.mb-10 {
+  margin-bottom: 10px;
 }
-.warehouse-info-section h3 {
-  margin-top: 0;
-  text-align: center;
-  color: #333;
-}
-.address-box {
-  background-color: #fff;
-  border: 1px dashed #1a73e8;
-  padding: 15px;
-  border-radius: 5px;
-  margin-bottom: 15px;
-  line-height: 1.8;
-}
-.address-box .placeholder {
-  color: #e74c3c;
-  font-weight: bold;
-}
-.btn-copy-address {
-  width: 100%;
-  padding: 12px;
-  font-size: 16px;
-  background-color: #555;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-.btn-copy-address:hover {
-  background-color: #333;
-}
-.warehouse-warning {
-  font-size: 14px;
-  color: #721c24;
-  text-align: center;
-  margin-top: 10px;
-}
-
-/* 費率表 */
-.rate-table-container {
-  margin-bottom: 40px;
-  padding: 20px;
-  background-color: #e9f5ff;
-  border: 1px solid #b3d9ff;
-  border-radius: 8px;
-}
-.rate-table-container h2 {
-  text-align: center;
-  color: #1a73e8;
-  margin-top: 0;
-  margin-bottom: 15px;
-}
-.rate-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: center;
-  table-layout: auto;
-}
-.rate-table th,
-.rate-table td {
-  border: 1px solid #b3d9ff;
-  padding: 12px;
-  white-space: normal;
-  word-wrap: break-word;
-  vertical-align: middle;
-}
-.rate-table th {
-  background-color: #1a73e8;
-  color: white;
-}
-.rate-table td {
-  background-color: #fff;
-}
-.rate-table th:nth-child(1) {
-  width: 15%;
-}
-.rate-table th:nth-child(2) {
-  width: 45%;
-}
-.rate-table th:nth-child(3) {
-  width: 20%;
-}
-.rate-table th:nth-child(4) {
-  width: 20%;
-}
-
-.rate-notes {
-  margin-top: 15px;
-  padding: 10px 15px;
-  background-color: #d6eaf8;
-  border-left: 4px solid #1a73e8;
-  border-radius: 0 5px 5px 0;
-}
-.rate-notes ul {
-  margin: 8px 0 0 0;
-  padding-left: 20px;
-  color: #333;
-}
-.rate-notes .highlight {
-  color: #e74c3c;
-  font-weight: bold;
-}
-
-/* 試算器表單 */
-.calculator-form {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px;
-}
-.item-group {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
-  background-color: #fafafa;
-  position: relative;
-}
-.item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
-  margin-bottom: 20px;
-}
-.item-header h4 {
-  margin: 0;
-  color: #1a73e8;
-}
-.btn-remove-item {
-  background: #e74c3c;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 5px;
-  cursor: pointer;
-}
-.calc-method-toggle label {
-  margin-right: 15px;
-}
-
-/* 配送地區 */
-.delivery-options {
-  background-color: #fafafa;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px;
-  margin-top: 20px;
-  margin-bottom: 20px;
-}
-.remote-area-notice {
-  background-color: #fff3cd;
-  border-left: 4px solid #ffc107;
-  padding: 15px;
-  margin-bottom: 15px;
-  border-radius: 4px;
-  color: #856404;
-}
-.remote-area-search {
-  margin-bottom: 15px;
-}
-#searchResults {
-  margin-top: 10px;
-  max-height: 200px;
-  overflow-y: auto;
-  display: none;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-}
-.search-result-item {
-  padding: 8px 12px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #eee;
-  cursor: pointer;
-}
-.search-result-item:hover {
-  background: #e9ecef;
-}
-#remoteAreaInfo {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: #e8f4f8;
-  border-radius: 5px;
-  display: none;
-  border-left: 4px solid #1a73e8;
-}
-select#deliveryLocation optgroup {
-  font-weight: bold;
-  color: #495057;
-}
-
-/* 試算結果 */
-#results-container {
-  margin-top: 30px;
-}
-#results-container h2 {
-  color: #1a73e8;
-  margin-bottom: 20px;
-}
-.result-detail-card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
-}
-.result-detail-card h3 {
-  font-size: 1.2em;
-  color: #333;
-  padding: 15px 20px;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
-  margin: 0;
-}
-.detail-section {
-  padding: 15px 20px 15px 35px;
-  position: relative;
-  border-bottom: 1px dashed #eee;
-}
-.detail-section::before {
-  content: "";
-  position: absolute;
-  left: 15px;
-  top: 15px;
-  bottom: 15px;
-  width: 5px;
-  border-radius: 3px;
-}
-.detail-section.calc-volume::before {
-  background-color: #3498db;
-}
-.detail-section.calc-quantity::before {
-  background-color: #9b59b6;
-}
-.detail-section.calc-cost::before {
-  background-color: #2ecc71;
-}
-.detail-section h4 {
-  margin: 0 0 10px 0;
-  color: #555;
-  font-size: 1em;
-}
-.calc-line {
-  font-family: monospace;
-  font-size: 1.1em;
-  margin: 5px 0;
-}
-.calc-line b {
-  color: #e74c3c;
-}
-.calc-line .formula {
-  color: #888;
-}
-
-.result-summary-card {
-  background: #fff;
-  border: 2px solid #1a73e8;
-  border-radius: 8px;
-  padding: 20px;
+.mt-20 {
   margin-top: 20px;
 }
-.summary-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px dashed #ccc;
-}
-.summary-row:last-child {
-  border-bottom: none;
-}
-.summary-total {
-  text-align: center;
-  font-size: 28px;
-  font-weight: bold;
-  color: #e74c3c;
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 2px solid #1a73e8;
-}
-.summary-total small {
-  display: block;
-  font-size: 14px;
-  color: #555;
-  margin-top: 10px;
-  font-weight: normal;
-}
 
-/* =========================================
-   5. 頁面: 會員登入 & 中心 (login.html, dashboard.html)
-   ========================================= */
-
-/* --- 5.1 登入/註冊 Auth --- */
-.auth-container {
-  background-color: #fafafa;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px 30px;
-  margin-top: 20px;
-}
-.auth-tabs {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 25px;
-  border-bottom: 1px solid #ddd;
-}
-.tab-btn {
-  padding: 10px 20px;
-  background: none;
-  border: none;
-  color: #666;
-  font-size: 16px;
-  cursor: pointer;
-  position: relative;
-  transition: color 0.3s;
-}
-.tab-btn.active {
-  color: #1a73e8;
-  font-weight: bold;
-}
-.tab-btn.active::after {
-  content: "";
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: #1a73e8;
-}
-.auth-form {
-  padding: 10px 0;
-}
-
-/* --- 5.2 會員中心 Dashboard --- */
-.user-info-box {
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 30px;
-}
-.info-grid {
+/* 圖片瀏覽網格 */
+.gallery-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   gap: 10px;
-  margin-bottom: 20px;
+  margin-top: 15px;
 }
-.info-grid p {
-  margin: 5px 0;
-}
-
-.form-section {
-  background-color: #fafafa;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px 30px;
-  margin-bottom: 30px;
-}
-.form-section h3 {
-  color: #1a73e8;
-  margin-top: 0;
-  margin-bottom: 20px;
-}
-
-.shipment-action-bar {
-  padding: 15px;
-  background-color: #f8f9fa;
-  border: 1px solid #ddd;
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-  text-align: right;
-}
-.package-checkbox {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-/* 彈窗內的包裹清單 */
-.simple-list {
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  padding: 10px;
-  max-height: 150px;
-  overflow-y: auto;
-}
-.simple-list p {
-  margin: 5px 0;
-  padding-bottom: 5px;
-  border-bottom: 1px dashed #eee;
-}
-
-/* 建立集運單彈窗 - 包裹明細 */
-#shipment-package-list {
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  padding: 10px;
-  background: #fff;
-  max-height: 200px;
-  overflow-y: auto;
-}
-.shipment-package-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px;
-  border-bottom: 1px dashed #eee;
-}
-
-/* 集運單彈窗 - 運費公式 */
-.shipment-pkg-detail-item {
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 15px;
-}
-.shipment-pkg-detail-item h4 {
-  margin-top: 0;
-  margin-bottom: 10px;
-  color: #1a73e8;
-  border-bottom: 1px dashed #eee;
-  padding-bottom: 10px;
-}
-.calc-box {
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 10px;
-  margin-bottom: 10px;
-}
-.shipment-pkg-detail-item .calc-box:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-.calc-line .cost {
-  color: #d32f2f;
-  font-weight: bold;
-}
-.calc-line.final {
-  text-align: right;
-  font-size: 1.1em;
-  margin-top: 5px;
-}
-.calc-line.final strong {
-  color: #d32f2f;
-}
-.pkg-subtotal {
-  text-align: right;
-  font-weight: bold;
-  font-size: 1.2em;
-  color: #1a73e8;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 2px solid #ddd;
-}
-.pkg-subtotal strong {
-  color: #d32f2f;
-}
-
-/* 會員中心 - 包裹詳情彈窗 */
-.detail-sub-package-table {
+.gallery-grid img {
   width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 15px;
-}
-.detail-sub-package-table th,
-.detail-sub-package-table td {
+  height: 80px;
+  object-fit: cover;
+  border-radius: 4px;
   border: 1px solid #eee;
-  padding: 8px 12px;
-  text-align: left;
-  white-space: normal; /* 允許換行 */
-}
-.detail-sub-package-table th {
-  background-color: #f9f9f9;
-  font-size: 14px;
-}
-.detail-sub-package-table td {
-  font-size: 14px;
-}
-.detail-summary {
-  text-align: right;
-  font-size: 1.1em;
-  font-weight: bold;
-  color: #333;
-  margin-top: 10px;
-}
-.detail-summary span {
-  color: #d32f2f;
-  margin: 0 5px;
-}
-#details-images-gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 10px;
-  max-height: 200px;
-  overflow-y: auto;
-  background: #f0f0f0;
-  padding: 10px;
-  border-radius: 5px;
-}
-#details-images-gallery img {
-  width: 100%;
-  height: 100px;
-  object-fit: cover;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-  cursor: pointer;
-}
-#details-images-gallery p {
-  grid-column: 1 / -1;
-  text-align: center;
-  color: #888;
-  margin: 10px 0;
+  cursor: zoom-in;
 }
 
-/* 圖片瀏覽彈窗 */
-.image-gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 15px;
-  margin-top: 20px;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-.image-gallery img {
-  width: 100%;
-  height: 120px;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-.image-gallery img:hover {
-  transform: scale(1.05);
-  border-color: #1a73e8;
-}
-.image-gallery p {
-  grid-column: 1 / -1;
-  text-align: center;
-  color: #666;
-  padding: 20px;
-}
-.btn-view-img {
-  background-color: #17a2b8;
-  color: white;
-  padding: 5px 10px;
-  font-size: 14px;
-  width: auto;
-}
-.btn-view-img:hover {
-  background-color: #138496;
-}
-
-/* =========================================
-   6. 頁面: 管理員 (admin-*.html)
-   ========================================= */
-
-/* --- 6.1 Admin 導航列 --- */
-.admin-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-  flex-wrap: wrap;
-  gap: 15px;
-}
-.header-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap; /* 允許換行 */
-}
-#admin-welcome {
-  font-weight: bold;
-  color: #555;
-}
-/* 管理員導航列的當前頁面高亮 */
-.header-actions .btn-secondary.active {
-  background-color: #1a73e8;
-  color: white;
-  box-shadow: 0 2px 5px rgba(26, 115, 232, 0.3);
-}
-
-/* --- 6.2 Admin 統計卡片 --- */
-.stats-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 15px;
-  margin-bottom: 30px;
-}
-.stat-card {
-  background-color: #fff;
-  padding: 15px;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-  text-align: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-.stat-card h3 {
-  color: #666;
-  font-size: 0.9em;
-  font-weight: normal;
-  margin-bottom: 8px;
-}
-.stat-card p {
-  color: #1a73e8;
-  font-size: 2em;
-  font-weight: bold;
-  margin: 0;
-}
-.stat-card.pending p {
-  color: #d63031;
-}
-.stat-card.arrived p {
-  color: #0984e3;
-}
-.stat-card.completed p,
-.stat-card.active p {
-  color: #28a745;
-}
-.stat-card.inactive p {
-  color: #dc3545;
-}
-
-/* --- 6.3 Admin 篩選器 --- */
-.filters-container,
-.parcel-management {
-  background: #f8f9fa;
-  padding: 20px;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-  margin-top: 20px;
-  width: 100%;
-}
-.filters {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  width: 100%;
-}
-.filters input,
-.filters select {
-  flex: 1;
-  min-width: 200px;
-}
-
-/* --- 6.4 Admin 表格 --- */
-.admin-table-wrapper {
-  overflow-x: auto;
-  margin-top: 15px;
-}
-.members-table,
-.parcel-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 800px;
-}
-.members-table thead,
-.parcel-table thead {
-  background: #f8f9fa;
-  border-bottom: 2px solid #dee2e6;
-}
-
-/* Admin 表格操作按鈕 */
-.action-buttons {
-  display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
-  margin-top: 0; /* 改為 0 */
-}
-.btn-action {
-  padding: 5px 10px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  color: white;
-}
-.btn-reset-password {
-  background: #ffc107;
-  color: #212529;
-}
-.btn-toggle-status {
-  background: #6c757d;
-}
-.btn-toggle-status.activate {
-  background: #28a745;
-}
-
-/* --- 6.5 Admin 彈窗: 包裹照片 --- */
-.parcel-images {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 15px;
-}
-.parcel-images h4 {
-  width: 100%;
-  margin-bottom: 10px;
-}
-.parcel-images img {
-  width: 100px;
-  height: 100px;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 2px solid #e9ecef;
-  cursor: pointer;
-}
-.img-wrapper {
-  position: relative;
-  display: inline-block;
-  width: 100px;
-  height: 100px;
-  margin-right: 10px;
-  margin-bottom: 10px;
-}
-.img-wrapper img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 2px solid #ddd;
-}
-.btn-delete-img {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  background-color: #e74c3c;
-  color: white;
-  border: 2px solid white;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  text-align: center;
-  line-height: 20px;
-  font-weight: bold;
-  cursor: pointer;
-  font-size: 14px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-.btn-delete-img:hover {
-  background-color: #c0392b;
-}
-
-/* --- 6.6 Admin 彈窗: 分箱 --- */
-.sub-package-item {
-  background: #fff;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 15px;
-  position: relative;
-}
-.sub-package-item .btn-remove-sub-pkg {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: #e74c3c;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  font-size: 14px;
-  line-height: 24px;
-  text-align: center;
-  cursor: pointer;
-  font-weight: bold;
-}
-.sub-package-item .form-grid-responsive {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
-}
-.sub-pkg-fee-display {
-  text-align: right;
-  font-size: 1.2em;
-  font-weight: bold;
-  color: #d32f2f;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed #eee;
-}
-
-/* =========================================
-   7. 頁尾 (Footer)
-   ========================================= */
+/* 頁尾基礎 */
 .site-footer {
-  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-  color: white;
-  padding: 30px;
+  background: #343a40;
+  color: #fff;
+  padding: 40px 0 20px;
   margin-top: 50px;
-  border-radius: 15px;
-  text-align: center;
-  box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
 }
 .site-footer__container {
-  max-width: 600px;
+  max-width: 1200px;
   margin: 0 auto;
+  padding: 0 20px;
+  text-align: center;
 }
-.site-footer__title {
-  color: white;
-  font-size: 24px;
-  margin-top: 0;
-  margin-bottom: 20px;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
-  padding-bottom: 10px;
+.footer-links a {
+  color: #adb5bd;
+  margin: 0 10px;
 }
-.site-footer__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
-  text-align: left;
-  margin-bottom: 20px;
-}
-.site-footer__item {
-  margin: 8px 0;
-}
-.site-footer__label {
-  color: #3498db;
-}
-.site-footer__value,
-.site-footer__link {
-  font-size: 18px;
-  color: white;
-  text-decoration: none;
-  transition: color 0.3s;
-}
-.site-footer__link--email:hover {
-  color: #3498db;
-}
-.site-footer__link--line:hover {
-  color: #00c300;
+.footer-links a:hover {
+  color: #fff;
 }
 .site-footer__copyright {
-  border-top: 1px solid rgba(255, 255, 255, 0.3);
-  padding-top: 15px;
   margin-top: 20px;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.8);
-}
-.separator {
-  color: rgba(255, 255, 255, 0.1);
-  margin: 0 5px;
-}
-.admin-stealth-link {
-  color: rgba(255, 255, 255, 0.1);
-  text-decoration: none;
-  font-size: 12px;
-  transition: color 0.3s ease;
-}
-.admin-stealth-link:hover {
-  color: #fff;
-  cursor: pointer;
+  border-top: 1px solid #495057;
+  padding-top: 20px;
+  font-size: 13px;
+  color: #868e96;
 }
 
-/* =========================================
-   8. 全域工具 (Global Utilities)
-   ========================================= */
-.line-fab {
-  position: fixed;
-  bottom: 25px;
-  right: 25px;
-  width: 60px;
-  height: 60px;
-  background-color: #00b900;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
-  transition: transform 0.2s ease-in-out;
-  text-decoration: none;
-  font-size: 18px;
-  font-weight: bold;
-  color: white;
+/* Admin 頁面表格基礎 (保留相容性) */
+.admin-table-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
 }
-.line-fab:hover {
-  transform: scale(1.1);
-}
-
-/* =========================================
-   9. 響應式設定 (Responsive Design)
-   ========================================= */
-@media (max-width: 768px) {
-  .form-grid-2,
-  .form-grid-3,
-  .form-grid-4,
-  .info-grid,
-  .stats-container {
-    grid-template-columns: 1fr;
-  }
-
-  .filters {
-    flex-direction: column;
-  }
-  .filters input,
-  .filters select,
-  .filters button {
-    width: 100%;
-  }
-
-  .action-buttons {
-    flex-direction: column;
-  }
-  .action-buttons .btn {
-    width: 100%;
-  }
-
-  /* --- 收費標準表格 手機版修復 --- */
-  .rate-table-container {
-    padding: 10px;
-    width: 100%;
-    overflow: hidden;
-  }
-  .rate-table,
-  .rate-table tbody,
-  .rate-table tr,
-  .rate-table td {
-    display: block;
-    width: 100%;
-  }
-  .rate-table thead {
-    display: none;
-  }
-  .rate-table tr {
-    margin-bottom: 15px;
-    border: 2px solid #1a73e8;
-    border-radius: 8px;
-    background: #fff;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    width: auto;
-    margin-left: 0;
-    margin-right: 0;
-  }
-  .rate-table td {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    text-align: right;
-    font-size: 14px;
-    border-bottom: 1px solid #eee;
-    padding: 10px 12px;
-    min-height: 40px;
-    word-break: break-word;
-  }
-  .rate-table td:last-child {
-    border-bottom: 0;
-  }
-  .rate-table td::before {
-    content: attr(data-label);
-    font-weight: bold;
-    color: #1a73e8;
-    text-align: left;
-    margin-right: 10px;
-    flex: 0 0 auto;
-    max-width: 40%;
-    white-space: normal;
-  }
-  .rate-table td:first-child {
-    background-color: #eaf4ff;
-    color: #1a73e8;
-    border-bottom: 2px solid #b3d9ff;
-    font-weight: bold;
-    font-size: 16px;
-    justify-content: center;
-    text-align: center;
-  }
-  .rate-table td:first-child::before {
-    display: none;
-  }
-}
-/* frontend/css/style.css (在最底部加入) */
-
-/* [*** 新增：優化 Admin 導覽列排版 ***] */
-/* * 說明：
-  * 原始 .btn 樣式為 width: 100% (適用於手機)
-  * 這導致 .header-actions (flex-wrap: wrap) 中的按鈕在電腦版上也強迫換行。
-  * 我們在這裡新增一條規則，專門指定「.header-actions 內的 .btn」寬度為 auto。
-*/
-.header-actions .btn {
-  width: auto;
-}
-/* --- [新增] 集運單詳情彈窗樣式 --- */
-
-/* 讓集運單列表的每一行都可以點擊 */
-#shipments-table-body tr {
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-#shipments-table-body tr:hover {
-  background-color: #f8f9fa;
-}
-
-/* 彈窗內的左右佈局 */
-.shipment-details-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-/* 簡化版的資訊列表 */
-.info-grid-simple p {
-  margin: 10px 0;
-  font-size: 15px;
-  border-bottom: 1px dashed #eee;
-  padding-bottom: 8px;
-}
-.info-grid-simple p:last-child {
-  border-bottom: none;
-}
-.info-grid-simple strong {
-  color: #555;
-  min-width: 100px;
-  display: inline-block;
-}
-
-/* 彈窗內的包裹清單 */
-#detail-package-list .shipment-package-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px;
-  background-color: #fdfdfd;
+.admin-table-wrapper th,
+.admin-table-wrapper td {
+  padding: 12px;
   border-bottom: 1px solid #eee;
-  font-size: 14px;
+  text-align: left;
 }
-#detail-package-list .shipment-package-item:last-child {
-  border-bottom: none;
-}
-#detail-package-list .shipment-package-item span {
-  flex: 1;
-}
-#detail-package-list .shipment-package-item small {
-  flex-basis: 100px;
-  text-align: right;
-  color: #1a73e8;
-  font-weight: bold;
-}
-
-/* 手機版調整 */
-@media (max-width: 768px) {
-  .shipment-details-grid {
-    grid-template-columns: 1fr;
-    gap: 0px;
-  }
+.admin-table-wrapper th {
+  background: #f1f1f1;
 }

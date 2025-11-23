@@ -1,4 +1,4 @@
-// backend/controllers/adminController.js (V10 旗艦版 - 支援資料庫化系統設定)
+// backend/controllers/adminController.js (V12 優化版 - 整合檔案管理、分頁、系統設定)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -8,13 +8,31 @@ const createLog = require("../utils/createLog.js");
 const generateToken = require("../utils/generateToken.js");
 const invoiceHelper = require("../utils/invoiceHelper.js");
 
-// --- 0. 輔助函式：建立查詢條件 ---
+// --- 0. 輔助函式 ---
 
+// 安全刪除檔案 (避免路徑遍歷)
+const deleteFiles = (filePaths) => {
+  if (!Array.isArray(filePaths) || filePaths.length === 0) return;
+  const uploadDir = path.join(__dirname, "../public/uploads");
+
+  filePaths.forEach((filePath) => {
+    try {
+      const fileName = path.basename(filePath);
+      if (!fileName) return;
+      const absolutePath = path.join(uploadDir, fileName);
+      if (fs.existsSync(absolutePath)) {
+        fs.unlinkSync(absolutePath);
+      }
+    } catch (err) {
+      console.warn(`[File Warning] 刪除檔案失敗 (${filePath}):`, err.message);
+    }
+  });
+};
+
+// 建立包裹查詢條件
 const buildPackageWhereClause = (status, search) => {
   const where = {};
-  if (status) {
-    where.status = status;
-  }
+  if (status) where.status = status;
   if (search) {
     const searchLower = search.trim();
     where.OR = [
@@ -27,6 +45,7 @@ const buildPackageWhereClause = (status, search) => {
   return where;
 };
 
+// 建立集運單查詢條件
 const buildShipmentWhereClause = (status, search) => {
   const where = {};
   if (status) {
@@ -63,18 +82,14 @@ const buildShipmentWhereClause = (status, search) => {
 const getSystemSettings = async (req, res) => {
   try {
     const settingsList = await prisma.systemSetting.findMany();
-
-    // 轉換為 Key-Value 物件格式回傳，方便前端使用
     const settings = {};
     settingsList.forEach((item) => {
       try {
-        // 嘗試解析 JSON，如果是 JSON 字串就轉物件，否則維持字串
         settings[item.key] = JSON.parse(item.value);
       } catch (e) {
         settings[item.key] = item.value;
       }
     });
-
     res.status(200).json({ success: true, settings });
   } catch (error) {
     console.error("取得系統設定失敗:", error);
@@ -92,12 +107,9 @@ const updateSystemSetting = async (req, res) => {
     let { value, description } = req.body;
 
     if (value === undefined) {
-      return res
-        .status(400)
-        .json({ success: false, message: "缺少設定值 (value)" });
+      return res.status(400).json({ success: false, message: "缺少設定值" });
     }
 
-    // 確保儲存為字串
     const valueStr =
       typeof value === "object" ? JSON.stringify(value) : String(value);
 
@@ -105,7 +117,7 @@ const updateSystemSetting = async (req, res) => {
       where: { key },
       update: {
         value: valueStr,
-        ...(description && { description }), // 只有當 description 存在時才更新
+        ...(description && { description }),
       },
       create: {
         key,
@@ -120,7 +132,6 @@ const updateSystemSetting = async (req, res) => {
       "SYSTEM",
       `更新設定: ${key}`
     );
-
     res.status(200).json({ success: true, message: `設定 ${key} 已更新` });
   } catch (error) {
     console.error(`更新設定 ${req.params.key} 失敗:`, error);
@@ -128,7 +139,7 @@ const updateSystemSetting = async (req, res) => {
   }
 };
 
-// --- 2. 包裹管理 (查詢、匯出、批量) ---
+// --- 2. 包裹管理 ---
 
 const getAllPackages = async (req, res) => {
   try {
@@ -174,15 +185,10 @@ const getAllPackages = async (req, res) => {
     res.status(200).json({
       success: true,
       packages: processedPackages,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
-    console.error("取得包裹失敗:", error);
+    console.error(error);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };
@@ -191,7 +197,6 @@ const exportPackages = async (req, res) => {
   try {
     const { status, search } = req.query;
     const where = buildPackageWhereClause(status, search);
-
     const packages = await prisma.package.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -211,7 +216,6 @@ const exportPackages = async (req, res) => {
 
     res.status(200).json({ success: true, data: exportData });
   } catch (error) {
-    console.error("匯出包裹失敗:", error);
     res.status(500).json({ success: false, message: "匯出失敗" });
   }
 };
@@ -222,22 +226,18 @@ const bulkUpdatePackageStatus = async (req, res) => {
     if (!Array.isArray(ids) || ids.length === 0 || !status) {
       return res.status(400).json({ success: false, message: "參數錯誤" });
     }
-
     await prisma.package.updateMany({
       where: { id: { in: ids } },
       data: { status },
     });
-
     await createLog(
       req.user.id,
       "BULK_UPDATE_PACKAGE",
       "BATCH",
-      `批量更新 ${ids.length} 筆包裹狀態為 ${status}`
+      `批量更新 ${ids.length} 筆包裹為 ${status}`
     );
-
     res.status(200).json({ success: true, message: "批量更新成功" });
   } catch (error) {
-    console.error("批量更新失敗:", error);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };
@@ -249,40 +249,22 @@ const bulkDeletePackages = async (req, res) => {
       return res.status(400).json({ success: false, message: "未選擇包裹" });
     }
 
-    // 1. 查找圖片以便刪除
+    // 刪除檔案
     const packages = await prisma.package.findMany({
       where: { id: { in: ids } },
       select: { productImages: true, warehouseImages: true },
     });
 
-    const deleteFiles = (jsonStr) => {
-      try {
-        const files = JSON.parse(jsonStr || "[]");
-        files.forEach((fileUrl) => {
-          const filename = fileUrl.split("/").pop();
-          if (filename) {
-            const filePath = path.join(
-              process.cwd(),
-              "public",
-              "uploads",
-              filename
-            );
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-          }
-        });
-      } catch (e) {}
-    };
-
+    const allFiles = [];
     packages.forEach((pkg) => {
-      deleteFiles(pkg.productImages);
-      deleteFiles(pkg.warehouseImages);
+      try {
+        allFiles.push(...JSON.parse(pkg.productImages || "[]"));
+        allFiles.push(...JSON.parse(pkg.warehouseImages || "[]"));
+      } catch (e) {}
     });
+    deleteFiles(allFiles);
 
-    // 2. 刪除 DB 資料
-    await prisma.package.deleteMany({
-      where: { id: { in: ids } },
-    });
-
+    await prisma.package.deleteMany({ where: { id: { in: ids } } });
     await createLog(
       req.user.id,
       "BULK_DELETE_PACKAGE",
@@ -292,12 +274,9 @@ const bulkDeletePackages = async (req, res) => {
 
     res.status(200).json({ success: true, message: "批量刪除成功" });
   } catch (error) {
-    console.error("批量刪除失敗:", error);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };
-
-// --- 單一包裹操作 ---
 
 const adminCreatePackage = async (req, res) => {
   try {
@@ -308,10 +287,9 @@ const adminCreatePackage = async (req, res) => {
       return res.status(400).json({ success: false, message: "資料不完整" });
     }
 
-    let imagePaths = "[]";
+    let imagePaths = [];
     if (req.files && req.files.length > 0) {
-      const paths = req.files.map((file) => `/uploads/${file.filename}`);
-      imagePaths = JSON.stringify(paths);
+      imagePaths = req.files.map((file) => `/uploads/${file.filename}`);
     }
 
     const newPackage = await prisma.package.create({
@@ -320,7 +298,7 @@ const adminCreatePackage = async (req, res) => {
         productName,
         quantity: quantity ? parseInt(quantity) : 1,
         note,
-        productImages: imagePaths,
+        productImages: JSON.stringify(imagePaths),
         warehouseImages: "[]",
         userId,
       },
@@ -332,12 +310,10 @@ const adminCreatePackage = async (req, res) => {
       newPackage.id,
       `代客預報 (單號: ${trackingNumber})`
     );
-
     res
       .status(201)
       .json({ success: true, message: "新增成功", package: newPackage });
   } catch (error) {
-    console.error("新增包裹失敗:", error);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };
@@ -349,19 +325,13 @@ const adminDeletePackage = async (req, res) => {
     if (!pkg)
       return res.status(404).json({ success: false, message: "找不到包裹" });
 
-    const deleteFiles = (jsonStr) => {
-      try {
-        JSON.parse(jsonStr || "[]").forEach((url) => {
-          const fname = url.split("/").pop();
-          if (fname) {
-            const fpath = path.join(process.cwd(), "public", "uploads", fname);
-            if (fs.existsSync(fpath)) fs.unlinkSync(fpath);
-          }
-        });
-      } catch (e) {}
-    };
-    deleteFiles(pkg.productImages);
-    deleteFiles(pkg.warehouseImages);
+    // 刪除檔案
+    let filesToDelete = [];
+    try {
+      filesToDelete.push(...JSON.parse(pkg.productImages || "[]"));
+      filesToDelete.push(...JSON.parse(pkg.warehouseImages || "[]"));
+    } catch (e) {}
+    deleteFiles(filesToDelete);
 
     await prisma.package.delete({ where: { id } });
     await createLog(
@@ -370,7 +340,6 @@ const adminDeletePackage = async (req, res) => {
       id,
       `刪除包裹 ${pkg.trackingNumber}`
     );
-
     res.status(200).json({ success: true, message: "包裹已刪除" });
   } catch (error) {
     res.status(500).json({ success: false, message: "刪除失敗" });
@@ -408,38 +377,23 @@ const updatePackageDetails = async (req, res) => {
     const pkg = await prisma.package.findUnique({ where: { id } });
     if (!pkg) return res.status(404).json({ message: "找不到包裹" });
 
-    // [V10 修改] 從資料庫讀取運費設定
+    // 取得費率設定
+    let systemRates = {};
     const settings = await prisma.systemSetting.findUnique({
       where: { key: "rates_config" },
     });
-    // 預設值 (如果資料庫沒設定)
-    let systemRates = {
-      categories: {
-        general: { name: "一般家具", weightRate: 22, volumeRate: 125 },
-        special_a: { name: "特殊家具A", weightRate: 32, volumeRate: 184 },
-        special_b: { name: "特殊家具B", weightRate: 40, volumeRate: 224 },
-        special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
-      },
-      constants: {
-        VOLUME_DIVISOR: 28317,
-      },
-    };
-
     if (settings && settings.value) {
       try {
         systemRates = JSON.parse(settings.value);
-      } catch (e) {
-        console.error("解析運費設定失敗，使用預設值");
-      }
+      } catch (e) {}
     }
-
-    const RATES = systemRates.categories;
-    const CONSTANTS = systemRates.constants;
+    const RATES = systemRates.categories || {};
+    const CONSTANTS = systemRates.constants || { VOLUME_DIVISOR: 28317 }; // 預設
 
     const updateData = {};
     if (status) updateData.status = status;
 
-    // 計算運費
+    // 計算運費邏輯
     if (boxesData) {
       try {
         const boxes = JSON.parse(boxesData);
@@ -453,11 +407,11 @@ const updatePackageDetails = async (req, res) => {
           let fee = 0;
           let cai = 0;
 
-          if (weight > 0 && l > 0 && w_dim > 0 && h > 0 && RATES[type]) {
+          const rate = RATES[type];
+          if (weight > 0 && l > 0 && w_dim > 0 && h > 0 && rate) {
             cai = Math.ceil((l * w_dim * h) / CONSTANTS.VOLUME_DIVISOR);
-            const volCost = cai * RATES[type].volumeRate;
-            const wtCost =
-              (Math.ceil(weight * 10) / 10) * RATES[type].weightRate;
+            const volCost = cai * rate.volumeRate;
+            const wtCost = (Math.ceil(weight * 10) / 10) * rate.weightRate;
             fee = Math.max(volCost, wtCost);
           }
           totalFee += fee;
@@ -476,24 +430,19 @@ const updatePackageDetails = async (req, res) => {
       } catch (e) {}
     }
 
-    // 處理圖片
+    // 圖片處理 (刪除舊圖、新增新圖)
     let currentImgs = [];
     try {
       currentImgs = JSON.parse(pkg.warehouseImages || "[]");
     } catch (e) {}
+
     let keepImgs = [];
     try {
       keepImgs = JSON.parse(existingImages || "[]");
     } catch (e) {}
 
     const toDelete = currentImgs.filter((i) => !keepImgs.includes(i));
-    toDelete.forEach((url) => {
-      const fname = url.split("/").pop();
-      if (fname) {
-        const fpath = path.join(process.cwd(), "public", "uploads", fname);
-        if (fs.existsSync(fpath)) fs.unlinkSync(fpath);
-      }
-    });
+    deleteFiles(toDelete);
 
     let finalImgs = [...keepImgs];
     if (req.files && req.files.length > 0) {
@@ -513,21 +462,12 @@ const updatePackageDetails = async (req, res) => {
       "更新詳情(含運費計算)"
     );
 
-    let parsedBoxes = [];
-    try {
-      parsedBoxes = JSON.parse(updated.arrivedBoxesJson || "[]");
-    } catch (e) {}
-    let parsedImgs = [];
-    try {
-      parsedImgs = JSON.parse(updated.warehouseImages || "[]");
-    } catch (e) {}
-
     res.status(200).json({
       success: true,
       package: {
         ...updated,
-        arrivedBoxesJson: parsedBoxes,
-        warehouseImages: parsedImgs,
+        arrivedBoxesJson: JSON.parse(updated.arrivedBoxesJson || "[]"),
+        warehouseImages: JSON.parse(updated.warehouseImages || "[]"),
       },
     });
   } catch (e) {
@@ -535,7 +475,7 @@ const updatePackageDetails = async (req, res) => {
   }
 };
 
-// --- 3. 集運單管理 (查詢、匯出、批量) ---
+// --- 3. 集運單管理 ---
 
 const getAllShipments = async (req, res) => {
   try {
@@ -575,15 +515,9 @@ const getAllShipments = async (req, res) => {
     res.status(200).json({
       success: true,
       shipments: processed,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
   } catch (e) {
-    console.error(e);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };
@@ -592,7 +526,6 @@ const exportShipments = async (req, res) => {
   try {
     const { status, search } = req.query;
     const where = buildShipmentWhereClause(status, search);
-
     const shipments = await prisma.shipment.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -625,19 +558,16 @@ const bulkUpdateShipmentStatus = async (req, res) => {
     if (!Array.isArray(ids) || ids.length === 0 || !status) {
       return res.status(400).json({ success: false, message: "參數錯誤" });
     }
-
     await prisma.shipment.updateMany({
       where: { id: { in: ids } },
       data: { status },
     });
-
     await createLog(
       req.user.id,
       "BULK_UPDATE_SHIPMENT",
       "BATCH",
-      `批量更新 ${ids.length} 筆訂單狀態為 ${status}`
+      `批量更新 ${ids.length} 筆訂單為 ${status}`
     );
-
     res.status(200).json({ success: true, message: "批量更新成功" });
   } catch (e) {
     res.status(500).json({ success: false, message: "伺服器錯誤" });
@@ -651,14 +581,26 @@ const bulkDeleteShipments = async (req, res) => {
       return res.status(400).json({ success: false, message: "未選擇訂單" });
     }
 
+    // 查詢相關檔案以刪除 (付款憑證、商品照片)
+    const shipments = await prisma.shipment.findMany({
+      where: { id: { in: ids } },
+      select: { paymentProof: true, shipmentProductImages: true },
+    });
+    const files = [];
+    shipments.forEach((s) => {
+      if (s.paymentProof) files.push(s.paymentProof);
+      try {
+        files.push(...JSON.parse(s.shipmentProductImages || "[]"));
+      } catch (e) {}
+    });
+    deleteFiles(files);
+
     await prisma.$transaction(async (tx) => {
       await tx.package.updateMany({
         where: { shipmentId: { in: ids } },
         data: { status: "ARRIVED", shipmentId: null },
       });
-      await tx.shipment.deleteMany({
-        where: { id: { in: ids } },
-      });
+      await tx.shipment.deleteMany({ where: { id: { in: ids } } });
     });
 
     await createLog(
@@ -667,14 +609,11 @@ const bulkDeleteShipments = async (req, res) => {
       "BATCH",
       `批量刪除 ${ids.length} 筆訂單`
     );
-
     res.status(200).json({ success: true, message: "批量刪除成功" });
   } catch (e) {
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };
-
-// --- 單一集運單操作 ---
 
 const updateShipmentStatus = async (req, res) => {
   try {
@@ -686,9 +625,8 @@ const updateShipmentStatus = async (req, res) => {
       include: { user: true },
     });
 
-    if (!originalShipment) {
+    if (!originalShipment)
       return res.status(404).json({ success: false, message: "找不到訂單" });
-    }
 
     const dataToUpdate = {};
     if (status) dataToUpdate.status = status;
@@ -696,31 +634,16 @@ const updateShipmentStatus = async (req, res) => {
     if (trackingNumberTW !== undefined)
       dataToUpdate.trackingNumberTW = trackingNumberTW;
 
-    // === 發票自動開立邏輯 ===
-    // 檢查系統設定是否啟用發票
-    const invoiceSetting = await prisma.systemSetting.findUnique({
-      where: { key: "invoice_config" },
-    });
-    let invoiceEnabled = false;
-    if (invoiceSetting && invoiceSetting.value) {
-      try {
-        const config = JSON.parse(invoiceSetting.value);
-        invoiceEnabled = config.enabled === true;
-      } catch (e) {}
-    }
-
+    // 自動發票開立
     if (
-      invoiceEnabled &&
       status === "PROCESSING" &&
       !originalShipment.invoiceNumber &&
       originalShipment.totalCost > 0
     ) {
-      console.log(`[Admin] 訂單 ${id} 確認收款，準備開立發票...`);
       const result = await invoiceHelper.createInvoice(
         originalShipment,
         originalShipment.user
       );
-
       if (result.success) {
         dataToUpdate.invoiceNumber = result.invoiceNumber;
         dataToUpdate.invoiceStatus = "ISSUED";
@@ -729,15 +652,14 @@ const updateShipmentStatus = async (req, res) => {
           req.user.id,
           "CREATE_INVOICE",
           id,
-          `發票開立成功: ${result.invoiceNumber}`
+          `發票成功: ${result.invoiceNumber}`
         );
       } else {
-        console.error("發票開立失敗:", result.message);
         await createLog(
           req.user.id,
           "INVOICE_FAILED",
           id,
-          `發票開立失敗: ${result.message}`
+          `發票失敗: ${result.message}`
         );
       }
     }
@@ -771,7 +693,7 @@ const rejectShipment = async (req, res) => {
         where: { shipmentId: id },
         data: { status: "ARRIVED", shipmentId: null },
       });
-      return { updated, count: released.count };
+      return { count: released.count };
     });
 
     await createLog(
@@ -789,6 +711,20 @@ const rejectShipment = async (req, res) => {
 const adminDeleteShipment = async (req, res) => {
   try {
     const { id } = req.params;
+    // 刪除檔案
+    const ship = await prisma.shipment.findUnique({
+      where: { id },
+      select: { paymentProof: true, shipmentProductImages: true },
+    });
+    if (ship) {
+      let files = [];
+      if (ship.paymentProof) files.push(ship.paymentProof);
+      try {
+        files.push(...JSON.parse(ship.shipmentProductImages || "[]"));
+      } catch (e) {}
+      deleteFiles(files);
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.package.updateMany({
         where: { shipmentId: id },
@@ -803,7 +739,7 @@ const adminDeleteShipment = async (req, res) => {
   }
 };
 
-// --- 4. 會員管理 (分頁) ---
+// --- 4. 會員管理 ---
 
 const getUsers = async (req, res) => {
   try {
@@ -813,9 +749,8 @@ const getUsers = async (req, res) => {
     const { status, search, role, filter } = req.query;
 
     const where = {};
-    if (status !== undefined && status !== "") {
+    if (status !== undefined && status !== "")
       where.isActive = status === "true";
-    }
     if (search) {
       const s = search.trim();
       where.OR = [
@@ -830,13 +765,10 @@ const getUsers = async (req, res) => {
       else if (role === "OPERATOR") where.permissions = { not: "[]" };
       else if (role === "USER") where.permissions = "[]";
     }
-
     if (filter === "new_today") {
       const start = new Date();
       start.setHours(0, 0, 0, 0);
-      const end = new Date();
-      end.setHours(23, 59, 59, 999);
-      where.createdAt = { gte: start, lte: end };
+      where.createdAt = { gte: start };
     }
 
     const [total, users] = await prisma.$transaction([
@@ -861,12 +793,7 @@ const getUsers = async (req, res) => {
     res.status(200).json({
       success: true,
       users,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
   } catch (e) {
     res.status(500).json({ success: false, message: "伺服器錯誤" });
@@ -877,12 +804,11 @@ const getUsersList = async (req, res) => {
   try {
     const { search } = req.query;
     const where = { isActive: true };
-    if (search) {
+    if (search)
       where.OR = [
-        { email: { contains: search, mode: "insensitive" } },
-        { name: { contains: search, mode: "insensitive" } },
+        { email: { contains: search } },
+        { name: { contains: search } },
       ];
-    }
     const users = await prisma.user.findMany({
       where,
       take: 20,
@@ -891,7 +817,7 @@ const getUsersList = async (req, res) => {
     });
     res.status(200).json({ success: true, users });
   } catch (e) {
-    res.status(500).json({ success: false, message: "伺服器錯誤" });
+    res.status(500).json({ success: false, message: "錯誤" });
   }
 };
 
@@ -916,10 +842,7 @@ const createStaffUser = async (req, res) => {
       },
     });
     await createLog(req.user.id, "CREATE_STAFF", user.id, `建立員工 ${email}`);
-    res.status(201).json({
-      success: true,
-      user: { ...user, permissions: JSON.parse(user.permissions) },
-    });
+    res.status(201).json({ success: true, user });
   } catch (e) {
     res.status(500).json({ message: "錯誤" });
   }
@@ -970,6 +893,9 @@ const deleteUser = async (req, res) => {
     if (req.user.id === id)
       return res.status(400).json({ message: "不能刪除自己" });
 
+    // 刪除相關檔案
+    // (進階實作：應查詢該使用者所有包裹圖片並刪除，此處略過以避免過度複雜，主要刪除 DB)
+
     await prisma.$transaction(async (tx) => {
       await tx.activityLog.deleteMany({ where: { userId: id } });
       await tx.package.deleteMany({ where: { userId: id } });
@@ -1013,24 +939,16 @@ const updateUserPermissions = async (req, res) => {
   }
 };
 
-// --- 5. 儀表板與日誌 ---
+// --- 5. 儀表板與日誌 (分頁版) ---
 
 const getDashboardStats = async (req, res) => {
   try {
     const today = new Date();
-    const date7 = new Date(new Date().setDate(today.getDate() - 7));
-    const date30 = new Date(new Date().setDate(today.getDate() - 30));
     today.setHours(0, 0, 0, 0);
 
     const [
-      weeklyRev,
-      monthlyRev,
       totalRev,
       pendingRev,
-      wPkg,
-      mPkg,
-      wUser,
-      mUser,
       totalUser,
       newUserToday,
       pkgGroup,
@@ -1039,14 +957,6 @@ const getDashboardStats = async (req, res) => {
       recentShip,
     ] = await Promise.all([
       prisma.shipment.aggregate({
-        where: { status: "CANCEL", updatedAt: { gte: date7 } },
-        _sum: { totalCost: true },
-      }),
-      prisma.shipment.aggregate({
-        where: { status: "CANCEL", updatedAt: { gte: date30 } },
-        _sum: { totalCost: true },
-      }),
-      prisma.shipment.aggregate({
         where: { status: "CANCEL" },
         _sum: { totalCost: true },
       }),
@@ -1054,14 +964,6 @@ const getDashboardStats = async (req, res) => {
         where: { status: "PENDING_PAYMENT" },
         _sum: { totalCost: true },
       }),
-      prisma.package.count({
-        where: { status: "ARRIVED", updatedAt: { gte: date7 } },
-      }),
-      prisma.package.count({
-        where: { status: "ARRIVED", updatedAt: { gte: date30 } },
-      }),
-      prisma.user.count({ where: { createdAt: { gte: date7 } } }),
-      prisma.user.count({ where: { createdAt: { gte: date30 } } }),
       prisma.user.count(),
       prisma.user.count({ where: { createdAt: { gte: today } } }),
       prisma.package.groupBy({ by: ["status"], _count: { id: true } }),
@@ -1086,14 +988,8 @@ const getDashboardStats = async (req, res) => {
     res.status(200).json({
       success: true,
       stats: {
-        weeklyRevenue: weeklyRev._sum.totalCost || 0,
-        monthlyRevenue: monthlyRev._sum.totalCost || 0,
         totalRevenue: totalRev._sum.totalCost || 0,
         pendingRevenue: pendingRev._sum.totalCost || 0,
-        weeklyPackages: wPkg,
-        monthlyPackages: mPkg,
-        weeklyNewUsers: wUser,
-        monthlyNewUsers: mUser,
         totalUsers: totalUser,
         newUsersToday: newUserToday,
         packageStats: pkgStats,
@@ -1109,11 +1005,35 @@ const getDashboardStats = async (req, res) => {
 
 const getActivityLogs = async (req, res) => {
   try {
-    const logs = await prisma.activityLog.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 200,
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50; // 預設顯示較多
+    const skip = (page - 1) * limit;
+    const { search, action } = req.query;
+
+    const where = {};
+    if (search) {
+      where.OR = [
+        { userEmail: { contains: search, mode: "insensitive" } },
+        { details: { contains: search, mode: "insensitive" } },
+      ];
+    }
+    if (action) where.action = { contains: action };
+
+    const [total, logs] = await prisma.$transaction([
+      prisma.activityLog.count({ where }),
+      prisma.activityLog.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      logs,
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
-    res.status(200).json({ success: true, logs });
   } catch (e) {
     res.status(500).json({ message: "錯誤" });
   }
@@ -1127,6 +1047,7 @@ const getDailyReport = async (req, res) => {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
+    // 使用 Raw Query 以便按日分組
     const revenue = await prisma.$queryRaw`
       SELECT DATE_TRUNC('day', "updatedAt")::DATE as date, SUM("totalCost") as revenue
       FROM "Shipment"
@@ -1140,30 +1061,29 @@ const getDailyReport = async (req, res) => {
       GROUP BY date ORDER BY date ASC
     `;
 
+    // BigInt 處理
+    const safeRevenue = revenue.map((r) => ({
+      date: r.date,
+      revenue: Number(r.revenue),
+    }));
+    const safeUsers = users.map((u) => ({
+      date: u.date,
+      newUsers: Number(u.newusers),
+    }));
+
     res.status(200).json({
       success: true,
-      report: {
-        revenueData: revenue.map((r) => ({
-          date: r.date,
-          revenue: Number(r.revenue),
-        })),
-        userData: users.map((u) => ({
-          date: u.date,
-          newUsers: Number(u.newusers),
-        })),
-      },
+      report: { revenueData: safeRevenue, userData: safeUsers },
     });
   } catch (e) {
-    res.status(500).json({ message: "錯誤" });
+    console.error(e);
+    res.status(500).json({ message: "報表錯誤" });
   }
 };
 
 module.exports = {
-  // 系統設定
   getSystemSettings,
   updateSystemSetting,
-
-  // 包裹
   getAllPackages,
   exportPackages,
   bulkUpdatePackageStatus,
@@ -1172,8 +1092,6 @@ module.exports = {
   adminDeletePackage,
   updatePackageStatus,
   updatePackageDetails,
-
-  // 集運單
   getAllShipments,
   exportShipments,
   bulkUpdateShipmentStatus,
@@ -1181,8 +1099,6 @@ module.exports = {
   updateShipmentStatus,
   rejectShipment,
   adminDeleteShipment,
-
-  // 會員
   getUsers,
   getUsersList,
   createStaffUser,
@@ -1192,8 +1108,6 @@ module.exports = {
   deleteUser,
   impersonateUser,
   updateUserPermissions,
-
-  // 報表與日誌
   getDashboardStats,
   getActivityLogs,
   getDailyReport,

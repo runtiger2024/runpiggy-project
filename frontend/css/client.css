@@ -1,743 +1,666 @@
 /* frontend/css/client.css */
-/* 客戶端專用樣式：首頁、試算器、會員中心、頁尾 */
+/* 客戶端專用樣式：購物平台風格 (Shopee/Taobao Like) */
 
-/* --- 1. 首頁與試算器 --- */
-#calculator-section {
-  scroll-margin-top: 20px;
-}
-
-.usage-counter {
-  text-align: center;
-  margin-bottom: 20px;
-  color: #555;
-  font-size: 1.1em;
-  font-weight: bold;
-  background-color: #e9f5ff;
-  padding: 10px;
-  border-radius: 5px;
-}
-.usage-counter span {
-  color: var(--primary-color);
+/* =========================================
+   1. 佈局容器 & 變數 (Layout)
+   ========================================= */
+:root {
+  --header-height: 70px;
+  --footer-height: 80px;
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --orange-action: #ff5722; /* 類似蝦皮橙 */
+  --blue-brand: #1a73e8;
 }
 
-/* 倉庫資訊區塊 */
-.warehouse-info-section {
-  background-color: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
+body.shopping-theme,
+body.dashboard-theme {
+  background-color: #f5f5f5;
+  padding-top: calc(var(--header-height) + 20px);
+  padding-bottom: calc(var(--footer-height) + 40px); /* 預留底部懸浮空間 */
 }
-.warehouse-info-section h3 {
-  margin-top: 0;
-  text-align: center;
-  color: var(--text-color);
+
+.container.main-content,
+.container.dashboard-container {
+  max-width: 960px;
+  margin: 0 auto;
+  background: transparent; /* 移除預設白底 */
+  box-shadow: none;
+  padding: 0 15px;
 }
-.address-box {
-  background-color: var(--white);
-  border: 1px dashed var(--primary-color);
-  padding: 15px;
-  border-radius: 5px;
-  margin-bottom: 15px;
-  line-height: 1.8;
-}
-.address-box .placeholder {
-  color: var(--danger-color);
-  font-weight: bold;
-}
-.btn-copy-address {
+
+/* =========================================
+   2. 首頁 Header (購物網風格)
+   ========================================= */
+.site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100%;
-  padding: 12px;
-  font-size: 16px;
-  background-color: #555;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-.btn-copy-address:hover {
-  background-color: #333;
-}
-.warehouse-warning {
-  font-size: 14px;
-  color: #721c24;
-  text-align: center;
-  margin-top: 10px;
+  height: var(--header-height);
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
 }
 
-/* --- 2. 費率表 (Rate Table) --- */
-.rate-table-container {
-  margin-bottom: 40px;
-  padding: 20px;
-  background-color: #e9f5ff;
-  border: 1px solid #b3d9ff;
-  border-radius: 8px;
-}
-.rate-table-container h2 {
-  text-align: center;
-  color: var(--primary-color);
-  margin-top: 0;
-  margin-bottom: 15px;
-}
-.rate-table {
+.header-container {
+  max-width: 1200px;
   width: 100%;
-  border-collapse: collapse;
-  text-align: center;
-  table-layout: auto;
-}
-.rate-table th,
-.rate-table td {
-  border: 1px solid #b3d9ff;
-  padding: 12px;
-  white-space: normal;
-  word-wrap: break-word;
-  vertical-align: middle;
-}
-.rate-table th {
-  background-color: var(--primary-color);
-  color: white;
-}
-.rate-table td {
-  background-color: var(--white);
-}
-.rate-table th:nth-child(1) {
-  width: 15%;
-}
-.rate-table th:nth-child(2) {
-  width: 45%;
-}
-.rate-table th:nth-child(3) {
-  width: 20%;
-}
-.rate-table th:nth-child(4) {
-  width: 20%;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.rate-notes {
-  margin-top: 15px;
-  padding: 10px 15px;
-  background-color: #d6eaf8;
-  border-left: 4px solid var(--primary-color);
-  border-radius: 0 5px 5px 0;
-}
-.rate-notes ul {
-  margin: 8px 0 0 0;
-  padding-left: 20px;
-  color: #333;
-}
-.rate-notes .highlight {
-  color: var(--danger-color);
+.logo-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: var(--blue-brand);
+  font-size: 1.5rem;
   font-weight: bold;
 }
 
-/* --- 3. 試算器表單 --- */
-.calculator-form {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px;
+.header-logo-img {
+  height: 40px;
+  margin-right: 10px;
 }
-.item-group {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
-  background-color: #fafafa;
+
+/* 中間搜尋欄 */
+.header-search {
+  flex: 1;
+  max-width: 500px;
+  margin: 0 30px;
   position: relative;
 }
-.item-header {
+
+.search-wrapper {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
-  margin-bottom: 20px;
-}
-.item-header h4 {
-  margin: 0;
-  color: var(--primary-color);
-}
-.btn-remove-item {
-  background: var(--danger-color);
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 5px;
-  cursor: pointer;
-}
-.calc-method-toggle label {
-  margin-right: 15px;
-}
-
-/* 配送地區 */
-.delivery-options {
-  background-color: #fafafa;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px;
-  margin-top: 20px;
-  margin-bottom: 20px;
-}
-.remote-area-notice {
-  background-color: #fff3cd;
-  border-left: 4px solid #ffc107;
-  padding: 15px;
-  margin-bottom: 15px;
+  border: 2px solid var(--orange-action);
   border-radius: 4px;
-  color: #856404;
-}
-.remote-area-search {
-  margin-bottom: 15px;
-}
-#searchResults {
-  margin-top: 10px;
-  max-height: 200px;
-  overflow-y: auto;
-  display: none;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-}
-.search-result-item {
-  padding: 8px 12px;
-  background: #f8f9fa;
-  border-bottom: 1px solid #eee;
-  cursor: pointer;
-}
-.search-result-item:hover {
-  background: #e9ecef;
-}
-#remoteAreaInfo {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: #e8f4f8;
-  border-radius: 5px;
-  display: none;
-  border-left: 4px solid var(--primary-color);
-}
-select#deliveryLocation optgroup {
-  font-weight: bold;
-  color: #495057;
-}
-
-/* --- 4. 試算結果顯示 --- */
-#results-container {
-  margin-top: 30px;
-}
-#results-container h2 {
-  color: var(--primary-color);
-  margin-bottom: 20px;
-}
-.result-detail-card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
   overflow: hidden;
 }
-.result-detail-card h3 {
-  font-size: 1.2em;
-  color: #333;
-  padding: 15px 20px;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
-  margin: 0;
-}
-.detail-section {
-  padding: 15px 20px 15px 35px;
-  position: relative;
-  border-bottom: 1px dashed #eee;
-}
-.detail-section::before {
-  content: "";
-  position: absolute;
-  left: 15px;
-  top: 15px;
-  bottom: 15px;
-  width: 5px;
-  border-radius: 3px;
-}
-.detail-section.calc-volume::before {
-  background-color: #3498db;
-}
-.detail-section.calc-quantity::before {
-  background-color: #9b59b6;
-}
-.detail-section.calc-cost::before {
-  background-color: #2ecc71;
-}
 
-.detail-section h4 {
-  margin: 0 0 10px 0;
-  color: #555;
-  font-size: 1em;
-}
-.calc-line {
-  font-family: monospace;
-  font-size: 1.1em;
-  margin: 5px 0;
-}
-.calc-line b {
-  color: var(--danger-color);
-}
-.calc-line .formula {
-  color: #888;
-}
-
-.result-summary-card {
-  background: #fff;
-  border: 2px solid var(--primary-color);
-  border-radius: 8px;
-  padding: 20px;
-  margin-top: 20px;
-}
-.summary-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px dashed #ccc;
-}
-.summary-row:last-child {
-  border-bottom: none;
-}
-.summary-total {
-  text-align: center;
-  font-size: 28px;
-  font-weight: bold;
-  color: var(--danger-color);
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 2px solid var(--primary-color);
-}
-.summary-total small {
-  display: block;
-  font-size: 14px;
-  color: #555;
-  margin-top: 10px;
-  font-weight: normal;
-}
-.btn-share {
-  background-color: var(--secondary-color);
-  color: white;
-  margin-top: 15px;
-}
-.btn-share:hover {
-  background-color: var(--secondary-hover);
-}
-
-/* --- 5. 登入/註冊 (Auth) --- */
-.auth-container {
-  background-color: #fafafa;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 20px 30px;
-  margin-top: 20px;
-}
-.auth-tabs {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 25px;
-  border-bottom: 1px solid #ddd;
-}
-.tab-btn {
-  padding: 10px 20px;
-  background: none;
-  border: none;
-  color: #666;
-  font-size: 16px;
-  cursor: pointer;
-  position: relative;
-  transition: color 0.3s;
-}
-.tab-btn.active {
-  color: var(--primary-color);
-  font-weight: bold;
-}
-.tab-btn.active::after {
-  content: "";
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--primary-color);
-}
-.auth-form {
-  padding: 10px 0;
-}
-
-/* --- 6. 會員中心 Dashboard --- */
-.user-info-box {
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 30px;
-}
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-.info-grid p {
-  margin: 5px 0;
-}
-
-.shipment-action-bar {
-  padding: 15px;
-  background-color: #f8f9fa;
-  border: 1px solid #ddd;
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-  text-align: right;
-}
-.package-checkbox {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-/* 建立集運單彈窗 - 包裹明細與公式 */
-#shipment-package-list {
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  padding: 10px;
-  background: #fff;
-  max-height: 200px;
-  overflow-y: auto;
-}
-.shipment-package-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px;
-  border-bottom: 1px dashed #eee;
-}
-.shipment-pkg-detail-item {
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 15px;
-}
-.shipment-pkg-detail-item h4 {
-  margin-top: 0;
-  margin-bottom: 10px;
-  color: var(--primary-color);
-  border-bottom: 1px dashed #eee;
-  padding-bottom: 10px;
-}
-.calc-box {
-  border-bottom: 1px solid #f0f0f0;
-  padding-bottom: 10px;
-  margin-bottom: 10px;
-}
-.shipment-pkg-detail-item .calc-box:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-.calc-line .cost {
-  color: var(--danger-color);
-  font-weight: bold;
-}
-.calc-line.final {
-  text-align: right;
-  font-size: 1.1em;
-  margin-top: 5px;
-}
-.calc-line.final strong {
-  color: var(--danger-color);
-}
-.pkg-subtotal {
-  text-align: right;
-  font-weight: bold;
-  font-size: 1.2em;
-  color: var(--primary-color);
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 2px solid #ddd;
-}
-.pkg-subtotal strong {
-  color: var(--danger-color);
-}
-
-/* 集運單詳情彈窗 */
-#shipments-table-body tr {
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-#shipments-table-body tr:hover {
-  background-color: #f8f9fa;
-}
-.shipment-details-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-.info-grid-simple p {
-  margin: 10px 0;
-  font-size: 15px;
-  border-bottom: 1px dashed #eee;
-  padding-bottom: 8px;
-}
-.info-grid-simple p:last-child {
-  border-bottom: none;
-}
-.info-grid-simple strong {
-  color: #555;
-  min-width: 100px;
-  display: inline-block;
-}
-#detail-package-list .shipment-package-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px;
-  background-color: #fdfdfd;
-  border-bottom: 1px solid #eee;
-  font-size: 14px;
-}
-#detail-package-list .shipment-package-item:last-child {
-  border-bottom: none;
-}
-#detail-package-list .shipment-package-item span {
+.search-wrapper input {
   flex: 1;
-}
-#detail-package-list .shipment-package-item small {
-  flex-basis: 100px;
-  text-align: right;
-  color: var(--primary-color);
-  font-weight: bold;
-}
-
-/* --- 7. 圖片瀏覽 --- */
-#details-images-gallery,
-.image-gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 10px;
-  max-height: 200px;
-  overflow-y: auto;
-  background: #f0f0f0;
-  padding: 10px;
-  border-radius: 5px;
-}
-.image-gallery.large-view {
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  max-height: 60vh;
-}
-.image-gallery img,
-#details-images-gallery img {
-  width: 100%;
-  height: 100px;
-  object-fit: cover;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-.image-gallery img:hover {
-  transform: scale(1.05);
-  border-color: var(--primary-color);
-}
-.btn-view-img {
-  background-color: #17a2b8;
-  color: white;
-  padding: 5px 10px;
+  border: none;
+  padding: 8px 15px;
   font-size: 14px;
-  width: auto;
-}
-.btn-view-img:hover {
-  background-color: #138496;
+  outline: none;
 }
 
-/* 彈窗內的簡單清單 (包裹詳情) */
-.simple-list {
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  padding: 10px;
-  max-height: 150px;
-  overflow-y: auto;
+.search-wrapper .search-btn {
+  background: var(--orange-action);
+  color: white;
+  border: none;
+  padding: 0 20px;
+  cursor: pointer;
+  font-size: 16px;
 }
-.simple-list p {
-  margin: 5px 0;
-  padding-bottom: 5px;
+
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background: white;
+  border: 1px solid #eee;
+  border-top: none;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  display: none; /* JS控制 */
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1001;
+}
+
+.search-result-item {
+  padding: 10px 15px;
+  border-bottom: 1px solid #f5f5f5;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+.search-result-item:hover {
+  background-color: #fafafa;
+}
+
+/* Header 導航 */
+.header-nav .nav-link {
+  border: none;
+  background: none;
+  font-size: 15px;
+  color: #333;
+  padding: 5px 10px;
+  box-shadow: none;
+}
+.header-nav .nav-link:hover {
+  color: var(--orange-action);
+  background: none;
+}
+.header-nav .nav-link.btn-logout {
+  color: #666;
+}
+
+/* =========================================
+   3. 倉庫名片 (Warehouse Card)
+   ========================================= */
+.warehouse-card {
+  background: #fff;
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--card-shadow);
+  border-top: 4px solid var(--blue-brand);
+}
+
+.warehouse-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
   border-bottom: 1px dashed #eee;
 }
-.detail-summary {
-  text-align: right;
-  font-size: 1.1em;
-  font-weight: bold;
-  color: #333;
-  margin-top: 10px;
-}
-.detail-summary span {
-  color: var(--danger-color);
-  margin: 0 5px;
-}
 
-/* --- 8. 頁尾 (Footer) --- */
-.site-footer {
-  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-  color: white;
-  padding: 30px;
-  margin-top: 50px;
-  border-radius: 15px;
-  text-align: center;
-  box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
-}
-.site-footer__container {
-  max-width: 600px;
-  margin: 0 auto;
-}
-.site-footer__title {
-  color: white;
+.wh-icon {
   font-size: 24px;
-  margin-top: 0;
-  margin-bottom: 20px;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
-  padding-bottom: 10px;
-}
-.site-footer__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
-  text-align: left;
-  margin-bottom: 20px;
-}
-.site-footer__item {
-  margin: 8px 0;
-}
-.site-footer__label {
-  color: #3498db;
-}
-.site-footer__value,
-.site-footer__link {
-  font-size: 18px;
-  color: white;
-  text-decoration: none;
-  transition: color 0.3s;
-}
-.site-footer__link--email:hover {
-  color: #3498db;
-}
-.site-footer__link--line:hover {
-  color: #00c300;
-}
-.site-footer__copyright {
-  border-top: 1px solid rgba(255, 255, 255, 0.3);
-  padding-top: 15px;
-  margin-top: 20px;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.8);
-}
-.separator {
-  color: rgba(255, 255, 255, 0.1);
-  margin: 0 5px;
-}
-.admin-stealth-link {
-  color: rgba(255, 255, 255, 0.1);
-  text-decoration: none;
-  font-size: 12px;
-  transition: color 0.3s ease;
-}
-.admin-stealth-link:hover {
-  color: #fff;
-  cursor: pointer;
-}
-
-/* --- 9. Line FAB (懸浮按鈕) --- */
-.line-fab {
-  position: fixed;
-  bottom: 25px;
-  right: 25px;
-  width: 60px;
-  height: 60px;
-  background-color: #00b900;
+  color: var(--blue-brand);
+  margin-right: 15px;
+  background: #e8f0fe;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
-  transition: transform 0.2s ease-in-out;
-  text-decoration: none;
+}
+
+.wh-title h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.badge-official {
+  background: #d0021b;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 5px;
+}
+
+.btn-follow {
+  margin-left: auto;
+  border-radius: 20px;
+}
+
+.warehouse-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.wh-info-row .label {
+  color: #888;
+  font-size: 13px;
+}
+.wh-info-row .value {
+  font-weight: 500;
+  color: #333;
+}
+.wh-info-row.full-width {
+  grid-column: 1 / -1;
+  background: #f9f9f9;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px dashed #ccc;
+}
+
+.wh-notice {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: #d0021b;
+  margin-top: 5px;
+}
+
+/* =========================================
+   4. 試算列表 (Shopping List Style)
+   ========================================= */
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.btn-toggle-rates {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.rate-details.hidden {
+  display: none;
+}
+
+.shopping-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.card-item {
+  background: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+  border: 1px solid #eee;
+  transition: transform 0.2s;
+}
+.card-item:hover {
+  border-color: var(--blue-brand);
+}
+
+.item-header {
+  background: #f8f9fa;
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #eee;
+}
+.item-index {
+  font-weight: bold;
+  color: #555;
+}
+
+.item-body {
+  padding: 15px;
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr; /* 品名+種類 | 尺寸 | 重量+數量 */
+  gap: 15px;
+}
+
+/* 內部表單排版 */
+.item-body .form-group {
+  margin-bottom: 10px;
+}
+.item-body label {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 4px;
+}
+
+.calc-method-toggle {
+  font-size: 13px;
+  margin-bottom: 5px;
+  display: flex;
+  gap: 10px;
+}
+
+/* 尺寸輸入 3欄 */
+.input-group-3 {
+  display: flex;
+  gap: 5px;
+}
+.input-wrap {
+  position: relative;
+  flex: 1;
+}
+.input-wrap input {
+  width: 100%;
+  padding-right: 25px; /* 留給單位 */
+}
+.input-wrap .unit {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #999;
+}
+
+/* 重量與數量 */
+.weight-qty-row {
+  display: flex;
+  gap: 10px;
+}
+.qty-control input {
+  text-align: center;
+}
+
+.btn-dashed-add {
+  border: 2px dashed #ccc;
+  background: #fff;
+  color: #666;
+  margin-top: 15px;
+  width: 100%;
+}
+.btn-dashed-add:hover {
+  border-color: var(--blue-brand);
+  color: var(--blue-brand);
+}
+
+/* 配送地區塊 */
+.delivery-block {
+  background: #fff;
+  padding: 20px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--card-shadow);
+  margin-bottom: 100px; /* 防止被 Footer 遮擋 */
+}
+.remote-area-notice {
+  background: #fff3cd;
+  color: #856404;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.selected-area-info {
+  margin-top: 10px;
+  padding: 10px;
+  background: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  border-radius: 4px;
+}
+.area-result .val-fee {
+  color: #d32f2f;
+  font-weight: bold;
+  margin-left: 10px;
+}
+
+/* =========================================
+   5. 底部懸浮結算欄 (Sticky Footer)
+   ========================================= */
+.sticky-footer-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: #fff;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  padding: 10px 20px;
+  z-index: 990;
+  display: flex;
+  justify-content: center;
+}
+
+.footer-content {
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 20px;
+}
+
+.footer-total {
+  font-size: 16px;
+}
+.footer-total .price {
+  color: var(--orange-action);
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.btn-checkout {
+  background: var(--orange-action);
+  font-size: 18px;
+  padding: 10px 30px;
+  border-radius: 4px;
+  width: auto; /* 改為自動寬度 */
+}
+.btn-checkout:hover {
+  background: #e64a19;
+}
+
+/* =========================================
+   6. 會員中心 (Dashboard)
+   ========================================= */
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.header-logo-sm {
+  height: 30px;
+  margin-right: 10px;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+/* 個人卡片 */
+.user-profile-card {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 20px;
+}
+.profile-bg {
+  height: 80px;
+  background: linear-gradient(135deg, #1a73e8 0%, #82b1ff 100%);
+}
+.profile-content {
+  padding: 0 20px 20px 20px;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+}
+.avatar-circle {
+  width: 70px;
+  height: 70px;
+  background: #fff;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  color: #ccc;
+  margin-top: -35px; /* 上移 */
+  margin-right: 15px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+.profile-details {
+  flex: 1;
+  padding-top: 10px;
+}
+.profile-details h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+.user-meta {
+  font-size: 13px;
+  color: #666;
+  margin-top: 5px;
+}
+.meta-item {
+  margin-right: 15px;
+}
+.btn-edit-profile {
+  margin-bottom: 5px;
+  border: 1px solid #ddd;
+  color: #555;
+}
+
+/* 預報區塊 */
+.forecast-section {
+  background: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: var(--card-shadow);
+  margin-bottom: 30px;
+}
+.card-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid #eee;
+}
+.card-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--blue-brand);
+}
+.card-body {
+  padding: 20px;
+}
+.forecast-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr; /* 單號 品名 數量 照片 */
+  gap: 15px;
+  align-items: start;
+}
+.forecast-form-grid .full {
+  grid-column: 1 / -1;
+}
+.forecast-form-grid .action {
+  grid-column: 1 / -1;
+  text-align: right;
+}
+.file-upload-btn {
+  display: block;
+  border: 1px solid #ddd;
+  background: #fafafa;
+  text-align: center;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.file-upload-btn:hover {
+  background: #eee;
+}
+
+/* 列表 Tabs */
+.dashboard-tabs {
+  display: flex;
+  border-bottom: 2px solid #eee;
+  margin-bottom: 20px;
+}
+.dashboard-tabs .tab-btn {
+  padding: 12px 20px;
+  border: none;
+  background: none;
+  font-size: 15px;
+  font-weight: bold;
+  color: #888;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+}
+.dashboard-tabs .tab-btn.active {
+  color: var(--blue-brand);
+  border-bottom-color: var(--blue-brand);
+}
+
+/* 表格/列表樣式 (Cart Style) */
+.table-responsive {
+  background: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: var(--card-shadow);
+  padding: 10px;
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+}
+th {
+  background: #f8f9fa;
+  padding: 12px;
+  text-align: left;
+  font-size: 13px;
+  color: #555;
+}
+td {
+  padding: 12px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+  vertical-align: middle;
+}
+td:last-child {
+  text-align: right;
+}
+
+/* 懸浮打包欄 */
+.sticky-checkout-bar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 800px;
+  background: #fff;
+  padding: 10px 20px;
+  border-radius: 50px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 900;
+  border: 1px solid #eee;
+}
+.checkout-info {
+  font-size: 15px;
+}
+.checkout-info .highlight {
+  color: var(--blue-brand);
   font-size: 18px;
   font-weight: bold;
-  color: white;
 }
-.line-fab:hover {
-  transform: scale(1.1);
+.btn-checkout {
+  border-radius: 30px;
+  padding: 8px 25px;
+  font-size: 15px;
 }
 
-/* --- 10. 響應式調整 (Client Specific) --- */
+/* =========================================
+   7. 響應式調整 (Mobile)
+   ========================================= */
 @media (max-width: 768px) {
-  .info-grid {
-    grid-template-columns: 1fr;
-  }
-  .shipment-details-grid {
-    grid-template-columns: 1fr;
-    gap: 0;
+  .item-body {
+    grid-template-columns: 1fr; /* 手機版單欄 */
+    gap: 10px;
   }
 
-  /* 收費標準表格 手機版 */
-  .rate-table,
-  .rate-table tbody,
-  .rate-table tr,
-  .rate-table td {
-    display: block;
+  .header-search {
+    display: none; /* 手機版可考慮隱藏或移到下方 */
+  }
+
+  .forecast-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .forecast-form-grid .form-group:nth-child(1), /* 單號 */
+  .forecast-form-grid .form-group:nth-child(2) {
+    /* 品名 */
+    grid-column: 1 / -1;
+  }
+
+  .sticky-footer-bar {
+    flex-direction: column;
+    padding: 10px;
+  }
+  .footer-content {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .btn-checkout {
     width: 100%;
   }
-  .rate-table-container {
-    padding: 10px;
-    overflow: hidden;
-  }
-  .rate-table thead {
-    display: none;
-  }
-  .rate-table tr {
-    margin-bottom: 15px;
-    border: 2px solid var(--primary-color);
-    border-radius: 8px;
-    background: #fff;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  }
-  .rate-table td {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    text-align: right;
-    font-size: 14px;
-    border-bottom: 1px solid #eee;
-    padding: 10px 12px;
-    min-height: 40px;
-    word-break: break-word;
-  }
-  .rate-table td:last-child {
-    border-bottom: 0;
-  }
-  .rate-table td::before {
-    content: attr(data-label);
-    font-weight: bold;
-    color: var(--primary-color);
-    text-align: left;
-    margin-right: 10px;
-    flex: 0 0 auto;
-    max-width: 40%;
-    white-space: normal;
-  }
-  .rate-table td:first-child {
-    background-color: #eaf4ff;
-    color: var(--primary-color);
-    border-bottom: 2px solid #b3d9ff;
-    font-weight: bold;
-    font-size: 16px;
-    justify-content: center;
-    text-align: center;
-  }
-  .rate-table td:first-child::before {
-    display: none;
+
+  .warehouse-body {
+    grid-template-columns: 1fr;
   }
 }

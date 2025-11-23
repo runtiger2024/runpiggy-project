@@ -3,20 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>小跑豬傢俱海運試算器</title>
+    <title>小跑豬傢俱海運試算 | 像網購一樣簡單</title>
     <link rel="icon" href="assets/logo.png" type="image/png" />
     <script src="js/styleLoader.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
     <style>
-      /* 公告橫幅樣式 */
+      /* 公告橫幅樣式 (保留) */
       #announcement-bar {
         display: none;
         padding: 10px;
         text-align: center;
         color: white;
         font-weight: bold;
-        margin-bottom: 20px;
-        border-radius: 5px;
+        margin-bottom: 0; /* 貼頂 */
         animation: fadeInDown 0.5s;
+        position: relative;
+        z-index: 1001;
       }
       @keyframes fadeInDown {
         from {
@@ -30,279 +35,313 @@
       }
     </style>
   </head>
-  <body>
-    <div class="container">
-      <div id="announcement-bar"></div>
+  <body class="shopping-theme">
+    <div id="announcement-bar"></div>
 
-      <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
-      <h1>小跑豬傢俱海運試算器</h1>
+    <header class="site-header">
+      <div class="header-container">
+        <a href="index.html" class="logo-link">
+          <img
+            src="assets/logo.png"
+            alt="小跑豬 LOGO"
+            class="header-logo-img"
+          />
+          <span class="logo-text">小跑豬集運</span>
+        </a>
 
-      <div class="usage-counter">
-        已有 <span id="usageCount">5,000</span> 人使用本傢俱試算器
-      </div>
-
-      <nav class="main-nav"></nav>
-
-      <div class="warehouse-info-section">
-        <h3>倉庫資訊 (傢俱專線)</h3>
-        <div class="address-box" id="warehouseAddressBox">
-          <p>
-            <strong>收件地址:</strong>
-            <span id="wh-address">載入中...</span>
-          </p>
-          <p>
-            <strong>收 件 人:</strong>
-            <span id="wh-recipient">小跑豬+[您的姓名]</span>
-          </p>
-          <p>
-            <strong>手機號碼:</strong> <span id="wh-phone">13652554906</span>
-          </p>
-          <p><strong>郵遞區號:</strong> <span id="wh-zip">523920</span></p>
-        </div>
-        <button id="copyAddressBtn" class="btn btn-copy-address">
-          一鍵複製倉庫地址
-        </button>
-        <p class="warehouse-warning">
-          注意：此為家具專線倉庫，只收大型家具、建材，**不**收集運散貨(普貨)。
-        </p>
-      </div>
-
-      <div class="rate-table-container">
-        <h2>收費標準一覽</h2>
-        <table class="rate-table">
-          <thead>
-            <tr>
-              <th>類別</th>
-              <th>品項說明</th>
-              <th>重量收費 (每公斤)</th>
-              <th>材積收費 (每材)</th>
-            </tr>
-          </thead>
-          <tbody id="rate-table-body">
-            <tr>
-              <td colspan="4" style="text-align: center; color: #999">
-                載入費率中...
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="rate-notes">
-          <strong>備註：</strong>
-          <ul id="rate-notes-list">
-            <li>海運低消 <span class="highlight">NT.2000</span> 元</li>
-          </ul>
-        </div>
-      </div>
-
-      <div id="calculator-section" class="calculator-form">
-        <div id="item-list">
-          <div class="item-group" data-id="1">
-            <div class="item-header">
-              <h4>貨物 #1</h4>
-            </div>
-
-            <div class="form-group">
-              <label>品名描述</label>
-              <input
-                type="text"
-                class="item-name"
-                placeholder="例：客廳三人座沙發"
-              />
-            </div>
-
-            <div class="form-group calc-method-toggle">
-              <label
-                ><input
-                  type="radio"
-                  name="calc-method-1"
-                  value="dimensions"
-                  checked
-                />
-                依尺寸 (公分)</label
-              >
-              <label
-                ><input type="radio" name="calc-method-1" value="cbm" />
-                依立方米 (CBM/方)</label
-              >
-            </div>
-
-            <div class="dimensions-inputs">
-              <div class="form-grid-3">
-                <div class="form-group">
-                  <label>長 (cm)</label>
-                  <input
-                    type="number"
-                    class="item-length"
-                    min="0"
-                    step="0.1"
-                    placeholder="180"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>寬 (cm)</label>
-                  <input
-                    type="number"
-                    class="item-width"
-                    min="0"
-                    step="0.1"
-                    placeholder="50"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>高 (cm)</label>
-                  <input
-                    type="number"
-                    class="item-height"
-                    min="0"
-                    step="0.1"
-                    placeholder="200"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div class="cbm-inputs" style="display: none">
-              <div class="form-group">
-                <label>立方米 (CBM/方)</label>
-                <input type="number" class="item-cbm" min="0" step="0.01" />
-              </div>
-            </div>
-
-            <div class="form-grid-2">
-              <div class="form-group">
-                <label>單件重量 (kg) <span class="required">*</span></label>
-                <input
-                  type="number"
-                  class="item-weight"
-                  min="0.1"
-                  step="0.1"
-                  placeholder="50"
-                />
-              </div>
-              <div class="form-group">
-                <label>數量 <span class="required">*</span></label>
-                <input type="number" class="item-quantity" value="1" min="1" />
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label>家具種類 (影響費率) <span class="required">*</span></label>
-              <select class="item-type" id="item-type-select-1">
-                <option value="general">一般家具</option>
-                <option value="special_a">特殊家具A</option>
-                <option value="special_b">特殊家具B</option>
-                <option value="special_c">特殊家具C</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        <button type="button" id="btn-add-item" class="btn btn-secondary">
-          + 新增一筆貨物
-        </button>
-
-        <hr />
-
-        <div class="delivery-options">
-          <h3>配送地區 (請務必選擇，以免費用有誤)</h3>
-          <div class="remote-area-notice">
-            <strong>⚠️ 偏遠地區說明：</strong>
-            <p>以下地區需額外收取偏遠地區派送費。請仔細確認您的配送地址。</p>
-          </div>
-          <div class="remote-area-search">
-            <label for="areaSearch">快速搜尋您的地區：</label>
+        <div class="header-search">
+          <div class="search-wrapper">
             <input
               type="text"
               id="areaSearch"
-              placeholder="輸入地區名稱（如：阿里山、小琉球、墾丁）"
+              placeholder="搜尋配送地區 (例: 阿里山, 墾丁)..."
+              autocomplete="off"
             />
-            <div id="searchResults"></div>
+            <button class="search-btn"><i class="fas fa-search"></i></button>
           </div>
+          <div id="searchResults" class="search-dropdown"></div>
+        </div>
 
-          <select id="deliveryLocation" class="input-wrapper">
-            <option value="" selected disabled>--- 載入中，請稍候 ---</option>
-          </select>
+        <nav class="header-nav main-nav"></nav>
+      </div>
+    </header>
 
-          <div id="remoteAreaInfo" style="display: none">
-            <strong>您選擇的地區：</strong>
-            <span id="selectedAreaName"></span><br />
-            <strong>偏遠地區費用：</strong>
-            <span
-              id="selectedAreaFee"
-              style="color: #e74c3c; font-weight: bold"
-            ></span>
+    <div class="container main-content">
+      <div class="warehouse-card">
+        <div class="warehouse-header">
+          <div class="wh-icon"><i class="fas fa-warehouse"></i></div>
+          <div class="wh-title">
+            <h3>東莞傢俱專線倉庫</h3>
+            <span class="badge-official">官方直營</span>
+          </div>
+          <button
+            id="copyAddressBtn"
+            class="btn btn-outline-primary btn-sm btn-follow"
+          >
+            <i class="far fa-copy"></i> 一鍵複製地址
+          </button>
+        </div>
+
+        <div class="warehouse-body" id="warehouseAddressBox">
+          <div class="wh-info-row">
+            <span class="label">收件人：</span>
+            <span class="value" id="wh-recipient">小跑豬+[您的姓名]</span>
+          </div>
+          <div class="wh-info-row">
+            <span class="label">電話：</span>
+            <span class="value" id="wh-phone">13652554906</span>
+          </div>
+          <div class="wh-info-row">
+            <span class="label">郵編：</span>
+            <span class="value" id="wh-zip">523920</span>
+          </div>
+          <div class="wh-info-row full-width">
+            <span class="label">地址：</span>
+            <span class="value" id="wh-address">載入中...</span>
+          </div>
+          <div class="wh-notice">
+            <i class="fas fa-exclamation-circle"></i>
+            注意：此倉專收大型家具/建材，拒收普貨散件。
           </div>
         </div>
-        <button type="button" id="btn-calculate" class="btn btn-primary">
-          計算總運費
-        </button>
       </div>
 
-      <div id="loading-spinner" style="display: none">
+      <div class="rate-section-wrapper">
+        <div class="section-header-row">
+          <h3><i class="fas fa-tags"></i> 收費標準</h3>
+          <button
+            class="btn-toggle-rates"
+            onclick="document.getElementById('rate-details-panel').classList.toggle('hidden')"
+          >
+            查看詳情 <i class="fas fa-chevron-down"></i>
+          </button>
+        </div>
+
+        <div id="rate-details-panel" class="rate-details hidden">
+          <div class="rate-table-container">
+            <table class="rate-table">
+              <thead>
+                <tr>
+                  <th>類別</th>
+                  <th>品項說明</th>
+                  <th>重量 (KG)</th>
+                  <th>材積 (材)</th>
+                </tr>
+              </thead>
+              <tbody id="rate-table-body">
+                <tr>
+                  <td colspan="4" class="loading-text">載入費率中...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="rate-notes">
+            <strong><i class="fas fa-info-circle"></i> 運費說明：</strong>
+            <ul id="rate-notes-list">
+              <li>海運低消 <span class="highlight">NT.2000</span> 元</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div id="calculator-section" class="calculator-wrapper">
+        <div class="section-header-row">
+          <h3><i class="fas fa-calculator"></i> 運費試算</h3>
+          <span class="usage-badge"
+            >已有 <span id="usageCount">5000+</span> 人使用</span
+          >
+        </div>
+
+        <div id="item-list" class="shopping-list">
+          <div class="item-group card-item" data-id="1">
+            <div class="item-header">
+              <span class="item-index">商品 #1</span>
+            </div>
+
+            <div class="item-body">
+              <div class="form-group name-row">
+                <label>品名</label>
+                <input
+                  type="text"
+                  class="item-name"
+                  placeholder="例：三人沙發"
+                />
+              </div>
+
+              <div class="form-group type-row">
+                <label>種類 <span class="required">*</span></label>
+                <select class="item-type" id="item-type-select-1">
+                  <option value="general">一般家具</option>
+                  <option value="special_a">特殊家具A</option>
+                </select>
+              </div>
+
+              <div class="form-group method-row">
+                <div class="calc-method-toggle">
+                  <label
+                    ><input
+                      type="radio"
+                      name="calc-method-1"
+                      value="dimensions"
+                      checked
+                    />
+                    尺寸 (cm)</label
+                  >
+                  <label
+                    ><input type="radio" name="calc-method-1" value="cbm" />
+                    體積 (CBM)</label
+                  >
+                </div>
+              </div>
+
+              <div class="dimensions-inputs">
+                <div class="input-group-3">
+                  <div class="input-wrap">
+                    <input
+                      type="number"
+                      class="item-length"
+                      placeholder="長"
+                      min="0"
+                      step="0.1"
+                    /><span class="unit">cm</span>
+                  </div>
+                  <div class="input-wrap">
+                    <input
+                      type="number"
+                      class="item-width"
+                      placeholder="寬"
+                      min="0"
+                      step="0.1"
+                    /><span class="unit">cm</span>
+                  </div>
+                  <div class="input-wrap">
+                    <input
+                      type="number"
+                      class="item-height"
+                      placeholder="高"
+                      min="0"
+                      step="0.1"
+                    /><span class="unit">cm</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="cbm-inputs" style="display: none">
+                <div class="input-wrap">
+                  <input
+                    type="number"
+                    class="item-cbm"
+                    placeholder="立方數"
+                    min="0"
+                    step="0.01"
+                  /><span class="unit">m³</span>
+                </div>
+              </div>
+
+              <div class="weight-qty-row">
+                <div class="form-group">
+                  <label>單件重量 <span class="required">*</span></label>
+                  <div class="input-wrap">
+                    <input
+                      type="number"
+                      class="item-weight"
+                      placeholder="50"
+                      min="0.1"
+                      step="0.1"
+                    /><span class="unit">kg</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>數量</label>
+                  <div class="qty-control">
+                    <input
+                      type="number"
+                      class="item-quantity"
+                      value="1"
+                      min="1"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" id="btn-add-item" class="btn btn-dashed-add">
+          <i class="fas fa-plus"></i> 加入下一件商品
+        </button>
+
+        <hr class="divider" />
+
+        <div class="delivery-block">
+          <h3><i class="fas fa-map-marker-alt"></i> 配送目的地</h3>
+
+          <div class="remote-area-notice">
+            <i class="fas fa-exclamation-triangle"></i>
+            偏遠地區需加收派送費，請務必正確選擇。
+          </div>
+
+          <div class="select-wrapper">
+            <select id="deliveryLocation" class="form-control">
+              <option value="" selected disabled>--- 載入中，請稍候 ---</option>
+            </select>
+          </div>
+
+          <div
+            id="remoteAreaInfo"
+            class="selected-area-info"
+            style="display: none"
+          >
+            <div class="area-result">
+              <span class="label">已選擇：</span>
+              <span id="selectedAreaName" class="val-name"></span>
+              <span id="selectedAreaFee" class="val-fee"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="loading-spinner" style="display: none" class="loading-overlay">
         <div class="spinner"></div>
-        <p>正在連線後端 API 計算中...</p>
+        <p>正在計算運費...</p>
       </div>
       <div
         id="error-message"
         class="alert alert-error"
         style="display: none"
       ></div>
+
       <div id="results-container" style="display: none"></div>
 
-      <script src="js/apiConfig.js"></script>
-      <script src="js/shippingData.js"></script>
-      <script src="js/navigation.js"></script>
-      <script src="js/main.js"></script>
+      <div class="sticky-footer-bar">
+        <div class="footer-content">
+          <div class="footer-total">
+            <span class="text">預估總額：</span>
+            <span class="price" id="sticky-total-price">請點擊計算</span>
+          </div>
+          <button
+            type="button"
+            id="btn-calculate"
+            class="btn btn-primary btn-checkout"
+          >
+            計算總運費
+          </button>
+        </div>
+      </div>
     </div>
-
     <footer class="site-footer">
       <div class="site-footer__container">
-        <h3 class="site-footer__title">公司資訊</h3>
-
-        <div class="site-footer__grid">
-          <div>
-            <p class="site-footer__item">
-              <strong class="site-footer__label">公司名稱：</strong><br />
-              <span class="site-footer__value">兩隻老虎國際貿易有限公司</span>
-            </p>
-            <p class="site-footer__item">
-              <strong class="site-footer__label">統一編號：</strong><br />
-              <span class="site-footer__value">60660304</span>
-            </p>
-          </div>
-
-          <div>
-            <p class="site-footer__item">
-              <strong class="site-footer__label">電子郵件：</strong><br />
-              <a
-                href="mailto:2runtigers@gmail.com"
-                class="site-footer__link site-footer__link--email"
-              >
-                2runtigers@gmail.com
-              </a>
-            </p>
-            <p class="site-footer__item">
-              <strong class="site-footer__label">LINE 客服：</strong><br />
-              <a
-                href="https://lin.ee/eK6HptX"
-                target="_blank"
-                class="site-footer__link site-footer__link--line"
-              >
-                @runpiggy
-              </a>
-            </p>
-          </div>
+        <div class="footer-links">
+          <a href="https://lin.ee/eK6HptX" target="_blank"
+            ><i class="fab fa-line"></i> LINE 客服</a
+          >
+          <a href="mailto:2runtigers@gmail.com"
+            ><i class="fas fa-envelope"></i> Email</a
+          >
         </div>
-
         <div class="site-footer__copyright">
-          <p class="site-footer__copyright-text">
-            © 2025 兩隻老虎國際貿易有限公司 版權所有
-          </p>
-          <p class="site-footer__copyright-text">
-            Twotigers International Trading CO., LTD.
-
-            <span class="separator">|</span>
-            <a href="admin-login.html" class="admin-stealth-link">管理員登入</a>
-          </p>
+          © 2025 兩隻老虎國際貿易有限公司
+          <span class="separator">|</span>
+          <a href="admin-login.html" class="admin-link">管理員</a>
         </div>
       </div>
     </footer>
@@ -313,7 +352,12 @@
       class="line-fab"
       title="聯絡 LINE 客服"
     >
-      LINE
+      <i class="fab fa-line"></i>
     </a>
+
+    <script src="js/apiConfig.js"></script>
+    <script src="js/shippingData.js"></script>
+    <script src="js/navigation.js"></script>
+    <script src="js/main.js"></script>
   </body>
 </html>

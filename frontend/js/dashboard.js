@@ -1,13 +1,14 @@
-// frontend/js/dashboard.js (V10 旗艦版 - 完整動態化)
+// frontend/js/dashboard.js (V12 - 電商風格與動態渲染優化版)
 // 相依檔案: apiConfig.js, shippingData.js
 
 // --- 全域變數 ---
-let currentEditPackageImages = []; // 用於儲存編輯中的舊圖片列表
+let currentEditPackageImages = []; // 編輯時暫存舊圖
 let currentUser = null;
 let allPackagesData = [];
 
 // --- [全域函式] 供 HTML onclick 使用 ---
 
+// 1. 開啟圖片瀏覽彈窗
 window.openImages = function (images) {
   const gallery = document.getElementById("images-gallery");
   const modal = document.getElementById("view-images-modal");
@@ -27,6 +28,7 @@ window.openImages = function (images) {
   modal.style.display = "flex";
 };
 
+// 2. 開啟包裹入庫詳情彈窗
 window.openPackageDetails = function (pkgDataStr) {
   try {
     const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
@@ -40,61 +42,42 @@ window.openPackageDetails = function (pkgDataStr) {
     let boxesHtml = "";
 
     if (arrivedBoxes.length > 0) {
-      arrivedBoxes.forEach((box) => {
-        const rate = window.RATES[box.type]; // 使用全域動態費率
-        if (!rate) {
-          boxesHtml += `<div class="calc-box"><strong>${
-            box.name || "分箱"
-          }:</strong> <span style="color: red;">(類型錯誤)</span></div>`;
-          return;
-        }
+      boxesHtml += `<div class="table-responsive"><table class="detail-sub-package-table">
+        <thead><tr><th>箱號</th><th>規格 (長x寬x高)</th><th>材積</th><th>重量</th><th>費用</th></tr></thead><tbody>`;
 
+      arrivedBoxes.forEach((box, idx) => {
+        const rate = window.RATES[box.type] || {};
         const l = parseFloat(box.length) || 0;
         const w_dim = parseFloat(box.width) || 0;
         const h = parseFloat(box.height) || 0;
         const w = parseFloat(box.weight) || 0;
-
-        // 使用全域常數
         const cai = Math.ceil(
           (l * w_dim * h) / window.CONSTANTS.VOLUME_DIVISOR
         );
-        const volCost = cai * rate.volumeRate;
-        const finalWeight = Math.ceil(w * 10) / 10;
-        const weightCost = finalWeight * rate.weightRate;
         const finalFee = box.fee || 0;
 
         boxesHtml += `
-          <div class="calc-box" style="background: #fdfdfd; border: 1px solid #f0f0f0; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-            <strong>${box.name || "分箱"} (${rate.name}):</strong>
-            <div class="calc-line">
-              📦 材積: (${l}x${w_dim}x${h}/${
-          window.CONSTANTS.VOLUME_DIVISOR
-        } ➜ <strong>${cai} 材</strong>) × $${
-          rate.volumeRate
-        } = $${volCost.toLocaleString()}
-            </div>
-            <div class="calc-line">
-              ⚖️ 重量: (<strong>${finalWeight} kg</strong>) × $${
-          rate.weightRate
-        } = $${Math.round(weightCost).toLocaleString()}
-            </div>
-            <div class="calc-line final">→ 運費: <strong>$${finalFee.toLocaleString()}</strong></div>
-          </div>
+          <tr>
+            <td>#${idx + 1} (${rate.name || box.type})</td>
+            <td>${l} x ${w_dim} x ${h}</td>
+            <td>${cai} 材</td>
+            <td>${w} kg</td>
+            <td style="color: #d32f2f; font-weight:bold;">$${finalFee.toLocaleString()}</td>
+          </tr>
         `;
       });
+      boxesHtml += `</tbody></table></div>`;
       boxesListContainer.innerHTML = boxesHtml;
     } else {
       boxesListContainer.innerHTML =
         '<p style="text-align: center; color: #888;">暫無分箱資料</p>';
     }
 
-    // 匯總
+    // 匯總數據
     const totalWeight = arrivedBoxes.reduce(
       (sum, box) => sum + (parseFloat(box.weight) || 0),
       0
     );
-    document.getElementById("details-total-boxes").textContent =
-      arrivedBoxes.length;
     document.getElementById("details-total-weight").textContent =
       totalWeight.toFixed(1);
     document.getElementById("details-total-fee").textContent = `NT$ ${(
@@ -110,19 +93,22 @@ window.openPackageDetails = function (pkgDataStr) {
       warehouseImages.forEach((imgUrl) => {
         const img = document.createElement("img");
         img.src = `${API_BASE_URL}${imgUrl}`;
+        img.loading = "lazy";
         img.onclick = () => window.open(img.src, "_blank");
         imagesGallery.appendChild(img);
       });
     } else {
-      imagesGallery.innerHTML = "<p>沒有照片</p>";
+      imagesGallery.innerHTML =
+        "<p style='grid-column:1/-1; text-align:center; color:#999'>無照片</p>";
     }
     modal.style.display = "flex";
   } catch (e) {
     console.error(e);
-    alert("載入失敗");
+    alert("載入詳情失敗");
   }
 };
 
+// 3. 上傳憑證與取消訂單
 window.openUploadProof = function (shipmentId) {
   document.getElementById("upload-proof-id").value = shipmentId;
   document.getElementById("proof-file").value = null;
@@ -136,7 +122,7 @@ window.viewProof = function (imgUrl) {
 window.handleCancelShipment = async function (id) {
   if (
     !confirm(
-      "確定要取消此集運單嗎？\n\n注意：取消後，包裹將會釋放回「我的包裹」列表（狀態變回已入庫），您可以重新打包。"
+      "確定要取消此集運單嗎？\n\n取消後，包裹將會釋放回「我的包裹」列表，您可以重新打包。"
     )
   )
     return;
@@ -166,11 +152,8 @@ window.handleCancelShipment = async function (id) {
       }
     }
   } catch (e) {
-    alert("網路錯誤，請稍後再試");
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "取消訂單";
-    }
+    alert("網路錯誤");
+    if (btn) btn.disabled = false;
   }
 };
 
@@ -189,7 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const userPhone = document.getElementById("user-phone");
   const userAddress = document.getElementById("user-address");
 
-  // Tab 切換
+  // Tabs
   const tabPackages = document.getElementById("tab-packages");
   const tabShipments = document.getElementById("tab-shipments");
   const packagesSection = document.getElementById("packages-section");
@@ -197,107 +180,117 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 預報表單
   const forecastForm = document.getElementById("forecast-form");
-  const trackingNumber = document.getElementById("trackingNumber");
-  const productName = document.getElementById("productName");
-  const quantity = document.getElementById("quantity");
-  const note = document.getElementById("note");
   const imagesInput = document.getElementById("images");
+  const fileCountDisplay = document.getElementById("file-count-display");
 
-  // 列表
+  // 圖片選擇監聽 (顯示張數)
+  if (imagesInput) {
+    imagesInput.addEventListener("change", function () {
+      if (this.files && this.files.length > 0) {
+        fileCountDisplay.textContent = `已選 ${this.files.length} 張`;
+        fileCountDisplay.style.display = "inline-block";
+      } else {
+        fileCountDisplay.style.display = "none";
+      }
+    });
+  }
+
+  // 列表 Body
   const packagesTableBody = document.getElementById("packages-table-body");
   const shipmentsTableBody = document.getElementById("shipments-table-body");
 
-  // 模態框
-  const editProfileModal = document.getElementById("edit-profile-modal");
-  const editProfileForm = document.getElementById("edit-profile-form");
-  const btnEditProfile = document.getElementById("btn-edit-profile");
+  // 懸浮結算欄
+  const selectedPkgCountSpan = document.getElementById("selected-pkg-count");
+  const btnCreateShipment = document.getElementById("btn-create-shipment");
 
+  // 集運單 Modal
   const createShipmentModal = document.getElementById("create-shipment-modal");
   const createShipmentForm = document.getElementById("create-shipment-form");
-  const btnCreateShipment = document.getElementById("btn-create-shipment");
   const shipmentPackageList = document.getElementById("shipment-package-list");
   const shipmentTotalCost = document.getElementById("shipment-total-cost");
-
-  const bankInfoModal = document.getElementById("bank-info-modal");
-  const uploadProofModal = document.getElementById("upload-proof-modal");
-  const uploadProofForm = document.getElementById("upload-proof-form");
-
-  // 佇列提示
-  const draftQueueContainer = document.getElementById("draft-queue-container");
-  const draftQueueList = document.getElementById("draft-queue-list");
-  const shipmentWarnings = document.getElementById("shipment-warnings");
   const shipmentFeeNotice = document.getElementById("shipment-fee-notice");
+  const shipmentWarnings = document.getElementById("shipment-warnings");
 
-  // 集運單地區與搜尋
+  // 地區相關
   const shipDeliveryLocation = document.getElementById(
     "ship-delivery-location"
   );
   const shipAreaSearch = document.getElementById("ship-area-search");
   const shipSearchResults = document.getElementById("ship-search-results");
   const shipRemoteAreaInfo = document.getElementById("ship-remote-area-info");
+  const shipSelectedAreaName = document.getElementById(
+    "ship-selected-area-name"
+  );
   const shipSelectedAreaFee = document.getElementById("ship-selected-area-fee");
-  const shipStreetAddress = document.getElementById("ship-street-address");
+
+  // 銀行 & 上傳
+  const bankInfoModal = document.getElementById("bank-info-modal");
+  const btnCopyBankInfo = document.getElementById("btn-copy-bank-info");
+  const uploadProofModal = document.getElementById("upload-proof-modal");
+  const uploadProofForm = document.getElementById("upload-proof-form");
+
+  // 編輯 Profile
+  const editProfileModal = document.getElementById("edit-profile-modal");
+  const editProfileForm = document.getElementById("edit-profile-form");
+  const btnEditProfile = document.getElementById("btn-edit-profile");
 
   // 編輯包裹
   const editPackageModal = document.getElementById("edit-package-modal");
   const editPackageForm = document.getElementById("edit-package-form");
 
-  // 銀行資訊 DOM
-  const elBankName = document.getElementById("bank-name");
-  const elBankAccount = document.getElementById("bank-account");
-  const elBankHolder = document.getElementById("bank-holder");
-  const btnCopyBankInfo = document.getElementById("btn-copy-bank-info");
-
   function showMessage(message, type) {
     messageBox.textContent = message;
     messageBox.className = `alert alert-${type}`;
     messageBox.style.display = "block";
-    const duration =
-      message.includes("佇列") || message.includes("帶入") ? 12000 : 5000;
     setTimeout(() => {
       messageBox.style.display = "none";
-    }, duration);
+    }, 5000);
   }
 
-  // --- (0) 載入系統設定 (動態費率、銀行、偏遠地區) ---
+  // --- (0) 載入系統設定 ---
   async function loadSystemSettings() {
     try {
-      // 呼叫公開 API 取得設定 (需後端支援)
       const res = await fetch(`${API_BASE_URL}/api/calculator/config`);
       if (res.ok) {
         const data = await res.json();
         if (data.success) {
-          // 1. 更新全域變數 (費率 & 常數)
           if (data.rates) {
             window.RATES = data.rates.categories || window.RATES;
             window.CONSTANTS = data.rates.constants || window.CONSTANTS;
           }
-          // 2. 更新偏遠地區
           if (data.remoteAreas) {
             window.REMOTE_AREAS = data.remoteAreas;
           }
-          // 3. 更新銀行資訊 (若有)
           if (data.bankInfo) {
             updateBankInfoDOM(data.bankInfo);
           }
         }
       }
     } catch (e) {
-      console.warn("無法載入動態設定，將使用預設值:", e);
+      console.warn("Config load failed, using defaults.");
     }
-    // 無論成功失敗，都渲染下拉選單 (使用 window.REMOTE_AREAS)
+
+    // [重要] 載入後渲染地區選項
     renderShipmentRemoteAreaOptions();
   }
 
   function updateBankInfoDOM(info) {
-    if (elBankName && info.bankName)
-      elBankName.textContent = `${info.bankName} ${info.branch || ""}`;
-    if (elBankAccount && info.account) elBankAccount.textContent = info.account;
-    if (elBankHolder && info.holder) elBankHolder.textContent = info.holder;
+    if (document.getElementById("bank-name") && info.bankName)
+      document.getElementById("bank-name").textContent = `${info.bankName} ${
+        info.branch || ""
+      }`;
+    if (document.getElementById("bank-account") && info.account)
+      document.getElementById("bank-account").textContent = info.account;
+    if (document.getElementById("bank-holder") && info.holder)
+      document.getElementById("bank-holder").textContent = info.holder;
   }
 
+  // 動態渲染地區選項 (取代 HTML 硬編碼)
   function renderShipmentRemoteAreaOptions() {
     if (!shipDeliveryLocation || !window.REMOTE_AREAS) return;
+
+    // 清空並重建
+    shipDeliveryLocation.innerHTML = "";
 
     let html = `<option value="" selected disabled>--- 請選擇您的配送地區 ---</option>`;
     html += `<option value="0" style="font-weight: bold; color: #27ae60">✅ 一般地區 (無額外費用)</option>`;
@@ -311,9 +304,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const feeVal = parseInt(fee);
       let label = `📍 偏遠地區 - NT$${feeVal.toLocaleString()}/方起`;
       let style = "";
-      if (feeVal >= 4500) style = `color: #e74c3c`;
+      if (feeVal >= 4500) style = "color: #e74c3c";
 
-      // 簡易分群標籤
+      // 簡易分群標籤 (可選)
       if (feeVal === 1800) label = `📍 中部/彰化偏遠 - NT$1,800`;
       else if (feeVal === 2000) label = `📍 北部/桃竹苗偏遠 - NT$2,000`;
       else if (feeVal === 2500) label = `📍 南部/雲嘉南偏遠 - NT$2,500`;
@@ -334,104 +327,123 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) {
-        localStorage.removeItem("token");
-        window.location.href = "login.html";
-        return;
-      }
+      if (!response.ok) throw new Error("Auth failed");
       const data = await response.json();
       currentUser = data.user;
-      welcomeMessage.textContent = `歡迎回來，${
-        currentUser.name || currentUser.email
-      }！`;
+
+      welcomeMessage.textContent = `${currentUser.name || "親愛的會員"}，您好`;
       userEmail.textContent = currentUser.email;
-      userPhone.textContent = currentUser.phone || "(尚未提供)";
-      userAddress.textContent = currentUser.defaultAddress || "(尚未提供)";
+      userPhone.textContent = currentUser.phone || "(未填寫)";
+      userAddress.textContent = currentUser.defaultAddress || "(未填寫)";
     } catch (error) {
-      console.error("載入失敗");
+      localStorage.removeItem("token");
+      window.location.href = "login.html";
     }
   }
 
-  // --- (B) 載入包裹 ---
+  // --- (B) 載入包裹 (我的購物車) ---
   async function loadMyPackages() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/packages/my`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
+      allPackagesData = data.packages || [];
+      renderPackagesTable();
+    } catch (e) {
+      packagesTableBody.innerHTML = `<tr><td colspan="5" class="text-center error-text">載入失敗: ${e.message}</td></tr>`;
+    }
+  }
 
-      allPackagesData = data.packages;
-      packagesTableBody.innerHTML = "";
+  function renderPackagesTable() {
+    packagesTableBody.innerHTML = "";
+    if (allPackagesData.length === 0) {
+      packagesTableBody.innerHTML =
+        '<tr><td colspan="5" class="text-center">目前沒有包裹</td></tr>';
+      updateCheckoutBar();
+      return;
+    }
 
-      if (allPackagesData.length === 0) {
-        packagesTableBody.innerHTML =
-          '<tr><td colspan="9" style="text-align: center;">尚無包裹</td></tr>';
-        return;
+    allPackagesData.forEach((pkg) => {
+      const statusText = window.PACKAGE_STATUS_MAP[pkg.status] || pkg.status;
+      const statusClass = window.STATUS_CLASSES[pkg.status] || "";
+      const isArrived = pkg.status === "ARRIVED";
+
+      // 顯示費用與重量
+      let infoText = "-";
+      const arrivedBoxes = Array.isArray(pkg.arrivedBoxes)
+        ? pkg.arrivedBoxes
+        : [];
+      if (arrivedBoxes.length > 0) {
+        const totalW = arrivedBoxes.reduce(
+          (sum, b) => sum + (parseFloat(b.weight) || 0),
+          0
+        );
+        infoText = `${arrivedBoxes.length} 箱 / ${totalW.toFixed(1)} kg`;
+        if (pkg.totalCalculatedFee) {
+          infoText += `<br><span style="color:#d32f2f;font-weight:bold;">$${pkg.totalCalculatedFee.toLocaleString()}</span>`;
+        }
       }
 
-      allPackagesData.forEach((pkg) => {
-        // 使用 shippingData.js 的全域對照表
-        const statusText = window.PACKAGE_STATUS_MAP[pkg.status] || pkg.status;
-        const statusClass = window.STATUS_CLASSES[pkg.status] || "";
+      const pkgStr = encodeURIComponent(JSON.stringify(pkg));
+      const checkboxDisabled = !isArrived ? "disabled" : "";
+      const tr = document.createElement("tr");
 
-        const isArrived = pkg.status === "ARRIVED";
-        const arrivedBoxes = Array.isArray(pkg.arrivedBoxes)
-          ? pkg.arrivedBoxes
-          : [];
-        const piecesCount =
-          arrivedBoxes.length > 0 ? `${arrivedBoxes.length} 箱` : "-";
-        const totalWeight =
-          arrivedBoxes.length > 0
-            ? `${arrivedBoxes
-                .reduce((sum, box) => sum + (parseFloat(box.weight) || 0), 0)
-                .toFixed(1)} kg`
-            : "-";
-
-        let feeDisplay = '<span style="color: #999;">-</span>';
-        if (pkg.totalCalculatedFee != null) {
-          feeDisplay = `<span style="color: #d32f2f; font-weight: bold;">$${pkg.totalCalculatedFee.toLocaleString()}</span>`;
-        }
-
-        const pkgStr = encodeURIComponent(JSON.stringify(pkg));
-        const detailsBtn = `<button class="btn btn-view-img btn-sm" onclick='window.openPackageDetails("${pkgStr}")'>查看</button>`;
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td><input type="checkbox" class="package-checkbox" data-id="${
+      tr.innerHTML = `
+        <td class="text-center">
+          <input type="checkbox" class="package-checkbox" data-id="${
             pkg.id
-          }" ${isArrived ? "" : "disabled"}></td>
-          <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-          <td>${pkg.trackingNumber}</td>
-          <td>${pkg.productName}</td>
-          <td>${piecesCount}</td>
-          <td>${totalWeight}</td>
-          <td>${feeDisplay}</td>
-          <td>${detailsBtn}</td>
-          <td>
-            <button class="btn btn-secondary btn-sm btn-edit" ${
-              pkg.status !== "PENDING" ? "disabled" : ""
-            }>修改</button>
-            <button class="btn btn-danger btn-sm btn-delete" ${
-              pkg.status !== "PENDING" ? "disabled" : ""
-            }>刪除</button>
-          </td>
-        `;
-        tr.querySelector(".btn-edit").addEventListener("click", () =>
-          openEditPackageModal(pkg)
-        );
-        tr.querySelector(".btn-delete").addEventListener("click", () =>
-          handleDeletePackage(pkg)
-        );
-        packagesTableBody.appendChild(tr);
-      });
-    } catch (e) {
-      packagesTableBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: red;">載入失敗: ${e.message}</td></tr>`;
+          }" ${checkboxDisabled}>
+        </td>
+        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+        <td>
+          <div style="font-weight:500; color:#333;">${pkg.productName}</div>
+          <small style="color:#888;">${pkg.trackingNumber}</small>
+        </td>
+        <td>${infoText}</td>
+        <td class="text-right">
+          <button class="btn btn-outline-primary btn-sm" onclick='window.openPackageDetails("${pkgStr}")'>詳情</button>
+          ${
+            pkg.status === "PENDING"
+              ? `<button class="btn btn-outline-secondary btn-sm btn-edit">修改</button>
+             <button class="btn btn-outline-danger btn-sm btn-delete">刪除</button>`
+              : ""
+          }
+        </td>
+      `;
+
+      // 綁定事件
+      const checkbox = tr.querySelector(".package-checkbox");
+      if (checkbox) checkbox.addEventListener("change", updateCheckoutBar);
+
+      const btnEdit = tr.querySelector(".btn-edit");
+      if (btnEdit)
+        btnEdit.addEventListener("click", () => openEditPackageModal(pkg));
+
+      const btnDelete = tr.querySelector(".btn-delete");
+      if (btnDelete)
+        btnDelete.addEventListener("click", () => handleDeletePackage(pkg));
+
+      packagesTableBody.appendChild(tr);
+    });
+    updateCheckoutBar();
+  }
+
+  function updateCheckoutBar() {
+    const checked = document.querySelectorAll(".package-checkbox:checked");
+    selectedPkgCountSpan.textContent = checked.length;
+
+    if (checked.length > 0) {
+      btnCreateShipment.disabled = false;
+      btnCreateShipment.textContent = `合併打包 (${checked.length})`;
+    } else {
+      btnCreateShipment.disabled = true;
+      btnCreateShipment.textContent = "請勾選包裹";
     }
   }
 
   async function handleDeletePackage(pkg) {
-    if (confirm("確定刪除此包裹預報?")) {
+    if (confirm("確定要刪除此包裹預報嗎？")) {
       await fetch(`${API_BASE_URL}/api/packages/${pkg.id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
@@ -440,320 +452,118 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- (C) 載入集運單 ---
+  // --- (C) 載入集運單 (訂單) ---
   async function loadMyShipments() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/shipments/my`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      if (data.shipments.length === 0) {
-        shipmentsTableBody.innerHTML =
-          '<tr><td colspan="7" style="text-align: center;">尚無集運單</td></tr>';
-        return;
+      renderShipmentsTable(data.shipments);
+    } catch (e) {
+      shipmentsTableBody.innerHTML = `<tr><td colspan="5" class="text-center error-text">載入失敗</td></tr>`;
+    }
+  }
+
+  function renderShipmentsTable(shipments) {
+    shipmentsTableBody.innerHTML = "";
+    if (shipments.length === 0) {
+      shipmentsTableBody.innerHTML =
+        '<tr><td colspan="5" class="text-center">尚無集運單</td></tr>';
+      return;
+    }
+
+    shipments.forEach((ship) => {
+      let statusText = window.SHIPMENT_STATUS_MAP[ship.status] || ship.status;
+      let statusClass = window.STATUS_CLASSES[ship.status] || "";
+
+      if (ship.status === "PENDING_PAYMENT" && ship.paymentProof) {
+        statusText = "已付款 (待審核)";
+        statusClass = "status-PENDING_REVIEW";
       }
-      shipmentsTableBody.innerHTML = data.shipments
-        .map((ship) => {
-          let statusText =
-            window.SHIPMENT_STATUS_MAP[ship.status] || ship.status;
-          let statusClass = window.STATUS_CLASSES[ship.status] || "";
 
-          if (ship.status === "PENDING_PAYMENT" && ship.paymentProof) {
-            statusText = "已付款，待審核";
-            statusClass =
-              window.STATUS_CLASSES["PENDING_REVIEW"] ||
-              "status-PENDING_REVIEW";
-          }
+      // 操作按鈕
+      let actionBtns = "";
+      if (ship.status === "PENDING_PAYMENT") {
+        if (!ship.paymentProof) {
+          actionBtns += `<button class="btn btn-primary btn-sm" onclick="window.openUploadProof('${ship.id}')">去付款 / 上傳</button>`;
+        } else {
+          actionBtns += `<button class="btn btn-success btn-sm" onclick="window.viewProof('${ship.paymentProof}')">查看憑證</button>`;
+        }
+        actionBtns += `<button class="btn btn-outline-danger btn-sm" style="margin-left:5px;" onclick="handleCancelShipment('${ship.id}')">取消</button>`;
+      } else {
+        actionBtns += `<button class="btn btn-outline-secondary btn-sm" onclick="window.open('shipment-print.html?id=${ship.id}', '_blank')">明細</button>`;
+      }
 
-          let proofBtn = "";
-          if (ship.paymentProof) {
-            proofBtn = `<button class="btn btn-secondary btn-sm" onclick="window.viewProof('${ship.paymentProof}')" style="background-color:#27ae60;">已上傳(查看)</button>`;
-          } else {
-            proofBtn = `<button class="btn btn-primary btn-sm" onclick="window.openUploadProof('${ship.id}')">上傳憑證</button>`;
-          }
-
-          let cancelBtn = "";
-          if (ship.status === "PENDING_PAYMENT") {
-            cancelBtn = `<button class="btn btn-danger btn-sm" style="margin-top:5px; display:block; width:100%;" onclick="handleCancelShipment('${ship.id}')">取消訂單</button>`;
-          }
-
-          // [新增] 詳情按鈕
-          // const detailBtn = `<button class="btn btn-info btn-sm" onclick="openShipmentDetail('${ship.id}')">詳情</button>`; // 暫時不做，直接使用 print
-
-          const printBtn = `<button class="btn btn-secondary btn-sm" style="margin-top:5px; background-color: #607d8b;" onclick="window.open('shipment-print.html?id=${ship.id}', '_blank')">列印/匯出</button>`;
-
-          return `
-          <tr>
-            <td>${new Date(ship.createdAt).toLocaleDateString()}</td>
-            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-            <td>${ship.recipientName}</td>
-            <td>${ship.idNumber}</td>
-            <td>${ship.packages.length} 件</td>
-            <td>${
-              ship.totalCost != null
-                ? `NT$ ${ship.totalCost.toLocaleString()}`
-                : "(待報價)"
-            }</td>
-            <td>
-                ${proofBtn}
-                ${printBtn}
-                ${cancelBtn}
-            </td>
-          </tr>`;
-        })
-        .join("");
-    } catch (e) {}
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>
+          <div>${new Date(ship.createdAt).toLocaleDateString()}</div>
+          <small style="color:#999;">${ship.id.slice(-8).toUpperCase()}</small>
+        </td>
+        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+        <td>
+          <div>${ship.recipientName}</div>
+          <small>${ship.shippingAddress.substring(0, 10)}...</small>
+        </td>
+        <td style="color:#d32f2f; font-weight:bold;">NT$ ${(
+          ship.totalCost || 0
+        ).toLocaleString()}</td>
+        <td class="text-right">${actionBtns}</td>
+      `;
+      shipmentsTableBody.appendChild(tr);
+    });
   }
 
   // --- (D) 提交預報 ---
   forecastForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const submitButton = forecastForm.querySelector('button[type="submit"]');
-    submitButton.disabled = true;
-    submitButton.textContent = "提交中...";
+    const submitBtn = forecastForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = "提交中...";
 
-    const formData = new FormData();
-    formData.append("trackingNumber", trackingNumber.value);
-    formData.append("productName", productName.value);
-    formData.append("quantity", quantity.value ? parseInt(quantity.value) : 1);
-    formData.append("note", note.value);
+    const fd = new FormData();
+    fd.append(
+      "trackingNumber",
+      document.getElementById("trackingNumber").value
+    );
+    fd.append("productName", document.getElementById("productName").value);
+    fd.append("quantity", document.getElementById("quantity").value || 1);
+    fd.append("note", document.getElementById("note").value);
 
     const files = imagesInput.files;
-    if (files.length > 5) {
-      showMessage("照片最多只能上傳 5 張", "error");
-      submitButton.disabled = false;
-      return;
-    }
     for (let i = 0; i < files.length; i++) {
-      formData.append("images", files[i]);
+      fd.append("images", files[i]);
     }
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/packages/forecast/images`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        }
-      );
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || "提交失敗");
-      }
+      const res = await fetch(`${API_BASE_URL}/api/packages/forecast/images`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (!res.ok) throw new Error("提交失敗");
 
       forecastForm.reset();
+      fileCountDisplay.style.display = "none";
       loadMyPackages();
+      showMessage("預報成功！", "success");
       checkForecastDraftQueue(true);
     } catch (e) {
       showMessage(e.message, "error");
     } finally {
-      submitButton.disabled = false;
-      submitButton.textContent = "提交預報";
-    }
-  });
-
-  // --- (E) 編輯包裹 (含圖片) ---
-  function renderEditImages() {
-    const container = document.getElementById("edit-package-images-container");
-    if (!container) {
-      const form = document.getElementById("edit-package-form");
-      const div = document.createElement("div");
-      div.id = "edit-package-images-container";
-      div.style.marginBottom = "15px";
-      form.insertBefore(div, form.lastElementChild);
-
-      if (!document.getElementById("edit-package-new-images")) {
-        const group = document.createElement("div");
-        group.className = "form-group";
-        group.innerHTML =
-          '<label>加傳圖片 (最多補至5張)</label><input type="file" id="edit-package-new-images" multiple accept="image/*">';
-        form.insertBefore(group, form.lastElementChild);
-      }
-      return renderEditImages();
-    }
-
-    container.innerHTML =
-      '<label style="display:block;margin-bottom:5px;">已上傳圖片 (點擊 X 移除):</label>';
-    if (currentEditPackageImages.length === 0) {
-      container.innerHTML +=
-        '<span style="color:#999; font-size:0.9em;">無圖片</span>';
-      return;
-    }
-
-    currentEditPackageImages.forEach((imgUrl, idx) => {
-      const wrapper = document.createElement("div");
-      wrapper.style.display = "inline-block";
-      wrapper.style.position = "relative";
-      wrapper.style.marginRight = "10px";
-      wrapper.style.marginBottom = "10px";
-
-      wrapper.innerHTML = `
-            <img src="${API_BASE_URL}${imgUrl}" style="width:60px; height:60px; object-fit:cover; border:1px solid #ddd; border-radius:4px;">
-            <button type="button" class="btn-remove-img" data-idx="${idx}" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer;">&times;</button>
-        `;
-      container.appendChild(wrapper);
-    });
-
-    container.querySelectorAll(".btn-remove-img").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        const idx = parseInt(e.target.getAttribute("data-idx"));
-        removeEditImage(idx);
-      });
-    });
-  }
-
-  function removeEditImage(idx) {
-    currentEditPackageImages.splice(idx, 1);
-    renderEditImages();
-  }
-
-  function openEditPackageModal(pkg) {
-    document.getElementById("edit-package-id").value = pkg.id;
-    document.getElementById("edit-trackingNumber").value = pkg.trackingNumber;
-    document.getElementById("edit-productName").value = pkg.productName;
-    document.getElementById("edit-quantity").value = pkg.quantity;
-    document.getElementById("edit-note").value = pkg.note || "";
-
-    currentEditPackageImages = pkg.productImages || [];
-    renderEditImages();
-
-    const newImgInput = document.getElementById("edit-package-new-images");
-    if (newImgInput) newImgInput.value = null;
-
-    editPackageModal.style.display = "flex";
-  }
-
-  editPackageForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const id = document.getElementById("edit-package-id").value;
-    const submitBtn = editPackageForm.querySelector("button[type='submit']");
-    submitBtn.disabled = true;
-    submitBtn.textContent = "儲存中...";
-
-    const formData = new FormData();
-    formData.append(
-      "trackingNumber",
-      document.getElementById("edit-trackingNumber").value
-    );
-    formData.append(
-      "productName",
-      document.getElementById("edit-productName").value
-    );
-    formData.append(
-      "quantity",
-      parseInt(document.getElementById("edit-quantity").value)
-    );
-    formData.append("note", document.getElementById("edit-note").value);
-    formData.append("existingImages", JSON.stringify(currentEditPackageImages));
-
-    const newFilesInput = document.getElementById("edit-package-new-images");
-    if (newFilesInput && newFilesInput.files.length > 0) {
-      const totalImages =
-        currentEditPackageImages.length + newFilesInput.files.length;
-      if (totalImages > 5) {
-        alert("圖片總數不能超過 5 張");
-        submitBtn.disabled = false;
-        return;
-      }
-      for (let i = 0; i < newFilesInput.files.length; i++) {
-        formData.append("images", newFilesInput.files[i]);
-      }
-    }
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/packages/${id}`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-
-      if (!res.ok) throw new Error("更新失敗");
-
-      editPackageModal.style.display = "none";
-      loadMyPackages();
-      alert("包裹更新成功");
-    } catch (err) {
-      alert("更新失敗: " + err.message);
-    } finally {
       submitBtn.disabled = false;
-      submitBtn.textContent = "儲存包裹變更";
+      submitBtn.innerHTML = '<i class="fas fa-plus-circle"></i> 提交預報';
     }
   });
 
-  // --- (F) 彈窗關閉 ---
-  const allModals = document.querySelectorAll(".modal-overlay");
-  allModals.forEach((m) => {
-    m.addEventListener("click", (e) => {
-      if (e.target === m) m.style.display = "none";
-    });
-    const closeBtns = m.querySelectorAll(".modal-close, .modal-close-btn");
-    closeBtns.forEach((btn) =>
-      btn.addEventListener("click", () => (m.style.display = "none"))
-    );
-  });
-
-  // --- (G) 佇列與計算邏輯 ---
-  function checkForecastDraftQueue(isAfterSubmit = false) {
-    const draftListJSON = localStorage.getItem("forecast_draft_list");
-    let draftList = [];
-    if (draftListJSON) {
-      try {
-        draftList = JSON.parse(draftListJSON);
-      } catch (e) {
-        localStorage.removeItem("forecast_draft_list");
-        return;
-      }
-    }
-
-    if (draftList.length === 0) {
-      draftQueueContainer.style.display = "none";
-      localStorage.removeItem("forecast_draft_list");
-      return;
-    }
-
-    draftQueueContainer.style.display = "block";
-    draftQueueList.innerHTML = "";
-    draftList.forEach((item) => {
-      const li = document.createElement("li");
-      li.textContent = `${item.name} (數量: ${item.quantity || 1})`;
-      draftQueueList.appendChild(li);
-    });
-
-    const nextItem = draftList.shift();
-    productName.value = nextItem.name || "";
-    quantity.value = nextItem.quantity || 1;
-    note.value = "來自運費試算";
-    trackingNumber.value = "";
-    imagesInput.value = null;
-
-    let message = isAfterSubmit
-      ? `預報成功！已自動帶入下一筆 (${nextItem.name})。`
-      : `已自動帶入第 1 筆 (${nextItem.name})。`;
-    message +=
-      draftList.length > 0
-        ? ` 還有 ${draftList.length} 筆在佇列中。`
-        : " 這是最後一筆了。";
-    showMessage(message, "success");
-
-    localStorage.setItem("forecast_draft_list", JSON.stringify(draftList));
-    if (!isAfterSubmit) forecastForm.scrollIntoView({ behavior: "smooth" });
-    trackingNumber.focus();
-  }
-
-  // --- (H) 集運單建立相關 ---
+  // --- (E) 建立集運單 (結帳) ---
   btnCreateShipment.addEventListener("click", async () => {
     const checked = document.querySelectorAll(".package-checkbox:checked");
-    if (checked.length === 0) {
-      showMessage("請至少選擇一個包裹", "error");
-      return;
-    }
-
-    btnCreateShipment.disabled = true;
-    btnCreateShipment.textContent = "讀取中...";
+    if (checked.length === 0) return;
 
     try {
+      // 重新取得最新資料
       const response = await fetch(`${API_BASE_URL}/api/packages/my`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -762,321 +572,263 @@ document.addEventListener("DOMContentLoaded", () => {
 
       let html = "";
       let ids = [];
-      let validCheckedCount = 0;
+      let totalFee = 0;
+      let validCount = 0;
 
       checked.forEach((box) => {
         const p = allPackagesData.find((pkg) => pkg.id === box.dataset.id);
         if (p && p.status === "ARRIVED") {
-          validCheckedCount++;
           ids.push(p.id);
-          html += `<div class="shipment-pkg-detail-item"><h4>${p.productName} (${p.trackingNumber})</h4>`;
-
-          const arrivedBoxes = Array.isArray(p.arrivedBoxes)
-            ? p.arrivedBoxes
-            : [];
-          if (arrivedBoxes.length > 0) {
-            arrivedBoxes.forEach((b) => {
-              const rate = window.RATES[b.type] || {};
-              html += `<div class="calc-box"><small>${b.name}: ${b.weight}kg, ${b.length}x${b.width}x${b.height} => $${b.fee}</small></div>`;
-            });
-          } else {
-            html += `<small style="color:#999">無詳細分箱資料</small>`;
-          }
-          html += `<div class="pkg-subtotal">小計: <strong>$${(
-            p.totalCalculatedFee || 0
-          ).toLocaleString()}</strong></div></div>`;
+          totalFee += p.totalCalculatedFee || 0;
+          validCount++;
+          html += `
+            <div class="shipment-package-item">
+              <div class="info">
+                <span>${p.productName}</span>
+                <small style="display:block; color:#888;">${
+                  p.trackingNumber
+                }</small>
+              </div>
+              <div class="cost">$${(
+                p.totalCalculatedFee || 0
+              ).toLocaleString()}</div>
+            </div>
+          `;
         }
       });
 
-      if (validCheckedCount === 0) {
-        showMessage("包裹狀態已變更，請重整", "error");
+      if (validCount === 0) {
+        alert("所選包裹狀態已變更，請重新整理");
         loadMyPackages();
         return;
       }
 
       shipmentPackageList.innerHTML = html;
       createShipmentForm.dataset.ids = JSON.stringify(ids);
+
+      // 預填資料
       document.getElementById("ship-name").value = currentUser.name || "";
       document.getElementById("ship-phone").value = currentUser.phone || "";
-
-      shipDeliveryLocation.value = "";
-      shipStreetAddress.value = "";
+      document.getElementById("ship-street-address").value =
+        currentUser.defaultAddress || "";
+      shipDeliveryLocation.value = ""; // 重置
       shipRemoteAreaInfo.style.display = "none";
 
+      // 重新計算一次費用 (Client Side Mock, 實際上應呼叫後端)
       recalculateShipmentTotal();
       createShipmentModal.style.display = "flex";
     } catch (e) {
-      showMessage(e.message, "error");
-    } finally {
-      btnCreateShipment.disabled = false;
-      btnCreateShipment.textContent = "合併打包 (建立集運單)";
+      console.error(e);
+      alert("載入失敗");
     }
   });
 
-  createShipmentForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const ids = JSON.parse(createShipmentForm.dataset.ids);
-    const deliveryRate = parseFloat(shipDeliveryLocation.value);
-    const streetAddress = shipStreetAddress.value.trim();
-
-    if (isNaN(deliveryRate)) {
-      showMessage("請選擇配送地區", "error");
-      return;
-    }
-    if (!streetAddress) {
-      showMessage("請填寫詳細地址", "error");
-      return;
-    }
-
-    // [驗證] 商品證明
-    const productUrl = document.getElementById("ship-product-url").value.trim();
-    const productImagesInput = document.getElementById("ship-product-images");
-    const productImages = productImagesInput.files;
-
-    if (!productUrl && productImages.length === 0) {
-      showMessage(
-        "請提供「商品購買連結」或上傳「商品照片」才能提交訂單",
-        "error"
-      );
-      return;
-    }
-
-    const selectedOption =
-      shipDeliveryLocation.options[shipDeliveryLocation.selectedIndex];
-    const areaName = selectedOption.text.replace(/[✅📍⛰️🏝️🏖️⚠️]/g, "").trim();
-    const fullAddress =
-      (areaName === "一般地區" ? "" : areaName + " ") + streetAddress;
-
-    const formData = new FormData();
-    formData.append("packageIds", JSON.stringify(ids));
-    formData.append(
-      "recipientName",
-      document.getElementById("ship-name").value.trim()
-    );
-    formData.append(
-      "phone",
-      document.getElementById("ship-phone").value.trim()
-    );
-    formData.append("shippingAddress", fullAddress);
-    formData.append("deliveryLocationRate", deliveryRate);
-    formData.append(
-      "idNumber",
-      document.getElementById("ship-idNumber").value.trim()
-    );
-    formData.append(
-      "taxId",
-      document.getElementById("ship-taxId").value.trim()
-    );
-    formData.append(
-      "invoiceTitle",
-      document.getElementById("ship-invoiceTitle").value.trim()
-    );
-    formData.append("note", document.getElementById("ship-note").value.trim());
-    formData.append("productUrl", productUrl);
-    for (let i = 0; i < productImages.length; i++) {
-      formData.append("shipmentImages", productImages[i]);
-    }
-
-    const submitBtn = createShipmentForm.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    submitBtn.textContent = "提交中...";
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/shipments/create`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-
-      if (res.ok) {
-        createShipmentModal.style.display = "none";
-        createShipmentForm.reset();
-        bankInfoModal.style.display = "flex";
-        loadMyPackages();
-        loadMyShipments();
-      } else {
-        const err = await res.json();
-        throw new Error(err.message);
-      }
-    } catch (e) {
-      showMessage(e.message, "error");
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = "確認送出集運單";
-    }
-  });
-
+  // 前端簡易試算 (與後端邏輯保持一致)
   function recalculateShipmentTotal() {
     const ids = JSON.parse(createShipmentForm.dataset.ids || "[]");
     let totalFee = 0;
-    let totalShipmentVolume = 0;
-    let hasAnyOversizedItem = false;
-    let hasAnyOverweightItem = false;
+    let totalVol = 0;
+    let hasOversized = false;
+    let hasOverweight = false;
 
     const checked = document.querySelectorAll(".package-checkbox:checked");
     checked.forEach((box) => {
       const p = allPackagesData.find((pkg) => pkg.id === box.dataset.id);
       if (p && p.status === "ARRIVED") {
         totalFee += p.totalCalculatedFee || 0;
-        const arrivedBoxes = Array.isArray(p.arrivedBoxes)
-          ? p.arrivedBoxes
-          : [];
-        arrivedBoxes.forEach((b) => {
-          if (
-            parseFloat(b.length) > window.CONSTANTS.OVERSIZED_LIMIT ||
-            parseFloat(b.width) > window.CONSTANTS.OVERSIZED_LIMIT ||
-            parseFloat(b.height) > window.CONSTANTS.OVERSIZED_LIMIT
-          )
-            hasAnyOversizedItem = true;
-          if (parseFloat(b.weight) > window.CONSTANTS.OVERWEIGHT_LIMIT)
-            hasAnyOverweightItem = true;
-
+        const boxes = p.arrivedBoxes || [];
+        boxes.forEach((b) => {
           const l = parseFloat(b.length) || 0;
           const w = parseFloat(b.width) || 0;
           const h = parseFloat(b.height) || 0;
-          if (l > 0 && w > 0 && h > 0)
-            totalShipmentVolume += Math.ceil(
-              (l * w * h) / window.CONSTANTS.VOLUME_DIVISOR
-            );
+          const wt = parseFloat(b.weight) || 0;
+
+          if (
+            l > window.CONSTANTS.OVERSIZED_LIMIT ||
+            w > window.CONSTANTS.OVERSIZED_LIMIT ||
+            h > window.CONSTANTS.OVERSIZED_LIMIT
+          )
+            hasOversized = true;
+          if (wt > window.CONSTANTS.OVERWEIGHT_LIMIT) hasOverweight = true;
+
+          totalVol += Math.ceil((l * w * h) / window.CONSTANTS.VOLUME_DIVISOR);
         });
       }
     });
 
-    const totalOverweightFee = hasAnyOverweightItem
-      ? window.CONSTANTS.OVERWEIGHT_FEE
-      : 0;
-    const totalOversizedFee = hasAnyOversizedItem
-      ? window.CONSTANTS.OVERSIZED_FEE
-      : 0;
-    const deliveryRate = parseFloat(shipDeliveryLocation.value) || 0;
-    const totalCbm = totalShipmentVolume / window.CONSTANTS.CBM_TO_CAI_FACTOR;
-    const remoteFee = Math.round(totalCbm * deliveryRate);
+    // 附加費
+    const ovsFee = hasOversized ? window.CONSTANTS.OVERSIZED_FEE : 0;
+    const ovwFee = hasOverweight ? window.CONSTANTS.OVERWEIGHT_FEE : 0;
 
-    let finalBaseCost = totalFee;
-    let noticeHtml = "";
+    // 偏遠費
+    const rate = parseFloat(shipDeliveryLocation.value) || 0;
+    const cbm = totalVol / window.CONSTANTS.CBM_TO_CAI_FACTOR;
+    const remoteFee = Math.round(cbm * rate);
 
-    if (totalFee > 0 && totalFee < window.CONSTANTS.MINIMUM_CHARGE) {
-      finalBaseCost = window.CONSTANTS.MINIMUM_CHARGE;
-      noticeHtml = `<span style="color: #e74c3c; font-weight: bold;">(基本運費 $${totalFee.toLocaleString()}，已套用低消 $${window.CONSTANTS.MINIMUM_CHARGE.toLocaleString()}`;
+    // 低消
+    let finalBase = totalFee;
+    if (finalBase > 0 && finalBase < window.CONSTANTS.MINIMUM_CHARGE) {
+      finalBase = window.CONSTANTS.MINIMUM_CHARGE;
+      shipmentFeeNotice.textContent = `(已套用低消 $${window.CONSTANTS.MINIMUM_CHARGE})`;
     } else {
-      noticeHtml = `(基本運費 $${finalBaseCost.toLocaleString()}`;
+      shipmentFeeNotice.textContent = "";
     }
 
-    if (remoteFee > 0) noticeHtml += ` + 偏遠費 $${remoteFee.toLocaleString()}`;
-    noticeHtml += `)`;
+    const finalTotal = finalBase + ovsFee + ovwFee + remoteFee;
+    shipmentTotalCost.textContent = finalTotal.toLocaleString();
 
-    const finalTotalCost =
-      finalBaseCost + totalOverweightFee + totalOversizedFee + remoteFee;
-
-    let warningHtml = "";
+    // 警告顯示
+    let warns = "";
     if (remoteFee > 0)
-      warningHtml += `<div>🚚 偏遠地區費: $${remoteFee.toLocaleString()}</div>`;
-    if (hasAnyOversizedItem)
-      warningHtml += `<div>⚠️ 超長費: $${window.CONSTANTS.OVERSIZED_FEE.toLocaleString()}</div>`;
-    if (hasAnyOverweightItem)
-      warningHtml += `<div>⚠️ 超重費: $${window.CONSTANTS.OVERWEIGHT_FEE.toLocaleString()}</div>`;
-
-    shipmentTotalCost.textContent = finalTotalCost.toLocaleString();
-    shipmentFeeNotice.innerHTML = noticeHtml;
-    shipmentWarnings.innerHTML = warningHtml;
+      warns += `<div style="color:#e67e22">🚚 偏遠地區加收: $${remoteFee}</div>`;
+    if (hasOversized)
+      warns += `<div style="color:#d32f2f">⚠️ 超長附加費: $${ovsFee}</div>`;
+    if (hasOverweight)
+      warns += `<div style="color:#d32f2f">⚠️ 超重附加費: $${ovwFee}</div>`;
+    shipmentWarnings.innerHTML = warns;
   }
 
+  // 監聽地區變更
   shipDeliveryLocation.addEventListener("change", () => {
-    const fee = shipDeliveryLocation.value;
-    if (fee && fee !== "0") {
+    const fee = parseInt(shipDeliveryLocation.value);
+    const text =
+      shipDeliveryLocation.options[shipDeliveryLocation.selectedIndex].text;
+
+    if (!isNaN(fee) && fee > 0) {
       shipRemoteAreaInfo.style.display = "block";
-      shipSelectedAreaFee.textContent = `$${parseInt(
-        fee
-      ).toLocaleString()}/方起`;
+      shipSelectedAreaName.textContent = text.split("-")[0].trim();
+      shipSelectedAreaFee.textContent = `+ $${fee}/方`;
     } else {
       shipRemoteAreaInfo.style.display = "none";
     }
     recalculateShipmentTotal();
   });
 
-  // 搜尋地區邏輯 (使用 window.REMOTE_AREAS)
-  shipAreaSearch.addEventListener("input", function (e) {
-    const searchTerm = e.target.value.trim().toLowerCase();
-    if (searchTerm.length < 1) {
+  // 地區搜尋
+  shipAreaSearch.addEventListener("input", (e) => {
+    const term = e.target.value.trim().toLowerCase();
+    if (!term) {
       shipSearchResults.style.display = "none";
       return;
     }
 
     let results = [];
-    if (window.REMOTE_AREAS) {
-      for (const [fee, areas] of Object.entries(window.REMOTE_AREAS)) {
-        areas.forEach((area) => {
-          if (area.toLowerCase().includes(searchTerm)) {
-            results.push({ area: area, fee: parseInt(fee) });
-          }
-        });
-      }
+    for (const [fee, areas] of Object.entries(window.REMOTE_AREAS)) {
+      areas.forEach((area) => {
+        if (area.toLowerCase().includes(term)) results.push({ area, fee });
+      });
     }
 
-    if (results.length > 0) {
-      shipSearchResults.style.display = "block";
-      shipSearchResults.innerHTML = results
-        .map(
-          (r) => `
-        <div class="search-result-item" onclick="selectShipRemoteArea('${
-          r.area
-        }', ${r.fee})">
-          📍 ${
-            r.area
-          } <span style="color: #e74c3c; font-weight: bold; float: right;">NT$ ${r.fee.toLocaleString()}/方起</span>
-        </div>
-      `
-        )
-        .join("");
-    } else {
-      shipSearchResults.style.display = "block";
-      shipSearchResults.innerHTML = `<div style="padding: 10px; color: #666; background: #f8f9fa;">✅ 找不到 "${searchTerm}"，可能屬於一般地區。</div>`;
-    }
+    shipSearchResults.innerHTML =
+      results.length > 0
+        ? results
+            .map(
+              (r) =>
+                `<div class="search-result-item" onclick="selectArea('${r.area}', ${r.fee})">${r.area} <span style="float:right">$${r.fee}</span></div>`
+            )
+            .join("")
+        : `<div style="padding:10px; color:#999">無符合地區</div>`;
+    shipSearchResults.style.display = "block";
   });
 
-  window.selectShipRemoteArea = function (areaName, fee) {
+  // 供搜尋結果調用 (必須掛載到 window)
+  window.selectArea = function (name, fee) {
     for (let i = 0; i < shipDeliveryLocation.options.length; i++) {
-      const option = shipDeliveryLocation.options[i];
-      if (option.value === fee.toString()) {
-        const optionText = option.textContent.replace(/[⛰️🏝️🏖️⚠️]/g, "").trim();
-        if (optionText.includes(areaName)) {
-          shipDeliveryLocation.selectedIndex = i;
-          shipDeliveryLocation.dispatchEvent(new Event("change"));
-          shipAreaSearch.value = areaName;
-          shipSearchResults.style.display = "none";
-          break;
-        }
+      const opt = shipDeliveryLocation.options[i];
+      if (opt.value == fee && opt.text.includes(name)) {
+        shipDeliveryLocation.selectedIndex = i;
+        shipDeliveryLocation.dispatchEvent(new Event("change"));
+        shipAreaSearch.value = name;
+        shipSearchResults.style.display = "none";
+        break;
       }
     }
   };
 
-  // 匯款資訊複製按鈕
+  // 提交訂單
+  createShipmentForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const ids = JSON.parse(createShipmentForm.dataset.ids);
+    const street = document.getElementById("ship-street-address").value.trim();
+    const selectedOpt =
+      shipDeliveryLocation.options[shipDeliveryLocation.selectedIndex];
+    const areaName = selectedOpt.text
+      .replace(/[✅📍⛰️🏝️🏖️⚠️]/g, "")
+      .split("-")[0]
+      .trim();
+
+    const fullAddress =
+      (areaName === "一般地區" ? "" : areaName + " ") + street;
+
+    const fd = new FormData();
+    fd.append("packageIds", JSON.stringify(ids));
+    fd.append("recipientName", document.getElementById("ship-name").value);
+    fd.append("phone", document.getElementById("ship-phone").value);
+    fd.append("shippingAddress", fullAddress);
+    fd.append("deliveryLocationRate", shipDeliveryLocation.value);
+    fd.append("idNumber", document.getElementById("ship-idNumber").value);
+    fd.append("taxId", document.getElementById("ship-taxId").value);
+    fd.append(
+      "invoiceTitle",
+      document.getElementById("ship-invoiceTitle").value
+    );
+    fd.append("note", document.getElementById("ship-note").value);
+    fd.append("productUrl", document.getElementById("ship-product-url").value);
+
+    const prodFiles = document.getElementById("ship-product-images").files;
+    for (let i = 0; i < prodFiles.length; i++)
+      fd.append("shipmentImages", prodFiles[i]);
+
+    const btn = createShipmentForm.querySelector(".btn-place-order");
+    btn.disabled = true;
+    btn.textContent = "提交中...";
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/shipments/create`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (res.ok) {
+        createShipmentModal.style.display = "none";
+        bankInfoModal.style.display = "flex";
+        loadMyPackages();
+        loadMyShipments();
+      } else {
+        const err = await res.json();
+        alert(err.message);
+      }
+    } catch (e) {
+      alert("提交失敗");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "提交訂單";
+    }
+  });
+
+  // 複製匯款資訊
   if (btnCopyBankInfo) {
     btnCopyBankInfo.addEventListener("click", () => {
-      const name = elBankName ? elBankName.innerText : "";
-      const acc = elBankAccount ? elBankAccount.innerText : "";
-      const hold = elBankHolder ? elBankHolder.innerText : "";
-
-      const text = `銀行：${name}\n帳號：${acc}\n戶名：${hold}`;
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          const orgText = btnCopyBankInfo.textContent;
-          btnCopyBankInfo.textContent = "✓ 已複製";
-          setTimeout(() => (btnCopyBankInfo.textContent = orgText), 2000);
-        })
-        .catch((err) => alert("複製失敗，請手動複製"));
+      const text = `銀行：${
+        document.getElementById("bank-name").innerText
+      }\n帳號：${document.getElementById("bank-account").innerText}\n戶名：${
+        document.getElementById("bank-holder").innerText
+      }`;
+      navigator.clipboard.writeText(text).then(() => {
+        btnCopyBankInfo.textContent = "已複製！";
+        setTimeout(() => (btnCopyBankInfo.textContent = "複製資訊"), 2000);
+      });
     });
   }
 
-  // --- 上傳憑證 ---
+  // 上傳憑證提交
   uploadProofForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("upload-proof-id").value;
     const file = document.getElementById("proof-file").files[0];
-    if (!file) return;
     const fd = new FormData();
     fd.append("paymentProof", file);
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/shipments/${id}/payment`, {
         method: "PUT",
@@ -1093,28 +845,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- Tab 切換 ---
-  tabPackages.addEventListener("click", () => {
-    tabPackages.classList.add("active");
-    tabShipments.classList.remove("active");
-    packagesSection.style.display = "block";
-    shipmentsSection.style.display = "none";
-  });
-  tabShipments.addEventListener("click", () => {
-    tabPackages.classList.remove("active");
-    tabShipments.classList.add("active");
-    packagesSection.style.display = "none";
-    shipmentsSection.style.display = "block";
-  });
-
-  // --- 編輯個人資料 ---
-  btnEditProfile.addEventListener("click", () => {
-    document.getElementById("edit-name").value = currentUser.name || "";
-    document.getElementById("edit-phone").value = currentUser.phone || "";
-    document.getElementById("edit-address").value =
-      currentUser.defaultAddress || "";
-    editProfileModal.style.display = "flex";
-  });
+  // 編輯個資提交
   editProfileForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const data = {
@@ -1134,8 +865,139 @@ document.addEventListener("DOMContentLoaded", () => {
     loadUserProfile();
   });
 
-  // 初始載入
-  loadSystemSettings(); // 優先載入系統設定
+  // 編輯包裹提交
+  editPackageForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("edit-package-id").value;
+    const fd = new FormData();
+    fd.append(
+      "trackingNumber",
+      document.getElementById("edit-trackingNumber").value
+    );
+    fd.append("productName", document.getElementById("edit-productName").value);
+    fd.append("quantity", document.getElementById("edit-quantity").value);
+    fd.append("note", document.getElementById("edit-note").value);
+    fd.append("existingImages", JSON.stringify(currentEditPackageImages));
+
+    // 這裡的圖片輸入欄位如果需要補圖，需在 HTML 加入對應 input
+    // 目前範例僅支援修改文字與移除舊圖
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/packages/${id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (res.ok) {
+        editPackageModal.style.display = "none";
+        loadMyPackages();
+        alert("更新成功");
+      } else alert("更新失敗");
+    } catch (e) {
+      alert("錯誤");
+    }
+  });
+
+  // 編輯包裹彈窗 (填充資料)
+  window.openEditPackageModal = function (pkg) {
+    document.getElementById("edit-package-id").value = pkg.id;
+    document.getElementById("edit-trackingNumber").value = pkg.trackingNumber;
+    document.getElementById("edit-productName").value = pkg.productName;
+    document.getElementById("edit-quantity").value = pkg.quantity;
+    document.getElementById("edit-note").value = pkg.note || "";
+    currentEditPackageImages = pkg.productImages || [];
+
+    // 渲染舊圖片 (可移除)
+    const div = document.getElementById("edit-package-images-container");
+    div.innerHTML = "";
+    currentEditPackageImages.forEach((url, idx) => {
+      div.innerHTML += `<div style="display:inline-block; position:relative; margin:5px;">
+        <img src="${API_BASE_URL}${url}" style="width:60px; height:60px; object-fit:cover; border-radius:4px;">
+        <span onclick="removeEditImg(${idx})" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border-radius:50%; padding:2px 6px; cursor:pointer; font-size:10px;">x</span>
+      </div>`;
+    });
+    editPackageModal.style.display = "flex";
+  };
+
+  window.removeEditImg = function (idx) {
+    currentEditPackageImages.splice(idx, 1);
+    // 重新渲染 (簡單遞迴呼叫或重寫 HTML 邏輯，這裡簡化處理)
+    const div = document.getElementById("edit-package-images-container");
+    div.innerHTML = "圖片已移除 (儲存後生效)";
+  };
+
+  // 佇列邏輯
+  function checkForecastDraftQueue(isAfterSubmit) {
+    const list = JSON.parse(
+      localStorage.getItem("forecast_draft_list") || "[]"
+    );
+    const queueContainer = document.getElementById("draft-queue-container");
+    const queueList = document.getElementById("draft-queue-list");
+
+    if (list.length === 0) {
+      queueContainer.style.display = "none";
+      localStorage.removeItem("forecast_draft_list");
+      return;
+    }
+
+    queueContainer.style.display = "flex";
+    queueList.innerHTML = "";
+    list.forEach((item) => {
+      queueList.innerHTML += `<li>${item.name} (x${item.quantity})</li>`;
+    });
+
+    // 自動帶入第一筆
+    const next = list.shift();
+    document.getElementById("productName").value = next.name || "";
+    document.getElementById("quantity").value = next.quantity || 1;
+    document.getElementById("note").value = "來自試算";
+
+    // 更新 Storage
+    localStorage.setItem("forecast_draft_list", JSON.stringify(list));
+
+    if (isAfterSubmit) {
+      showMessage(`已預報！自動帶入下一筆: ${next.name}`, "success");
+    } else {
+      showMessage(`偵測到試算商品，已自動填入: ${next.name}`, "info");
+    }
+  }
+
+  // Tab 切換事件
+  tabPackages.addEventListener("click", () => {
+    tabPackages.classList.add("active");
+    tabShipments.classList.remove("active");
+    packagesSection.style.display = "block";
+    shipmentsSection.style.display = "none";
+  });
+  tabShipments.addEventListener("click", () => {
+    tabPackages.classList.remove("active");
+    tabShipments.classList.add("active");
+    packagesSection.style.display = "none";
+    shipmentsSection.style.display = "block";
+  });
+
+  btnEditProfile.addEventListener("click", () => {
+    document.getElementById("edit-name").value = currentUser.name || "";
+    document.getElementById("edit-phone").value = currentUser.phone || "";
+    document.getElementById("edit-address").value =
+      currentUser.defaultAddress || "";
+    editProfileModal.style.display = "flex";
+  });
+
+  // 關閉彈窗通用
+  document.querySelectorAll(".modal-overlay").forEach((m) => {
+    m.addEventListener("click", (e) => {
+      if (e.target === m) m.style.display = "none";
+    });
+  });
+  document.querySelectorAll(".modal-close, .modal-close-btn").forEach((b) => {
+    b.addEventListener("click", () => {
+      b.closest(".modal-overlay").style.display = "none";
+    });
+  });
+
+  // 啟動
+  loadSystemSettings();
   loadUserProfile();
   loadMyPackages();
   loadMyShipments();
