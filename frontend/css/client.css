@@ -492,4 +492,9 @@ textarea {
   .btn {
     width: 100%;
   }
+
+  /* [新增] 手機版隱藏頁尾的 LINE 與 Email 客服連結 */
+  .footer-links {
+    display: none;
+  }
 }
