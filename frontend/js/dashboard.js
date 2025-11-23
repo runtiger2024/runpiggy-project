@@ -705,17 +705,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const p = allPackagesData.find((pkg) => pkg.id === id);
       if (p) {
         html += `
-            <div class="shipment-package-item" style="display:flex; justify-content:space-between; border-bottom:1px dashed #eee; padding:5px 0;">
-              <div class="info">
-                <span style="font-weight:bold;">${p.productName}</span>
-                <small style="display:block; color:#888;">${
-                  p.trackingNumber
-                }</small>
-              </div>
-              <div class="cost" style="font-weight:bold;">$${(
-                p.totalCalculatedFee || 0
-              ).toLocaleString()}</div>
-            </div>`;
+    <div class="shipment-package-item">
+      <div class="info">
+        <span style="font-weight:bold;">${p.productName}</span>
+        <small style="display:block; color:#888;">${p.trackingNumber}</small>
+      </div>
+      <div class="cost">$${(p.totalCalculatedFee || 0).toLocaleString()}</div>
+    </div>`;
       } else {
         valid = false;
       }

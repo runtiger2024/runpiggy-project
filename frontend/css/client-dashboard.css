@@ -423,3 +423,88 @@
     justify-content: center;
   }
 }
+/* --- 8. 彈窗優化 (Modals Optimization) --- */
+
+/* 通用：資訊網格 (取代 html 中的 inline style) */
+.info-grid-responsive {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* 電腦版：兩欄 */
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+/* 提交訂單 (Checkout) 佈局 */
+.checkout-layout {
+  display: flex;
+  gap: 20px;
+}
+.checkout-items {
+  flex: 1;
+  background: #f9f9f9;
+  padding: 15px;
+  border-radius: 8px;
+  height: fit-content;
+}
+.checkout-info-form {
+  flex: 1.5;
+}
+
+/* 包裹清單項目 (JS動態生成部分) */
+.shipment-package-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px dashed #eee;
+  padding: 8px 0;
+}
+.shipment-package-item .info {
+  padding-right: 10px;
+}
+.shipment-package-item .cost {
+  white-space: nowrap;
+  font-weight: bold;
+  color: #d32f2f;
+}
+
+/* === 手機版彈窗專用樣式 === */
+@media (max-width: 768px) {
+  /* 強制轉單欄 */
+  .info-grid-responsive {
+    grid-template-columns: 1fr; /* 手機版：單欄 */
+    gap: 10px;
+  }
+
+  /* 提交訂單頁面：垂直堆疊 */
+  .checkout-layout {
+    flex-direction: column-reverse; /* 表單在上方，包裹清單移到下方(或保留 column 視需求) */
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* 讓包裹清單在手機上不佔太多空間，改為可摺疊或限制高度 */
+  .checkout-items {
+    margin-bottom: 20px;
+    background: #f5f7fa;
+    border: 1px solid #eee;
+  }
+
+  /* 調整彈窗標題與按鈕 */
+  .modal-header h3 {
+    font-size: 18px;
+  }
+
+  /* 詳情頁的區塊優化 */
+  .modal-body {
+    padding: 15px 10px; /* 減少內距 */
+  }
+
+  /* 詳情頁中的欄位標題 */
+  .modal-section-title {
+    background: #eee;
+    padding: 8px;
+    border-radius: 4px;
+    margin-top: 15px;
+    margin-bottom: 10px;
+    font-weight: bold;
+  }
+}
