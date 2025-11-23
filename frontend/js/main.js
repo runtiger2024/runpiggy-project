@@ -605,7 +605,7 @@ window.saveToForecast = function () {
   }
 };
 
-// --- 功能 2: 產生分享連結 (修改後) ---
+// --- 功能 2: 產生分享連結 (V18.1 - 修復手機版複製問題) ---
 window.createShareLink = async function () {
   if (!window.currentCalculationResult) {
     alert("目前沒有試算結果可分享！");
@@ -637,16 +637,18 @@ window.createShareLink = async function () {
     const data = await res.json();
     const shareUrl = `${window.location.origin}/quote.html?id=${data.id}`;
 
-    // [修改重點] 使用 Clipboard API 自動複製
+    // [核心修正] 嘗試自動複製
+    // 注意：在 iOS Safari 或部分環境，fetch 後的 writeText 可能會被擋
     navigator.clipboard
       .writeText(shareUrl)
       .then(() => {
+        // 情況 A: 瀏覽器允許自動複製 -> 直接成功
         alert("✅ 連結已自動複製！\n您可以直接貼上分享給朋友。");
       })
       .catch((err) => {
-        // 若瀏覽器不支援或權限不足的備案 (Fallback)
-        console.error("自動複製失敗:", err);
-        prompt("自動複製失敗，請手動複製下方連結：", shareUrl);
+        // 情況 B: 自動複製失敗 (常見於手機) -> 呼叫專用彈窗
+        console.warn("自動複製被攔截，改用彈窗模式:", err);
+        showShareModal(shareUrl);
       });
   } catch (e) {
     alert("分享失敗: " + e.message);
@@ -657,3 +659,63 @@ window.createShareLink = async function () {
     }
   }
 };
+
+// [新增] 專用分享彈窗 (解決手機無法複製的問題)
+function showShareModal(url) {
+  // 1. 檢查是否已存在，不存在則建立 DOM
+  let modal = document.getElementById("share-link-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "share-link-modal";
+    modal.className = "modal-overlay";
+    modal.style.zIndex = "3000"; // 確保在最上層
+
+    // 彈窗 HTML 結構 (包含輸入框以便手機長按複製)
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 400px; text-align: center;">
+        <button class="modal-close-btn" onclick="document.getElementById('share-link-modal').style.display='none'">&times;</button>
+        <h3 style="margin-top:0; color:var(--primary-color);">🔗 分享連結</h3>
+        <p style="color:#666; font-size:14px; margin-bottom:10px;">連結已建立！請點擊按鈕複製：</p>
+        
+        <div style="display:flex; gap:8px; margin-bottom:15px;">
+          <input type="text" id="share-url-input" class="form-control" readonly 
+                 style="text-align:center; font-size:13px; background:#f9f9f9; color:#555;" 
+                 onclick="this.select();">
+        </div>
+        
+        <button id="btn-manual-copy" class="btn btn-primary">
+          <i class="fas fa-copy"></i> 點擊複製連結
+        </button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    // 綁定複製按鈕事件 (這是同步點擊，保證成功)
+    document.getElementById("btn-manual-copy").addEventListener("click", () => {
+      const input = document.getElementById("share-url-input");
+
+      // 選取文字 (相容手機)
+      input.select();
+      input.setSelectionRange(0, 99999); // For iOS
+
+      // 執行複製
+      try {
+        // 優先嘗試新 API
+        navigator.clipboard.writeText(input.value).then(() => {
+          alert("已複製成功！");
+          modal.style.display = "none";
+        });
+      } catch (err) {
+        // 舊版 Fallback
+        document.execCommand("copy");
+        alert("已複製成功！");
+        modal.style.display = "none";
+      }
+    });
+  }
+
+  // 2. 更新連結並顯示
+  const input = document.getElementById("share-url-input");
+  input.value = url;
+  modal.style.display = "flex";
+}
