@@ -793,3 +793,89 @@
     font-weight: bold;
   }
 }
+/* frontend/css/client-dashboard.css - 結帳頁面優化 */
+
+/* 結帳清單項目 (詳細模式) */
+.shipment-package-item.detailed-mode {
+  display: block; /* 改為區塊顯示以便垂直排列 */
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.item-main-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.item-name {
+  font-weight: bold;
+  font-size: 15px;
+  color: #333;
+}
+
+.item-track {
+  font-size: 12px;
+  color: #888;
+  font-family: var(--font-mono);
+}
+
+.item-cost {
+  font-weight: 800;
+  color: #d32f2f;
+  font-size: 16px;
+}
+
+.item-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.item-badges {
+  display: flex;
+  gap: 4px;
+}
+
+/* 明細區塊 (摺疊/展開效果可選，這裡先全展開) */
+.item-breakdown-box {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 8px;
+  border: 1px solid #eee;
+}
+
+.checkout-box-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: #555;
+  font-family: var(--font-mono);
+}
+
+.checkout-box-row:last-child {
+  margin-bottom: 0;
+}
+
+.box-idx {
+  color: #888;
+  margin-right: 5px;
+  min-width: 25px;
+}
+
+.box-dim {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.box-fee {
+  font-weight: 600;
+  color: #333;
+}

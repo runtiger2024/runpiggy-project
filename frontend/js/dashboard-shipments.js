@@ -1,6 +1,7 @@
-// frontend/js/dashboard-shipments.js
+// frontend/js/dashboard-shipments.js (V22.4 - 完整修復版)
 // 負責：集運單列表、建立訂單(結帳)、取消訂單、詳情、上傳憑證
 
+// --- 1. 載入我的集運單 ---
 window.loadMyShipments = async function () {
   const tableBody = document.getElementById("shipments-table-body");
   try {
@@ -10,13 +11,17 @@ window.loadMyShipments = async function () {
     const data = await res.json();
     renderShipmentsTable(data.shipments || []);
   } catch (e) {
-    tableBody.innerHTML = `<tr><td colspan="5" class="text-center error-text">載入失敗: ${e.message}</td></tr>`;
+    if (tableBody)
+      tableBody.innerHTML = `<tr><td colspan="5" class="text-center error-text">載入失敗: ${e.message}</td></tr>`;
   }
 };
 
+// --- 2. 渲染集運單列表 ---
 function renderShipmentsTable(shipments) {
   const tableBody = document.getElementById("shipments-table-body");
+  if (!tableBody) return;
   tableBody.innerHTML = "";
+
   if (shipments.length === 0) {
     tableBody.innerHTML =
       '<tr><td colspan="5" class="text-center" style="padding:30px; color:#999;">目前沒有集運單</td></tr>';
@@ -67,7 +72,7 @@ function renderShipmentsTable(shipments) {
   });
 }
 
-// --- 建立訂單 (結帳) ---
+// --- 3. 更新結帳列狀態 ---
 window.updateCheckoutBar = function () {
   const count = document.querySelectorAll(".package-checkbox:checked").length;
   const btn = document.getElementById("btn-create-shipment");
@@ -80,43 +85,147 @@ window.updateCheckoutBar = function () {
   }
 };
 
+// --- 4. [重點修正] 點擊合併打包 (生成詳細算式與檢視) ---
 window.handleCreateShipmentClick = function () {
   const ids = Array.from(
     document.querySelectorAll(".package-checkbox:checked")
   ).map((c) => c.dataset.id);
   if (ids.length === 0) return;
 
+  // 準備費率常數
+  const CONSTANTS = window.CONSTANTS || {
+    VOLUME_DIVISOR: 28317,
+    OVERSIZED_LIMIT: 300,
+    OVERWEIGHT_LIMIT: 100,
+  };
+  const RATES = window.RATES || {};
+
   let html = "";
+
   ids.forEach((id) => {
     const p = window.allPackagesData.find((x) => x.id === id);
-    if (p)
-      html += `<div class="shipment-package-item"><div class="info">${p.productName}</div><div class="cost">$${p.totalCalculatedFee}</div></div>`;
+    if (!p) return;
+
+    // 1. 即時計算該包裹的費用與規格 (前端計算)
+    const boxes = Array.isArray(p.arrivedBoxes) ? p.arrivedBoxes : [];
+    let pkgTotalFee = 0;
+    let pkgTotalWeight = 0;
+    let breakdownHtml = "";
+    let badgesHtml = "";
+    let hasOversized = false;
+    let hasOverweight = false;
+
+    if (boxes.length > 0) {
+      boxes.forEach((b, idx) => {
+        const w = parseFloat(b.weight) || 0;
+        const l = parseFloat(b.length) || 0;
+        const wd = parseFloat(b.width) || 0;
+        const h = parseFloat(b.height) || 0;
+        const typeKey = b.type || "general";
+        const rateInfo = RATES[typeKey] || {
+          name: "一般",
+          weightRate: 0,
+          volumeRate: 0,
+        };
+
+        pkgTotalWeight += w;
+
+        // 算式邏輯
+        const cai = Math.ceil((l * wd * h) / CONSTANTS.VOLUME_DIVISOR);
+        const volFee = cai * rateInfo.volumeRate;
+        const wtFee = (Math.ceil(w * 10) / 10) * rateInfo.weightRate;
+        const boxFee = Math.max(volFee, wtFee); // 取大者計費
+        const isVolWin = volFee >= wtFee;
+
+        pkgTotalFee += boxFee;
+
+        // 檢查超規
+        if (
+          l > CONSTANTS.OVERSIZED_LIMIT ||
+          wd > CONSTANTS.OVERSIZED_LIMIT ||
+          h > CONSTANTS.OVERSIZED_LIMIT
+        )
+          hasOversized = true;
+        if (w > CONSTANTS.OVERWEIGHT_LIMIT) hasOverweight = true;
+
+        // 生成單箱明細小字
+        breakdownHtml += `
+                <div class="checkout-box-row">
+                    <span class="box-idx">#${idx + 1}</span>
+                    <span class="box-dim">${l}x${wd}x${h}/${w}kg</span>
+                    <span class="box-fee">
+                        ${
+                          isVolWin ? `材(${cai})` : `重`
+                        } $${boxFee.toLocaleString()}
+                    </span>
+                </div>
+            `;
+      });
+    } else {
+      // 回退：無分箱資料時使用 DB 值
+      pkgTotalFee = p.totalCalculatedFee || 0;
+      breakdownHtml = `<div style="color:#999;font-size:12px;">(尚無詳細測量數據)</div>`;
+    }
+
+    if (hasOversized)
+      badgesHtml += `<span class="badge-alert small">超長</span> `;
+    if (hasOverweight)
+      badgesHtml += `<span class="badge-alert small">超重</span>`;
+
+    // 2. 組合詳細 HTML (使用新的 CSS class)
+    html += `
+    <div class="shipment-package-item detailed-mode">
+      <div class="item-main-row">
+          <div class="item-info">
+            <div class="item-name">${p.productName}</div>
+            <div class="item-track">${p.trackingNumber}</div>
+          </div>
+          <div class="item-cost">$${pkgTotalFee.toLocaleString()}</div>
+      </div>
+      
+      <div class="item-meta-row">
+         <span>共 ${boxes.length} 箱 / 總重 ${pkgTotalWeight.toFixed(
+      1
+    )} kg</span>
+         <div class="item-badges">${badgesHtml}</div>
+      </div>
+
+      <div class="item-breakdown-box">
+         ${breakdownHtml}
+      </div>
+    </div>`;
   });
+
   document.getElementById("shipment-package-list").innerHTML = html;
   document.getElementById("create-shipment-form").dataset.ids =
     JSON.stringify(ids);
 
-  // 預填個資
-  document.getElementById("ship-name").value = window.currentUser.name || "";
-  document.getElementById("ship-phone").value = window.currentUser.phone || "";
-  document.getElementById("ship-street-address").value =
-    window.currentUser.defaultAddress || "";
+  // 預填個資與重置介面
+  if (window.currentUser) {
+    document.getElementById("ship-name").value = window.currentUser.name || "";
+    document.getElementById("ship-phone").value =
+      window.currentUser.phone || "";
+    document.getElementById("ship-street-address").value =
+      window.currentUser.defaultAddress || "";
+  }
 
-  // 重置地區
   const locSelect = document.getElementById("ship-delivery-location");
-  locSelect.value = "";
-  document.getElementById("ship-remote-area-info").style.display = "none";
-  document.getElementById(
-    "api-fee-breakdown"
-  ).innerHTML = `<div style="text-align:center;color:#999; padding:10px;">請選擇配送地區以計算總運費</div>`;
+  if (locSelect) locSelect.value = "";
 
-  // 如果有地區渲染函式，重新呼叫一次確保最新
+  const remoteInfo = document.getElementById("ship-remote-area-info");
+  if (remoteInfo) remoteInfo.style.display = "none";
+
+  const feeContainer = document.getElementById("api-fee-breakdown");
+  if (feeContainer)
+    feeContainer.innerHTML = `<div style="text-align:center;color:#999; padding:10px;">請選擇配送地區以計算總運費</div>`;
+
   if (window.renderShipmentRemoteAreaOptions)
     window.renderShipmentRemoteAreaOptions();
 
   document.getElementById("create-shipment-modal").style.display = "flex";
 };
 
+// --- 5. 渲染地區選項 ---
 window.renderShipmentRemoteAreaOptions = function () {
   const sel = document.getElementById("ship-delivery-location");
   if (!sel || !window.REMOTE_AREAS) return;
@@ -136,7 +245,7 @@ window.renderShipmentRemoteAreaOptions = function () {
   sel.innerHTML = html;
 };
 
-// 試算運費 (API)
+// --- 6. 重新計算總運費 (呼叫後端 API) ---
 window.recalculateShipmentTotal = async function () {
   const ids = JSON.parse(
     document.getElementById("create-shipment-form").dataset.ids || "[]"
@@ -145,7 +254,7 @@ window.recalculateShipmentTotal = async function () {
   const container = document.getElementById("api-fee-breakdown");
 
   if (!locationRate) return;
-  container.innerHTML = `<div style="text-align:center; padding:10px;">正在精算運費...</div>`;
+  container.innerHTML = `<div style="text-align:center; padding:10px;"><div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;"></div> 正在精算運費...</div>`;
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/shipments/preview`, {
@@ -165,16 +274,21 @@ window.recalculateShipmentTotal = async function () {
       const p = data.preview;
       const CONSTANTS = window.CONSTANTS || {};
       let html = `<div class="fee-breakdown-row"><span>基本運費</span> <span>$${p.baseCost.toLocaleString()}</span></div>`;
+
       if (p.isMinimumChargeApplied)
         html += `<div class="fee-breakdown-row highlight" style="font-size:12px; color:#e67e22;">(已補足低消 $${
           CONSTANTS.MINIMUM_CHARGE || 2000
         })</div>`;
+
       if (p.remoteFee > 0)
         html += `<div class="fee-breakdown-row"><span>偏遠地區費</span> <span>+$${p.remoteFee.toLocaleString()}</span></div>`;
+
       if (p.overweightFee > 0)
         html += `<div class="fee-breakdown-row highlight"><span>超重附加費</span> <span>+$${p.overweightFee.toLocaleString()}</span></div>`;
+
       if (p.oversizedFee > 0)
         html += `<div class="fee-breakdown-row highlight"><span>超長附加費</span> <span>+$${p.oversizedFee.toLocaleString()}</span></div>`;
+
       html += `<div class="fee-breakdown-row total" style="border-top:1px solid #ddd; margin-top:5px; padding-top:5px; font-weight:bold; color:#d32f2f; font-size:18px;"><span>總運費</span> <span>NT$ ${p.totalCost.toLocaleString()}</span></div>`;
       container.innerHTML = html;
     } else {
@@ -185,6 +299,7 @@ window.recalculateShipmentTotal = async function () {
   }
 };
 
+// --- 7. 提交建立訂單 ---
 window.handleCreateShipmentSubmit = async function (e) {
   e.preventDefault();
   const form = e.target;
@@ -244,10 +359,8 @@ window.handleCreateShipmentSubmit = async function (e) {
   }
 };
 
-// 詳情、上傳、查看憑證、取消
+// --- 8. 開啟集運單詳情 ---
 window.openShipmentDetails = async function (id) {
-  // (與 dashboard.js 原有邏輯相同，為節省篇幅略過重複代碼，請直接使用原有 openShipmentDetails 邏輯)
-  // 這裡僅示例呼叫 API 與填充欄位
   const modal = document.getElementById("shipment-details-modal");
   document.getElementById("sd-id").textContent = "載入中...";
   modal.style.display = "flex";
@@ -262,9 +375,18 @@ window.openShipmentDetails = async function (id) {
       document.getElementById("sd-id").textContent = ship.id
         .slice(-8)
         .toUpperCase();
-      // ... 其他欄位填充 (參考原 dashboard.js) ...
+      const statusMap = window.SHIPMENT_STATUS_MAP || {};
+      document.getElementById("sd-status").textContent =
+        statusMap[ship.status] || ship.status;
+      document.getElementById("sd-date").textContent = new Date(
+        ship.createdAt
+      ).toLocaleDateString();
+      document.getElementById("sd-trackingTW").textContent =
+        ship.trackingNumberTW || "尚未產生";
+      document.getElementById("sd-name").textContent = ship.recipientName;
+      document.getElementById("sd-phone").textContent = ship.phone;
+      document.getElementById("sd-address").textContent = ship.shippingAddress;
 
-      // 填充費用明細
       document.getElementById("sd-fee-breakdown").innerHTML = `
         <div class="fee-breakdown-row total"><span>總金額</span><span>NT$ ${(
           ship.totalCost || 0
@@ -272,13 +394,35 @@ window.openShipmentDetails = async function (id) {
         <small style="color:#666; display:block; margin-top:5px;">(含基本運費、偏遠費 $${
           ship.deliveryLocationRate
         }/方 及其他附加費)</small>
+        <div style="margin-top:5px; font-size:12px; color:#888;">備註: ${
+          ship.note || "無"
+        }</div>
       `;
+
+      const proofContainer = document.getElementById("sd-proof-images");
+      proofContainer.innerHTML = "";
+      const pImages = ship.shipmentProductImages || [];
+      if (pImages.length > 0) {
+        pImages.forEach((url) => {
+          const img = document.createElement("img");
+          img.src = `${API_BASE_URL}${url}`;
+          img.style.cssText =
+            "width:100%; height:80px; object-fit:cover; border-radius:4px; cursor:pointer; border:1px solid #eee;";
+          img.onclick = () => window.open(img.src, "_blank");
+          proofContainer.appendChild(img);
+        });
+      } else if (ship.productUrl) {
+        proofContainer.innerHTML = `<a href="${ship.productUrl}" target="_blank" style="word-break:break-all;">${ship.productUrl}</a>`;
+      } else {
+        proofContainer.innerHTML = "<span style='color:#999'>無</span>";
+      }
     }
   } catch (e) {
     modal.style.display = "none";
   }
 };
 
+// --- 9. 其他輔助功能 ---
 window.openUploadProof = function (id) {
   document.getElementById("upload-proof-id").value = id;
   document.getElementById("upload-proof-modal").style.display = "flex";
@@ -297,7 +441,7 @@ window.handleUploadProofSubmit = async function (e) {
     body: fd,
   });
   document.getElementById("upload-proof-modal").style.display = "none";
-  window.showMessage("上傳成功", "success");
+  if (window.showMessage) window.showMessage("上傳成功", "success");
   window.loadMyShipments();
 };
 
@@ -313,7 +457,7 @@ window.handleCancelShipment = async function (id) {
   });
   window.loadMyShipments();
   window.loadMyPackages();
-  window.showMessage("訂單已取消", "success");
+  if (window.showMessage) window.showMessage("訂單已取消", "success");
 };
 
 window.updateBankInfoDOM = function (info) {
