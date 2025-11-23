@@ -508,3 +508,47 @@
     font-weight: bold;
   }
 }
+/* --- 9. 彈窗底部按鈕優化 (Footer Actions) --- */
+
+.modal-footer.sticky-footer-actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+/* 讓主要動作按鈕 (如提交) 佔據更多寬度 */
+.modal-footer.sticky-footer-actions .btn-primary {
+  flex: 2;
+}
+
+/* 次要按鈕 (如取消) 佔據較少寬度 */
+.modal-footer.sticky-footer-actions .btn-secondary {
+  flex: 1;
+  background-color: #f1f3f5;
+  border-color: #e9ecef;
+  color: #666;
+}
+
+/* === 手機版彈窗底部優化 === */
+@media (max-width: 768px) {
+  /* 增加底部按鈕的高度，方便手指點擊 */
+  .modal-footer.sticky-footer-actions .btn {
+    padding: 12px;
+    font-size: 16px;
+    border-radius: 8px;
+  }
+
+  /* 如果希望手機版按鈕是「取消」在左，「提交」在右，保持 flex row 即可 */
+  /* 如果希望垂直堆疊 (提交在最上方)，可取消註解下方代碼： */
+  /*
+  .modal-footer.sticky-footer-actions {
+    flex-direction: column-reverse; 
+  }
+  .modal-footer.sticky-footer-actions .btn {
+    width: 100%;
+    flex: auto;
+  }
+  */
+}

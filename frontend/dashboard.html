@@ -323,15 +323,7 @@
         </div>
         <form id="create-shipment-form">
           <div class="checkout-layout">
-            <div
-              class="checkout-items"
-              style="
-                background: #f9f9f9;
-                padding: 15px;
-                border-radius: 8px;
-                margin-bottom: 20px;
-              "
-            >
+            <div class="checkout-items">
               <h4 style="margin-top: 0">📦 包裹清單</h4>
               <div
                 id="shipment-package-list"
@@ -510,12 +502,11 @@
               </div>
             </div>
           </div>
-          <div class="modal-footer" style="margin-top: 20px">
-            <button
-              type="submit"
-              class="btn btn-primary btn-place-order"
-              style="width: 100%"
-            >
+          <div class="modal-footer sticky-footer-actions">
+            <button type="button" class="btn btn-secondary modal-close-btn">
+              取消
+            </button>
+            <button type="submit" class="btn btn-primary btn-place-order">
               提交訂單
             </button>
           </div>
@@ -676,14 +667,12 @@
               color: #b76e00;
             "
           ></div>
-
           <div class="modal-section-title">🛒 購買證明</div>
           <div id="sd-proof-images" class="gallery-grid"></div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-primary modal-close-btn" style="width: 100%">
-            關閉
-          </button>
+
+        <div class="modal-footer sticky-footer-actions">
+          <button class="btn btn-primary modal-close-btn">關閉</button>
         </div>
       </div>
     </div>
