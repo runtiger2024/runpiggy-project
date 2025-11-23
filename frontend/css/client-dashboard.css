@@ -1,5 +1,5 @@
 /* frontend/css/client-dashboard.css */
-/* 會員中心 (Dashboard) 專用樣式 - V22.1 Mobile Width Optimized */
+/* 會員中心 (Dashboard) 專用樣式 - V22.2 Mobile Width Fixed */
 
 /* --- 1. Dashboard Header --- */
 .dashboard-header {
@@ -169,9 +169,10 @@
 
 /* === 手機版 (Mobile): 垂直卡片佈局 === */
 @media (max-width: 768px) {
-  /* [關鍵修正] 增加容器內距，讓卡片寬度縮減，符合主流 390px 寬度手機的視覺比例 */
+  /* [關鍵修正] 增加容器內距為 16px */
+  /* 這樣在 390px 的手機上，卡片寬度約為 358px，視覺比例最佳 */
   .dashboard-container {
-    padding: 0 16px; /* 改為 16px，這是 iOS/Android 的標準邊距 */
+    padding: 0 16px;
   }
 
   /* 移除表格容器的背景與陰影，將其移至個別卡片(tr) */
@@ -196,11 +197,11 @@
     display: flex;
     flex-direction: column; /* 內容垂直排列 */
     background: #fff;
-    margin-bottom: 16px; /* 增加卡片間距 */
-    border-radius: 16px; /* 更圓潤的導角，符合現代 App 風格 */
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06); /* 柔和陰影 */
+    margin-bottom: 16px; /* 卡片之間的垂直間距 */
+    border-radius: 16px; /* 圓角 */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06); /* 陰影 */
     border: 1px solid #f0f0f0;
-    padding: 16px;
+    padding: 20px; /* 卡片內部留白，增加到 20px 讓內容不擁擠 */
     position: relative;
     overflow: hidden;
   }
@@ -254,7 +255,7 @@
   /* 2. [Content] 商品資訊 (標題) */
   /* 給上方留出空間，避免被 Checkbox/Status 蓋住 */
   .table-responsive td:nth-child(3) {
-    margin-top: 36px; /* 增加間距 */
+    margin-top: 30px;
     padding-bottom: 12px;
     border-bottom: 1px dashed #eee;
   }
@@ -380,7 +381,7 @@
   bottom: var(--mobile-nav-height); /* 確保在手機底部導航欄上方 */
   left: 0;
   width: 100%;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.98);
   border-top: 1px solid #e0e0e0;
   padding: 12px 16px;
   display: flex;
