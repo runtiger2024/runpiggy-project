@@ -879,3 +879,26 @@
   font-weight: 600;
   color: #333;
 }
+
+/* --- 10. 費用總計列 (Fee Breakdown) - [New Added] --- */
+.fee-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+  font-size: 14px;
+}
+.fee-breakdown-row.highlight {
+  background-color: #fff3e0;
+  padding: 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.fee-breakdown-row.total {
+  font-size: 18px;
+  font-weight: 800;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eee;
+  color: #d32f2f;
+}

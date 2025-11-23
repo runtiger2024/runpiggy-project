@@ -1,4 +1,4 @@
-// frontend/js/dashboard-shipments.js (V22.6 - 完整版 - 含堆高機動態檢查)
+// frontend/js/dashboard-shipments.js (V23.0 - 費用透明優化版)
 // 負責：集運單列表、建立訂單(結帳)、取消訂單、詳情、上傳憑證
 
 // --- 1. 載入我的集運單 ---
@@ -102,14 +102,14 @@ window.handleCreateShipmentClick = function () {
 
   let html = "";
 
-  // [新增變數] 用於追蹤整單是否有任何一件超重
+  // [變數] 追蹤超重超長
   let shipmentHasOverweight = false;
+  let shipmentHasOversized = false;
 
   ids.forEach((id) => {
     const p = window.allPackagesData.find((x) => x.id === id);
     if (!p) return;
 
-    // 1. 即時計算該包裹的費用與規格 (前端計算)
     const boxes = Array.isArray(p.arrivedBoxes) ? p.arrivedBoxes : [];
     let pkgTotalFee = 0;
     let pkgTotalWeight = 0;
@@ -147,16 +147,16 @@ window.handleCreateShipmentClick = function () {
           l > CONSTANTS.OVERSIZED_LIMIT ||
           wd > CONSTANTS.OVERSIZED_LIMIT ||
           h > CONSTANTS.OVERSIZED_LIMIT
-        )
+        ) {
           hasOversized = true;
-
-        // [檢查超重並標記整單]
-        if (w > CONSTANTS.OVERWEIGHT_LIMIT) {
-          hasOverweight = true;
-          shipmentHasOverweight = true; // 只要有一箱超重，整單就需要堆高機
+          shipmentHasOversized = true;
         }
 
-        // 生成單箱明細小字
+        if (w > CONSTANTS.OVERWEIGHT_LIMIT) {
+          hasOverweight = true;
+          shipmentHasOverweight = true;
+        }
+
         breakdownHtml += `
                 <div class="checkout-box-row">
                     <span class="box-idx">#${idx + 1}</span>
@@ -170,17 +170,15 @@ window.handleCreateShipmentClick = function () {
             `;
       });
     } else {
-      // 回退：無分箱資料時使用 DB 值
       pkgTotalFee = p.totalCalculatedFee || 0;
       breakdownHtml = `<div style="color:#999;font-size:12px;">(尚無詳細測量數據)</div>`;
     }
 
     if (hasOversized)
-      badgesHtml += `<span class="badge-alert small">超長</span> `;
+      badgesHtml += `<span class="badge-alert small" style="color:#c62828; border:1px solid #ef9a9a; background:#ffebee;">超長</span> `;
     if (hasOverweight)
-      badgesHtml += `<span class="badge-alert small">超重</span>`;
+      badgesHtml += `<span class="badge-alert small" style="color:#c62828; border:1px solid #ef9a9a; background:#ffebee;">超重</span>`;
 
-    // 2. 組合詳細 HTML (使用新的 CSS class)
     html += `
     <div class="shipment-package-item detailed-mode">
       <div class="item-main-row">
@@ -208,7 +206,7 @@ window.handleCreateShipmentClick = function () {
   document.getElementById("create-shipment-form").dataset.ids =
     JSON.stringify(ids);
 
-  // 預填個資與重置介面
+  // 預填個資
   if (window.currentUser) {
     document.getElementById("ship-name").value = window.currentUser.name || "";
     document.getElementById("ship-phone").value =
@@ -227,24 +225,26 @@ window.handleCreateShipmentClick = function () {
   if (feeContainer)
     feeContainer.innerHTML = `<div style="text-align:center;color:#999; padding:10px;">請選擇配送地區以計算總運費</div>`;
 
-  // [新增] 清空圖片預覽與輸入框 (確保每次打開都是乾淨的)
+  // 清空圖片預覽
   document.getElementById("ship-product-url").value = "";
   const imgInput = document.getElementById("ship-product-images");
-  if (imgInput) imgInput.value = ""; // 清空檔案選擇
-  const previewContainer = document.getElementById(
-    "ship-product-preview-container"
-  );
-  if (previewContainer) previewContainer.innerHTML = "";
-  const countDisp = document.getElementById("ship-product-files-display");
-  if (countDisp) countDisp.textContent = "";
+  if (imgInput && imgInput.resetUploader) imgInput.resetUploader();
 
   if (window.renderShipmentRemoteAreaOptions)
     window.renderShipmentRemoteAreaOptions();
 
-  // [新增邏輯] 控制堆高機警告顯示
+  // 顯示堆高機與超長警告
   const warningEl = document.getElementById("forklift-warning");
   if (warningEl) {
-    warningEl.style.display = shipmentHasOverweight ? "block" : "none";
+    if (shipmentHasOverweight) {
+      warningEl.innerHTML = `<i class="fas fa-dolly"></i> <strong>超重提醒：</strong> 偵測到超重物品 (>100kg)，請確認收件地可<strong>自行安排堆高機</strong>卸貨。`;
+      warningEl.style.display = "block";
+    } else if (shipmentHasOversized) {
+      warningEl.innerHTML = `<i class="fas fa-ruler-combined"></i> <strong>超長提醒：</strong> 偵測到超長物品 (>300cm)，請確認收件地動線可供貨車進出。`;
+      warningEl.style.display = "block";
+    } else {
+      warningEl.style.display = "none";
+    }
   }
 
   document.getElementById("create-shipment-modal").style.display = "flex";
@@ -299,17 +299,23 @@ window.recalculateShipmentTotal = async function () {
       const p = data.preview;
       const CONSTANTS = window.CONSTANTS || {};
 
-      let html = `<div class="fee-breakdown-row"><span>基本運費</span> <span>$${p.baseCost.toLocaleString()}</span></div>`;
+      // [核心更新] 顯示完整算式
+      // 總費用 = 基本運費 + 偏遠費 + 超規費 (低消已在基本運費中處理)
+
+      let html = `<div class="fee-breakdown-row"><span>基本運費總計</span> <span>$${p.baseCost.toLocaleString()}</span></div>`;
 
       if (p.isMinimumChargeApplied) {
-        html += `<div class="fee-breakdown-row highlight" style="font-size:12px; color:#e67e22;">(已補足低消 $${
-          CONSTANTS.MINIMUM_CHARGE || 2000
-        })</div>`;
+        // 計算補了多少差額
+        const gap = p.baseCost - p.originalBaseCost;
+        html += `<div class="fee-breakdown-row highlight" style="background:#fff3cd; color:#856404; padding:5px; border-radius:4px;">
+                    <span><i class="fas fa-info-circle"></i> 未達低消，補足差額</span>
+                    <span>+$${gap.toLocaleString()}</span>
+                 </div>`;
       }
 
       if (p.remoteFee > 0) {
         html += `<div class="fee-breakdown-row">
-              <span>偏遠地區費 <br><small style="color:#888; font-size:11px;">(總體積 ${
+              <span>偏遠派送費 <br><small style="color:#888; font-size:11px;">(總體積 ${
                 p.totalCbm
               } CBM x $${locationRate})</small></span> 
               <span>+$${p.remoteFee.toLocaleString()}</span>
@@ -317,14 +323,19 @@ window.recalculateShipmentTotal = async function () {
       }
 
       if (p.overweightFee > 0) {
-        html += `<div class="fee-breakdown-row highlight"><span>超重附加費</span> <span>+$${p.overweightFee.toLocaleString()}</span></div>`;
+        html += `<div class="fee-breakdown-row highlight" style="color:#c62828;"><span>⚠️ 超重附加費</span> <span>+$${p.overweightFee.toLocaleString()}</span></div>`;
       }
 
       if (p.oversizedFee > 0) {
-        html += `<div class="fee-breakdown-row highlight"><span>超長附加費</span> <span>+$${p.oversizedFee.toLocaleString()}</span></div>`;
+        html += `<div class="fee-breakdown-row highlight" style="color:#c62828;"><span>⚠️ 超長附加費</span> <span>+$${p.oversizedFee.toLocaleString()}</span></div>`;
       }
 
-      html += `<div class="fee-breakdown-row total" style="border-top:1px solid #ddd; margin-top:5px; padding-top:5px; font-weight:bold; color:#d32f2f; font-size:18px;"><span>總運費</span> <span>NT$ ${p.totalCost.toLocaleString()}</span></div>`;
+      html += `<div class="fee-breakdown-row total" style="border-top:2px solid #1a73e8; margin-top:10px; padding-top:10px; font-weight:bold; color:#d32f2f; font-size:1.4em;">
+                  <span>總費用</span> 
+                  <span>NT$ ${p.totalCost.toLocaleString()}</span>
+               </div>
+               <div style="text-align:right; font-size:12px; color:#666; margin-top:5px;">(含基本運費 + 偏遠費 + 附加費)</div>`;
+
       container.innerHTML = html;
     } else {
       container.innerHTML = `<span style="color:red;">試算失敗: ${data.message}</span>`;

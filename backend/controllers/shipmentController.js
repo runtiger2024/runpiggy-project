@@ -7,12 +7,13 @@ const ratesManager = require("../utils/ratesManager.js");
 /**
  * 核心輔助函式：計算整筆集運單的費用細節
  * 包含：重新計算基本運費、總材積(CBM)、偏遠費、超規費、低消補足
+ * 規則：總費用 = 基本運費(含低消) + 偏遠費 + 超規費
  */
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   const CONSTANTS = rates.constants;
   const CATEGORIES = rates.categories;
 
-  let baseCost = 0; // 基本運費總和
+  let baseCost = 0; // 純基本運費 (不含低消補足、不含偏遠、不含附加費)
   let totalVolumeDivisor = 0; // 總材積數累加 (sum of (LxWxH)/DIVISOR)
   let hasOversized = false;
   let hasOverweight = false;
@@ -69,33 +70,36 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
     }
   });
 
-  // 計算附加費
+  // 1. 低消判斷 (針對基本運費)
+  // 若基本運費 < 低消，則以低消計算
+  let finalBaseCost = baseCost;
+  const isMinimumChargeApplied =
+    baseCost > 0 && baseCost < CONSTANTS.MINIMUM_CHARGE;
+
+  if (isMinimumChargeApplied) {
+    finalBaseCost = CONSTANTS.MINIMUM_CHARGE;
+  }
+
+  // 2. 計算附加費 (整筆訂單一次性)
   const overweightFee = hasOverweight ? CONSTANTS.OVERWEIGHT_FEE : 0;
   const oversizedFee = hasOversized ? CONSTANTS.OVERSIZED_FEE : 0;
 
-  // 計算偏遠費
+  // 3. 計算偏遠費
   // Total CBM = Total Cai / Factor (保留兩位小數)
   const totalCbm = parseFloat(
     (totalVolumeDivisor / CONSTANTS.CBM_TO_CAI_FACTOR).toFixed(2)
   );
   const remoteFee = Math.round(totalCbm * (parseFloat(deliveryRate) || 0));
 
-  // 低消判斷 (針對基本運費)
-  let finalBaseCost = baseCost;
-  const isMinimumChargeApplied =
-    baseCost > 0 && baseCost < CONSTANTS.MINIMUM_CHARGE;
-  if (isMinimumChargeApplied) {
-    finalBaseCost = CONSTANTS.MINIMUM_CHARGE;
-  }
-
-  const totalCost = finalBaseCost + overweightFee + oversizedFee + remoteFee;
+  // 4. 總費用公式
+  const totalCost = finalBaseCost + remoteFee + overweightFee + oversizedFee;
 
   return {
     totalCost,
     baseCost: finalBaseCost, // 最終基本運費 (含低消補足)
-    originalBaseCost: baseCost, // 真實計算出的運費 (未算低消前)
+    originalBaseCost: baseCost, // 原始運費 (用於前端顯示補了多少錢)
     remoteFee,
-    totalCbm, // 回傳總 CBM 供前端顯示公式
+    totalCbm,
     overweightFee,
     oversizedFee,
     isMinimumChargeApplied,
