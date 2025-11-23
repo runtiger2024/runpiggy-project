@@ -1360,44 +1360,48 @@ textarea:focus {
 }
 
 /* ==========================================================================
-   15. 響應式表格 (Responsive Tables) - 卡片式優化 (Mobile Card View)
+   5. [關鍵] 響應式表格優化 (Card List View)
    ========================================================================== */
-/* 15.1 桌機版樣式 (維持原樣) */
+.table-responsive {
+  background: transparent;
+  overflow: visible;
+}
+
+/* --- 5.1 桌機版 (Table 樣式) --- */
 @media (min-width: 769px) {
   .table-responsive {
-    overflow-x: auto;
     background: #fff;
     border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
+    overflow-x: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   }
   .table-responsive table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 600px;
+    min-width: 700px;
   }
   .table-responsive th {
-    background: var(--bg-body);
-    text-align: left;
+    background: #f9f9f9;
     padding: 15px;
-    font-weight: 600;
-    color: var(--text-secondary);
+    text-align: left;
+    font-weight: bold;
+    color: #555;
+    border-bottom: 1px solid #eee;
   }
   .table-responsive td {
     padding: 15px;
-    border-bottom: 1px solid var(--bg-body);
+    border-bottom: 1px solid #eee;
     vertical-align: middle;
   }
 }
 
-/* 15.2 手機版樣式 - 強制卡片化 (垂直堆疊，無橫向捲動) */
+/* --- 5.2 手機版 (Card 樣式) - 強制垂直堆疊，無左右滑動 --- */
 @media (max-width: 768px) {
-  /* 容器調整 */
   .container {
-    padding: 0 12px; /* 減少兩側邊距 */
-  }
+    padding: 0 12px;
+  } /* 減少邊距 */
 
-  /* 清除表格結構，改為 Block */
-  .table-responsive,
+  /* 強制將表格元素轉為區塊 */
   .table-responsive table,
   .table-responsive tbody,
   .table-responsive tr,
@@ -1405,99 +1409,94 @@ textarea:focus {
     display: block;
     width: 100%;
   }
-
   .table-responsive thead {
-    display: none; /* 隱藏表頭 */
-  }
+    display: none;
+  } /* 隱藏表頭 */
 
-  /* 每一行變成一張卡片 */
+  /* 卡片樣式 */
   .table-responsive tr {
     background: #fff;
     margin-bottom: 15px;
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    border: 1px solid var(--border-color);
-    padding: 15px 15px 55px 15px; /* 底部留白給按鈕 */
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #eee;
+    padding: 15px 15px 50px 15px; /* 底部留白給操作按鈕 */
     position: relative;
   }
-
-  /* 選中狀態高亮 */
+  /* 選中高亮 */
   .table-responsive tr:has(input:checked) {
     border-color: var(--color-primary);
-    background-color: #fbfdff;
+    background-color: #f8faff;
   }
 
   /* TD 通用重置 */
   .table-responsive td {
     padding: 2px 0;
-    border-bottom: none;
-    text-align: left;
+    border: none;
     position: static;
   }
 
-  /* --- 卡片內部佈局 --- */
-
-  /* 1. Checkbox (絕對定位左上) */
+  /* [1] Checkbox (左上角) */
   .table-responsive td:first-child {
     position: absolute;
-    top: 15px;
-    left: 15px;
+    top: 12px;
+    left: 12px;
     width: auto;
     height: auto;
-    z-index: 5;
+    z-index: 10;
   }
-  /* 放大 Checkbox 點擊區 */
   .table-responsive td input[type="checkbox"] {
     width: 22px;
     height: 22px;
     cursor: pointer;
   }
 
-  /* 2. Status Badge (絕對定位右上) */
+  /* [2] Status Badge (右上角) */
   .table-responsive td:nth-child(2) {
     position: absolute;
-    top: 15px;
-    right: 15px;
+    top: 12px;
+    right: 12px;
     width: auto;
     text-align: right;
   }
 
-  /* 3. 主要內容 (商品名稱/單號/日期) */
+  /* [3] 主要內容 (標題、單號) */
   .table-responsive td:nth-child(3) {
-    margin-top: 5px;
-    padding-left: 35px; /* 避開 Checkbox */
+    margin-top: 25px; /* 避開上方的 Checkbox/Status */
     margin-bottom: 8px;
+    /* 如果有 Checkbox 則左縮排，沒有則不縮 (集運單vs包裹) - JS 會控制 DOM 結構 */
+    /* 這裡我們統一縮排，比較整齊 */
+    padding-left: 0;
   }
-  /* 內容樣式強化 */
+  /* 集運單/包裹標題 */
   .table-responsive td:nth-child(3) div {
     font-size: 16px;
     font-weight: 700;
-    color: var(--text-main);
+    color: #333;
     margin-bottom: 4px;
-    line-height: 1.3;
+    line-height: 1.4;
   }
+  /* 單號/日期 */
   .table-responsive td:nth-child(3) small {
-    font-family: var(--font-mono);
+    font-family: monospace;
     font-size: 13px;
-    color: var(--text-secondary);
-    background: var(--bg-input);
+    color: #666;
+    background: #f0f0f0;
     padding: 2px 6px;
     border-radius: 4px;
     display: inline-block;
-    word-break: break-all;
+    word-break: break-all; /* 強制換行 */
   }
 
-  /* 4. 規格/費用 (次要資訊) */
+  /* [4] 規格/費用 (次要資訊) */
   .table-responsive td:nth-child(4) {
-    padding-left: 35px;
     font-size: 13px;
-    color: var(--text-secondary);
+    color: #666;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 8px;
   }
-  /* 強調金額 */
   .table-responsive td:nth-child(4) span {
     background: #fff7e6;
     color: var(--color-accent);
@@ -1506,48 +1505,38 @@ textarea:focus {
     font-weight: bold;
   }
 
-  /* 5. 操作按鈕 (Actions) - 固定底部 */
+  /* [5] 操作按鈕 (固定底部) */
   .table-responsive td:last-child {
     position: absolute;
     bottom: 0;
     left: 0;
     width: 100%;
-    height: 46px;
+    height: 44px;
     background: #fafafa;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid #eee;
     border-radius: 0 0 12px 12px;
-    padding: 0;
-
-    /* 使用 Grid 均分按鈕寬度 */
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
-    align-items: center;
+    padding: 0;
   }
-
-  /* 按鈕樣式重置 */
   .table-responsive td:last-child .btn {
     height: 100%;
+    width: 100%;
+    margin: 0;
     background: transparent;
     border: none;
     border-radius: 0;
+    font-size: 13px;
     color: #555;
-    font-size: 14px;
-    width: 100%;
-    margin: 0;
-    box-shadow: none;
   }
-  /* 按鈕分隔線 */
   .table-responsive td:last-child .btn:not(:last-child) {
     border-right: 1px solid #eee;
   }
-  /* 按鈕點擊效果 */
   .table-responsive td:last-child .btn:active {
     background: #e6f7ff;
     color: var(--color-primary);
   }
-
-  /* 特殊按鈕顏色覆寫 */
   .table-responsive td:last-child .btn-primary {
     color: var(--color-primary);
     font-weight: bold;

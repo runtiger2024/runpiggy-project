@@ -2,44 +2,17 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <title>會員中心 | 我的集運</title>
     <link rel="icon" href="assets/logo.png" type="image/png" />
     <script src="js/styleLoader.js"></script>
     <link
       rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
-    <style>
-      /* 針對動態產生的費用明細做一些微調樣式 */
-      .fee-breakdown-row {
-        display: flex;
-        justify-content: space-between;
-        font-size: 14px;
-        margin-bottom: 5px;
-        color: #555;
-      }
-      .fee-breakdown-row.total {
-        border-top: 2px solid #eee;
-        margin-top: 10px;
-        padding-top: 10px;
-        font-size: 18px;
-        font-weight: bold;
-        color: #d32f2f;
-      }
-      .fee-breakdown-row.highlight {
-        color: #e67e22;
-      }
-      .modal-section-title {
-        font-size: 16px;
-        font-weight: bold;
-        color: #1a73e8;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 8px;
-        margin-bottom: 15px;
-        margin-top: 20px;
-      }
-    </style>
   </head>
   <body class="dashboard-theme">
     <div class="container dashboard-container">
@@ -64,21 +37,21 @@
             <div class="user-meta">
               <span class="meta-item"
                 ><i class="fas fa-envelope"></i>
-                <span id="user-email">-</span></span
+                <span id="user-email">...</span></span
               >
               <span class="meta-item"
                 ><i class="fas fa-phone"></i>
-                <span id="user-phone">-</span></span
+                <span id="user-phone">...</span></span
               >
             </div>
             <div class="user-address">
               <i class="fas fa-map-marker-alt"></i>
-              <span id="user-address">-</span>
+              <span id="user-address">...</span>
             </div>
           </div>
           <button
             id="btn-edit-profile"
-            class="btn btn-outline-light btn-sm btn-edit-profile"
+            class="btn btn-secondary btn-sm btn-edit-profile"
           >
             <i class="fas fa-pen"></i> 編輯
           </button>
@@ -119,6 +92,7 @@
               <input
                 type="text"
                 id="trackingNumber"
+                class="form-control"
                 placeholder="掃描或輸入單號"
                 required
               />
@@ -128,13 +102,20 @@
               <input
                 type="text"
                 id="productName"
+                class="form-control"
                 placeholder="例：書桌"
                 required
               />
             </div>
             <div class="form-group short">
               <label>數量</label>
-              <input type="number" id="quantity" value="1" min="1" />
+              <input
+                type="number"
+                id="quantity"
+                class="form-control"
+                value="1"
+                min="1"
+              />
             </div>
             <div class="form-group short">
               <label>照片 (報關用)</label>
@@ -149,19 +130,20 @@
                 />
               </label>
               <span
-                class="file-count"
                 id="file-count-display"
                 style="font-size: 12px; color: #28a745; display: none"
               ></span>
             </div>
-            <div class="form-group full" style="grid-column: 1/-1">
+            <div class="form-group full">
               <label>備註</label>
-              <input type="text" id="note" placeholder="特殊需求..." />
+              <input
+                type="text"
+                id="note"
+                class="form-control"
+                placeholder="特殊需求..."
+              />
             </div>
-            <div
-              class="form-group action"
-              style="grid-column: 1/-1; text-align: right"
-            >
+            <div class="form-group full" style="text-align: right">
               <button type="submit" class="btn btn-primary btn-add-cart">
                 <i class="fas fa-plus-circle"></i> 提交預報
               </button>
@@ -172,10 +154,10 @@
 
       <div class="dashboard-tabs">
         <button id="tab-packages" class="tab-btn active">
-          <i class="fas fa-boxes"></i> 我的包裹 (待入庫)
+          <i class="fas fa-boxes"></i> 我的包裹
         </button>
         <button id="tab-shipments" class="tab-btn">
-          <i class="fas fa-shipping-fast"></i> 我的集運單 (訂單)
+          <i class="fas fa-shipping-fast"></i> 我的集運單
         </button>
       </div>
 
@@ -186,14 +168,16 @@
               <tr>
                 <th width="40">選</th>
                 <th>狀態</th>
-                <th>物流單號/商品</th>
-                <th>規格(件數/重/費)</th>
+                <th>商品/單號</th>
+                <th>規格/費用</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody id="packages-table-body">
               <tr>
-                <td colspan="5" class="text-center">載入中...</td>
+                <td colspan="5" class="text-center" style="padding: 30px">
+                  載入中...
+                </td>
               </tr>
             </tbody>
           </table>
@@ -201,16 +185,17 @@
 
         <div class="sticky-checkout-bar">
           <div class="checkout-info">
-            已選 <span id="selected-pkg-count" class="highlight">0</span> 件包裹
+            已選 <span id="selected-pkg-count" class="highlight">0</span> 件
           </div>
           <button
             id="btn-create-shipment"
             class="btn btn-primary btn-checkout"
             disabled
           >
-            合併打包 (去結帳)
+            合併打包
           </button>
         </div>
+        <div style="height: 80px"></div>
       </div>
 
       <div id="shipments-section" class="tab-content" style="display: none">
@@ -218,20 +203,23 @@
           <table>
             <thead>
               <tr>
-                <th>訂單資訊</th>
+                <th>訂單號</th>
                 <th>狀態</th>
-                <th>收件人</th>
+                <th>收件人/詳情</th>
                 <th>總金額</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody id="shipments-table-body">
               <tr>
-                <td colspan="5" class="text-center">載入中...</td>
+                <td colspan="5" class="text-center" style="padding: 30px">
+                  載入中...
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
+        <div style="height: 80px"></div>
       </div>
 
       <nav class="mobile-bottom-nav" id="mobile-bottom-nav"></nav>
@@ -243,13 +231,16 @@
         <h3>編輯個人資料</h3>
         <form id="edit-profile-form">
           <div class="form-group">
-            <label>姓名</label><input type="text" id="edit-name" />
+            <label>姓名</label
+            ><input type="text" id="edit-name" class="form-control" />
           </div>
           <div class="form-group">
-            <label>電話</label><input type="tel" id="edit-phone" />
+            <label>電話</label
+            ><input type="tel" id="edit-phone" class="form-control" />
           </div>
           <div class="form-group">
-            <label>預設地址</label><input type="text" id="edit-address" />
+            <label>預設地址</label
+            ><input type="text" id="edit-address" class="form-control" />
           </div>
           <button type="submit" class="btn btn-primary">儲存</button>
         </form>
@@ -263,21 +254,36 @@
         <input type="hidden" id="edit-package-id" />
         <form id="edit-package-form">
           <div class="form-group">
-            <label class="required">物流單號</label>
-            <input type="text" id="edit-trackingNumber" required />
+            <label class="required">物流單號</label
+            ><input
+              type="text"
+              id="edit-trackingNumber"
+              class="form-control"
+              required
+            />
           </div>
           <div class="form-group">
-            <label class="required">商品名稱</label>
-            <input type="text" id="edit-productName" required />
+            <label class="required">商品名稱</label
+            ><input
+              type="text"
+              id="edit-productName"
+              class="form-control"
+              required
+            />
           </div>
           <div class="form-group">
-            <label>數量</label>
-            <input type="number" id="edit-quantity" min="1" />
+            <label>數量</label
+            ><input
+              type="number"
+              id="edit-quantity"
+              class="form-control"
+              min="1"
+            />
           </div>
           <div class="form-group">
-            <label>備註</label><input type="text" id="edit-note" />
+            <label>備註</label
+            ><input type="text" id="edit-note" class="form-control" />
           </div>
-
           <div class="form-group">
             <label>現有照片 (點擊紅色 X 可刪除):</label>
             <div
@@ -287,7 +293,7 @@
           </div>
           <div class="form-group">
             <label style="color: #1a73e8"
-              ><i class="fas fa-plus"></i> 補傳新照片 (可多選)</label
+              ><i class="fas fa-plus"></i> 補傳新照片</label
             >
             <input
               type="file"
@@ -297,7 +303,6 @@
               class="form-control"
             />
           </div>
-
           <button type="submit" class="btn btn-primary">儲存變更</button>
         </form>
       </div>
@@ -316,7 +321,6 @@
         >
           <h3>確認訂單 (合併打包)</h3>
         </div>
-
         <form id="create-shipment-form">
           <div class="checkout-layout">
             <div
@@ -333,7 +337,6 @@
                 id="shipment-package-list"
                 style="max-height: 200px; overflow-y: auto; margin-bottom: 10px"
               ></div>
-
               <div
                 class="checkout-summary"
                 style="border-top: 2px solid #ddd; padding-top: 15px"
@@ -354,13 +357,22 @@
               <h4>📝 收件資訊</h4>
               <div class="form-group">
                 <label class="required">收件人</label
-                ><input type="text" id="ship-name" required />
+                ><input
+                  type="text"
+                  id="ship-name"
+                  class="form-control"
+                  required
+                />
               </div>
               <div class="form-group">
                 <label class="required">電話</label
-                ><input type="tel" id="ship-phone" required />
+                ><input
+                  type="tel"
+                  id="ship-phone"
+                  class="form-control"
+                  required
+                />
               </div>
-
               <div class="form-group">
                 <label class="required">配送地區</label>
                 <div style="display: flex; gap: 5px; margin-bottom: 5px">
@@ -368,6 +380,7 @@
                     type="text"
                     id="ship-area-search"
                     placeholder="搜尋地區..."
+                    class="form-control"
                     style="flex: 1"
                   />
                   <div id="ship-search-results" class="search-dropdown"></div>
@@ -397,29 +410,42 @@
                   >)
                 </div>
               </div>
-
               <div class="form-group">
                 <label class="required">詳細地址</label
                 ><input
                   type="text"
                   id="ship-street-address"
+                  class="form-control"
                   placeholder="路/街/號/樓"
                   required
                 />
               </div>
-
               <div class="form-group">
                 <label class="required">身分證 (報關用)</label
-                ><input type="text" id="ship-idNumber" required />
+                ><input
+                  type="text"
+                  id="ship-idNumber"
+                  class="form-control"
+                  required
+                />
               </div>
               <div class="form-group">
-                <label>統編 (選填)</label><input type="text" id="ship-taxId" />
+                <label>統編/抬頭 (選填)</label>
+                <div style="display: flex; gap: 10px">
+                  <input
+                    type="text"
+                    id="ship-taxId"
+                    class="form-control"
+                    placeholder="統編"
+                  />
+                  <input
+                    type="text"
+                    id="ship-invoiceTitle"
+                    class="form-control"
+                    placeholder="抬頭"
+                  />
+                </div>
               </div>
-              <div class="form-group">
-                <label>發票抬頭</label
-                ><input type="text" id="ship-invoiceTitle" />
-              </div>
-
               <div
                 class="proof-section"
                 style="
@@ -434,6 +460,7 @@
                 <input
                   type="url"
                   id="ship-product-url"
+                  class="form-control"
                   placeholder="購買連結網址"
                   style="margin-bottom: 10px"
                 />
@@ -469,16 +496,20 @@
                 </label>
                 <div
                   id="ship-product-files-display"
-                  style="font-size: 12px; color: #28a745; text-align: center"
+                  style="
+                    font-size: 12px;
+                    color: #28a745;
+                    text-align: center;
+                    margin-top: 5px;
+                  "
                 ></div>
               </div>
-
               <div class="form-group" style="margin-top: 15px">
-                <label>備註</label><input type="text" id="ship-note" />
+                <label>備註</label
+                ><input type="text" id="ship-note" class="form-control" />
               </div>
             </div>
           </div>
-
           <div class="modal-footer" style="margin-top: 20px">
             <button
               type="submit"
@@ -498,7 +529,6 @@
         <h3 style="text-align: center; color: #28a745">
           <i class="fas fa-check-circle"></i> 訂單建立成功！
         </h3>
-
         <div
           class="bank-details"
           style="
@@ -529,7 +559,6 @@
             複製資訊
           </button>
         </div>
-
         <div class="modal-footer" style="text-align: center; margin-top: 20px">
           <button class="btn btn-primary modal-close-btn">我知道了</button>
         </div>
@@ -543,7 +572,13 @@
         <input type="hidden" id="upload-proof-id" />
         <form id="upload-proof-form">
           <div class="form-group">
-            <input type="file" id="proof-file" accept="image/*" required />
+            <input
+              type="file"
+              id="proof-file"
+              accept="image/*"
+              class="form-control"
+              required
+            />
           </div>
           <button type="submit" class="btn btn-primary">上傳</button>
         </form>
@@ -575,7 +610,7 @@
           "
         ></div>
         <button
-          class="btn btn-outline-secondary modal-close-btn"
+          class="btn btn-secondary modal-close-btn"
           style="margin-top: 15px; width: 100%"
         >
           關閉
@@ -616,7 +651,6 @@
               ></span>
             </div>
           </div>
-
           <div class="modal-section-title">👤 收件人</div>
           <div style="background: #f9f9f9; padding: 10px; border-radius: 5px">
             <p style="margin: 5px 0">
@@ -629,7 +663,6 @@
               <strong>地址:</strong> <span id="sd-address"></span>
             </p>
           </div>
-
           <div class="modal-section-title">💰 費用明細</div>
           <div
             id="sd-fee-breakdown"
@@ -640,7 +673,6 @@
               color: #e65100;
             "
           ></div>
-
           <div class="modal-section-title">🛒 購買證明</div>
           <div id="sd-proof-images" class="gallery-grid"></div>
         </div>

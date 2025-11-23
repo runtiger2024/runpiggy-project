@@ -1,5 +1,5 @@
-// frontend/js/dashboard.js (V18 - 旗艦完整版)
-// 功能：會員中心邏輯、後端試算整合、圖片補傳、訂單詳情、穩健載入
+// frontend/js/dashboard.js (V21.0 - Mobile Card View Optimized)
+// 功能：會員中心邏輯、後端試算整合、圖片補傳、訂單詳情、響應式列表渲染
 
 // --- 全域變數 ---
 let currentEditPackageImages = []; // 編輯包裹時暫存的舊圖片路徑
@@ -20,6 +20,8 @@ window.openImages = function (images) {
       const img = document.createElement("img");
       img.src = `${API_BASE_URL}${imgUrl}`;
       img.alt = "預覽圖";
+      img.style.cssText =
+        "width:100%; object-fit:cover; border-radius:4px; cursor:pointer;";
       img.onclick = () => window.open(img.src, "_blank");
       gallery.appendChild(img);
     });
@@ -46,15 +48,14 @@ window.openPackageDetails = function (pkgDataStr) {
 
     if (arrivedBoxes.length > 0) {
       boxesHtml += `
-        <div class="table-responsive">
-          <table class="detail-sub-package-table" style="width:100%; font-size:14px;">
+        <div class="table-responsive" style="box-shadow:none; background:transparent;">
+          <table class="detail-sub-package-table" style="width:100%; font-size:14px; border-collapse:collapse;">
             <thead>
               <tr style="background:#f0f0f0;">
-                <th style="padding:8px;">箱號</th>
-                <th style="padding:8px;">規格 (長x寬x高)</th>
-                <th style="padding:8px;">材積</th>
-                <th style="padding:8px;">重量</th>
-                <th style="padding:8px;">費用</th>
+                <th style="padding:8px; text-align:left;">箱號</th>
+                <th style="padding:8px; text-align:left;">規格 (cm)</th>
+                <th style="padding:8px; text-align:left;">材/重</th>
+                <th style="padding:8px; text-align:right;">費用</th>
               </tr>
             </thead>
             <tbody>`;
@@ -75,13 +76,14 @@ window.openPackageDetails = function (pkgDataStr) {
 
         boxesHtml += `
           <tr style="border-bottom:1px solid #eee;">
-            <td style="padding:8px;">#${idx + 1} (${
+            <td style="padding:8px;">#${
+              idx + 1
+            } <br><small style="color:#888">${
           rate.name || box.type || "未知"
-        })</td>
-            <td style="padding:8px;">${l} x ${w_dim} x ${h}</td>
-            <td style="padding:8px;">${cai} 材</td>
-            <td style="padding:8px;">${w} kg</td>
-            <td style="padding:8px; color: #d32f2f; font-weight:bold;">$${finalFee.toLocaleString()}</td>
+        }</small></td>
+            <td style="padding:8px;">${l}x${w_dim}x${h}</td>
+            <td style="padding:8px;">${cai}材<br>${w}kg</td>
+            <td style="padding:8px; text-align:right; color: #d32f2f; font-weight:bold;">$${finalFee.toLocaleString()}</td>
           </tr>
         `;
       });
@@ -170,7 +172,7 @@ window.handleCancelShipment = async function (id) {
   }
 };
 
-// 6. [NEW] 查看訂單詳情 (呼叫後端 API 獲取完整資料)
+// 6. 查看訂單詳情 (呼叫後端 API 獲取完整資料)
 window.openShipmentDetails = async function (id) {
   try {
     const modal = document.getElementById("shipment-details-modal");
@@ -237,7 +239,7 @@ window.openShipmentDetails = async function (id) {
     } else {
       // 如果有連結則顯示連結
       if (ship.productUrl) {
-        proofContainer.innerHTML = `<a href="${ship.productUrl}" target="_blank" style="word-break:break-all;">${ship.productUrl}</a>`;
+        proofContainer.innerHTML = `<a href="${ship.productUrl}" target="_blank" style="word-break:break-all; color:#1a73e8;">${ship.productUrl}</a>`;
       } else {
         proofContainer.innerHTML =
           "<p style='color:#999; font-size:14px;'>無上傳證明</p>";
@@ -315,7 +317,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const createShipmentModal = document.getElementById("create-shipment-modal");
   const createShipmentForm = document.getElementById("create-shipment-form");
   const shipmentPackageList = document.getElementById("shipment-package-list");
-  const shipmentFeeContainer = document.getElementById("api-fee-breakdown"); // 用於顯示後端算出來的費用
+  const shipmentFeeContainer = document.getElementById("api-fee-breakdown");
 
   // 地區相關
   const shipDeliveryLocation = document.getElementById(
@@ -351,7 +353,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 3000);
   }
 
-  // --- (0) 載入系統設定 (費率、偏遠地區) ---
+  // --- (0) 載入系統設定 ---
   async function loadSystemSettings() {
     try {
       const res = await fetch(`${API_BASE_URL}/api/calculator/config`);
@@ -434,13 +436,12 @@ document.addEventListener("DOMContentLoaded", () => {
       userAddress.textContent = currentUser.defaultAddress || "(未填寫)";
     } catch (error) {
       console.error("User profile error:", error);
-      // Token失效，登出
       localStorage.removeItem("token");
       window.location.href = "login.html";
     }
   }
 
-  // --- (B) 載入包裹 (我的購物車) ---
+  // --- (B) 載入包裹列表 (Card View Optimized) ---
   async function loadMyPackages() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/packages/my`, {
@@ -457,7 +458,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderPackagesTable() {
     packagesTableBody.innerHTML = "";
 
-    // 若無資料，顯示提示並重置結帳欄
     if (allPackagesData.length === 0) {
       packagesTableBody.innerHTML =
         '<tr><td colspan="5" class="text-center" style="padding:30px; color:#999;">目前沒有包裹，請點擊上方「預報新包裹」</td></tr>';
@@ -471,10 +471,10 @@ document.addEventListener("DOMContentLoaded", () => {
     allPackagesData.forEach((pkg) => {
       const statusText = statusMap[pkg.status] || pkg.status;
       const statusClass = statusClasses[pkg.status] || "";
-      const isArrived = pkg.status === "ARRIVED"; // 只有已入庫才能勾選
+      const isArrived = pkg.status === "ARRIVED";
 
-      // 顯示重量與費用
-      let infoText = "-";
+      // 顯示重量與費用 (HTML 結構調整以適配 CSS 卡片)
+      let infoText = "<span>-</span>";
       const arrivedBoxes = Array.isArray(pkg.arrivedBoxes)
         ? pkg.arrivedBoxes
         : [];
@@ -483,9 +483,11 @@ document.addEventListener("DOMContentLoaded", () => {
           (sum, b) => sum + (parseFloat(b.weight) || 0),
           0
         );
-        infoText = `${arrivedBoxes.length} 箱 / ${totalW.toFixed(1)} kg`;
+        infoText = `<span>${arrivedBoxes.length}箱 / ${totalW.toFixed(
+          1
+        )}kg</span>`;
         if (pkg.totalCalculatedFee) {
-          infoText += `<br><span style="color:#d32f2f;font-weight:bold;">$${pkg.totalCalculatedFee.toLocaleString()}</span>`;
+          infoText += ` <span>$${pkg.totalCalculatedFee.toLocaleString()}</span>`;
         }
       }
 
@@ -493,26 +495,30 @@ document.addEventListener("DOMContentLoaded", () => {
       const checkboxDisabled = !isArrived ? "disabled" : "";
 
       const tr = document.createElement("tr");
+      // [注意] 這裡的結構必須對應 client.css 的 nth-child 設定
+      // 1: Checkbox
+      // 2: Status
+      // 3: Content
+      // 4: Info
+      // 5: Actions
       tr.innerHTML = `
-        <td class="text-center">
+        <td>
           <input type="checkbox" class="package-checkbox" data-id="${
             pkg.id
           }" ${checkboxDisabled}>
         </td>
         <td><span class="status-badge ${statusClass}">${statusText}</span></td>
         <td>
-          <div style="font-weight:bold; color:#333;">${pkg.productName}</div>
-          <small style="color:#888; font-family:monospace;">${
-            pkg.trackingNumber
-          }</small>
+          <div>${pkg.productName}</div>
+          <small>${pkg.trackingNumber}</small>
         </td>
         <td>${infoText}</td>
-        <td class="text-right">
-          <button class="btn btn-outline-primary btn-sm" onclick='window.openPackageDetails("${pkgStr}")'>詳情</button>
+        <td>
+          <button class="btn btn-sm btn-primary" onclick='window.openPackageDetails("${pkgStr}")'>詳情</button>
           ${
             pkg.status === "PENDING"
-              ? `<button class="btn btn-outline-secondary btn-sm btn-edit">修改</button> 
-                 <button class="btn btn-outline-danger btn-sm btn-delete">刪除</button>`
+              ? `<button class="btn btn-sm btn-secondary btn-edit">修改</button> 
+             <button class="btn btn-sm btn-danger btn-delete">刪除</button>`
               : ""
           }
         </td>
@@ -533,7 +539,6 @@ document.addEventListener("DOMContentLoaded", () => {
       packagesTableBody.appendChild(tr);
     });
 
-    // 渲染後更新底部結帳欄狀態
     updateCheckoutBar();
   }
 
@@ -567,7 +572,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- (C) 載入集運單 ---
+  // --- (C) 載入集運單 (Card View Optimized) ---
   async function loadMyShipments() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/shipments/my`, {
@@ -595,47 +600,48 @@ document.addEventListener("DOMContentLoaded", () => {
       let statusText = statusMap[ship.status] || ship.status;
       let statusClass = statusClasses[ship.status] || "";
 
-      // 特殊狀態顯示
       if (ship.status === "PENDING_PAYMENT" && ship.paymentProof) {
         statusText = "已付款 (待審核)";
         statusClass = "status-PENDING_REVIEW";
       }
 
       let actionBtns = "";
-      // 詳情按鈕 (所有狀態都有)
-      actionBtns += `<button class="btn btn-outline-primary btn-sm" onclick="openShipmentDetails('${ship.id}')">詳情</button> `;
+      actionBtns += `<button class="btn btn-sm btn-primary" onclick="openShipmentDetails('${ship.id}')">詳情</button> `;
 
       if (ship.status === "PENDING_PAYMENT") {
         if (!ship.paymentProof) {
-          actionBtns += `<button class="btn btn-primary btn-sm" onclick="window.openUploadProof('${ship.id}')">去付款</button>`;
+          actionBtns += `<button class="btn btn-sm btn-primary" onclick="window.openUploadProof('${ship.id}')">去付款</button>`;
         } else {
-          actionBtns += `<button class="btn btn-success btn-sm" onclick="window.viewProof('${ship.paymentProof}')">憑證</button>`;
+          actionBtns += `<button class="btn btn-sm btn-success" onclick="window.viewProof('${ship.paymentProof}')">憑證</button>`;
         }
-        actionBtns += `<button class="btn btn-outline-danger btn-sm" style="margin-left:5px;" onclick="handleCancelShipment('${ship.id}')">取消</button>`;
+        actionBtns += `<button class="btn btn-sm btn-danger" onclick="handleCancelShipment('${ship.id}')">取消</button>`;
       } else {
-        actionBtns += `<button class="btn btn-outline-secondary btn-sm" onclick="window.open('shipment-print.html?id=${ship.id}', '_blank')">明細</button>`;
+        actionBtns += `<button class="btn btn-sm btn-secondary" onclick="window.open('shipment-print.html?id=${ship.id}', '_blank')">明細</button>`;
       }
 
       const tr = document.createElement("tr");
+      // 對應 CSS nth-child
+      // 1: 空 (佔位)
+      // 2: Status
+      // 3: Content
+      // 4: Cost
+      // 5: Actions
       tr.innerHTML = `
-        <td>
-          <div>${new Date(ship.createdAt).toLocaleDateString()}</div>
-          <small style="color:#999; font-family:monospace;">${ship.id
-            .slice(-8)
-            .toUpperCase()}</small>
-        </td>
+        <td style="visibility:hidden;"></td>
         <td><span class="status-badge ${statusClass}">${statusText}</span></td>
         <td>
-          <div style="font-weight:500;">${ship.recipientName}</div>
-          <small style="color:#888;">${ship.shippingAddress.substring(
-            0,
-            8
-          )}...</small>
+          <div>${ship.recipientName}</div>
+          <small>訂單: ${ship.id.slice(-8).toUpperCase()}</small>
+          <div style="font-size:12px; color:#888; margin-top:4px;">${new Date(
+            ship.createdAt
+          ).toLocaleDateString()}</div>
         </td>
-        <td style="color:#d32f2f; font-weight:bold;">NT$ ${(
-          ship.totalCost || 0
-        ).toLocaleString()}</td>
-        <td class="text-right" style="white-space:nowrap;">${actionBtns}</td>
+        <td>
+          <span style="color:#d32f2f; font-weight:bold;">NT$ ${(
+            ship.totalCost || 0
+          ).toLocaleString()}</span>
+        </td>
+        <td>${actionBtns}</td>
       `;
       shipmentsTableBody.appendChild(tr);
     });
@@ -672,10 +678,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       forecastForm.reset();
       fileCountDisplay.style.display = "none";
-      loadMyPackages(); // 重新載入列表
+      loadMyPackages();
       showMessage("預報成功！", "success");
-
-      // 檢查是否還有佇列 (來自試算)
       checkForecastDraftQueue(true);
     } catch (e) {
       showMessage(e.message || "提交失敗", "error");
@@ -687,16 +691,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- (E) 建立集運單 (結帳流程) ---
 
-  // 1. 點擊「合併打包」按鈕
+  // 1. 點擊「合併打包」
   btnCreateShipment.addEventListener("click", async () => {
     const checked = document.querySelectorAll(".package-checkbox:checked");
     if (checked.length === 0) return;
 
-    // 取得選中的 ID
     const ids = [];
     checked.forEach((box) => ids.push(box.dataset.id));
 
-    // 產生彈窗內的包裹清單
     let html = "";
     let valid = true;
     ids.forEach((id) => {
@@ -728,13 +730,11 @@ document.addEventListener("DOMContentLoaded", () => {
     shipmentPackageList.innerHTML = html;
     createShipmentForm.dataset.ids = JSON.stringify(ids);
 
-    // 預填使用者資料
     document.getElementById("ship-name").value = currentUser.name || "";
     document.getElementById("ship-phone").value = currentUser.phone || "";
     document.getElementById("ship-street-address").value =
       currentUser.defaultAddress || "";
 
-    // 重置 UI
     shipDeliveryLocation.value = "";
     shipRemoteAreaInfo.style.display = "none";
     shipmentFeeContainer.innerHTML = `<div style="text-align:center;color:#999; padding:10px;">請選擇配送地區以計算總運費</div>`;
@@ -742,25 +742,22 @@ document.addEventListener("DOMContentLoaded", () => {
     createShipmentModal.style.display = "flex";
   });
 
-  // 2. 監聽地區變更 -> 觸發後端 API 試算
+  // 2. 地區變更 -> 試算
   shipDeliveryLocation.addEventListener("change", () => {
     const text =
       shipDeliveryLocation.options[shipDeliveryLocation.selectedIndex].text;
     shipRemoteAreaInfo.style.display = "block";
     shipSelectedAreaName.textContent = text;
-
-    // 執行試算
     recalculateShipmentTotal();
   });
 
-  // 3. [NEW] 後端 API 試算邏輯
+  // 3. 試算邏輯
   async function recalculateShipmentTotal() {
     const ids = JSON.parse(createShipmentForm.dataset.ids || "[]");
     const locationRate = shipDeliveryLocation.value;
 
     if (!locationRate) return;
 
-    // 顯示 loading
     shipmentFeeContainer.innerHTML = `<div style="text-align:center; padding:10px;"><div class="spinner" style="width:20px;height:20px;border-width:2px;display:inline-block;"></div> 正在精算運費...</div>`;
 
     try {
@@ -779,18 +776,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (data.success) {
         const p = data.preview;
-
-        // 生成詳細費用 HTML
-        let html = `
-                <div class="fee-breakdown-row"><span>基本運費 (所有包裹)</span> <span>$${p.baseCost.toLocaleString()}</span></div>
-            `;
+        let html = `<div class="fee-breakdown-row"><span>基本運費</span> <span>$${p.baseCost.toLocaleString()}</span></div>`;
 
         if (p.isMinimumChargeApplied) {
-          html += `<div class="fee-breakdown-row highlight" style="font-size:12px; color:#e67e22;">(已補足海運低消 $${
+          html += `<div class="fee-breakdown-row highlight" style="font-size:12px; color:#e67e22;">(已補足低消 $${
             window.CONSTANTS ? window.CONSTANTS.MINIMUM_CHARGE : 2000
           })</div>`;
         }
-
         if (p.remoteFee > 0) {
           html += `<div class="fee-breakdown-row"><span>偏遠地區費</span> <span>+$${p.remoteFee.toLocaleString()}</span></div>`;
         }
@@ -801,11 +793,9 @@ document.addEventListener("DOMContentLoaded", () => {
           html += `<div class="fee-breakdown-row highlight"><span>超長附加費</span> <span>+$${p.oversizedFee.toLocaleString()}</span></div>`;
         }
 
-        html += `
-                <div class="fee-breakdown-row total" style="border-top:1px solid #ddd; margin-top:5px; padding-top:5px; font-weight:bold; color:#d32f2f; font-size:18px;">
+        html += `<div class="fee-breakdown-row total" style="border-top:1px solid #ddd; margin-top:5px; padding-top:5px; font-weight:bold; color:#d32f2f; font-size:18px;">
                     <span>總運費</span> <span>NT$ ${p.totalCost.toLocaleString()}</span>
-                </div>
-            `;
+                </div>`;
         shipmentFeeContainer.innerHTML = html;
       } else {
         shipmentFeeContainer.innerHTML = `<span style="color:red;">試算失敗: ${data.message}</span>`;
@@ -815,7 +805,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 4. 地區搜尋功能
+  // 4. 地區搜尋
   if (shipAreaSearch) {
     shipAreaSearch.addEventListener("input", (e) => {
       const term = e.target.value.trim().toLowerCase();
@@ -857,12 +847,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // 5. 提交訂單表單
+  // 5. 提交訂單
   createShipmentForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const ids = JSON.parse(createShipmentForm.dataset.ids);
 
-    // 驗證
     if (!shipDeliveryLocation.value) {
       alert("請選擇配送地區");
       return;
@@ -909,9 +898,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       if (res.ok) {
         createShipmentModal.style.display = "none";
-        // 顯示銀行資訊與成功提示
         bankInfoModal.style.display = "flex";
-        // 重新整理列表
         loadMyPackages();
         loadMyShipments();
       } else {
@@ -926,9 +913,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- 其他功能按鈕 ---
+  // --- 其他功能 ---
 
-  // 複製銀行資訊
   if (btnCopyBankInfo) {
     btnCopyBankInfo.addEventListener("click", () => {
       const text = `銀行：${
@@ -943,7 +929,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 上傳憑證提交
   uploadProofForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = document.getElementById("upload-proof-id").value;
@@ -967,7 +952,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // 編輯個資
   btnEditProfile.addEventListener("click", () => {
     document.getElementById("edit-name").value = currentUser.name || "";
     document.getElementById("edit-phone").value = currentUser.phone || "";
@@ -996,7 +980,6 @@ document.addEventListener("DOMContentLoaded", () => {
     showMessage("個人資料已更新", "success");
   });
 
-  // [升級] 編輯包裹 (含圖片補傳)
   window.openEditPackageModal = function (pkg) {
     document.getElementById("edit-package-id").value = pkg.id;
     document.getElementById("edit-trackingNumber").value = pkg.trackingNumber;
@@ -1004,10 +987,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("edit-quantity").value = pkg.quantity;
     document.getElementById("edit-note").value = pkg.note || "";
     currentEditPackageImages = pkg.productImages || [];
-
-    // 清空新圖 input
     document.getElementById("edit-package-new-images").value = "";
-
     renderEditImages();
     editPackageModal.style.display = "flex";
   };
@@ -1040,13 +1020,9 @@ document.addEventListener("DOMContentLoaded", () => {
     fd.append("productName", document.getElementById("edit-productName").value);
     fd.append("quantity", document.getElementById("edit-quantity").value);
     fd.append("note", document.getElementById("edit-note").value);
-    // 舊圖
     fd.append("existingImages", JSON.stringify(currentEditPackageImages));
-    // 新圖
     const newFiles = document.getElementById("edit-package-new-images").files;
-    for (let f of newFiles) {
-      fd.append("images", f);
-    }
+    for (let f of newFiles) fd.append("images", f);
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/packages/${id}`, {
@@ -1066,7 +1042,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // 佇列邏輯 (試算帶入)
   function checkForecastDraftQueue(isAfterSubmit) {
     const list = JSON.parse(
       localStorage.getItem("forecast_draft_list") || "[]"
@@ -1085,7 +1060,6 @@ document.addEventListener("DOMContentLoaded", () => {
       queueList.innerHTML += `<li>${item.name} (x${item.quantity})</li>`;
     });
 
-    // 自動帶入第一筆
     const next = list.shift();
     document.getElementById("productName").value = next.name || "";
     document.getElementById("quantity").value = next.quantity || 1;
@@ -1097,7 +1071,6 @@ document.addEventListener("DOMContentLoaded", () => {
     else showMessage(`偵測到試算商品，已自動填入: ${next.name}`, "info");
   }
 
-  // Tab 切換
   tabPackages.addEventListener("click", () => {
     tabPackages.classList.add("active");
     tabShipments.classList.remove("active");
@@ -1111,7 +1084,6 @@ document.addEventListener("DOMContentLoaded", () => {
     shipmentsSection.style.display = "block";
   });
 
-  // 關閉彈窗通用
   document.querySelectorAll(".modal-overlay").forEach((m) => {
     m.addEventListener("click", (e) => {
       if (e.target === m) m.style.display = "none";
@@ -1123,7 +1095,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // 啟動
   loadSystemSettings();
   loadUserProfile();
   loadMyPackages();
