@@ -1,4 +1,4 @@
-// frontend/js/admin-settings.js (V14 - 修復數值顯示與預設值回填)
+// frontend/js/admin-settings.js (V15 - 修復常數需重新填寫問題)
 
 document.addEventListener("DOMContentLoaded", async () => {
   const token = localStorage.getItem("admin_token");
@@ -26,8 +26,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 全域快取
   let serverSettingsCache = {};
 
-  // --- [關鍵修復] 定義系統預設值 ---
-  // 當資料庫抓不到資料時，使用這些數值作為 Placeholder
+  // --- 定義系統預設值 (當 DB 為空時使用) ---
   const SYSTEM_DEFAULTS = {
     categories: {
       general: {
@@ -79,10 +78,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       const settings = data.settings || {};
       serverSettingsCache = settings;
 
-      // A. 填入運費 (Rates) - 混合 DB 數據與預設值
+      // A. 填入運費 (Rates)
       let dbRates = settings.rates_config || {};
-
-      // 如果 DB 是空的，嘗試讀取舊的 shipping_rates Key (兼容遷移)
+      // 兼容舊資料
       if (!settings.rates_config && settings.shipping_rates) {
         dbRates = settings.shipping_rates;
       }
@@ -90,9 +88,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       const dbCats = dbRates.categories || {};
       const dbConsts = dbRates.constants || {};
 
-      // 輔助函式：設定 Placeholder (灰字)
-      // 優先順序：資料庫值 -> 系統預設值 -> "0"
-      const setPlaceholder = (id, dbVal, defaultVal) => {
+      // [關鍵修正] 將數值直接填入 input 的 value，而不是 placeholder
+      const setInputValue = (id, dbVal, defaultVal) => {
         const el = document.getElementById(id);
         if (el) {
           // 判斷 DB 是否有值 (包含 0)
@@ -100,111 +97,111 @@ document.addEventListener("DOMContentLoaded", async () => {
             dbVal !== undefined && dbVal !== null && dbVal !== "";
           const finalVal = hasDbVal ? dbVal : defaultVal;
 
-          el.placeholder = finalVal;
-          el.value = ""; // 清空輸入框，顯示 Placeholder
+          el.value = finalVal; // 直接設定值，使用者無需重新輸入
         }
       };
 
       // 1. 一般家具
-      setPlaceholder(
+      setInputValue(
         "rate-general-name",
         dbCats.general?.name,
         SYSTEM_DEFAULTS.categories.general.name
       );
-      setPlaceholder(
+      setInputValue(
         "rate-general-desc",
         dbCats.general?.description,
         SYSTEM_DEFAULTS.categories.general.description
       );
-      setPlaceholder(
+      setInputValue(
         "rate-general-weight",
         dbCats.general?.weightRate,
         SYSTEM_DEFAULTS.categories.general.weightRate
       );
-      setPlaceholder(
+      setInputValue(
         "rate-general-volume",
         dbCats.general?.volumeRate,
         SYSTEM_DEFAULTS.categories.general.volumeRate
       );
 
       // 2. 特殊家具 A
-      setPlaceholder(
+      setInputValue(
         "rate-special_a-name",
         dbCats.special_a?.name,
         SYSTEM_DEFAULTS.categories.special_a.name
       );
-      setPlaceholder(
+      setInputValue(
         "rate-special_a-desc",
         dbCats.special_a?.description,
         SYSTEM_DEFAULTS.categories.special_a.description
       );
-      setPlaceholder(
+      setInputValue(
         "rate-special_a-weight",
         dbCats.special_a?.weightRate,
         SYSTEM_DEFAULTS.categories.special_a.weightRate
       );
-      setPlaceholder(
+      setInputValue(
         "rate-special_a-volume",
         dbCats.special_a?.volumeRate,
         SYSTEM_DEFAULTS.categories.special_a.volumeRate
       );
 
       // 3. 特殊家具 B
-      setPlaceholder(
+      setInputValue(
         "rate-special_b-name",
         dbCats.special_b?.name,
         SYSTEM_DEFAULTS.categories.special_b.name
       );
-      setPlaceholder(
+      setInputValue(
         "rate-special_b-desc",
         dbCats.special_b?.description,
         SYSTEM_DEFAULTS.categories.special_b.description
       );
-      setPlaceholder(
+      setInputValue(
         "rate-special_b-weight",
         dbCats.special_b?.weightRate,
         SYSTEM_DEFAULTS.categories.special_b.weightRate
       );
-      setPlaceholder(
+      setInputValue(
         "rate-special_b-volume",
         dbCats.special_b?.volumeRate,
         SYSTEM_DEFAULTS.categories.special_b.volumeRate
       );
 
       // 4. 特殊家具 C
-      setPlaceholder(
+      setInputValue(
         "rate-special_c-name",
         dbCats.special_c?.name,
         SYSTEM_DEFAULTS.categories.special_c.name
       );
-      setPlaceholder(
+      setInputValue(
         "rate-special_c-desc",
         dbCats.special_c?.description,
         SYSTEM_DEFAULTS.categories.special_c.description
       );
-      setPlaceholder(
+      setInputValue(
         "rate-special_c-weight",
         dbCats.special_c?.weightRate,
         SYSTEM_DEFAULTS.categories.special_c.weightRate
       );
-      setPlaceholder(
+      setInputValue(
         "rate-special_c-volume",
         dbCats.special_c?.volumeRate,
         SYSTEM_DEFAULTS.categories.special_c.volumeRate
       );
 
       // 填入常數 (Constants)
+      // 這裡會自動迭代 SYSTEM_DEFAULTS 中的 key，確保所有欄位都被填入
       for (const [k, v] of Object.entries(SYSTEM_DEFAULTS.constants)) {
-        setPlaceholder(`const-${k}`, dbConsts[k], v);
+        setInputValue(`const-${k}`, dbConsts[k], v);
       }
 
       // B. 填入銀行 (Bank)
       if (settings.bank_info) {
         const bank = settings.bank_info;
-        setPlaceholder("bank-name", bank.bankName, "");
-        setPlaceholder("bank-branch", bank.branch, "");
-        setPlaceholder("bank-account", bank.account, "");
-        setPlaceholder("bank-holder", bank.holder, "");
+        setInputValue("bank-name", bank.bankName, "");
+        setInputValue("bank-branch", bank.branch, "");
+        setInputValue("bank-account", bank.account, "");
+        setInputValue("bank-holder", bank.holder, "");
       }
 
       // C. 填入發票 (Invoice)
@@ -213,30 +210,31 @@ document.addEventListener("DOMContentLoaded", async () => {
         const chk = document.getElementById("invoice-enabled");
         if (chk) chk.checked = inv.enabled === true;
 
-        setPlaceholder("invoice-mode", inv.mode, "TEST");
-        setPlaceholder("invoice-merchant-id", inv.merchantId, "");
+        setInputValue("invoice-mode", inv.mode, "TEST");
+        setInputValue("invoice-merchant-id", inv.merchantId, "");
 
-        // HashKey
+        // HashKey (特殊處理：不預填明文，只顯示 placeholder 提示)
         const hashInput = document.getElementById("invoice-hash-key");
         if (hashInput) {
           if (inv.hashKey) {
             hashInput.placeholder = "******** (已設定，若不修改請留空)";
+            hashInput.value = ""; // 密碼欄位保持空白
           } else {
             hashInput.placeholder = "請輸入 Hash Key";
+            hashInput.value = "";
           }
-          hashInput.value = "";
         }
       }
 
       // D. Email
       if (settings.email_config) {
         const em = settings.email_config;
-        setPlaceholder("email-sender-name", em.senderName, "");
-        setPlaceholder("email-sender-addr", em.senderEmail, "");
+        setInputValue("email-sender-name", em.senderName, "");
+        setInputValue("email-sender-addr", em.senderEmail, "");
         const recipientsStr = Array.isArray(em.recipients)
           ? em.recipients.join(", ")
           : "";
-        setPlaceholder("email-recipients", recipientsStr, "");
+        setInputValue("email-recipients", recipientsStr, "");
       }
 
       // E. 公告
@@ -245,7 +243,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const annChk = document.getElementById("announcement-enabled");
         if (annChk) annChk.checked = ann.enabled === true;
 
-        setPlaceholder("announcement-text", ann.text, "");
+        setInputValue("announcement-text", ann.text, "");
         const colorSel = document.getElementById("announcement-color");
         if (colorSel) colorSel.value = ann.color || "info";
       }
@@ -275,7 +273,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const data = await res.json();
       if (res.ok) {
         alert(`「${description}」儲存成功！`);
-        loadSettings(); // 重新載入以更新快取與畫面
+        loadSettings(); // 重新載入以確保顯示最新狀態
       } else {
         throw new Error(data.message);
       }
@@ -284,29 +282,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // [核心工具] 取得輸入值或回退 (若輸入為空，取 placeholder 值當作目前值)
+  // [核心工具] 取得輸入值
+  // 由於現在會直接填入 value，此函式可以簡化，直接讀取 value 即可
   function getVal(inputId, fallbackVal, isNumber = false) {
     const el = document.getElementById(inputId);
     if (!el) return isNumber ? 0 : "";
 
     const userVal = el.value.trim();
-    // 如果使用者有輸入，用輸入值
+
     if (userVal !== "") {
       return isNumber ? parseFloat(userVal) : userVal;
     }
 
-    // 如果使用者沒輸入，嘗試從 placeholder 取值 (這代表當前系統值)
-    // 但要注意 placeholder 可能是 "********" 這種遮罩
-    if (
-      el.placeholder &&
-      !el.placeholder.includes("*") &&
-      el.placeholder !== "未設定"
-    ) {
-      const phVal = el.placeholder;
-      return isNumber ? parseFloat(phVal) : phVal;
-    }
+    // 如果使用者刻意清空，且有 fallback，則回傳 fallback
+    // 但如果是 HashKey 這種特殊欄位，空值代表「不修改」
+    if (inputId === "invoice-hash-key") return "";
 
-    // 最後退回 cache 或 預設
     return fallbackVal;
   }
 
@@ -316,7 +307,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("form-rates").addEventListener("submit", (e) => {
     e.preventDefault();
 
-    const oldRates = serverSettingsCache.rates_config || SYSTEM_DEFAULTS; // 使用預設值當備案
+    const oldRates = serverSettingsCache.rates_config || SYSTEM_DEFAULTS;
     const oldCats = oldRates.categories || SYSTEM_DEFAULTS.categories;
     const oldConsts = oldRates.constants || SYSTEM_DEFAULTS.constants;
 
@@ -340,8 +331,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       constants: {},
     };
 
+    // 抓取所有常數欄位
     document.querySelectorAll('[id^="const-"]').forEach((input) => {
       const key = input.id.replace("const-", "");
+      // 若原本有值則用原本的做 fallback (防呆)
       const oldVal = oldConsts[key] !== undefined ? oldConsts[key] : 0;
       newRates.constants[key] = getVal(input.id, oldVal, true);
     });
@@ -366,6 +359,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("form-invoice").addEventListener("submit", (e) => {
     e.preventDefault();
     const old = serverSettingsCache.invoice_config || {};
+    // Hash Key 特殊處理：如果輸入框為空，則沿用舊設定
     const inputHashKey = document
       .getElementById("invoice-hash-key")
       .value.trim();
@@ -386,12 +380,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     const old = serverSettingsCache.email_config || {};
     const rawRecipients = document.getElementById("email-recipients").value;
     let finalRecipients = old.recipients;
-    if (rawRecipients.trim() !== "") {
+    // 如果有輸入內容，則解析；若清空則設為空陣列
+    if (rawRecipients !== "") {
       finalRecipients = rawRecipients
         .split(",")
         .map((s) => s.trim())
         .filter((s) => s);
+    } else {
+      // 若使用者清空欄位，表示不寄給任何人
+      finalRecipients = [];
     }
+
     const data = {
       senderName: getVal("email-sender-name", old.senderName),
       senderEmail: getVal("email-sender-addr", old.senderEmail),
