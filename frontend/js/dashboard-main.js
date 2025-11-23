@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// 負責：程式入口、事件綁定
+// 負責：程式入口、事件綁定、圖片預覽
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -58,7 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
     shipSec.style.display = "block";
   });
 
-  // 表單
+  // 表單提交事件
   document
     .getElementById("forecast-form")
     .addEventListener("submit", window.handleForecastSubmit);
@@ -117,17 +117,56 @@ document.addEventListener("DOMContentLoaded", () => {
     window.recalculateShipmentTotal();
   });
 
-  // 圖片數量顯示
-  const imgInput = document.getElementById("images");
-  const countDisp = document.getElementById("file-count-display");
-  if (imgInput) {
-    imgInput.addEventListener("change", function () {
-      countDisp.style.display = this.files.length ? "inline-block" : "none";
-      countDisp.textContent = `已選 ${this.files.length} 張`;
+  // --- [新增] 圖片預覽邏輯 ---
+  function setupImagePreview(inputId, containerId, countId = null) {
+    const input = document.getElementById(inputId);
+    const container = document.getElementById(containerId);
+    const countEl = countId ? document.getElementById(countId) : null;
+
+    if (!input || !container) return;
+
+    input.addEventListener("change", function () {
+      // 清空舊預覽
+      container.innerHTML = "";
+
+      if (this.files && this.files.length > 0) {
+        // 顯示數量
+        if (countEl) {
+          countEl.textContent = `已選 ${this.files.length} 張`;
+          countEl.style.display = "inline-block";
+        }
+
+        // 遍歷檔案並產生預覽
+        Array.from(this.files).forEach((file) => {
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const img = document.createElement("img");
+            img.src = e.target.result;
+            container.appendChild(img);
+          };
+          reader.readAsDataURL(file);
+        });
+      } else {
+        if (countEl) countEl.style.display = "none";
+      }
     });
   }
 
-  // 關閉彈窗
+  // 綁定「預報包裹」圖片預覽
+  setupImagePreview(
+    "images",
+    "forecast-preview-container",
+    "file-count-display"
+  );
+
+  // 綁定「集運單」圖片預覽
+  setupImagePreview(
+    "ship-product-images",
+    "ship-product-preview-container",
+    "ship-product-files-display"
+  );
+
+  // 關閉彈窗通用
   document.querySelectorAll(".modal-overlay").forEach((m) => {
     m.addEventListener("click", (e) => {
       if (e.target === m) m.style.display = "none";

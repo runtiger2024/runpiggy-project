@@ -1,4 +1,4 @@
-// frontend/js/dashboard-shipments.js (V22.5 - 完整修復版)
+// frontend/js/dashboard-shipments.js (V22.6 - 完整版)
 // 負責：集運單列表、建立訂單(結帳)、取消訂單、詳情、上傳憑證
 
 // --- 1. 載入我的集運單 ---
@@ -85,7 +85,7 @@ window.updateCheckoutBar = function () {
   }
 };
 
-// --- 4. [重點修正] 點擊合併打包 (生成詳細算式與檢視) ---
+// --- 4. 點擊合併打包 (生成詳細算式與檢視) ---
 window.handleCreateShipmentClick = function () {
   const ids = Array.from(
     document.querySelectorAll(".package-checkbox:checked")
@@ -219,6 +219,17 @@ window.handleCreateShipmentClick = function () {
   if (feeContainer)
     feeContainer.innerHTML = `<div style="text-align:center;color:#999; padding:10px;">請選擇配送地區以計算總運費</div>`;
 
+  // [新增] 清空圖片預覽與輸入框 (確保每次打開都是乾淨的)
+  document.getElementById("ship-product-url").value = "";
+  const imgInput = document.getElementById("ship-product-images");
+  if (imgInput) imgInput.value = ""; // 清空檔案選擇
+  const previewContainer = document.getElementById(
+    "ship-product-preview-container"
+  );
+  if (previewContainer) previewContainer.innerHTML = "";
+  const countDisp = document.getElementById("ship-product-files-display");
+  if (countDisp) countDisp.textContent = "";
+
   if (window.renderShipmentRemoteAreaOptions)
     window.renderShipmentRemoteAreaOptions();
 
@@ -282,7 +293,6 @@ window.recalculateShipmentTotal = async function () {
         })</div>`;
       }
 
-      // [更新] 顯示偏遠費與公式
       if (p.remoteFee > 0) {
         html += `<div class="fee-breakdown-row">
               <span>偏遠地區費 <br><small style="color:#888; font-size:11px;">(總體積 ${

@@ -1,4 +1,4 @@
-// frontend/js/dashboard-packages.js (V22.3 - 修復列表運費顯示問題)
+// frontend/js/dashboard-packages.js (V22.6 - 完整版)
 // 負責：包裹列表、預報、編輯、刪除、詳細算式彈窗
 
 let currentEditPackageImages = [];
@@ -57,7 +57,7 @@ function renderPackagesTable() {
 
     if (boxes.length > 0) {
       let totalW = 0;
-      let calculatedTotal = 0; // [修正] 用於列表顯示的即時運費
+      let calculatedTotal = 0;
 
       // 檢查超規變數
       let hasOversized = false;
@@ -72,7 +72,7 @@ function renderPackagesTable() {
 
         totalW += w;
 
-        // [修正] 列表即時運費計算邏輯 (與詳情頁保持一致)
+        // 列表即時運費計算邏輯 (與詳情頁保持一致)
         const rateInfo = RATES[type] || { weightRate: 0, volumeRate: 0 };
         const cai = Math.ceil((l * wd * h) / CONSTANTS.VOLUME_DIVISOR);
         const volFee = cai * rateInfo.volumeRate;
@@ -99,7 +99,7 @@ function renderPackagesTable() {
       if (hasOverweight)
         badgesHtml += `<span class="badge-alert small">超重</span>`;
 
-      // [修正] 優先顯示即時計算的 calculatedTotal，若為0則嘗試顯示資料庫的 totalCalculatedFee
+      // 優先顯示即時計算的 calculatedTotal，若為0則嘗試顯示資料庫的 totalCalculatedFee
       const displayFee =
         calculatedTotal > 0 ? calculatedTotal : pkg.totalCalculatedFee || 0;
 
@@ -334,6 +334,13 @@ window.handleForecastSubmit = async function (e) {
       form.reset();
       const countDisp = document.getElementById("file-count-display");
       if (countDisp) countDisp.style.display = "none";
+
+      // [新增] 清空預覽區
+      const previewContainer = document.getElementById(
+        "forecast-preview-container"
+      );
+      if (previewContainer) previewContainer.innerHTML = "";
+
       window.loadMyPackages();
       if (window.checkForecastDraftQueue) window.checkForecastDraftQueue(true);
     } else {
