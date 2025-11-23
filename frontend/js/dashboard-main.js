@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// 負責：程式入口、事件綁定、圖片預覽
+// 負責：程式入口、事件綁定、圖片上傳初始化
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -117,54 +117,36 @@ document.addEventListener("DOMContentLoaded", () => {
     window.recalculateShipmentTotal();
   });
 
-  // --- [新增] 圖片預覽邏輯 ---
-  function setupImagePreview(inputId, containerId, countId = null) {
-    const input = document.getElementById(inputId);
-    const container = document.getElementById(containerId);
-    const countEl = countId ? document.getElementById(countId) : null;
+  // --- [Updated] 初始化動態圖片上傳器 ---
+  if (window.initImageUploader) {
+    // 1. 預報包裹
+    window.initImageUploader("images", "forecast-uploader", 5);
+    // 2. 建立集運單
+    window.initImageUploader(
+      "ship-product-images",
+      "ship-shipment-uploader",
+      20
+    );
+    // 3. 編輯包裹
+    window.initImageUploader(
+      "edit-package-new-images",
+      "edit-package-uploader",
+      5
+    );
+  }
 
-    if (!input || !container) return;
-
-    input.addEventListener("change", function () {
-      // 清空舊預覽
-      container.innerHTML = "";
-
-      if (this.files && this.files.length > 0) {
-        // 顯示數量
-        if (countEl) {
-          countEl.textContent = `已選 ${this.files.length} 張`;
-          countEl.style.display = "inline-block";
-        }
-
-        // 遍歷檔案並產生預覽
-        Array.from(this.files).forEach((file) => {
-          const reader = new FileReader();
-          reader.onload = function (e) {
-            const img = document.createElement("img");
-            img.src = e.target.result;
-            container.appendChild(img);
-          };
-          reader.readAsDataURL(file);
-        });
-      } else {
-        if (countEl) countEl.style.display = "none";
+  // [New] 監聽預報表單的 Reset 事件 (當 handleForecastSubmit 成功呼叫 form.reset() 時觸發)
+  // 這會確保圖片預覽區和內部 DataTransfer 被清空
+  const forecastForm = document.getElementById("forecast-form");
+  if (forecastForm) {
+    forecastForm.addEventListener("reset", () => {
+      const input = document.getElementById("images");
+      if (input && input.resetUploader) {
+        // 延遲一下確保 reset 事件完成後再執行 UI 重繪
+        setTimeout(() => input.resetUploader(), 0);
       }
     });
   }
-
-  // 綁定「預報包裹」圖片預覽
-  setupImagePreview(
-    "images",
-    "forecast-preview-container",
-    "file-count-display"
-  );
-
-  // 綁定「集運單」圖片預覽
-  setupImagePreview(
-    "ship-product-images",
-    "ship-product-preview-container",
-    "ship-product-files-display"
-  );
 
   // 關閉彈窗通用
   document.querySelectorAll(".modal-overlay").forEach((m) => {

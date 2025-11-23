@@ -449,3 +449,95 @@ table:not(.rate-table) td {
     grid-template-columns: 1fr;
   }
 }
+/* --- 3.10 動態圖片上傳元件 (Dynamic Image Uploader) - [NEW] --- */
+.image-uploader-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+/* 預覽圖卡片 */
+.upload-item {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #ddd;
+  background: #f9f9f9;
+  animation: fadeIn 0.3s;
+}
+
+.upload-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: zoom-in;
+}
+
+/* 刪除按鈕 (右上角紅色 X) */
+.upload-item .remove-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  z-index: 2;
+  transition: background 0.2s;
+  border-bottom-left-radius: 4px;
+}
+
+.upload-item .remove-btn:hover {
+  background: rgba(231, 76, 60, 0.9); /* Red */
+}
+
+/* 「+」按鈕樣式 */
+.upload-add-btn {
+  width: 80px;
+  height: 80px;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #aaa;
+  transition: all 0.2s;
+  background: #fff;
+}
+
+.upload-add-btn:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: #f0f8ff;
+}
+
+.upload-add-btn i {
+  font-size: 24px;
+  margin-bottom: 2px;
+}
+
+.upload-add-btn span {
+  font-size: 10px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

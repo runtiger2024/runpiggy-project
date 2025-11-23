@@ -89,3 +89,92 @@ window.loadSystemSettings = async function () {
     console.warn("Config load failed, using defaults.");
   }
 };
+// frontend/js/dashboard-core.js
+
+// ... (保留原有內容) ...
+
+/**
+ * [NEW] 初始化動態圖片上傳器
+ * @param {string} inputId - 原本隱藏的 input type="file" ID
+ * @param {string} containerId - 用來放置預覽圖與 + 號的容器 ID
+ * @param {number} maxFiles - 最大上傳張數 (預設 5)
+ */
+window.initImageUploader = function (inputId, containerId, maxFiles = 5) {
+  const mainInput = document.getElementById(inputId);
+  const container = document.getElementById(containerId);
+  if (!mainInput || !container) return;
+
+  // 使用 DataTransfer 來模擬 FileList (因為 input.files 是唯讀的)
+  const dataTransfer = new DataTransfer();
+
+  // 渲染畫面函式
+  function render() {
+    container.innerHTML = "";
+
+    // 1. 顯示已選圖片
+    Array.from(dataTransfer.files).forEach((file, index) => {
+      const item = document.createElement("div");
+      item.className = "upload-item";
+
+      const img = document.createElement("img");
+      img.src = URL.createObjectURL(file);
+      img.onclick = () => window.open(img.src, "_blank"); // 點擊放大
+
+      const removeBtn = document.createElement("div");
+      removeBtn.className = "remove-btn";
+      removeBtn.innerHTML = "&times;";
+      removeBtn.onclick = (e) => {
+        e.stopPropagation(); // 防止觸發圖片點擊
+        dataTransfer.items.remove(index); // 從清單移除
+        mainInput.files = dataTransfer.files; // 同步回原本 input
+        render(); // 重繪
+      };
+
+      item.appendChild(img);
+      item.appendChild(removeBtn);
+      container.appendChild(item);
+    });
+
+    // 2. 顯示「+」按鈕 (若未達上限)
+    if (dataTransfer.files.length < maxFiles) {
+      const addLabel = document.createElement("label");
+      addLabel.className = "upload-add-btn";
+      addLabel.innerHTML = `<i class="fas fa-plus"></i><span>${dataTransfer.files.length}/${maxFiles}</span>`;
+
+      // 建立一個臨時的 input 來觸發選檔
+      const tempInput = document.createElement("input");
+      tempInput.type = "file";
+      tempInput.accept = "image/*";
+      tempInput.multiple = true; // 允許一次選多張
+      tempInput.style.display = "none";
+
+      tempInput.onchange = (e) => {
+        const newFiles = Array.from(e.target.files);
+        newFiles.forEach((f) => {
+          // 檢查是否超過總數
+          if (dataTransfer.items.length < maxFiles) {
+            dataTransfer.items.add(f);
+          }
+        });
+        mainInput.files = dataTransfer.files; // 同步回原本 input
+        render(); // 重繪
+      };
+
+      addLabel.appendChild(tempInput);
+      container.appendChild(addLabel);
+    }
+  }
+
+  // 初次渲染
+  render();
+
+  // 3. 監聽外部重置 (例如表單提交後清空)
+  // 我們可以監聽 mainInput 的 change 事件，如果被外部清空 (value = '')，則重置 UI
+  // 但由於我們上面主動修改了 files，這裡用一個自訂事件或簡單的 reset 函式更佳
+  // 這裡做一個簡單的 hack: 給 mainInput 綁定一個 resetUploader 方法
+  mainInput.resetUploader = () => {
+    dataTransfer.items.clear();
+    mainInput.value = "";
+    render();
+  };
+};

@@ -14,7 +14,7 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
     <style>
-      /* 圖片預覽容器樣式 */
+      /* 圖片預覽容器樣式 (保留給舊的現有照片顯示用) */
       .preview-container {
         display: flex;
         flex-wrap: wrap;
@@ -135,24 +135,17 @@
             </div>
             <div class="form-group short">
               <label>照片 (報關用)</label>
-              <label class="file-upload-btn">
-                <i class="fas fa-camera"></i> 選擇照片 (可多選)
-                <input
-                  type="file"
-                  id="images"
-                  multiple
-                  accept="image/*"
-                  style="display: none"
-                />
-              </label>
+              <input
+                type="file"
+                id="images"
+                multiple
+                accept="image/*"
+                style="display: none"
+              />
               <div
-                id="forecast-preview-container"
-                class="preview-container"
+                id="forecast-uploader"
+                class="image-uploader-container"
               ></div>
-              <span
-                id="file-count-display"
-                style="font-size: 12px; color: #28a745; display: none"
-              ></span>
             </div>
             <div class="form-group full">
               <label>備註</label>
@@ -320,8 +313,12 @@
               id="edit-package-new-images"
               multiple
               accept="image/*"
-              class="form-control"
+              style="display: none"
             />
+            <div
+              id="edit-package-uploader"
+              class="image-uploader-container"
+            ></div>
           </div>
           <button type="submit" class="btn btn-primary">儲存變更</button>
         </form>
@@ -491,39 +488,19 @@
                 >
                   —— 或 ——
                 </div>
-                <label
-                  class="file-upload-box"
-                  style="
-                    display: block;
-                    text-align: center;
-                    background: #f0f0f0;
-                    padding: 10px;
-                    border-radius: 5px;
-                    cursor: pointer;
-                  "
-                >
-                  <i class="fas fa-image"></i> 上傳訂單截圖 (可多選)
-                  <input
-                    type="file"
-                    id="ship-product-images"
-                    multiple
-                    accept="image/*"
-                    style="display: none"
-                  />
-                </label>
-
+                <div style="font-size: 13px; color: #666; margin-bottom: 5px">
+                  上傳訂單截圖 (可多選)
+                </div>
+                <input
+                  type="file"
+                  id="ship-product-images"
+                  multiple
+                  accept="image/*"
+                  style="display: none"
+                />
                 <div
-                  id="ship-product-preview-container"
-                  class="preview-container"
-                ></div>
-                <div
-                  id="ship-product-files-display"
-                  style="
-                    font-size: 12px;
-                    color: #28a745;
-                    text-align: center;
-                    margin-top: 5px;
-                  "
+                  id="ship-shipment-uploader"
+                  class="image-uploader-container"
                 ></div>
               </div>
               <div class="form-group" style="margin-top: 15px">

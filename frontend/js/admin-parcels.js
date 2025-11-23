@@ -1,4 +1,4 @@
-// frontend/js/admin-parcels.js (V9 旗艦版 - 支援分頁、批量、匯出)
+// frontend/js/admin-parcels.js (V9.1 旗艦版 - 含動態圖片上傳)
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 權限與初始化 ---
@@ -36,6 +36,75 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   checkAdminPermissions();
+
+  // --- [NEW] 定義動態圖片上傳器函式 ---
+  // 由於後台沒有載入 dashboard-core.js，所以需要在此定義
+  function initImageUploader(inputId, containerId, maxFiles = 5) {
+    const mainInput = document.getElementById(inputId);
+    const container = document.getElementById(containerId);
+    if (!mainInput || !container) return;
+
+    const dataTransfer = new DataTransfer();
+
+    function render() {
+      container.innerHTML = "";
+      Array.from(dataTransfer.files).forEach((file, index) => {
+        const item = document.createElement("div");
+        item.className = "upload-item";
+        item.innerHTML = `<img src="${URL.createObjectURL(file)}">`;
+
+        const removeBtn = document.createElement("div");
+        removeBtn.className = "remove-btn";
+        removeBtn.innerHTML = "&times;";
+        removeBtn.onclick = (e) => {
+          e.stopPropagation();
+          dataTransfer.items.remove(index);
+          mainInput.files = dataTransfer.files; // 同步回 hidden input
+          render();
+        };
+        item.appendChild(removeBtn);
+        container.appendChild(item);
+      });
+
+      // 如果未達上限，顯示 "+" 按鈕
+      if (dataTransfer.files.length < maxFiles) {
+        const addLabel = document.createElement("label");
+        addLabel.className = "upload-add-btn";
+        addLabel.innerHTML = `<i class="fas fa-plus"></i><span>${dataTransfer.files.length}/${maxFiles}</span>`;
+
+        const tempInput = document.createElement("input");
+        tempInput.type = "file";
+        tempInput.accept = "image/*";
+        tempInput.multiple = true;
+        tempInput.style.display = "none";
+        tempInput.onchange = (e) => {
+          Array.from(e.target.files).forEach((f) => {
+            if (dataTransfer.items.length < maxFiles) dataTransfer.items.add(f);
+          });
+          mainInput.files = dataTransfer.files; // 同步回 hidden input
+          render();
+        };
+        addLabel.appendChild(tempInput);
+        container.appendChild(addLabel);
+      }
+    }
+
+    // 初次渲染
+    render();
+
+    // 綁定重置方法供外部呼叫
+    mainInput.resetUploader = () => {
+      dataTransfer.items.clear();
+      mainInput.value = "";
+      render();
+    };
+  }
+
+  // --- [NEW] 啟動上傳器 ---
+  // 1. 管理員新增包裹
+  initImageUploader("admin-create-images", "admin-create-uploader", 5);
+  // 2. 管理員編輯包裹 (倉庫照片)
+  initImageUploader("modal-warehouseImages", "admin-warehouse-uploader", 5);
 
   // --- 2. 變數與元素 ---
   let currentPage = 1;
@@ -459,7 +528,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // 倉庫圖片
     currentExistingImages = pkg.warehouseImages || [];
     renderWarehouseImages();
-    document.getElementById("modal-warehouseImages").value = null;
+
+    // [Updated] 清空上傳元件
+    const warehouseInput = document.getElementById("modal-warehouseImages");
+    if (warehouseInput.resetUploader) warehouseInput.resetUploader();
 
     modal.style.display = "flex";
   }
@@ -718,6 +790,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (res.ok) {
           createModal.style.display = "none";
           alert("新增成功");
+          // [Updated] 重置上傳元件
+          const createInput = document.getElementById("admin-create-images");
+          if (createInput.resetUploader) createInput.resetUploader();
+
           loadParcels();
         } else alert("失敗");
       } catch (e) {
