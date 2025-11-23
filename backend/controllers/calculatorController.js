@@ -1,7 +1,36 @@
-// backend/controllers/calculatorController.js (V11 旗艦版 - 支援動態費率與公開設定)
+// backend/controllers/calculatorController.js (V12 - 穩健版，含自動預設值)
 
 const prisma = require("../config/db.js");
 const ratesManager = require("../utils/ratesManager.js");
+
+// --- 定義後端預設值 (當資料庫為空時使用) ---
+const DEFAULT_CONFIG = {
+  warehouseInfo: {
+    recipient: "小跑豬+[您的姓名]",
+    phone: "13652554906",
+    zip: "523920",
+    address: "广东省东莞市虎门镇龙眼工业路28号139铺",
+  },
+  announcement: {
+    enabled: true,
+    text: "歡迎使用小跑豬集運！新會員註冊即享優惠。",
+    color: "info",
+  },
+  // 預設偏遠地區 (簡化版，避免空值)
+  remoteAreas: {
+    1800: ["東勢區", "新社區", "石岡區", "和平區"],
+    2000: ["三芝", "石門", "烏來", "坪林"],
+    2500: ["名間鄉", "四湖鄉", "東勢鄉"],
+    4000: ["南莊鄉", "獅潭鄉", "竹山鎮"],
+    7000: ["小琉球", "綠島", "蘭嶼"],
+  },
+  bankInfo: {
+    bankName: "第一銀行 (007)",
+    branch: "台南分行",
+    account: "60110066477",
+    holder: "跑得快國際貿易",
+  },
+};
 
 /**
  * @description 取得公開的計算機設定 (費率、公告、銀行、偏遠地區)
@@ -10,11 +39,10 @@ const ratesManager = require("../utils/ratesManager.js");
  */
 const getCalculatorConfig = async (req, res) => {
   try {
-    // 1. 取得費率 (透過 ratesManager 封裝好的邏輯)
+    // 1. 取得費率 (透過 ratesManager 封裝好的邏輯，內部已有預設值)
     const rates = await ratesManager.getRates();
 
-    // 2. 取得其他公開設定 (偏遠地區、銀行資訊、公告、倉庫資訊)
-    // 我們只查詢需要的 key，避免洩漏敏感資訊 (如 invoice_config, email_config)
+    // 2. 取得其他公開設定
     const keysToFetch = [
       "remote_areas",
       "bank_info",
@@ -26,7 +54,7 @@ const getCalculatorConfig = async (req, res) => {
       where: { key: { in: keysToFetch } },
     });
 
-    // 轉換為簡單的 Key-Value 物件
+    // 轉換為 Key-Value 物件
     const settingsMap = {};
     settingsList.forEach((item) => {
       try {
@@ -36,21 +64,29 @@ const getCalculatorConfig = async (req, res) => {
       }
     });
 
-    // 3. 回傳前端需要的格式
-    res.status(200).json({
+    // 3. 組合回傳 (優先使用 DB 值，若無則使用預設值)
+    const responseData = {
       success: true,
-      rates: rates, // 包含 categories 和 constants
-      remoteAreas: settingsMap.remote_areas || null,
-      bankInfo: settingsMap.bank_info || null,
-      announcement: settingsMap.announcement || null,
-      warehouseInfo: settingsMap.warehouse_info || null,
-    });
+      rates: rates, // ratesManager 已經保證有值
+      remoteAreas: settingsMap.remote_areas || DEFAULT_CONFIG.remoteAreas,
+      bankInfo: settingsMap.bank_info || DEFAULT_CONFIG.bankInfo,
+      announcement: settingsMap.announcement || DEFAULT_CONFIG.announcement,
+      warehouseInfo: settingsMap.warehouse_info || DEFAULT_CONFIG.warehouseInfo,
+    };
+
+    res.status(200).json(responseData);
   } catch (error) {
-    console.error("取得計算機設定失敗:", error);
-    // 即使資料庫失敗，也回傳 false 讓前端使用預設值，而不是 500 讓畫面掛掉
+    console.error("取得計算機設定失敗 (使用全預設值):", error);
+
+    // 發生錯誤時，回傳完整的預設值，確保前端不會掛掉
     res.status(200).json({
-      success: false,
-      message: "無法載入設定，請使用預設值",
+      success: false, // 標記為 false 讓前端知道是備案
+      message: "系統載入預設設定",
+      rates: ratesManager.DEFAULT_RATES,
+      remoteAreas: DEFAULT_CONFIG.remoteAreas,
+      bankInfo: DEFAULT_CONFIG.bankInfo,
+      announcement: DEFAULT_CONFIG.announcement,
+      warehouseInfo: DEFAULT_CONFIG.warehouseInfo,
     });
   }
 };
@@ -77,7 +113,7 @@ const calculateSeaFreight = async (req, res) => {
       });
     }
 
-    // [V10 修改] 等待非同步讀取：從資料庫取得最新費率
+    // 取得費率 (確保有值)
     const systemRates = await ratesManager.getRates();
     const RATES = systemRates.categories;
     const CONSTANTS = systemRates.constants;
@@ -111,7 +147,6 @@ const calculateSeaFreight = async (req, res) => {
 
       const rateInfo = RATES[type];
       if (!rateInfo) {
-        // 若資料庫設定有誤，這裡可能會報錯，建議後台設定時要謹慎
         return res.status(400).json({
           success: false,
           message: `項目 "${name}" 的家具種類 (type) "${type}" 無效 (可能是後台費率設定不匹配)。`,
@@ -235,7 +270,6 @@ const calculateSeaFreight = async (req, res) => {
 
 const calculateAirFreight = (req, res) => {
   // 保留介面，尚未實作
-  console.log("Controller: calculateAirFreight 觸發", req.body);
   res.json({
     message: "OK, Controller: calculateAirFreight (尚未實作)",
     input: req.body,
@@ -243,7 +277,7 @@ const calculateAirFreight = (req, res) => {
 };
 
 module.exports = {
-  getCalculatorConfig, // [新增] 匯出設定 API
+  getCalculatorConfig,
   calculateSeaFreight,
   calculateAirFreight,
 };

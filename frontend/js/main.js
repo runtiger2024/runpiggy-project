@@ -1,18 +1,50 @@
-// frontend/js/main.js (V16 - 自動初始化 & 詳細算式)
+// frontend/js/main.js (V17 - 錯誤處理強化版)
+// 包含：前端預設值、後端API整合、詳細算式渲染
+
+// --- 前端備案設定 (當後端完全掛掉時使用) ---
+const fallbackSettings = {
+  rates: {
+    general: { name: "一般家具", weightRate: 22, volumeRate: 125 },
+    special_a: { name: "特殊家具A", weightRate: 32, volumeRate: 184 },
+    special_b: { name: "特殊家具B", weightRate: 40, volumeRate: 224 },
+    special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
+  },
+  constants: {
+    VOLUME_DIVISOR: 28317,
+    CBM_TO_CAI_FACTOR: 35.3,
+    MINIMUM_CHARGE: 2000,
+    OVERSIZED_LIMIT: 300,
+    OVERSIZED_FEE: 800,
+    OVERWEIGHT_LIMIT: 100,
+    OVERWEIGHT_FEE: 800,
+  },
+  warehouseInfo: {
+    address: "广东省东莞市虎门镇龙眼工业路28号139铺",
+    recipient: "小跑豬+[您的姓名]",
+    phone: "13652554906",
+    zip: "523920",
+  },
+  remoteAreas: {
+    0: ["一般地區"], // 至少要有這個選項
+  },
+};
 
 let currentCalculationResult = null;
 let itemIdCounter = 1;
 
 document.addEventListener("DOMContentLoaded", () => {
-  loadPublicSettings(); // 載入後端設定
+  loadPublicSettings(); // 嘗試載入後端設定
   setupEventListeners(); // 綁定按鈕
 
-  // [關鍵修改] 自動初始化第一個商品輸入卡片，無需點擊
+  // 自動初始化第一個商品輸入卡片
   const firstItem = createItemElement(itemIdCounter);
   document.getElementById("item-list").appendChild(firstItem);
 
-  // 嘗試更新下拉選單 (若資料尚未回來，loadPublicSettings 會再次呼叫)
-  updateItemTypeSelects();
+  // 先用備案資料渲染一次，避免畫面空白
+  window.RATES = fallbackSettings.rates;
+  window.CONSTANTS = fallbackSettings.constants;
+  window.REMOTE_AREAS = fallbackSettings.remoteAreas;
+  updateUIWithSettings(fallbackSettings);
 });
 
 // --- 1. 設定與載入 ---
@@ -21,71 +53,149 @@ async function loadPublicSettings() {
     const res = await fetch(`${API_BASE_URL}/api/calculator/config`);
     if (res.ok) {
       const data = await res.json();
-      if (data.success && data.rates) {
+      // 使用後端回傳的資料更新 UI
+      // 注意：calculatorController.js (V12) 已保證即使 DB 為空也會回傳預設結構
+      if (data.rates) {
         window.RATES = data.rates.categories;
         window.CONSTANTS = data.rates.constants;
-
-        // 渲染倉庫資訊 (略，假設 HTML 已有預設值)
-        if (data.warehouseInfo) {
-          document.getElementById("wh-recipient").textContent =
-            data.warehouseInfo.recipient || "小跑豬";
-          document.getElementById("wh-address").textContent =
-            data.warehouseInfo.address || "載入中...";
-        }
-
-        renderRemoteAreaOptions(data.remoteAreas);
-        updateItemTypeSelects();
       }
+      if (data.remoteAreas) window.REMOTE_AREAS = data.remoteAreas;
+
+      updateUIWithSettings({
+        warehouseInfo: data.warehouseInfo,
+        announcement: data.announcement,
+      });
+    } else {
+      throw new Error("API response not ok");
     }
   } catch (e) {
-    console.warn("使用預設設定或連線失敗");
+    console.warn("後端連線失敗，使用前端備案設定:", e);
+    // 如果連線失敗，確保 UI 顯示的是備案資料 (已在 DOMContentLoaded 執行過，這裡可選再次確認)
+    updateUIWithSettings(fallbackSettings);
   }
 }
 
-function renderRemoteAreaOptions(areas) {
-  const select = document.getElementById("deliveryLocation");
-  if (!select || !areas) return;
-  select.innerHTML =
-    '<option value="" selected disabled>--- 請選擇配送地區 ---</option>';
-  select.innerHTML += '<option value="0">✅ 一般地區 (免加價)</option>';
+// 統一更新 UI 的函式
+function updateUIWithSettings(data) {
+  // 1. 更新倉庫資訊
+  if (data.warehouseInfo) {
+    const info = data.warehouseInfo;
+    setText(
+      "wh-address",
+      info.address || fallbackSettings.warehouseInfo.address
+    );
+    setText(
+      "wh-recipient",
+      info.recipient || fallbackSettings.warehouseInfo.recipient
+    );
+    setText("wh-phone", info.phone || fallbackSettings.warehouseInfo.phone);
+    setText("wh-zip", info.zip || fallbackSettings.warehouseInfo.zip);
+  }
 
-  // 排序並渲染
-  Object.keys(areas)
-    .sort((a, b) => parseInt(a) - parseInt(b))
-    .forEach((fee) => {
-      let html = `<optgroup label="加收 $${fee}">`;
-      areas[fee].forEach(
+  // 2. 更新公告
+  if (data.announcement) {
+    renderAnnouncement(data.announcement);
+  }
+
+  // 3. 更新費率表與地區選單 (依賴 window.RATES / window.REMOTE_AREAS)
+  renderRateTable();
+  renderRemoteAreaOptions();
+  updateItemTypeSelects();
+}
+
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function renderAnnouncement(ann) {
+  const bar = document.getElementById("announcement-bar");
+  if (!bar) return;
+
+  if (ann && ann.enabled && ann.text) {
+    bar.style.display = "block";
+    bar.textContent = ann.text;
+    const colors = { info: "#1a73e8", warning: "#ff9800", danger: "#d32f2f" };
+    bar.style.backgroundColor = colors[ann.color] || colors.info;
+  } else {
+    bar.style.display = "none";
+  }
+}
+
+function renderRateTable() {
+  const tbody = document.getElementById("rate-table-body");
+  const noteList = document.getElementById("rate-notes-list");
+  if (!tbody || !window.RATES) return;
+
+  tbody.innerHTML = "";
+  Object.values(window.RATES).forEach((rate) => {
+    let desc = "一般傢俱";
+    if (rate.name.includes("特殊")) desc = "易碎品/大理石/帶電";
+
+    tbody.innerHTML += `
+      <tr>
+        <td data-label="類別"><strong>${rate.name}</strong></td>
+        <td data-label="說明">${desc}</td>
+        <td data-label="重量費率">$${rate.weightRate} / kg</td>
+        <td data-label="材積費率">$${rate.volumeRate} / 材</td>
+      </tr>
+    `;
+  });
+
+  if (noteList && window.CONSTANTS) {
+    noteList.innerHTML = `
+      <li>海運低消 <span class="highlight">$${window.CONSTANTS.MINIMUM_CHARGE}</span></li>
+      <li>超長限制 ${window.CONSTANTS.OVERSIZED_LIMIT}cm (費 $${window.CONSTANTS.OVERSIZED_FEE})</li>
+      <li>超重限制 ${window.CONSTANTS.OVERWEIGHT_LIMIT}kg (費 $${window.CONSTANTS.OVERWEIGHT_FEE})</li>
+    `;
+  }
+}
+
+function renderRemoteAreaOptions() {
+  const select = document.getElementById("deliveryLocation");
+  if (!select || !window.REMOTE_AREAS) return;
+
+  let html = `<option value="" selected disabled>--- 選擇配送地區 ---</option>`;
+  html += `<option value="0">✅ 一般地區 (免加價)</option>`;
+
+  const sortedFees = Object.keys(window.REMOTE_AREAS).sort((a, b) => a - b);
+  sortedFees.forEach((fee) => {
+    // 忽略 key 為 "0" 的項目 (如果資料庫有存)
+    if (fee === "0") return;
+
+    const areas = window.REMOTE_AREAS[fee];
+    if (Array.isArray(areas) && areas.length > 0) {
+      html += `<optgroup label="加收 $${fee}">`;
+      areas.forEach(
         (area) => (html += `<option value="${fee}">${area}</option>`)
       );
-      html += "</optgroup>";
-      select.innerHTML += html;
-    });
+      html += `</optgroup>`;
+    }
+  });
+  select.innerHTML = html;
 }
 
 function updateItemTypeSelects() {
   if (!window.RATES) return;
-  // 產生選項 HTML
-  const options = Object.entries(window.RATES)
-    .map(
-      ([key, val]) =>
-        `<option value="${key}">${val.name} (重$${val.weightRate}/kg, 材$${val.volumeRate})</option>`
-    )
+  const opts = Object.entries(window.RATES)
+    .map(([k, v]) => `<option value="${k}">${v.name}</option>`)
     .join("");
 
-  // 更新所有已存在的下拉選單
   document.querySelectorAll(".item-type").forEach((sel) => {
-    // 如果裡面是空的才填入，避免重置使用者選擇
-    if (sel.children.length === 0) sel.innerHTML = options;
+    const val = sel.value;
+    // 只有當內容為空，或為了更新顯示時才覆蓋
+    // 為了簡單起見，這裡每次都更新，但嘗試保留值
+    sel.innerHTML = opts;
+    if (val) sel.value = val;
   });
 }
 
-// --- 2. 建立商品卡片 (HTML 結構與 CSS 配合) ---
+// --- 2. 建立商品卡片 (HTML 結構) ---
 function createItemElement(id) {
   const div = document.createElement("div");
   div.className = "item-group card-item";
   div.dataset.id = id;
 
-  // 只有當不是第一個商品時，才顯示刪除按鈕
   const deleteBtn =
     id > 1
       ? `<button type="button" class="btn-remove-item" onclick="this.closest('.card-item').remove()" style="color:#e74c3c; border:none; background:none;"><i class="fas fa-trash"></i></button>`
@@ -98,17 +208,17 @@ function createItemElement(id) {
     </div>
     <div class="item-body">
       <div class="form-group">
-        <label>商品名稱</label>
+        <label>商品名稱 (選填)</label>
         <input type="text" class="item-name form-control" placeholder="例如：三人座沙發">
       </div>
       <div class="form-group">
-        <label>商品種類 (影響費率)</label>
+        <label>商品種類 <span class="required">*</span></label>
         <select class="item-type form-control"></select>
       </div>
       
       <div class="form-group">
         <div class="calc-method-toggle">
-          <label><input type="radio" name="method-${id}" value="dim" checked onchange="toggleMethod(this, ${id})"> 輸入長寬高 (cm)</label>
+          <label><input type="radio" name="method-${id}" value="dim" checked onchange="toggleMethod(this, ${id})"> 輸入尺寸 (cm)</label>
           <label><input type="radio" name="method-${id}" value="cbm" onchange="toggleMethod(this, ${id})"> 輸入體積 (CBM)</label>
         </div>
         
@@ -125,11 +235,11 @@ function createItemElement(id) {
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
         <div class="form-group">
-          <label>單件重量 (kg)</label>
-          <input type="number" class="item-weight form-control" placeholder="0">
+          <label>單件重量 <span class="required">*</span></label>
+          <div class="input-wrap"><input type="number" class="item-weight form-control" placeholder="kg"><span class="unit">kg</span></div>
         </div>
         <div class="form-group">
-          <label>件數</label>
+          <label>數量</label>
           <input type="number" class="item-qty form-control" value="1" min="1">
         </div>
       </div>
@@ -145,7 +255,7 @@ window.toggleMethod = function (radio, id) {
     radio.value === "cbm" ? "block" : "none";
 };
 
-// --- 3. 計算邏輯與 API 呼叫 ---
+// --- 3. 計算邏輯 ---
 async function handleCalculate() {
   const items = [];
   const itemEls = document.querySelectorAll(".item-group");
@@ -159,10 +269,15 @@ async function handleCalculate() {
     return;
   }
 
-  // 收集數據
+  let valid = true;
+
   itemEls.forEach((el) => {
     const id = el.dataset.id;
     const method = el.querySelector(`input[name="method-${id}"]:checked`).value;
+    const weight = parseFloat(el.querySelector(".item-weight").value);
+
+    if (isNaN(weight) || weight <= 0) valid = false;
+
     items.push({
       name: el.querySelector(".item-name").value || `商品 ${id}`,
       type: el.querySelector(".item-type").value,
@@ -171,36 +286,48 @@ async function handleCalculate() {
       width: parseFloat(el.querySelector(".item-w").value) || 0,
       height: parseFloat(el.querySelector(".item-h").value) || 0,
       cbm: parseFloat(el.querySelector(".item-cbm").value) || 0,
-      weight: parseFloat(el.querySelector(".item-weight").value) || 0,
+      weight: weight,
       quantity: parseInt(el.querySelector(".item-qty").value) || 1,
     });
   });
 
-  // UI Loading 狀態
+  if (!valid) {
+    alert("請填寫正確的重量 (必須 > 0)");
+    return;
+  }
+
   const btn = document.getElementById("btn-calculate");
   const spinner = document.getElementById("loading-spinner");
   const results = document.getElementById("results-container");
+  const errorMsg = document.getElementById("error-message");
 
   btn.disabled = true;
   btn.textContent = "計算中...";
-  spinner.style.display = "block";
+  spinner.style.display = "flex"; // 使用 flex 讓它置中
   results.style.display = "none";
+  errorMsg.style.display = "none";
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/calculator/sea`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items, deliveryLocationRate: locationRate }),
+      body: JSON.stringify({
+        items,
+        deliveryLocationRate: parseFloat(locationRate),
+      }),
     });
     const data = await res.json();
 
     if (data.success) {
+      currentCalculationResult = data.calculationResult;
       renderDetailedResults(data.calculationResult, data.rulesApplied);
     } else {
-      alert("計算錯誤: " + data.message);
+      errorMsg.textContent = data.message;
+      errorMsg.style.display = "block";
     }
   } catch (e) {
-    alert("無法連線至伺服器，請稍後再試。");
+    errorMsg.textContent = "無法連線至伺服器，請檢查網路";
+    errorMsg.style.display = "block";
   } finally {
     btn.disabled = false;
     btn.textContent = "開始計算";
@@ -209,19 +336,121 @@ async function handleCalculate() {
 }
 
 function setupEventListeners() {
-  document.getElementById("btn-add-item").addEventListener("click", () => {
-    itemIdCounter++;
-    document
-      .getElementById("item-list")
-      .appendChild(createItemElement(itemIdCounter));
-    updateItemTypeSelects();
-  });
-  document
-    .getElementById("btn-calculate")
-    .addEventListener("click", handleCalculate);
+  // 新增商品按鈕
+  const addBtn = document.getElementById("btn-add-item");
+  if (addBtn) {
+    addBtn.addEventListener("click", () => {
+      itemIdCounter++;
+      const newItem = createItemElement(itemIdCounter);
+      document.getElementById("item-list").appendChild(newItem);
+      updateItemTypeSelects();
+    });
+  }
+
+  // 計算按鈕 (底部懸浮欄)
+  const calcBtn = document.getElementById("btn-calculate");
+  if (calcBtn) {
+    calcBtn.addEventListener("click", handleCalculate);
+  }
+
+  // 複製地址按鈕
+  const copyBtn = document.getElementById("copyAddressBtn");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", () => {
+      const txt = `收件：${
+        document.getElementById("wh-recipient").innerText
+      }\n電話：${document.getElementById("wh-phone").innerText}\n地址：${
+        document.getElementById("wh-address").innerText
+      }\n郵編：${document.getElementById("wh-zip").innerText}`;
+
+      navigator.clipboard.writeText(txt).then(() => alert("地址已複製！"));
+    });
+  }
+
+  // Header 搜尋功能
+  const searchInput = document.getElementById("areaSearch");
+  const searchResults = document.getElementById("searchResults");
+
+  if (searchInput && searchResults) {
+    searchInput.addEventListener("input", (e) => {
+      const term = e.target.value.trim().toLowerCase();
+      if (!term) {
+        searchResults.style.display = "none";
+        return;
+      }
+
+      const matches = [];
+      if (window.REMOTE_AREAS) {
+        for (const [fee, areas] of Object.entries(window.REMOTE_AREAS)) {
+          areas.forEach((area) => {
+            if (area.toLowerCase().includes(term)) matches.push({ area, fee });
+          });
+        }
+      }
+
+      if (matches.length > 0) {
+        searchResults.innerHTML = matches
+          .map(
+            (m) =>
+              `<div class="search-result-item" onclick="selectRemoteArea('${m.area}', ${m.fee})">
+             <span>📍 ${m.area}</span>
+             <span style="color:#d32f2f; font-weight:bold;">+$${m.fee}</span>
+           </div>`
+          )
+          .join("");
+        searchResults.style.display = "block";
+      } else {
+        searchResults.style.display = "none";
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".header-search"))
+        searchResults.style.display = "none";
+    });
+  }
+
+  // 地區選擇後的顯示
+  const delivSelect = document.getElementById("deliveryLocation");
+  if (delivSelect) {
+    delivSelect.addEventListener("change", () => {
+      const infoBox = document.getElementById("remoteAreaInfo");
+      const nameEl = document.getElementById("selectedAreaName");
+      const feeEl = document.getElementById("selectedAreaFee");
+
+      if (delivSelect.value !== "") {
+        infoBox.style.display = "block";
+        const opt = delivSelect.options[delivSelect.selectedIndex];
+        nameEl.textContent = opt.text;
+        const fee = parseInt(delivSelect.value);
+        feeEl.textContent = fee > 0 ? `(加收 $${fee})` : "(免加價)";
+      } else {
+        infoBox.style.display = "none";
+      }
+    });
+  }
 }
 
-// --- 4. 渲染結果 (HTML 生成) ---
+window.selectRemoteArea = function (name, fee) {
+  const select = document.getElementById("deliveryLocation");
+  for (let i = 0; i < select.options.length; i++) {
+    if (
+      select.options[i].value == fee &&
+      select.options[i].text.includes(name)
+    ) {
+      select.selectedIndex = i;
+      select.dispatchEvent(new Event("change"));
+      document.getElementById("areaSearch").value = name;
+      document.getElementById("searchResults").style.display = "none";
+      document
+        .querySelector(".delivery-block")
+        .scrollIntoView({ behavior: "smooth" });
+      break;
+    }
+  }
+};
+
+// --- 4. 詳細算式渲染 ---
 function renderDetailedResults(result, rules) {
   const container = document.getElementById("results-container");
   const stickyTotal = document.getElementById("sticky-total-price");
@@ -231,8 +460,10 @@ function renderDetailedResults(result, rules) {
   let html = `<h3 style="text-align:center; color:#0056b3; margin-bottom:20px;">📊 費用計算明細表</h3>`;
 
   // 1. 逐項明細
-  result.allItemsData.forEach((item) => {
-    // 判斷公式顯示
+  result.allItemsData.forEach((item, index) => {
+    const isVolWin = item.itemVolumeCost >= item.itemWeightCost;
+
+    // 公式 HTML
     let formulaHtml = "";
     if (item.calcMethod === "dimensions") {
       formulaHtml = `<span class="formula-box">(${item.length}x${item.width}x${item.height})÷${rules.VOLUME_DIVISOR}</span>`;
@@ -240,21 +471,22 @@ function renderDetailedResults(result, rules) {
       formulaHtml = `<span class="formula-box">${item.cbm} x ${rules.CBM_TO_CAI_FACTOR}</span>`;
     }
 
-    // 判斷誰是贏家
-    const isVolWin = item.itemVolumeCost >= item.itemWeightCost;
-
     html += `
       <div class="result-detail-card">
-        <h3>${item.name} <small>x${item.quantity}</small></h3>
+        <h3><i class="fas fa-cube"></i> 第 ${index + 1} 項：${
+      item.name
+    } <small>x${item.quantity}件</small></h3>
         
         <div class="detail-section">
           <h4>1. 數據計算</h4>
-          <div class="calc-line"><span>單件重量:</span> <b>${
-            item.singleWeight
-          } kg</b></div>
-          <div class="calc-line"><span>單件材積:</span> <div>${formulaHtml} = <b>${
+          <div class="calc-line">
+            <span>單件重量:</span> <b>${item.singleWeight} kg</b>
+          </div>
+          <div class="calc-line">
+            <span>單件材積:</span> <div>${formulaHtml} = <b>${
       item.singleVolume
-    } 材</b></div></div>
+    } 材</b></div>
+          </div>
           <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #eee; font-size:13px; color:#666;">
             總重 ${item.totalWeight} kg / 總材積 ${item.totalVolume} 材
           </div>
@@ -268,6 +500,11 @@ function renderDetailedResults(result, rules) {
     }">
             <span>材積費 (${item.rateInfo.volumeRate}/材)</span>
             <b>$${item.itemVolumeCost.toLocaleString()}</b>
+            ${
+              isVolWin
+                ? '<i class="fas fa-check-circle" style="color:#fa8c16;"></i>'
+                : ""
+            }
           </div>
           
           <div class="calc-line ${!isVolWin ? "winner" : ""}" style="opacity:${
@@ -275,17 +512,33 @@ function renderDetailedResults(result, rules) {
     }">
             <span>重量費 (${item.rateInfo.weightRate}/kg)</span>
             <b>$${item.itemWeightCost.toLocaleString()}</b>
+            ${
+              !isVolWin
+                ? '<i class="fas fa-check-circle" style="color:#fa8c16;"></i>'
+                : ""
+            }
           </div>
 
           <div style="text-align:right; margin-top:10px; font-weight:bold; color:#0056b3;">
             本項小計：$${item.itemFinalCost.toLocaleString()}
           </div>
         </div>
+        
+        ${
+          item.hasOversizedItem
+            ? '<div class="alert alert-error" style="margin:10px; font-size:12px;">⚠️ 此商品尺寸超長，整單將加收超長費。</div>'
+            : ""
+        }
+        ${
+          item.isOverweight
+            ? '<div class="alert alert-error" style="margin:10px; font-size:12px;">⚠️ 此商品單件超重，整單將加收超重費。</div>'
+            : ""
+        }
       </div>
     `;
   });
 
-  // 2. 總表
+  // 2. 總結卡片
   html += `
     <div class="result-summary-card">
       <h3>💰 費用總結</h3>
@@ -296,8 +549,8 @@ function renderDetailedResults(result, rules) {
       
       ${
         result.finalSeaFreightCost > result.initialSeaFreightCost
-          ? `<div class="summary-row" style="color:#d32f2f; background:#fff5f5;">
-           <span>⚠️ 未達低消，以低消計</span>
+          ? `<div class="summary-row" style="color:#2e7d32; background:#f6ffed;">
+           <span><i class="fas fa-arrow-up"></i> 未達低消，以低消計</span>
            <span>$${rules.MINIMUM_CHARGE.toLocaleString()}</span>
          </div>`
           : ""
@@ -310,22 +563,23 @@ function renderDetailedResults(result, rules) {
 
       ${
         result.totalOverweightFee > 0
-          ? `<div class="summary-row" style="color:#e67e22"><span>⚠️ 超重附加費</span><span>+$${result.totalOverweightFee}</span></div>`
+          ? `<div class="summary-row" style="color:#fa8c16"><span>⚠️ 超重附加費</span><span>+$${result.totalOverweightFee}</span></div>`
           : ""
       }
       ${
         result.totalOversizedFee > 0
-          ? `<div class="summary-row" style="color:#e67e22"><span>⚠️ 超長附加費</span><span>+$${result.totalOversizedFee}</span></div>`
+          ? `<div class="summary-row" style="color:#fa8c16"><span>⚠️ 超長附加費</span><span>+$${result.totalOversizedFee}</span></div>`
           : ""
       }
 
       <div class="summary-total">
-        總運費：NT$ ${result.finalTotal.toLocaleString()}
+        <small>預估總運費 (台幣)</small>
+        NT$ ${result.finalTotal.toLocaleString()}
       </div>
       
       <div style="padding:0 20px 20px 20px;">
-        <button class="btn btn-primary" style="width:100%; background:#e3f2fd; color:#0056b3; border:none;" onclick="window.saveToForecast()">
-          <i class="fas fa-box-open"></i> 帶入預報單
+        <button class="btn btn-secondary" style="width:100%;" onclick="window.saveToForecast()">
+          <i class="fas fa-box-open"></i> 將試算結果帶入預報單
         </button>
       </div>
     </div>
@@ -334,7 +588,7 @@ function renderDetailedResults(result, rules) {
   container.innerHTML = html;
   container.style.display = "block";
 
-  // 平滑滾動至結果
+  // 平滑捲動到結果區
   setTimeout(() => {
     container.scrollIntoView({ behavior: "smooth", block: "start" });
   }, 100);
@@ -342,7 +596,6 @@ function renderDetailedResults(result, rules) {
   window.currentCalculationResult = result;
 }
 
-// 帶入預報功能
 window.saveToForecast = function () {
   if (!window.currentCalculationResult) return;
   localStorage.setItem(
