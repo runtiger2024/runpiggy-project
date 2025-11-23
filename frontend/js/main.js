@@ -605,23 +605,26 @@ window.saveToForecast = function () {
   }
 };
 
-// --- 功能 2: 產生分享連結 (V18.1 - 修復手機版複製問題) ---
+// ... (前面保持不變) ...
+
+// --- 功能 2: 產生分享連結 (V19 - 終極修復版：解決手機瀏覽器攔截問題) ---
 window.createShareLink = async function () {
   if (!window.currentCalculationResult) {
     alert("目前沒有試算結果可分享！");
     return;
   }
 
-  // 按鈕防呆
   const shareBtn = document.querySelector(
     ".result-summary-card .btn-outline-primary"
   );
+  // 1. 為了使用者體驗，先改變按鈕文字
   if (shareBtn) {
     shareBtn.disabled = true;
-    shareBtn.textContent = "產生連結中...";
+    shareBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 連結產生中...';
   }
 
   try {
+    // 2. 請求後端建立連結
     const res = await fetch(`${API_BASE_URL}/api/quotes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -630,29 +633,32 @@ window.createShareLink = async function () {
       }),
     });
 
-    if (!res.ok) {
-      throw new Error("無法建立分享連結");
-    }
+    if (!res.ok) throw new Error("無法建立分享連結 (API Error)");
 
     const data = await res.json();
     const shareUrl = `${window.location.origin}/quote.html?id=${data.id}`;
 
-    // [核心修正] 嘗試自動複製
-    // 注意：在 iOS Safari 或部分環境，fetch 後的 writeText 可能會被擋
+    // 3. [關鍵策略] 嘗試自動複製
+    // 注意：在 iOS 或非 HTTPS 環境下，這裡極高機率會被瀏覽器擋下 (Promise Rejected)
     navigator.clipboard
       .writeText(shareUrl)
       .then(() => {
-        // 情況 A: 瀏覽器允許自動複製 -> 直接成功
-        alert("✅ 連結已自動複製！\n您可以直接貼上分享給朋友。");
+        // A計畫成功：瀏覽器允許直接複製
+        alert("✅ 連結已複製！\n您可以直接貼上分享給朋友。");
       })
       .catch((err) => {
-        // 情況 B: 自動複製失敗 (常見於手機) -> 呼叫專用彈窗
-        console.warn("自動複製被攔截，改用彈窗模式:", err);
+        // B計畫：被瀏覽器攔截 (常見於手機)，改用彈窗模式
+        console.warn(
+          "自動複製被攔截 (這是正常的瀏覽器安全機制)，改用手動模式:",
+          err
+        );
         showShareModal(shareUrl);
       });
   } catch (e) {
-    alert("分享失敗: " + e.message);
+    console.error(e);
+    alert("分享失敗，請檢查網路或聯絡管理員。\n錯誤: " + e.message);
   } finally {
+    // 恢復按鈕狀態
     if (shareBtn) {
       shareBtn.disabled = false;
       shareBtn.innerHTML = '<i class="fas fa-share-alt"></i> 分享結果';
@@ -660,62 +666,81 @@ window.createShareLink = async function () {
   }
 };
 
-// [新增] 專用分享彈窗 (解決手機無法複製的問題)
+/**
+ * [新增] 顯示分享連結的專用彈窗
+ * 用途：當自動複製失敗時，顯示一個輸入框與按鈕。
+ * 解決方案：這個視窗內的「複製」按鈕是同步觸發的，瀏覽器絕對允許複製。
+ */
 function showShareModal(url) {
   // 1. 檢查是否已存在，不存在則建立 DOM
   let modal = document.getElementById("share-link-modal");
+
   if (!modal) {
     modal = document.createElement("div");
     modal.id = "share-link-modal";
     modal.className = "modal-overlay";
-    modal.style.zIndex = "3000"; // 確保在最上層
+    modal.style.zIndex = "9999"; // 確保在最上層
 
-    // 彈窗 HTML 結構 (包含輸入框以便手機長按複製)
+    // 動態生成 HTML
     modal.innerHTML = `
-      <div class="modal-content" style="max-width: 400px; text-align: center;">
-        <button class="modal-close-btn" onclick="document.getElementById('share-link-modal').style.display='none'">&times;</button>
-        <h3 style="margin-top:0; color:var(--primary-color);">🔗 分享連結</h3>
-        <p style="color:#666; font-size:14px; margin-bottom:10px;">連結已建立！請點擊按鈕複製：</p>
+      <div class="modal-content" style="max-width: 400px; text-align: center; padding: 25px;">
+        <button class="modal-close-btn" type="button" onclick="document.getElementById('share-link-modal').style.display='none'">&times;</button>
         
-        <div style="display:flex; gap:8px; margin-bottom:15px;">
+        <div style="margin-bottom: 15px;">
+          <i class="fas fa-link" style="font-size: 40px; color: var(--color-primary);"></i>
+        </div>
+        
+        <h3 style="margin: 0 0 10px 0; color: #333;">分享連結已建立</h3>
+        <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
+          由於瀏覽器安全限制，請點擊下方按鈕複製，<br>或是長按輸入框選取文字。
+        </p>
+        
+        <div style="position: relative; margin-bottom: 20px;">
           <input type="text" id="share-url-input" class="form-control" readonly 
-                 style="text-align:center; font-size:13px; background:#f9f9f9; color:#555;" 
+                 style="text-align: center; font-size: 14px; padding-right: 40px; background: #f8f9fa; border: 1px solid #ddd; color: #1a73e8; font-weight: bold;" 
                  onclick="this.select();">
         </div>
         
-        <button id="btn-manual-copy" class="btn btn-primary">
-          <i class="fas fa-copy"></i> 點擊複製連結
+        <button id="btn-manual-copy" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 16px;">
+          <i class="far fa-copy"></i> 點擊複製連結
         </button>
       </div>
     `;
     document.body.appendChild(modal);
 
-    // 綁定複製按鈕事件 (這是同步點擊，保證成功)
+    // 綁定 "手動複製" 按鈕事件 (這是使用者當下的點擊，屬於同步事件，保證成功)
     document.getElementById("btn-manual-copy").addEventListener("click", () => {
       const input = document.getElementById("share-url-input");
 
-      // 選取文字 (相容手機)
+      // 針對手機的選取優化
       input.select();
-      input.setSelectionRange(0, 99999); // For iOS
+      input.setSelectionRange(0, 99999); // For iOS Safari
 
-      // 執行複製
+      // 執行複製指令
       try {
-        // 優先嘗試新 API
-        navigator.clipboard.writeText(input.value).then(() => {
-          alert("已複製成功！");
-          modal.style.display = "none";
-        });
+        // 優先嘗試 Clipboard API (在此同步事件中通常會成功)
+        navigator.clipboard
+          .writeText(input.value)
+          .then(() => {
+            alert("✅ 複製成功！");
+            document.getElementById("share-link-modal").style.display = "none";
+          })
+          .catch(() => {
+            // 極端情況 fallback：使用舊版 execCommand
+            document.execCommand("copy");
+            alert("✅ 複製成功！");
+            document.getElementById("share-link-modal").style.display = "none";
+          });
       } catch (err) {
-        // 舊版 Fallback
-        document.execCommand("copy");
-        alert("已複製成功！");
-        modal.style.display = "none";
+        // 真的沒辦法了，提示用戶長按
+        alert("請長按輸入框內的網址進行手動複製。");
       }
     });
   }
 
   // 2. 更新連結並顯示
   const input = document.getElementById("share-url-input");
-  input.value = url;
+  if (input) input.value = url;
+
   modal.style.display = "flex";
 }
