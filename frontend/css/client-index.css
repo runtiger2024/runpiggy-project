@@ -10,6 +10,8 @@
   justify-content: space-between;
   padding: 16px 24px;
   border-bottom: 1px dashed #eee;
+  /* [新增] 垂直置中，避免按鈕被拉伸變高 */
+  align-items: center;
 }
 .wh-title {
   display: flex;
@@ -34,6 +36,16 @@
   border-radius: 4px;
   margin-left: 5px;
 }
+
+/* [新增] 針對複製按鈕的修正樣式 */
+#copyAddressBtn {
+  width: auto !important; /* 強制取消滿版寬度 */
+  padding: 6px 16px; /* 設定適當的內距 */
+  font-size: 13px; /* 保持小字體 */
+  height: fit-content; /* 確保高度適應內容 */
+  white-space: nowrap; /* 防止文字換行 */
+}
+
 .warehouse-body {
   padding: 24px;
   display: grid;
