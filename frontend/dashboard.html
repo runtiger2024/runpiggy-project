@@ -14,7 +14,7 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
     <style>
-      /* 圖片預覽容器樣式 (保留給舊的現有照片顯示用) */
+      /* 圖片預覽容器樣式 */
       .preview-container {
         display: flex;
         flex-wrap: wrap;
@@ -27,6 +27,19 @@
         object-fit: cover;
         border-radius: 4px;
         border: 1px solid #ddd;
+      }
+
+      /* [新增] 用戶資料卡的小按鈕專用樣式 (修正太大的問題) */
+      .btn-mini {
+        padding: 4px 12px;
+        font-size: 12px;
+        height: 32px; /* 固定高度，更精緻 */
+        line-height: 1; /* 讓文字垂直居中 */
+        width: auto !important; /* 強制取消手機版 100% 寬度 */
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
       }
     </style>
   </head>
@@ -66,17 +79,17 @@
             </div>
           </div>
           <div
-            style="display: flex; gap: 10px; margin-left: auto; flex-shrink: 0"
+            style="display: flex; gap: 8px; margin-left: auto; flex-shrink: 0"
           >
             <button
               id="btn-edit-profile"
-              class="btn btn-secondary btn-sm btn-edit-profile"
+              class="btn btn-secondary btn-mini btn-edit-profile"
             >
               <i class="fas fa-pen"></i> 編輯
             </button>
             <button
               id="btn-change-password"
-              class="btn btn-outline-primary btn-sm"
+              class="btn btn-outline-primary btn-mini"
               style="background: #fff"
             >
               <i class="fas fa-key"></i> 修改密碼
