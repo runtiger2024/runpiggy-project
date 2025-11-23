@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>小跑豬傢俱海運試算 | 像網購一樣簡單</title>
+    <title>小跑豬傢俱海運試算 | 淘寶傢俱集運專家</title>
     <link rel="icon" href="assets/logo.png" type="image/png" />
-    <script src="js/styleLoader.js"></script>
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
     />
+    <script src="js/styleLoader.js"></script>
     <style>
       #announcement-bar {
         display: none;
@@ -19,7 +19,6 @@
         font-weight: bold;
         position: relative;
         z-index: 1001;
-        margin-bottom: 0;
         animation: fadeInDown 0.5s;
       }
       @keyframes fadeInDown {
@@ -45,7 +44,9 @@
             alt="小跑豬 LOGO"
             class="header-logo-img"
           />
-          <span class="logo-text">小跑豬家具專線</span>
+          <span class="logo-text" style="font-size: 1.2rem"
+            >小跑豬家具專線</span
+          >
         </a>
 
         <div class="header-search">
@@ -53,7 +54,7 @@
             <input
               type="text"
               id="areaSearch"
-              placeholder="搜尋配送地區 (例: 阿里山)..."
+              placeholder="輸入配送地區 (例: 阿里山、淡水)..."
               autocomplete="off"
             />
             <button class="search-btn"><i class="fas fa-search"></i></button>
@@ -70,14 +71,14 @@
         <div class="warehouse-header">
           <div class="wh-icon"><i class="fas fa-warehouse"></i></div>
           <div class="wh-title">
-            <h3>倉庫地址</h3>
+            <h3>大陸集運倉地址</h3>
             <span class="badge-official">家具專線</span>
           </div>
           <button
             id="copyAddressBtn"
             class="btn btn-outline-primary btn-sm btn-follow"
           >
-            <i class="far fa-copy"></i> 一鍵複製地址
+            <i class="far fa-copy"></i> 一鍵複製
           </button>
         </div>
 
@@ -100,7 +101,7 @@
           </div>
           <div class="wh-notice">
             <i class="fas fa-exclamation-circle"></i>
-            注意：此倉專收大型家具/建材，拒收普貨散件。
+            請務必在收件人後方加上您的姓名，以免包裹遺失。
           </div>
         </div>
       </div>
@@ -122,14 +123,16 @@
               <thead>
                 <tr>
                   <th>類別</th>
-                  <th>品項說明</th>
+                  <th>說明</th>
                   <th>重量 (KG)</th>
                   <th>材積 (材)</th>
                 </tr>
               </thead>
               <tbody id="rate-table-body">
                 <tr>
-                  <td colspan="4" class="loading-text">載入費率中...</td>
+                  <td colspan="4" style="text-align: center; padding: 20px">
+                    載入費率中...
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -146,9 +149,13 @@
       <div id="calculator-section" class="calculator-wrapper">
         <div class="section-header-row">
           <h3><i class="fas fa-calculator"></i> 運費試算</h3>
-          <span class="usage-badge"
-            >已有 <span id="usageCount">5000+</span> 人使用</span
-          >
+          <span style="font-size: 12px; color: #999">
+            已有
+            <span id="usageCount" style="color: #ff5000; font-weight: bold"
+              >5000+</span
+            >
+            人使用
+          </span>
         </div>
 
         <div id="item-list" class="shopping-list">
@@ -159,17 +166,15 @@
           <i class="fas fa-plus"></i> 加入下一件商品
         </button>
 
-        <hr class="divider" />
-
         <div class="delivery-block">
           <h3><i class="fas fa-map-marker-alt"></i> 配送目的地</h3>
 
           <div class="remote-area-notice">
             <i class="fas fa-exclamation-triangle"></i>
-            偏遠地區需加收派送費，請務必正確選擇。
+            部分偏遠地區需加收派送費，請搜尋或選擇您的區域。
           </div>
 
-          <div class="select-wrapper">
+          <div class="select-wrapper" style="margin-top: 10px">
             <select id="deliveryLocation" class="form-control">
               <option value="" selected disabled>--- 載入中 ---</option>
             </select>
@@ -188,6 +193,7 @@
           </div>
         </div>
       </div>
+
       <div id="loading-spinner" style="display: none" class="loading-overlay">
         <div class="spinner"></div>
         <p>正在計算運費...</p>
@@ -198,49 +204,39 @@
         style="display: none"
       ></div>
 
-      <div id="results-container" style="display: none"></div>
+      <div id="results-container" style="display: none; margin-top: 20px"></div>
 
-      <div class="sticky-footer-bar">
-        <div class="footer-content">
-          <div class="footer-total">
-            <span class="text">預估總額：</span>
-            <span class="price" id="sticky-total-price">請點擊計算</span>
-          </div>
-          <button
-            type="button"
-            id="btn-calculate"
-            class="btn btn-primary btn-checkout"
-          >
-            計算總運費
-          </button>
-        </div>
-      </div>
+      <div style="height: 80px"></div>
     </div>
+
     <footer class="site-footer">
       <div class="site-footer__container">
         <div class="footer-links">
-          <a href="https://lin.ee/eK6HptX" target="_blank"
-            ><i class="fab fa-line"></i> LINE 客服</a
-          >
-          <a href="mailto:2runtigers@gmail.com"
-            ><i class="fas fa-envelope"></i> Email</a
-          >
+          <a href="https://lin.ee/eK6HptX" target="_blank">
+            <i class="fab fa-line"></i> LINE 客服
+          </a>
+          <a href="mailto:2runtigers@gmail.com">
+            <i class="fas fa-envelope"></i> Email
+          </a>
         </div>
         <div class="site-footer__copyright">
           © 2025 兩隻老虎國際貿易有限公司 |
-          <a href="admin-login.html" class="admin-link">管理員</a>
+          <a href="admin-login.html" class="admin-link">管理員登入</a>
         </div>
       </div>
     </footer>
 
-    <a
-      href="https://lin.ee/eK6HptX"
-      target="_blank"
-      class="line-fab"
-      title="聯絡 LINE 客服"
-    >
-      <i class="fab fa-line"></i>
-    </a>
+    <div class="sticky-footer-bar">
+      <div class="footer-content">
+        <div class="footer-total">
+          <span class="text">預估總額：</span>
+          <span class="price" id="sticky-total-price">請點擊計算</span>
+        </div>
+        <button type="button" id="btn-calculate" class="btn btn-checkout">
+          開始計算
+        </button>
+      </div>
+    </div>
 
     <nav class="mobile-bottom-nav" id="mobile-bottom-nav"></nav>
 
