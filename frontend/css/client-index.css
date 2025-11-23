@@ -324,3 +324,91 @@
     bottom: var(--mobile-nav-height);
   }
 }
+/* frontend/css/client-index.css - 在檔案最下方加入 */
+
+/* === 手機版費率表優化：轉為卡片式 === */
+@media (max-width: 768px) {
+  /* 1. 隱藏原本的表頭 */
+  .rate-table thead {
+    display: none;
+  }
+
+  /* 2. 將每一列 (tr) 變成一張卡片 */
+  .rate-table tr {
+    display: block;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    padding: 15px;
+    position: relative;
+  }
+
+  /* 3. 設定每個欄位 (td) 的顯示方式 */
+  .rate-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px dashed #eee;
+    font-size: 14px;
+    text-align: right; /* 內容靠右 */
+  }
+
+  .rate-table td:last-child {
+    border-bottom: none;
+  }
+
+  /* 4. 利用 data-label 屬性顯示標題 (在左側) */
+  /* 您的 main.js 已經有寫入 data-label，這裡直接利用 */
+  .rate-table td::before {
+    content: attr(data-label);
+    font-weight: bold;
+    color: #666;
+    text-align: left;
+    margin-right: 15px;
+    min-width: 80px; /* 標題固定寬度 */
+  }
+
+  /* --- 特殊樣式微調 --- */
+
+  /* 第一欄 (類別名稱) 加大加粗，當作卡片標題 */
+  .rate-table td[data-label="類別"] {
+    font-size: 18px;
+    color: var(--color-primary);
+    font-weight: 800;
+    border-bottom: 2px solid var(--color-primary-light);
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    display: block; /* 標題獨佔一行 */
+    text-align: left;
+  }
+  .rate-table td[data-label="類別"]::before {
+    display: none; /* 標題欄隱藏 "類別" 兩個字 */
+  }
+
+  /* 說明欄位：允許換行，靠左對齊 */
+  .rate-table td[data-label="說明"] {
+    display: block;
+    text-align: left;
+    color: #555;
+    line-height: 1.5;
+    background: #f9f9f9;
+    padding: 10px;
+    border-radius: 6px;
+    margin: 5px 0;
+  }
+  .rate-table td[data-label="說明"]::before {
+    display: block;
+    margin-bottom: 5px;
+    color: #333;
+  }
+
+  /* 價格欄位：強調顏色 */
+  .rate-table td[data-label*="費率"] {
+    color: var(--color-accent);
+    font-weight: bold;
+    font-family: var(--font-mono);
+  }
+}
