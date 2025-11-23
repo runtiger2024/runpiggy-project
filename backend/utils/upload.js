@@ -57,7 +57,7 @@ const upload = multer({
   fileFilter: fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024, // 限制單檔 5MB
-    files: 5, // 限制單次請求最多 5 個檔案
+    files: 20, // [修改] 將限制提升至 20，讓客戶可以依包裹數量上傳對應截圖
   },
 });
 

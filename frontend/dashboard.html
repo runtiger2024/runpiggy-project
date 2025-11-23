@@ -449,13 +449,18 @@
                 <label style="color: #e67e22; font-weight: bold"
                   >🛒 商品證明 (必填其一)</label
                 >
-                <input
-                  type="url"
+                <p style="font-size: 12px; color: #666; margin: 5px 0">
+                  若有多個商品，請將購買連結貼在下方
+                  (一行一個)，或上傳多張對應的訂單截圖。
+                </p>
+                <textarea
                   id="ship-product-url"
                   class="form-control"
-                  placeholder="購買連結網址"
+                  rows="3"
+                  placeholder="請在此貼上購買連結 (多個連結請換行)"
                   style="margin-bottom: 10px"
-                />
+                ></textarea>
+
                 <div
                   style="
                     text-align: center;
@@ -477,7 +482,7 @@
                     cursor: pointer;
                   "
                 >
-                  <i class="fas fa-image"></i> 上傳訂單截圖
+                  <i class="fas fa-image"></i> 上傳訂單截圖 (可多選)
                   <input
                     type="file"
                     id="ship-product-images"
@@ -486,6 +491,18 @@
                     style="display: none"
                   />
                 </label>
+
+                <div
+                  id="ship-product-preview-container"
+                  style="
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 10px;
+                    margin-top: 10px;
+                    justify-content: center;
+                  "
+                ></div>
+
                 <div
                   id="ship-product-files-display"
                   style="
@@ -692,5 +709,6 @@
     <script src="js/dashboard-packages.js"></script>
     <script src="js/dashboard-shipments.js"></script>
     <script src="js/dashboard-main.js"></script>
+    <script src="js/dashboard.js"></script>
   </body>
 </html>

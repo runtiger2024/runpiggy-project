@@ -290,17 +290,41 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 建立集運單時的商品證明圖片監聽
+  // [修改] 建立集運單時的商品證明圖片監聽 (加入預覽功能)
   const shipProofInput = document.getElementById("ship-product-images");
   const shipProofDisplay = document.getElementById(
     "ship-product-files-display"
   );
+  const shipProofPreview = document.getElementById(
+    "ship-product-preview-container"
+  ); // 新增預覽容器
+
   if (shipProofInput) {
     shipProofInput.addEventListener("change", function () {
+      // 1. 清空舊的預覽
+      if (shipProofPreview) shipProofPreview.innerHTML = "";
+
       if (this.files && this.files.length > 0) {
-        shipProofDisplay.textContent = `已選 ${this.files.length} 張圖`;
+        // 顯示文字數量
+        if (shipProofDisplay)
+          shipProofDisplay.textContent = `已選 ${this.files.length} 張圖片`;
+
+        // 2. 遍歷檔案並產生預覽圖
+        if (shipProofPreview) {
+          Array.from(this.files).forEach((file) => {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+              const img = document.createElement("img");
+              img.src = e.target.result;
+              img.style.cssText =
+                "width: 60px; height: 60px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;";
+              shipProofPreview.appendChild(img);
+            };
+            reader.readAsDataURL(file);
+          });
+        }
       } else {
-        shipProofDisplay.textContent = "";
+        if (shipProofDisplay) shipProofDisplay.textContent = "";
       }
     });
   }
@@ -876,6 +900,7 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("ship-invoiceTitle").value
     );
     fd.append("note", document.getElementById("ship-note").value);
+    // [修改] 從 textarea 獲取多行連結
     fd.append("productUrl", document.getElementById("ship-product-url").value);
 
     const prodFiles = document.getElementById("ship-product-images").files;

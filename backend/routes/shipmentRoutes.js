@@ -26,7 +26,7 @@ router.route("/preview").post(protect, previewShipmentCost);
 // 注意：前端 input name 必須為 "shipmentImages"
 router
   .route("/create")
-  .post(protect, upload.array("shipmentImages", 5), createShipment);
+  .post(protect, upload.array("shipmentImages", 20), createShipment);
 
 // 取得我的集運單列表
 router.route("/my").get(protect, getMyShipments);

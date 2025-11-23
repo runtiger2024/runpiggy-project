@@ -473,26 +473,45 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // 商品證明 (連結)
+    // [修改] 商品證明 (連結) - 支援多行連結顯示
     const productUrlEl = document.getElementById("modal-product-url");
-    if (fullShipment.productUrl) {
-      productUrlEl.href = fullShipment.productUrl;
-      productUrlEl.textContent = fullShipment.productUrl;
-      productUrlEl.style.display = "inline";
+    const rawUrl = fullShipment.productUrl || "";
+
+    if (rawUrl.trim()) {
+      // 將內容依換行符號切割
+      const urls = rawUrl.split(/\r?\n/).filter((u) => u.trim() !== "");
+
+      // 清空原本的內容
+      productUrlEl.innerHTML = "";
+      productUrlEl.style.display = "block";
+
+      // 生成多個連結
+      urls.forEach((url, index) => {
+        const link = document.createElement("a");
+        link.href = url.trim();
+        link.target = "_blank";
+        link.style.cssText =
+          "display: block; color: #1a73e8; word-break: break-all; margin-bottom: 4px;";
+        link.textContent = `[連結 ${index + 1}] ${url.substring(0, 40)}...`; // 縮短顯示以免太長
+        productUrlEl.appendChild(link);
+      });
     } else {
-      productUrlEl.textContent = "(無連結)";
-      productUrlEl.removeAttribute("href");
+      productUrlEl.innerHTML = "(無連結)";
+      productUrlEl.style.display = "inline";
     }
 
-    // 商品證明 (圖片)
+    // [修改] 商品證明 (圖片) - 增加 flex-wrap
     const prodImgContainer = document.getElementById(
       "modal-product-images-container"
     );
     prodImgContainer.innerHTML = "";
+    prodImgContainer.style.cssText =
+      "display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px;"; // 新增樣式
+
     const pImages = fullShipment.shipmentProductImages || [];
     if (pImages.length > 0) {
       pImages.forEach((url) => {
-        prodImgContainer.innerHTML += `<img src="${API_BASE_URL}${url}" onclick="window.open('${API_BASE_URL}${url}')">`;
+        prodImgContainer.innerHTML += `<img src="${API_BASE_URL}${url}" onclick="window.open('${API_BASE_URL}${url}')" style="width: 80px; height: 80px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px; cursor: zoom-in;">`;
       });
     } else {
       prodImgContainer.innerHTML = "<small style='color:#999'>無照片</small>";
