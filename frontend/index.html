@@ -2,65 +2,47 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>小跑豬傢俱海運試算 | 淘寶傢俱集運專家</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>小跑豬傢俱海運試算 | 專業集運</title>
     <link rel="icon" href="assets/logo.png" type="image/png" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
     />
     <script src="js/styleLoader.js"></script>
-    <style>
-      #announcement-bar {
-        display: none;
-        padding: 10px;
-        text-align: center;
-        color: white;
-        font-weight: bold;
-        position: relative;
-        z-index: 1001;
-        animation: fadeInDown 0.5s;
-      }
-      @keyframes fadeInDown {
-        from {
-          opacity: 0;
-          transform: translateY(-10px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-    </style>
   </head>
   <body class="shopping-theme">
-    <div id="announcement-bar"></div>
+    <div
+      id="announcement-bar"
+      style="
+        display: none;
+        background: #fff3cd;
+        color: #856404;
+        padding: 10px;
+        text-align: center;
+        font-size: 14px;
+      "
+    ></div>
 
     <header class="site-header">
       <div class="header-container">
         <a href="index.html" class="logo-link">
           <img
             src="assets/logo.png"
-            alt="小跑豬 LOGO"
+            alt="小跑豬"
             class="header-logo-img"
+            style="height: 40px"
           />
-          <span class="logo-text" style="font-size: 1.2rem"
-            >小跑豬家具專線</span
+          <span style="font-weight: 800; font-size: 1.4rem; color: #0056b3"
+            >小跑豬
+            <small style="font-weight: normal; font-size: 0.9rem"
+              >家具專線</small
+            ></span
           >
         </a>
-
-        <div class="header-search">
-          <div class="search-wrapper">
-            <input
-              type="text"
-              id="areaSearch"
-              placeholder="輸入配送地區 (例: 阿里山、淡水)..."
-              autocomplete="off"
-            />
-            <button class="search-btn"><i class="fas fa-search"></i></button>
-          </div>
-          <div id="searchResults" class="search-dropdown"></div>
-        </div>
 
         <nav class="header-nav main-nav"></nav>
       </div>
@@ -69,179 +51,104 @@
     <div class="container main-content">
       <div class="warehouse-card">
         <div class="warehouse-header">
-          <div class="wh-icon"><i class="fas fa-warehouse"></i></div>
           <div class="wh-title">
+            <i
+              class="fas fa-warehouse"
+              style="color: #0056b3; margin-right: 5px"
+            ></i>
             <h3>大陸集運倉地址</h3>
-            <span class="badge-official">家具專線</span>
+            <span class="badge-official">官方</span>
           </div>
           <button
             id="copyAddressBtn"
-            class="btn btn-outline-primary btn-sm btn-follow"
+            class="btn btn-outline-primary btn-sm"
+            style="border-radius: 20px; font-size: 12px"
           >
-            <i class="far fa-copy"></i> 一鍵複製
+            <i class="far fa-copy"></i> 複製
           </button>
         </div>
-
-        <div class="warehouse-body" id="warehouseAddressBox">
+        <div class="warehouse-body">
           <div class="wh-info-row">
-            <span class="label">收件人：</span>
+            <span class="label">收件人</span>
             <span class="value" id="wh-recipient">小跑豬+[您的姓名]</span>
           </div>
           <div class="wh-info-row">
-            <span class="label">電話：</span>
+            <span class="label">電話</span>
             <span class="value" id="wh-phone">13652554906</span>
           </div>
           <div class="wh-info-row">
-            <span class="label">郵編：</span>
+            <span class="label">郵編</span>
             <span class="value" id="wh-zip">523920</span>
           </div>
           <div class="wh-info-row full-width">
-            <span class="label">地址：</span>
+            <span class="label">地址</span>
             <span class="value" id="wh-address">載入中...</span>
-          </div>
-          <div class="wh-notice">
-            <i class="fas fa-exclamation-circle"></i>
-            請務必在收件人後方加上您的姓名，以免包裹遺失。
-          </div>
-        </div>
-      </div>
-
-      <div class="rate-section-wrapper">
-        <div class="section-header-row">
-          <h3><i class="fas fa-tags"></i> 收費標準</h3>
-          <button
-            class="btn-toggle-rates"
-            onclick="document.getElementById('rate-details-panel').classList.toggle('hidden')"
-          >
-            查看詳情 <i class="fas fa-chevron-down"></i>
-          </button>
-        </div>
-
-        <div id="rate-details-panel" class="rate-details hidden">
-          <div class="rate-table-container">
-            <table class="rate-table">
-              <thead>
-                <tr>
-                  <th>類別</th>
-                  <th>說明</th>
-                  <th>重量 (KG)</th>
-                  <th>材積 (材)</th>
-                </tr>
-              </thead>
-              <tbody id="rate-table-body">
-                <tr>
-                  <td colspan="4" style="text-align: center; padding: 20px">
-                    載入費率中...
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div class="rate-notes">
-            <strong><i class="fas fa-info-circle"></i> 運費說明：</strong>
-            <ul id="rate-notes-list">
-              <li>載入中...</li>
-            </ul>
           </div>
         </div>
       </div>
 
       <div id="calculator-section" class="calculator-wrapper">
-        <div class="section-header-row">
+        <div class="section-header-row" style="background: #fdfdfd">
           <h3><i class="fas fa-calculator"></i> 運費試算</h3>
           <span style="font-size: 12px; color: #999">
-            已有
-            <span id="usageCount" style="color: #ff5000; font-weight: bold"
-              >5000+</span
-            >
-            人使用
+            目前費率版本：<span style="color: #28a745">2025.11</span>
           </span>
         </div>
 
-        <div id="item-list" class="shopping-list">
-          <div class="item-group card-item" data-id="1"></div>
+        <div id="item-list" class="shopping-list" style="padding: 15px"></div>
+
+        <div style="padding: 0 15px 15px 15px">
+          <button id="btn-add-item" class="btn-dashed-add">
+            <i class="fas fa-plus-circle"></i> 加入下一件商品
+          </button>
         </div>
 
-        <button type="button" id="btn-add-item" class="btn btn-dashed-add">
-          <i class="fas fa-plus"></i> 加入下一件商品
-        </button>
-
-        <div class="delivery-block">
-          <h3><i class="fas fa-map-marker-alt"></i> 配送目的地</h3>
-
-          <div class="remote-area-notice">
-            <i class="fas fa-exclamation-triangle"></i>
-            部分偏遠地區需加收派送費，請搜尋或選擇您的區域。
-          </div>
-
-          <div class="select-wrapper" style="margin-top: 10px">
-            <select id="deliveryLocation" class="form-control">
-              <option value="" selected disabled>--- 載入中 ---</option>
-            </select>
-          </div>
-
-          <div
-            id="remoteAreaInfo"
-            class="selected-area-info"
-            style="display: none"
+        <div
+          class="delivery-block"
+          style="border-top: 1px solid #eee; padding: 20px"
+        >
+          <h4 style="margin-top: 0; color: #333">
+            <i class="fas fa-map-marker-alt"></i> 配送目的地
+          </h4>
+          <p style="font-size: 13px; color: #666; margin-bottom: 10px">
+            部分偏遠地區需加收派送費，請正確選擇以獲得精準報價。
+          </p>
+          <select
+            id="deliveryLocation"
+            class="form-control"
+            style="font-size: 16px; padding: 12px"
           >
-            <div class="area-result">
-              <span class="label">已選擇：</span>
-              <span id="selectedAreaName" class="val-name"></span>
-              <span id="selectedAreaFee" class="val-fee"></span>
-            </div>
-          </div>
+            <option value="" selected disabled>--- 資料載入中 ---</option>
+          </select>
         </div>
       </div>
 
-      <div id="loading-spinner" style="display: none" class="loading-overlay">
-        <div class="spinner"></div>
-        <p>正在計算運費...</p>
-      </div>
       <div
-        id="error-message"
-        class="alert alert-error"
-        style="display: none"
-      ></div>
+        id="loading-spinner"
+        style="display: none; text-align: center; padding: 30px"
+      >
+        <div class="spinner"></div>
+        <p style="color: #0056b3; margin-top: 10px">正在分析運費結構...</p>
+      </div>
 
       <div id="results-container" style="display: none; margin-top: 20px"></div>
 
       <div style="height: 80px"></div>
     </div>
 
-    <footer class="site-footer">
-      <div class="site-footer__container">
-        <div class="footer-links">
-          <a href="https://lin.ee/eK6HptX" target="_blank">
-            <i class="fab fa-line"></i> LINE 客服
-          </a>
-          <a href="mailto:2runtigers@gmail.com">
-            <i class="fas fa-envelope"></i> Email
-          </a>
-        </div>
-        <div class="site-footer__copyright">
-          © 2025 兩隻老虎國際貿易有限公司 |
-          <a href="admin-login.html" class="admin-link">管理員登入</a>
-        </div>
-      </div>
-    </footer>
-
     <div class="sticky-footer-bar">
       <div class="footer-content">
         <div class="footer-total">
-          <span class="text">預估總額：</span>
-          <span class="price" id="sticky-total-price">請點擊計算</span>
+          <div class="text">預估總運費</div>
+          <div class="price" id="sticky-total-price">$0</div>
         </div>
-        <button type="button" id="btn-calculate" class="btn btn-checkout">
-          開始計算
-        </button>
+        <button id="btn-calculate" class="btn btn-checkout">開始試算</button>
       </div>
     </div>
 
     <nav class="mobile-bottom-nav" id="mobile-bottom-nav"></nav>
 
     <script src="js/apiConfig.js"></script>
-    <script src="js/shippingData.js"></script>
     <script src="js/navigation.js"></script>
     <script src="js/main.js"></script>
   </body>
