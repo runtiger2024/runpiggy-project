@@ -1,4 +1,4 @@
-// frontend/js/dashboard-packages.js (V22.2 - 完整版)
+// frontend/js/dashboard-packages.js (V22.3 - 修復列表運費顯示問題)
 // 負責：包裹列表、預報、編輯、刪除、詳細算式彈窗
 
 let currentEditPackageImages = [];
@@ -34,10 +34,13 @@ function renderPackagesTable() {
     return;
   }
 
+  // 取得全域費率設定，若無則使用預設值
   const CONSTANTS = window.CONSTANTS || {
+    VOLUME_DIVISOR: 28317,
     OVERSIZED_LIMIT: 300,
     OVERWEIGHT_LIMIT: 100,
   };
+  const RATES = window.RATES || {};
   const statusMap = window.PACKAGE_STATUS_MAP || {};
   const statusClasses = window.STATUS_CLASSES || {};
 
@@ -46,42 +49,66 @@ function renderPackagesTable() {
     const statusClass = statusClasses[pkg.status] || "";
     const isArrived = pkg.status === "ARRIVED";
 
-    // 分析包裹內容 (總重、箱數、是否超規)
+    // 分析包裹內容 (總重、箱數、是否超規、即時計算運費)
     let infoHtml = "<span>-</span>";
     let badgesHtml = "";
 
     const boxes = Array.isArray(pkg.arrivedBoxes) ? pkg.arrivedBoxes : [];
-    if (boxes.length > 0) {
-      const totalW = boxes.reduce(
-        (acc, b) => acc + (parseFloat(b.weight) || 0),
-        0
-      );
 
-      // 檢查超規
+    if (boxes.length > 0) {
+      let totalW = 0;
+      let calculatedTotal = 0; // [修正] 用於列表顯示的即時運費
+
+      // 檢查超規變數
       let hasOversized = false;
       let hasOverweight = false;
+
       boxes.forEach((b) => {
+        const w = parseFloat(b.weight) || 0;
+        const l = parseFloat(b.length) || 0;
+        const wd = parseFloat(b.width) || 0;
+        const h = parseFloat(b.height) || 0;
+        const type = b.type || "general";
+
+        totalW += w;
+
+        // [修正] 列表即時運費計算邏輯 (與詳情頁保持一致)
+        const rateInfo = RATES[type] || { weightRate: 0, volumeRate: 0 };
+        const cai = Math.ceil((l * wd * h) / CONSTANTS.VOLUME_DIVISOR);
+        const volFee = cai * rateInfo.volumeRate;
+        const wtFee = (Math.ceil(w * 10) / 10) * rateInfo.weightRate;
+        const boxFee = Math.max(volFee, wtFee);
+        calculatedTotal += boxFee;
+
+        // 超規判斷
         if (
-          parseFloat(b.length) > CONSTANTS.OVERSIZED_LIMIT ||
-          parseFloat(b.width) > CONSTANTS.OVERSIZED_LIMIT ||
-          parseFloat(b.height) > CONSTANTS.OVERSIZED_LIMIT
-        )
+          l > CONSTANTS.OVERSIZED_LIMIT ||
+          wd > CONSTANTS.OVERSIZED_LIMIT ||
+          h > CONSTANTS.OVERSIZED_LIMIT
+        ) {
           hasOversized = true;
-        if (parseFloat(b.weight) > CONSTANTS.OVERWEIGHT_LIMIT)
+        }
+        if (w > CONSTANTS.OVERWEIGHT_LIMIT) {
           hasOverweight = true;
+        }
       });
 
+      // 產生標籤 HTML
       if (hasOversized)
         badgesHtml += `<span class="badge-alert small">超長</span> `;
       if (hasOverweight)
         badgesHtml += `<span class="badge-alert small">超重</span>`;
 
+      // [修正] 優先顯示即時計算的 calculatedTotal，若為0則嘗試顯示資料庫的 totalCalculatedFee
+      const displayFee =
+        calculatedTotal > 0 ? calculatedTotal : pkg.totalCalculatedFee || 0;
+
       infoHtml = `
         <div class="pkg-meta-info">
           <span>${boxes.length}箱 / ${totalW.toFixed(1)}kg</span>
           ${
-            pkg.totalCalculatedFee
-              ? `<span class="fee-highlight">$${pkg.totalCalculatedFee.toLocaleString()}</span>`
+            displayFee > 0
+              ? `<span class="fee-highlight">$${displayFee.toLocaleString()}</span>`
               : ""
           }
         </div>
@@ -153,7 +180,7 @@ window.openPackageDetails = function (pkgDataStr) {
       : [];
     let boxesHtml = "";
 
-    // 初始化前端累加總金額 (解決資料庫欄位可能未更新的問題)
+    // 初始化前端累加總金額
     let currentTotalFee = 0;
 
     if (arrivedBoxes.length > 0) {
@@ -239,7 +266,7 @@ window.openPackageDetails = function (pkgDataStr) {
       }
       boxesListContainer.innerHTML = boxesHtml;
     } else {
-      // 如果沒有分箱資料，但 totalCalculatedFee 有值 (可能是舊資料)，則回退使用後端值
+      // 回退邏輯：若無分箱資料但有舊的總金額
       currentTotalFee = pkg.totalCalculatedFee || 0;
       boxesListContainer.innerHTML =
         '<p style="text-align: center; color: #888; padding:20px; background:#f9f9f9; border-radius:8px;">📦 倉庫尚未測量數據</p>';
