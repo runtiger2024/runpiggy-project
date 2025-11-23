@@ -1,13 +1,34 @@
-// frontend/js/main.js (V18 - 新增分享估價單功能)
-// 包含：前端預設值、後端API整合、詳細算式渲染、分享功能
+// frontend/js/main.js (V20 - 修復 undefined 與欄位對應)
 
 // --- 前端備案設定 (當後端完全掛掉時使用) ---
 const fallbackSettings = {
   rates: {
-    general: { name: "一般家具", weightRate: 22, volumeRate: 125 },
-    special_a: { name: "特殊家具A", weightRate: 32, volumeRate: 184 },
-    special_b: { name: "特殊家具B", weightRate: 40, volumeRate: 224 },
-    special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
+    general: {
+      name: "一般家具",
+      description: "沙發、床架、桌椅、櫃子、書架...",
+      weightRate: 22,
+      volumeRate: 125,
+    },
+    special_a: {
+      name: "特殊家具A",
+      description:
+        "大理石、岩板家具、普通馬桶、床墊、地板、格柵、屏風、浴室架、水龍頭、浴室櫃、臉盆、浴缸...",
+      weightRate: 32,
+      volumeRate: 184,
+    },
+    special_b: {
+      name: "特殊家具B",
+      description:
+        "門、磁磚、背景岩板、鏡子、玻璃屏風、智能家具、建材類、燈具、保險箱...",
+      weightRate: 40,
+      volumeRate: 224,
+    },
+    special_c: {
+      name: "特殊家具C",
+      description: "智能馬桶、冰箱、帶電大家電",
+      weightRate: 50,
+      volumeRate: 274,
+    },
   },
   constants: {
     VOLUME_DIVISOR: 28317,
@@ -24,23 +45,20 @@ const fallbackSettings = {
     phone: "13652554906",
     zip: "523920",
   },
-  remoteAreas: {
-    0: ["一般地區"], // 至少要有這個選項
-  },
+  remoteAreas: { 0: ["一般地區"] },
 };
 
 let currentCalculationResult = null;
 let itemIdCounter = 1;
 
 document.addEventListener("DOMContentLoaded", () => {
-  loadPublicSettings(); // 嘗試載入後端設定
-  setupEventListeners(); // 綁定按鈕
+  loadPublicSettings();
+  setupEventListeners();
 
-  // 自動初始化第一個商品輸入卡片
   const firstItem = createItemElement(itemIdCounter);
   document.getElementById("item-list").appendChild(firstItem);
 
-  // 先用備案資料渲染一次，避免畫面空白
+  // 預先載入備案，避免空白
   window.RATES = fallbackSettings.rates;
   window.CONSTANTS = fallbackSettings.constants;
   window.REMOTE_AREAS = fallbackSettings.remoteAreas;
@@ -53,7 +71,6 @@ async function loadPublicSettings() {
     const res = await fetch(`${API_BASE_URL}/api/calculator/config`);
     if (res.ok) {
       const data = await res.json();
-      // 使用後端回傳的資料更新 UI
       if (data.rates) {
         window.RATES = data.rates.categories;
         window.CONSTANTS = data.rates.constants;
@@ -64,19 +81,14 @@ async function loadPublicSettings() {
         warehouseInfo: data.warehouseInfo,
         announcement: data.announcement,
       });
-    } else {
-      throw new Error("API response not ok");
     }
   } catch (e) {
-    console.warn("後端連線失敗，使用前端備案設定:", e);
-    // 如果連線失敗，確保 UI 顯示的是備案資料
+    console.warn("API連線失敗，使用備案設定:", e);
     updateUIWithSettings(fallbackSettings);
   }
 }
 
-// 統一更新 UI 的函式
 function updateUIWithSettings(data) {
-  // 1. 更新倉庫資訊
   if (data.warehouseInfo) {
     const info = data.warehouseInfo;
     setText(
@@ -91,12 +103,8 @@ function updateUIWithSettings(data) {
     setText("wh-zip", info.zip || fallbackSettings.warehouseInfo.zip);
   }
 
-  // 2. 更新公告
-  if (data.announcement) {
-    renderAnnouncement(data.announcement);
-  }
+  if (data.announcement) renderAnnouncement(data.announcement);
 
-  // 3. 更新費率表與地區選單
   renderRateTable();
   renderRemoteAreaOptions();
   updateItemTypeSelects();
@@ -110,7 +118,6 @@ function setText(id, text) {
 function renderAnnouncement(ann) {
   const bar = document.getElementById("announcement-bar");
   if (!bar) return;
-
   if (ann && ann.enabled && ann.text) {
     bar.style.display = "block";
     bar.textContent = ann.text;
@@ -121,15 +128,22 @@ function renderAnnouncement(ann) {
   }
 }
 
+// [核心修復] 渲染費率表
 function renderRateTable() {
   const tbody = document.getElementById("rate-table-body");
   const noteList = document.getElementById("rate-notes-list");
   if (!tbody || !window.RATES) return;
 
   tbody.innerHTML = "";
-  Object.values(window.RATES).forEach((rate) => {
-    let desc = "一般傢俱";
-    if (rate.name.includes("特殊")) desc = "易碎品/大理石/帶電";
+  Object.entries(window.RATES).forEach(([key, rate]) => {
+    // 防呆邏輯：如果 description 是 undefined 或 "undefined" 字串，使用預設值
+    let desc = rate.description;
+
+    // 如果後端沒有回傳說明，根據 key 給予預設文字
+    if (!desc || desc === "undefined" || desc.trim() === "") {
+      if (key === "general") desc = "一般傢俱";
+      else desc = "易碎品/大理石/帶電";
+    }
 
     tbody.innerHTML += `
       <tr>
@@ -153,14 +167,11 @@ function renderRateTable() {
 function renderRemoteAreaOptions() {
   const select = document.getElementById("deliveryLocation");
   if (!select || !window.REMOTE_AREAS) return;
-
   let html = `<option value="" selected disabled>--- 選擇配送地區 ---</option>`;
   html += `<option value="0">✅ 一般地區 (免加價)</option>`;
-
   const sortedFees = Object.keys(window.REMOTE_AREAS).sort((a, b) => a - b);
   sortedFees.forEach((fee) => {
     if (fee === "0") return;
-
     const areas = window.REMOTE_AREAS[fee];
     if (Array.isArray(areas) && areas.length > 0) {
       html += `<optgroup label="加收 $${fee}">`;
@@ -178,7 +189,6 @@ function updateItemTypeSelects() {
   const opts = Object.entries(window.RATES)
     .map(([k, v]) => `<option value="${k}">${v.name}</option>`)
     .join("");
-
   document.querySelectorAll(".item-type").forEach((sel) => {
     const val = sel.value;
     sel.innerHTML = opts;
@@ -186,17 +196,15 @@ function updateItemTypeSelects() {
   });
 }
 
-// --- 2. 建立商品卡片 (HTML 結構) ---
+// ... (其餘 createItemElement, handleCalculate 等邏輯保持不變)
 function createItemElement(id) {
   const div = document.createElement("div");
   div.className = "item-group card-item";
   div.dataset.id = id;
-
   const deleteBtn =
     id > 1
       ? `<button type="button" class="btn-remove-item" onclick="this.closest('.card-item').remove()" style="color:#e74c3c; border:none; background:none;"><i class="fas fa-trash"></i></button>`
       : "";
-
   div.innerHTML = `
     <div class="item-header">
       <span class="item-index"><i class="fas fa-box"></i> 商品 #${id}</span>
@@ -211,24 +219,20 @@ function createItemElement(id) {
         <label>商品種類 <span class="required">*</span></label>
         <select class="item-type form-control"></select>
       </div>
-      
       <div class="form-group">
         <div class="calc-method-toggle">
           <label><input type="radio" name="method-${id}" value="dim" checked onchange="toggleMethod(this, ${id})"> 輸入尺寸 (cm)</label>
           <label><input type="radio" name="method-${id}" value="cbm" onchange="toggleMethod(this, ${id})"> 輸入體積 (CBM)</label>
         </div>
-        
         <div class="dims-input input-group-3" id="dims-${id}">
           <div class="input-wrap"><input type="number" class="item-l" placeholder="長"><span class="unit">cm</span></div>
           <div class="input-wrap"><input type="number" class="item-w" placeholder="寬"><span class="unit">cm</span></div>
           <div class="input-wrap"><input type="number" class="item-h" placeholder="高"><span class="unit">cm</span></div>
         </div>
-        
         <div class="cbm-input" id="cbm-${id}" style="display:none;">
           <div class="input-wrap"><input type="number" class="item-cbm" placeholder="總立方數"><span class="unit">m³</span></div>
         </div>
       </div>
-
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
         <div class="form-group">
           <label>單件重量 <span class="required">*</span></label>
@@ -251,7 +255,6 @@ window.toggleMethod = function (radio, id) {
     radio.value === "cbm" ? "block" : "none";
 };
 
-// --- 3. 計算邏輯 ---
 async function handleCalculate() {
   const items = [];
   const itemEls = document.querySelectorAll(".item-group");
@@ -266,14 +269,11 @@ async function handleCalculate() {
   }
 
   let valid = true;
-
   itemEls.forEach((el) => {
     const id = el.dataset.id;
     const method = el.querySelector(`input[name="method-${id}"]:checked`).value;
     const weight = parseFloat(el.querySelector(".item-weight").value);
-
     if (isNaN(weight) || weight <= 0) valid = false;
-
     items.push({
       name: el.querySelector(".item-name").value || `商品 ${id}`,
       type: el.querySelector(".item-type").value,
@@ -313,7 +313,6 @@ async function handleCalculate() {
       }),
     });
     const data = await res.json();
-
     if (data.success) {
       currentCalculationResult = data.calculationResult;
       renderDetailedResults(data.calculationResult, data.rulesApplied);
@@ -341,11 +340,8 @@ function setupEventListeners() {
       updateItemTypeSelects();
     });
   }
-
   const calcBtn = document.getElementById("btn-calculate");
-  if (calcBtn) {
-    calcBtn.addEventListener("click", handleCalculate);
-  }
+  if (calcBtn) calcBtn.addEventListener("click", handleCalculate);
 
   const copyBtn = document.getElementById("copyAddressBtn");
   if (copyBtn) {
@@ -355,14 +351,12 @@ function setupEventListeners() {
       }\n電話：${document.getElementById("wh-phone").innerText}\n地址：${
         document.getElementById("wh-address").innerText
       }\n郵編：${document.getElementById("wh-zip").innerText}`;
-
       navigator.clipboard.writeText(txt).then(() => alert("地址已複製！"));
     });
   }
 
   const searchInput = document.getElementById("areaSearch");
   const searchResults = document.getElementById("searchResults");
-
   if (searchInput && searchResults) {
     searchInput.addEventListener("input", (e) => {
       const term = e.target.value.trim().toLowerCase();
@@ -370,7 +364,6 @@ function setupEventListeners() {
         searchResults.style.display = "none";
         return;
       }
-
       const matches = [];
       if (window.REMOTE_AREAS) {
         for (const [fee, areas] of Object.entries(window.REMOTE_AREAS)) {
@@ -379,15 +372,11 @@ function setupEventListeners() {
           });
         }
       }
-
       if (matches.length > 0) {
         searchResults.innerHTML = matches
           .map(
             (m) =>
-              `<div class="search-result-item" onclick="selectRemoteArea('${m.area}', ${m.fee})">
-             <span>📍 ${m.area}</span>
-             <span style="color:#d32f2f; font-weight:bold;">+$${m.fee}</span>
-           </div>`
+              `<div class="search-result-item" onclick="selectRemoteArea('${m.area}', ${m.fee})"><span>📍 ${m.area}</span><span style="color:#d32f2f; font-weight:bold;">+$${m.fee}</span></div>`
           )
           .join("");
         searchResults.style.display = "block";
@@ -395,7 +384,6 @@ function setupEventListeners() {
         searchResults.style.display = "none";
       }
     });
-
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".header-search"))
         searchResults.style.display = "none";
@@ -408,7 +396,6 @@ function setupEventListeners() {
       const infoBox = document.getElementById("remoteAreaInfo");
       const nameEl = document.getElementById("selectedAreaName");
       const feeEl = document.getElementById("selectedAreaFee");
-
       if (delivSelect.value !== "") {
         infoBox.style.display = "block";
         const opt = delivSelect.options[delivSelect.selectedIndex];
@@ -441,7 +428,6 @@ window.selectRemoteArea = function (name, fee) {
   }
 };
 
-// --- 4. 詳細算式渲染 ---
 function renderDetailedResults(result, rules) {
   const container = document.getElementById("results-container");
   const stickyTotal = document.getElementById("sticky-total-price");
@@ -449,71 +435,56 @@ function renderDetailedResults(result, rules) {
     stickyTotal.textContent = `$${result.finalTotal.toLocaleString()}`;
 
   let html = `<h3 style="text-align:center; color:#0056b3; margin-bottom:20px;">📊 費用計算明細表</h3>`;
-
-  // 1. 逐項明細
   result.allItemsData.forEach((item, index) => {
     const isVolWin = item.itemVolumeCost >= item.itemWeightCost;
-
-    let formulaHtml = "";
-    if (item.calcMethod === "dimensions") {
-      formulaHtml = `<span class="formula-box">(${item.length}x${item.width}x${item.height})÷${rules.VOLUME_DIVISOR}</span>`;
-    } else {
-      formulaHtml = `<span class="formula-box">${item.cbm} x ${rules.CBM_TO_CAI_FACTOR}</span>`;
-    }
+    let formulaHtml =
+      item.calcMethod === "dimensions"
+        ? `<span class="formula-box">(${item.length}x${item.width}x${item.height})÷${rules.VOLUME_DIVISOR}</span>`
+        : `<span class="formula-box">${item.cbm} x ${rules.CBM_TO_CAI_FACTOR}</span>`;
 
     html += `
       <div class="result-detail-card">
         <h3><i class="fas fa-cube"></i> 第 ${index + 1} 項：${
       item.name
     } <small>x${item.quantity}件</small></h3>
-        
         <div class="detail-section">
           <h4>1. 數據計算</h4>
-          <div class="calc-line">
-            <span>單件重量:</span> <b>${item.singleWeight} kg</b>
-          </div>
-          <div class="calc-line">
-            <span>單件材積:</span> <div>${formulaHtml} = <b>${
+          <div class="calc-line"><span>單件重量:</span> <b>${
+            item.singleWeight
+          } kg</b></div>
+          <div class="calc-line"><span>單件材積:</span> <div>${formulaHtml} = <b>${
       item.singleVolume
-    } 材</b></div>
-          </div>
-          <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #eee; font-size:13px; color:#666;">
-            總重 ${item.totalWeight} kg / 總材積 ${item.totalVolume} 材
-          </div>
+    } 材</b></div></div>
+          <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #eee; font-size:13px; color:#666;">總重 ${
+            item.totalWeight
+          } kg / 總材積 ${item.totalVolume} 材</div>
         </div>
-
         <div class="detail-section">
           <h4>2. 費用試算 (取較高者)</h4>
-          
           <div class="calc-line ${isVolWin ? "winner" : ""}" style="opacity:${
       isVolWin ? 1 : 0.5
     }">
-            <span>材積費 (${item.rateInfo.volumeRate}/材)</span>
-            <b>$${item.itemVolumeCost.toLocaleString()}</b>
-            ${
-              isVolWin
-                ? '<i class="fas fa-check-circle" style="color:#fa8c16;"></i>'
-                : ""
-            }
+            <span>材積費 (${
+              item.rateInfo.volumeRate
+            }/材)</span><b>$${item.itemVolumeCost.toLocaleString()}</b>${
+      isVolWin
+        ? '<i class="fas fa-check-circle" style="color:#fa8c16;"></i>'
+        : ""
+    }
           </div>
-          
           <div class="calc-line ${!isVolWin ? "winner" : ""}" style="opacity:${
       !isVolWin ? 1 : 0.5
     }">
-            <span>重量費 (${item.rateInfo.weightRate}/kg)</span>
-            <b>$${item.itemWeightCost.toLocaleString()}</b>
-            ${
-              !isVolWin
-                ? '<i class="fas fa-check-circle" style="color:#fa8c16;"></i>'
-                : ""
-            }
+            <span>重量費 (${
+              item.rateInfo.weightRate
+            }/kg)</span><b>$${item.itemWeightCost.toLocaleString()}</b>${
+      !isVolWin
+        ? '<i class="fas fa-check-circle" style="color:#fa8c16;"></i>'
+        : ""
+    }
           </div>
-
-          <div style="text-align:right; margin-top:10px; font-weight:bold; color:#0056b3;">
-            本項小計：$${item.itemFinalCost.toLocaleString()}
-          </div>
+          <div style="text-align:right; margin-top:10px; font-weight:bold; color:#0056b3;">本項小計：$${item.itemFinalCost.toLocaleString()}</div>
         </div>
-        
         ${
           item.hasOversizedItem
             ? '<div class="alert alert-error" style="margin:10px; font-size:12px;">⚠️ 此商品尺寸超長，整單將加收超長費。</div>'
@@ -528,29 +499,18 @@ function renderDetailedResults(result, rules) {
     `;
   });
 
-  // 2. 總結卡片 (包含分享按鈕)
   html += `
     <div class="result-summary-card">
       <h3>💰 費用總結</h3>
-      <div class="summary-row">
-        <span>基本運費加總</span>
-        <span>$${result.initialSeaFreightCost.toLocaleString()}</span>
-      </div>
-      
+      <div class="summary-row"><span>基本運費加總</span><span>$${result.initialSeaFreightCost.toLocaleString()}</span></div>
       ${
         result.finalSeaFreightCost > result.initialSeaFreightCost
-          ? `<div class="summary-row" style="color:#2e7d32; background:#f6ffed;">
-           <span><i class="fas fa-arrow-up"></i> 未達低消，以低消計</span>
-           <span>$${rules.MINIMUM_CHARGE.toLocaleString()}</span>
-         </div>`
+          ? `<div class="summary-row" style="color:#2e7d32; background:#f6ffed;"><span><i class="fas fa-arrow-up"></i> 未達低消，以低消計</span><span>$${rules.MINIMUM_CHARGE.toLocaleString()}</span></div>`
           : ""
       }
-
-      <div class="summary-row">
-        <span>偏遠地區費 ($${result.remoteAreaRate}/方)</span>
-        <span>+$${result.remoteFee.toLocaleString()}</span>
-      </div>
-
+      <div class="summary-row"><span>偏遠地區費 ($${
+        result.remoteAreaRate
+      }/方)</span><span>+$${result.remoteFee.toLocaleString()}</span></div>
       ${
         result.totalOverweightFee > 0
           ? `<div class="summary-row" style="color:#fa8c16"><span>⚠️ 超重附加費</span><span>+$${result.totalOverweightFee}</span></div>`
@@ -561,34 +521,21 @@ function renderDetailedResults(result, rules) {
           ? `<div class="summary-row" style="color:#fa8c16"><span>⚠️ 超長附加費</span><span>+$${result.totalOversizedFee}</span></div>`
           : ""
       }
-
-      <div class="summary-total">
-        <small>預估總運費 (台幣)</small>
-        NT$ ${result.finalTotal.toLocaleString()}
-      </div>
-      
+      <div class="summary-total"><small>預估總運費 (台幣)</small>NT$ ${result.finalTotal.toLocaleString()}</div>
       <div style="padding:0 20px 20px 20px; display: flex; gap: 10px;">
-        <button class="btn btn-secondary" style="flex: 1;" onclick="window.saveToForecast()">
-          <i class="fas fa-box-open"></i> 帶入預報
-        </button>
-        <button class="btn btn-outline-primary" style="flex: 1; border-color: var(--color-primary); color: var(--color-primary);" onclick="window.createShareLink()">
-          <i class="fas fa-share-alt"></i> 分享結果
-        </button>
+        <button class="btn btn-secondary" style="flex: 1;" onclick="window.saveToForecast()"><i class="fas fa-box-open"></i> 帶入預報</button>
+        <button class="btn btn-outline-primary" style="flex: 1; border-color: var(--color-primary); color: var(--color-primary);" onclick="window.createShareLink()"><i class="fas fa-share-alt"></i> 分享結果</button>
       </div>
     </div>
   `;
-
   container.innerHTML = html;
   container.style.display = "block";
-
   setTimeout(() => {
     container.scrollIntoView({ behavior: "smooth", block: "start" });
   }, 100);
-
   window.currentCalculationResult = result;
 }
 
-// --- 功能 1: 帶入預報 ---
 window.saveToForecast = function () {
   if (!window.currentCalculationResult) return;
   localStorage.setItem(
@@ -605,26 +552,19 @@ window.saveToForecast = function () {
   }
 };
 
-// ... (前面保持不變) ...
-
-// --- 功能 2: 產生分享連結 (V19 - 終極修復版：解決手機瀏覽器攔截問題) ---
 window.createShareLink = async function () {
   if (!window.currentCalculationResult) {
     alert("目前沒有試算結果可分享！");
     return;
   }
-
   const shareBtn = document.querySelector(
     ".result-summary-card .btn-outline-primary"
   );
-  // 1. 為了使用者體驗，先改變按鈕文字
   if (shareBtn) {
     shareBtn.disabled = true;
     shareBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 連結產生中...';
   }
-
   try {
-    // 2. 請求後端建立連結
     const res = await fetch(`${API_BASE_URL}/api/quotes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -632,33 +572,22 @@ window.createShareLink = async function () {
         calculationResult: window.currentCalculationResult,
       }),
     });
-
     if (!res.ok) throw new Error("無法建立分享連結 (API Error)");
-
     const data = await res.json();
     const shareUrl = `${window.location.origin}/quote.html?id=${data.id}`;
-
-    // 3. [關鍵策略] 嘗試自動複製
-    // 注意：在 iOS 或非 HTTPS 環境下，這裡極高機率會被瀏覽器擋下 (Promise Rejected)
     navigator.clipboard
       .writeText(shareUrl)
       .then(() => {
-        // A計畫成功：瀏覽器允許直接複製
         alert("✅ 連結已複製！\n您可以直接貼上分享給朋友。");
       })
       .catch((err) => {
-        // B計畫：被瀏覽器攔截 (常見於手機)，改用彈窗模式
-        console.warn(
-          "自動複製被攔截 (這是正常的瀏覽器安全機制)，改用手動模式:",
-          err
-        );
+        console.warn("自動複製被攔截，改用手動模式:", err);
         showShareModal(shareUrl);
       });
   } catch (e) {
     console.error(e);
     alert("分享失敗，請檢查網路或聯絡管理員。\n錯誤: " + e.message);
   } finally {
-    // 恢復按鈕狀態
     if (shareBtn) {
       shareBtn.disabled = false;
       shareBtn.innerHTML = '<i class="fas fa-share-alt"></i> 分享結果';
@@ -666,59 +595,31 @@ window.createShareLink = async function () {
   }
 };
 
-/**
- * [新增] 顯示分享連結的專用彈窗
- * 用途：當自動複製失敗時，顯示一個輸入框與按鈕。
- * 解決方案：這個視窗內的「複製」按鈕是同步觸發的，瀏覽器絕對允許複製。
- */
 function showShareModal(url) {
-  // 1. 檢查是否已存在，不存在則建立 DOM
   let modal = document.getElementById("share-link-modal");
-
   if (!modal) {
     modal = document.createElement("div");
     modal.id = "share-link-modal";
     modal.className = "modal-overlay";
-    modal.style.zIndex = "9999"; // 確保在最上層
-
-    // 動態生成 HTML
+    modal.style.zIndex = "9999";
     modal.innerHTML = `
       <div class="modal-content" style="max-width: 400px; text-align: center; padding: 25px;">
         <button class="modal-close-btn" type="button" onclick="document.getElementById('share-link-modal').style.display='none'">&times;</button>
-        
-        <div style="margin-bottom: 15px;">
-          <i class="fas fa-link" style="font-size: 40px; color: var(--color-primary);"></i>
-        </div>
-        
+        <div style="margin-bottom: 15px;"><i class="fas fa-link" style="font-size: 40px; color: var(--color-primary);"></i></div>
         <h3 style="margin: 0 0 10px 0; color: #333;">分享連結已建立</h3>
-        <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
-          由於瀏覽器安全限制，請點擊下方按鈕複製，<br>或是長按輸入框選取文字。
-        </p>
-        
+        <p style="color: #666; font-size: 14px; margin-bottom: 20px;">由於瀏覽器安全限制，請點擊下方按鈕複製，<br>或是長按輸入框選取文字。</p>
         <div style="position: relative; margin-bottom: 20px;">
-          <input type="text" id="share-url-input" class="form-control" readonly 
-                 style="text-align: center; font-size: 14px; padding-right: 40px; background: #f8f9fa; border: 1px solid #ddd; color: #1a73e8; font-weight: bold;" 
-                 onclick="this.select();">
+          <input type="text" id="share-url-input" class="form-control" readonly style="text-align: center; font-size: 14px; padding-right: 40px; background: #f8f9fa; border: 1px solid #ddd; color: #1a73e8; font-weight: bold;" onclick="this.select();">
         </div>
-        
-        <button id="btn-manual-copy" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 16px;">
-          <i class="far fa-copy"></i> 點擊複製連結
-        </button>
+        <button id="btn-manual-copy" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 16px;"><i class="far fa-copy"></i> 點擊複製連結</button>
       </div>
     `;
     document.body.appendChild(modal);
-
-    // 綁定 "手動複製" 按鈕事件 (這是使用者當下的點擊，屬於同步事件，保證成功)
     document.getElementById("btn-manual-copy").addEventListener("click", () => {
       const input = document.getElementById("share-url-input");
-
-      // 針對手機的選取優化
       input.select();
-      input.setSelectionRange(0, 99999); // For iOS Safari
-
-      // 執行複製指令
+      input.setSelectionRange(0, 99999);
       try {
-        // 優先嘗試 Clipboard API (在此同步事件中通常會成功)
         navigator.clipboard
           .writeText(input.value)
           .then(() => {
@@ -726,21 +627,16 @@ function showShareModal(url) {
             document.getElementById("share-link-modal").style.display = "none";
           })
           .catch(() => {
-            // 極端情況 fallback：使用舊版 execCommand
             document.execCommand("copy");
             alert("✅ 複製成功！");
             document.getElementById("share-link-modal").style.display = "none";
           });
       } catch (err) {
-        // 真的沒辦法了，提示用戶長按
         alert("請長按輸入框內的網址進行手動複製。");
       }
     });
   }
-
-  // 2. 更新連結並顯示
   const input = document.getElementById("share-url-input");
   if (input) input.value = url;
-
   modal.style.display = "flex";
 }
