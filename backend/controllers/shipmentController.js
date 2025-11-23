@@ -1,8 +1,108 @@
-// backend/controllers/shipmentController.js (V9 優化版 - 包含運費預估)
+// backend/controllers/shipmentController.js (V10.0 - 完整修復版)
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
 const ratesManager = require("../utils/ratesManager.js");
+
+/**
+ * 核心輔助函式：計算整筆集運單的費用細節
+ * 包含：重新計算基本運費、總材積(CBM)、偏遠費、超規費、低消補足
+ */
+const calculateShipmentDetails = (packages, rates, deliveryRate) => {
+  const CONSTANTS = rates.constants;
+  const CATEGORIES = rates.categories;
+
+  let baseCost = 0; // 基本運費總和
+  let totalVolumeDivisor = 0; // 總材積數累加 (sum of (LxWxH)/DIVISOR)
+  let hasOversized = false;
+  let hasOverweight = false;
+
+  packages.forEach((pkg) => {
+    try {
+      const boxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
+
+      // 如果有分箱數據，依照分箱重新計算運費 (最準確)
+      if (boxes.length > 0) {
+        boxes.forEach((box) => {
+          const l = parseFloat(box.length) || 0;
+          const w = parseFloat(box.width) || 0;
+          const h = parseFloat(box.height) || 0;
+          const weight = parseFloat(box.weight) || 0;
+          const type = box.type || "general";
+          const rateInfo = CATEGORIES[type] || { weightRate: 0, volumeRate: 0 };
+
+          // 檢查超規
+          if (
+            l > CONSTANTS.OVERSIZED_LIMIT ||
+            w > CONSTANTS.OVERSIZED_LIMIT ||
+            h > CONSTANTS.OVERSIZED_LIMIT
+          ) {
+            hasOversized = true;
+          }
+          if (weight > CONSTANTS.OVERWEIGHT_LIMIT) {
+            hasOverweight = true;
+          }
+
+          // 計算單箱運費
+          if (l > 0 && w > 0 && h > 0 && weight > 0) {
+            // 材積 = (長x寬x高)/除數 (無條件進位)
+            const cai = Math.ceil((l * w * h) / CONSTANTS.VOLUME_DIVISOR);
+            totalVolumeDivisor += cai; // 累加總材積數，稍後換算 CBM 用於偏遠費
+
+            // 材積費
+            const volFee = cai * rateInfo.volumeRate;
+            // 重量費 (小數點後一位進位)
+            const wtFee = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
+
+            // 取大者累加到基本運費
+            baseCost += Math.max(volFee, wtFee);
+          }
+        });
+      } else {
+        // 若無分箱數據 (舊資料)，回退使用資料庫儲存的費用
+        baseCost += pkg.totalCalculatedFee || 0;
+      }
+    } catch (e) {
+      console.error(`Error calculating package ${pkg.id}:`, e);
+      // 出錯時的回退機制
+      baseCost += pkg.totalCalculatedFee || 0;
+    }
+  });
+
+  // 計算附加費
+  const overweightFee = hasOverweight ? CONSTANTS.OVERWEIGHT_FEE : 0;
+  const oversizedFee = hasOversized ? CONSTANTS.OVERSIZED_FEE : 0;
+
+  // 計算偏遠費
+  // Total CBM = Total Cai / Factor (保留兩位小數)
+  const totalCbm = parseFloat(
+    (totalVolumeDivisor / CONSTANTS.CBM_TO_CAI_FACTOR).toFixed(2)
+  );
+  const remoteFee = Math.round(totalCbm * (parseFloat(deliveryRate) || 0));
+
+  // 低消判斷 (針對基本運費)
+  let finalBaseCost = baseCost;
+  const isMinimumChargeApplied =
+    baseCost > 0 && baseCost < CONSTANTS.MINIMUM_CHARGE;
+  if (isMinimumChargeApplied) {
+    finalBaseCost = CONSTANTS.MINIMUM_CHARGE;
+  }
+
+  const totalCost = finalBaseCost + overweightFee + oversizedFee + remoteFee;
+
+  return {
+    totalCost,
+    baseCost: finalBaseCost, // 最終基本運費 (含低消補足)
+    originalBaseCost: baseCost, // 真實計算出的運費 (未算低消前)
+    remoteFee,
+    totalCbm, // 回傳總 CBM 供前端顯示公式
+    overweightFee,
+    oversizedFee,
+    isMinimumChargeApplied,
+    hasOversized,
+    hasOverweight,
+  };
+};
 
 /**
  * @description 預估集運單費用 (不建立訂單)
@@ -17,7 +117,6 @@ const previewShipmentCost = async (req, res) => {
       return res.status(400).json({ success: false, message: "請選擇包裹" });
     }
 
-    // 1. 查詢包裹 (確保是自己的且已入庫)
     const packagesToShip = await prisma.package.findMany({
       where: {
         id: { in: packageIds },
@@ -34,76 +133,17 @@ const previewShipmentCost = async (req, res) => {
       });
     }
 
-    // 2. 取得最新費率
     const systemRates = await ratesManager.getRates();
-    const CONSTANTS = systemRates.constants;
-
-    // 3. 計算邏輯 (與 createShipment 保持一致)
-    const calculatedTotalFee = packagesToShip.reduce(
-      (sum, pkg) => sum + (pkg.totalCalculatedFee || 0),
-      0
-    );
-    let totalVolumeDivisor = 0;
-    let hasAnyOversizedItem = false;
-    let hasAnyOverweightItem = false;
-
-    packagesToShip.forEach((pkg) => {
-      try {
-        const boxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
-        boxes.forEach((box) => {
-          const l = parseFloat(box.length) || 0;
-          const w = parseFloat(box.width) || 0;
-          const h = parseFloat(box.height) || 0;
-          const weight = parseFloat(box.weight) || 0;
-
-          if (
-            l > CONSTANTS.OVERSIZED_LIMIT ||
-            w > CONSTANTS.OVERSIZED_LIMIT ||
-            h > CONSTANTS.OVERSIZED_LIMIT
-          )
-            hasAnyOversizedItem = true;
-
-          if (weight > CONSTANTS.OVERWEIGHT_LIMIT) hasAnyOverweightItem = true;
-
-          if (l > 0 && w > 0 && h > 0) {
-            totalVolumeDivisor += Math.ceil(
-              (l * w * h) / CONSTANTS.VOLUME_DIVISOR
-            );
-          }
-        });
-      } catch (e) {}
-    });
-
-    const totalOverweightFee = hasAnyOverweightItem
-      ? CONSTANTS.OVERWEIGHT_FEE
-      : 0;
-    const totalOversizedFee = hasAnyOversizedItem ? CONSTANTS.OVERSIZED_FEE : 0;
-    const totalCbm = totalVolumeDivisor / CONSTANTS.CBM_TO_CAI_FACTOR;
-    const remoteFee = Math.round(
-      totalCbm * (parseFloat(deliveryLocationRate) || 0)
+    // 使用共用函式計算
+    const result = calculateShipmentDetails(
+      packagesToShip,
+      systemRates,
+      deliveryLocationRate
     );
 
-    let finalBaseCost = calculatedTotalFee;
-    if (finalBaseCost > 0 && finalBaseCost < CONSTANTS.MINIMUM_CHARGE) {
-      finalBaseCost = CONSTANTS.MINIMUM_CHARGE;
-    }
-
-    const finalTotalCost =
-      finalBaseCost + totalOverweightFee + totalOversizedFee + remoteFee;
-
-    // 4. 回傳預估結果
     res.status(200).json({
       success: true,
-      preview: {
-        totalCost: finalTotalCost,
-        baseCost: finalBaseCost,
-        remoteFee: remoteFee,
-        overweightFee: totalOverweightFee,
-        oversizedFee: totalOversizedFee,
-        isMinimumChargeApplied:
-          finalBaseCost === CONSTANTS.MINIMUM_CHARGE &&
-          calculatedTotalFee < CONSTANTS.MINIMUM_CHARGE,
-      },
+      preview: result,
     });
   } catch (error) {
     console.error("預估運費失敗:", error);
@@ -117,8 +157,6 @@ const previewShipmentCost = async (req, res) => {
  */
 const createShipment = async (req, res) => {
   try {
-    // 因為使用了 multer 處理 multipart/form-data
-    // req.body 中的陣列或物件可能會變成 JSON 字串，需要嘗試解析
     let {
       packageIds,
       shippingAddress,
@@ -134,7 +172,7 @@ const createShipment = async (req, res) => {
 
     const userId = req.user.id;
 
-    // 1. 驗證商品證明 (連結 或 照片)
+    // 處理上傳檔案
     const files = req.files || [];
     if ((!productUrl || productUrl.trim() === "") && files.length === 0) {
       return res.status(400).json({
@@ -142,15 +180,13 @@ const createShipment = async (req, res) => {
         message: "請提供「商品購買連結」或上傳「商品照片」才能提交訂單",
       });
     }
-
-    // 2. 處理上傳的圖片路徑
     let shipmentImagePaths = "[]";
     if (files.length > 0) {
       const paths = files.map((file) => `/uploads/${file.filename}`);
       shipmentImagePaths = JSON.stringify(paths);
     }
 
-    // 3. 解析 packageIds
+    // 解析 packageIds
     try {
       if (typeof packageIds === "string") {
         packageIds = JSON.parse(packageIds);
@@ -161,26 +197,12 @@ const createShipment = async (req, res) => {
         .json({ success: false, message: "包裹 ID 格式錯誤" });
     }
 
-    // 4. 基本欄位驗證
     if (!packageIds || !Array.isArray(packageIds) || packageIds.length === 0) {
       return res
         .status(400)
         .json({ success: false, message: "請至少選擇一個包裹" });
     }
-    if (!shippingAddress || !recipientName || !phone || !idNumber) {
-      return res.status(400).json({
-        success: false,
-        message: "請提供完整的收件人姓名、電話、地址 和 身分證字號",
-      });
-    }
-    if (deliveryLocationRate === undefined || deliveryLocationRate === null) {
-      return res.status(400).json({
-        success: false,
-        message: "請提供配送地區費率 (deliveryLocationRate)",
-      });
-    }
 
-    // 5. 查詢包裹
     const packagesToShip = await prisma.package.findMany({
       where: {
         id: { in: packageIds },
@@ -198,78 +220,25 @@ const createShipment = async (req, res) => {
       });
     }
 
-    // 6. 計算運費 (需與 previewCost 邏輯一致)
+    // 使用共用函式計算最終費用 (確保與預覽一致)
     const systemRates = await ratesManager.getRates();
-    const CONSTANTS = systemRates.constants;
-
-    const calculatedTotalFee = packagesToShip.reduce(
-      (sum, pkg) => sum + (pkg.totalCalculatedFee || 0),
-      0
+    const calcResult = calculateShipmentDetails(
+      packagesToShip,
+      systemRates,
+      deliveryLocationRate
     );
 
-    let hasAnyOversizedItem = false;
-    let hasAnyOverweightItem = false;
-    let totalShipmentVolume = 0;
-
-    packagesToShip.forEach((pkg) => {
-      try {
-        const boxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
-        boxes.forEach((box) => {
-          const length = parseFloat(box.length) || 0;
-          const width = parseFloat(box.width) || 0;
-          const height = parseFloat(box.height) || 0;
-          const weight = parseFloat(box.weight) || 0;
-
-          if (
-            length > CONSTANTS.OVERSIZED_LIMIT ||
-            width > CONSTANTS.OVERSIZED_LIMIT ||
-            height > CONSTANTS.OVERSIZED_LIMIT
-          )
-            hasAnyOversizedItem = true;
-
-          if (weight > CONSTANTS.OVERWEIGHT_LIMIT) hasAnyOverweightItem = true;
-
-          if (length > 0 && width > 0 && height > 0) {
-            const singleVolume = Math.ceil(
-              (length * width * height) / CONSTANTS.VOLUME_DIVISOR
-            );
-            totalShipmentVolume += singleVolume;
-          }
-        });
-      } catch (e) {
-        console.error(`解析包裹 ${pkg.id} 失敗`, e);
-      }
-    });
-
-    const totalOverweightFee = hasAnyOverweightItem
-      ? CONSTANTS.OVERWEIGHT_FEE
-      : 0;
-    const totalOversizedFee = hasAnyOversizedItem ? CONSTANTS.OVERSIZED_FEE : 0;
-    const totalCbm = totalShipmentVolume / CONSTANTS.CBM_TO_CAI_FACTOR;
-    const remoteFee = Math.round(
-      totalCbm * (parseFloat(deliveryLocationRate) || 0)
-    );
-
-    let finalBaseCost = calculatedTotalFee;
-    if (finalBaseCost > 0 && finalBaseCost < CONSTANTS.MINIMUM_CHARGE) {
-      finalBaseCost = CONSTANTS.MINIMUM_CHARGE;
-    }
-
-    const finalTotalCost =
-      finalBaseCost + totalOverweightFee + totalOversizedFee + remoteFee;
-
-    // 7. 使用交易建立集運單
     const newShipment = await prisma.$transaction(async (tx) => {
       const createdShipment = await tx.shipment.create({
         data: {
-          recipientName: recipientName,
-          phone: phone,
-          shippingAddress: shippingAddress,
-          idNumber: idNumber,
+          recipientName,
+          phone,
+          shippingAddress,
+          idNumber,
           taxId: taxId || null,
           invoiceTitle: invoiceTitle || null,
           note: note || null,
-          totalCost: finalTotalCost,
+          totalCost: calcResult.totalCost, // 使用重新計算的總金額
           deliveryLocationRate: parseFloat(deliveryLocationRate) || 0,
           status: "PENDING_PAYMENT",
           userId: userId,
@@ -289,7 +258,6 @@ const createShipment = async (req, res) => {
       return createdShipment;
     });
 
-    // 8. 發送通知
     try {
       await sendNewShipmentNotification(newShipment, req.user);
     } catch (emailError) {
@@ -307,10 +275,6 @@ const createShipment = async (req, res) => {
   }
 };
 
-/**
- * @description 取得 "我" 的所有集運單
- * @route GET /api/shipments/my
- */
 const getMyShipments = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -352,10 +316,6 @@ const getMyShipments = async (req, res) => {
   }
 };
 
-/**
- * @description 客戶上傳付款憑證
- * @route PUT /api/shipments/:id/payment
- */
 const uploadPaymentProof = async (req, res) => {
   try {
     const { id } = req.params;
@@ -393,10 +353,6 @@ const uploadPaymentProof = async (req, res) => {
   }
 };
 
-/**
- * @description 取得單一集運單詳情
- * @route GET /api/shipments/:id
- */
 const getShipmentById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -467,10 +423,6 @@ const getShipmentById = async (req, res) => {
   }
 };
 
-/**
- * @description 客戶自行取消/刪除待付款的集運單
- * @route DELETE /api/shipments/:id
- */
 const deleteMyShipment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -514,5 +466,5 @@ module.exports = {
   getShipmentById,
   uploadPaymentProof,
   deleteMyShipment,
-  previewShipmentCost, // 匯出新功能
+  previewShipmentCost,
 };

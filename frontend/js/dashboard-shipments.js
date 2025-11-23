@@ -1,4 +1,4 @@
-// frontend/js/dashboard-shipments.js (V22.4 - 完整修復版)
+// frontend/js/dashboard-shipments.js (V22.5 - 完整修復版)
 // 負責：集運單列表、建立訂單(結帳)、取消訂單、詳情、上傳憑證
 
 // --- 1. 載入我的集運單 ---
@@ -273,21 +273,32 @@ window.recalculateShipmentTotal = async function () {
     if (data.success) {
       const p = data.preview;
       const CONSTANTS = window.CONSTANTS || {};
+
       let html = `<div class="fee-breakdown-row"><span>基本運費</span> <span>$${p.baseCost.toLocaleString()}</span></div>`;
 
-      if (p.isMinimumChargeApplied)
+      if (p.isMinimumChargeApplied) {
         html += `<div class="fee-breakdown-row highlight" style="font-size:12px; color:#e67e22;">(已補足低消 $${
           CONSTANTS.MINIMUM_CHARGE || 2000
         })</div>`;
+      }
 
-      if (p.remoteFee > 0)
-        html += `<div class="fee-breakdown-row"><span>偏遠地區費</span> <span>+$${p.remoteFee.toLocaleString()}</span></div>`;
+      // [更新] 顯示偏遠費與公式
+      if (p.remoteFee > 0) {
+        html += `<div class="fee-breakdown-row">
+              <span>偏遠地區費 <br><small style="color:#888; font-size:11px;">(總體積 ${
+                p.totalCbm
+              } CBM x $${locationRate})</small></span> 
+              <span>+$${p.remoteFee.toLocaleString()}</span>
+          </div>`;
+      }
 
-      if (p.overweightFee > 0)
+      if (p.overweightFee > 0) {
         html += `<div class="fee-breakdown-row highlight"><span>超重附加費</span> <span>+$${p.overweightFee.toLocaleString()}</span></div>`;
+      }
 
-      if (p.oversizedFee > 0)
+      if (p.oversizedFee > 0) {
         html += `<div class="fee-breakdown-row highlight"><span>超長附加費</span> <span>+$${p.oversizedFee.toLocaleString()}</span></div>`;
+      }
 
       html += `<div class="fee-breakdown-row total" style="border-top:1px solid #ddd; margin-top:5px; padding-top:5px; font-weight:bold; color:#d32f2f; font-size:18px;"><span>總運費</span> <span>NT$ ${p.totalCost.toLocaleString()}</span></div>`;
       container.innerHTML = html;
@@ -364,7 +375,6 @@ window.openShipmentDetails = async function (id) {
   const modal = document.getElementById("shipment-details-modal");
   document.getElementById("sd-id").textContent = "載入中...";
   modal.style.display = "flex";
-
   try {
     const res = await fetch(`${API_BASE_URL}/api/shipments/${id}`, {
       headers: { Authorization: `Bearer ${window.dashboardToken}` },
