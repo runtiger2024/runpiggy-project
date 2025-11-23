@@ -902,3 +902,92 @@
   border-top: 1px solid #eee;
   color: #d32f2f;
 }
+/* =============================================================
+   [V25.0 排版修正補丁] 
+   請勿刪除上方代碼，以下樣式會覆蓋或增強原有設定
+   ============================================================= */
+
+/* 1. [Header] 修正手機版右上角按鈕群組 */
+.header-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* 按鈕間距 */
+  flex-wrap: nowrap; /* 禁止換行，確保在一排 */
+}
+
+/* 2. [Profile] 定義「編輯」和「修改密碼」按鈕的容器 */
+/* 注意：HTML中需要有 <div class="profile-actions">...</div> 包裹這兩個按鈕 */
+.profile-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-left: auto; /* 電腦版靠右對齊 */
+}
+
+/* 3. [Buttons] 新增 btn-mini 樣式，避免按鈕過大 */
+.btn-mini {
+  padding: 4px 12px !important;
+  font-size: 13px !important;
+  height: 34px !important; /* 固定高度，整齊劃一 */
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important; /* 強制自動寬度，防止被設為 100% */
+  white-space: nowrap !important; /* 防止文字換行 */
+}
+
+/* --- 手機版強制覆蓋區 --- */
+@media (max-width: 768px) {
+  /* 修正 Header: 讓 Logo 和 右側按鈕群組 水平排列 */
+  .dashboard-header {
+    flex-direction: row !important; /* 強制水平 */
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: nowrap !important; /* 避免換行 */
+    gap: 5px !important;
+  }
+
+  /* 縮小 Header 按鈕間距與內距，確保塞得下 */
+  .header-nav-right {
+    gap: 5px !important;
+  }
+  .header-nav-right .nav-link {
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+  }
+
+  /* 修正 Profile 卡片: 讓內容不要全部置中 */
+  .profile-content {
+    align-items: flex-start !important; /* 改為靠左/靠上 */
+    text-align: left !important; /* 文字靠左 */
+    flex-direction: column !important; /* 內容垂直堆疊 (頭像+文字 vs 按鈕區) */
+  }
+
+  /* 頭像與文字區域 */
+  .profile-details {
+    padding-top: 10px !important;
+    width: 100% !important;
+    text-align: center !important; /* 讓名字和 Email 置中比較好看 */
+  }
+  .avatar-circle {
+    margin: 0 auto 10px auto !important; /* 頭像置中 */
+  }
+
+  /* 關鍵修正: 強制「編輯」與「修改密碼」按鈕水平排列 */
+  .profile-actions {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important; /* 強制水平 */
+    justify-content: center !important; /* 居中對齊 */
+    margin-top: 15px !important;
+    margin-left: 0 !important; /* 移除 auto margin */
+    gap: 10px !important;
+  }
+
+  /* 確保按鈕不會變形 */
+  .profile-actions .btn {
+    flex: 0 1 auto !important; /* 不自動伸展 */
+    width: auto !important; /* 寬度隨內容 */
+  }
+}
