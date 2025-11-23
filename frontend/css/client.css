@@ -471,10 +471,11 @@ textarea {
   text-align: center;
   margin-top: 50px;
 }
-.footer-links a {
-  color: #fff;
-  margin: 0 10px;
-  opacity: 0.8;
+
+/* [修改] 全域隱藏客服連結區塊 */
+/* 加上 !important 確保覆蓋之前的 RWD 設定，電腦與手機版皆會隱藏 */
+.footer-links {
+  display: none !important;
 }
 
 /* 12. RWD 通用 */
@@ -493,8 +494,7 @@ textarea {
     width: 100%;
   }
 
-  /* [新增] 手機版隱藏頁尾的 LINE 與 Email 客服連結 */
-  .footer-links {
-    display: none;
-  }
+  /* 若之前有在此處加入 .footer-links 的 Flex 設定，
+     上面的 !important 已經會將其覆蓋，無需特別刪除，
+     但為了代碼整潔，您也可以將之前的 footer-links 樣式區塊移除。 */
 }
