@@ -1,0 +1,314 @@
+/* frontend/css/client-index.css */
+/* 首頁與估價單頁面專用樣式 */
+
+/* --- 1. 倉庫地址卡 --- */
+.warehouse-card {
+  border-top: 4px solid var(--color-primary);
+}
+.warehouse-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px dashed #eee;
+}
+.wh-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wh-icon {
+  width: 36px;
+  height: 36px;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.badge-official {
+  background: var(--color-danger);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 5px;
+}
+.warehouse-body {
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.wh-info-row {
+  display: flex;
+  flex-direction: column;
+}
+.wh-info-row .label {
+  font-size: 12px;
+  color: #666;
+}
+.wh-info-row .value {
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  user-select: all;
+}
+.wh-info-row.full-width {
+  grid-column: 1 / -1;
+  background: var(--color-primary-bg);
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--color-primary);
+}
+.wh-notice {
+  font-size: 12px;
+  color: var(--color-danger);
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* --- 2. 費率表區塊 --- */
+.rate-table-container {
+  overflow-x: auto;
+}
+.rate-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.rate-table th {
+  background: var(--bg-body);
+  color: #666;
+  padding: 12px 20px;
+  text-align: left;
+  white-space: nowrap;
+}
+.rate-table td {
+  padding: 12px 20px;
+  border-bottom: 1px solid #eee;
+}
+.rate-notes {
+  padding: 15px 20px;
+  background: var(--color-warning-bg);
+  font-size: 13px;
+  color: #8a6d3b;
+  border-top: 1px solid #ffe58f;
+}
+.rate-notes .highlight {
+  color: var(--color-danger);
+  font-weight: bold;
+}
+
+/* --- 3. 試算輸入卡片 (Item Group) --- */
+.item-group {
+  position: relative;
+  animation: slideUp 0.3s ease-out;
+  border-left: 4px solid var(--color-primary);
+}
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.item-header {
+  padding: 12px 20px;
+  background: #fff;
+  border-bottom: 1px solid #f0f2f5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.item-index {
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.item-body {
+  padding: 24px;
+}
+
+/* 輸入框特殊樣式 */
+.input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.input-wrap input {
+  padding-right: 40px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.input-wrap .unit {
+  position: absolute;
+  right: 12px;
+  color: #666;
+  font-size: 13px;
+  pointer-events: none;
+}
+.calc-method-toggle {
+  display: flex;
+  background: var(--bg-input);
+  padding: 4px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+.calc-method-toggle label {
+  flex: 1;
+  text-align: center;
+  padding: 8px 0;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  position: relative;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+.calc-method-toggle label:has(input:checked) {
+  background: #fff;
+  color: var(--color-primary);
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+.calc-method-toggle input {
+  position: absolute;
+  opacity: 0;
+}
+.input-group-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+.btn-dashed-add {
+  width: 100%;
+  background: transparent;
+  border: 2px dashed #d9d9d9;
+  color: var(--color-primary);
+  border-radius: 16px;
+  padding: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.btn-dashed-add:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-bg);
+}
+
+/* --- 4. 試算結果 (Results) --- */
+.result-detail-card {
+  border-left: 4px solid var(--color-success);
+  margin-bottom: 20px;
+}
+.result-detail-card h3 {
+  background: var(--color-success-bg);
+  padding: 12px 20px;
+  margin: 0;
+  font-size: 15px;
+  color: #006d47;
+  border-bottom: 1px solid #b7eb8f;
+}
+.detail-section {
+  padding: 15px 20px;
+  border-bottom: 1px dashed #eee;
+}
+.calc-line {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #666;
+}
+.calc-line.winner {
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: #d46b08;
+  font-weight: bold;
+}
+.formula-box {
+  font-family: var(--font-mono);
+  background: #f0f2f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.result-summary-card {
+  border: 2px solid var(--color-primary);
+  background: linear-gradient(to bottom, #fff, #fafafa);
+}
+.result-summary-card h3 {
+  background: var(--color-primary);
+  color: #fff;
+  text-align: center;
+  padding: 15px;
+  margin: 0;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px dashed #eee;
+  font-size: 14px;
+}
+.summary-total {
+  padding: 20px;
+  text-align: right;
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--color-accent);
+  background: var(--color-primary-bg);
+  font-family: var(--font-mono);
+}
+.summary-total small {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  font-weight: 400;
+}
+
+/* 5. 底部懸浮欄 (首頁版) */
+.sticky-footer-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  border-top: 1px solid #ddd;
+  padding: 10px 20px;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+}
+.footer-content {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.footer-total .price {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--color-accent);
+}
+
+@media (max-width: 768px) {
+  .warehouse-body {
+    grid-template-columns: 1fr;
+  }
+  .sticky-footer-bar {
+    bottom: var(--mobile-nav-height);
+  }
+}

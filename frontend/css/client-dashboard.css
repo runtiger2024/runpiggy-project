@@ -1,0 +1,332 @@
+/* frontend/css/client-dashboard.css */
+/* 會員中心 (Dashboard) 專用樣式 */
+
+/* --- 1. Dashboard Header --- */
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 15px 0;
+}
+.dashboard-header h1 {
+  font-size: 18px;
+  margin: 0;
+}
+.header-logo-sm {
+  height: 32px;
+  width: auto;
+  margin-right: 10px;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+/* --- 2. 用戶資料卡 (Profile Card) --- */
+.user-profile-card {
+  padding-top: 0;
+  margin-bottom: 20px;
+}
+.profile-bg {
+  height: 80px;
+  background: linear-gradient(135deg, var(--color-primary), #004299);
+}
+.profile-content {
+  padding: 0 20px 20px;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 15px;
+  margin-top: -40px;
+}
+.avatar-circle {
+  width: 80px;
+  height: 80px;
+  background: #fff;
+  border-radius: 50%;
+  padding: 5px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+.profile-details {
+  flex: 1;
+  padding-top: 45px;
+}
+.profile-details h2 {
+  margin-bottom: 5px;
+  font-size: 18px;
+}
+.user-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  color: #666;
+  flex-wrap: wrap;
+}
+.user-address {
+  margin-top: 5px;
+  font-size: 12px;
+  color: #666;
+}
+.btn-edit-profile {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* --- 3. 標籤頁 (Tabs) --- */
+.dashboard-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 5px;
+  scrollbar-width: none;
+}
+.dashboard-tabs::-webkit-scrollbar {
+  display: none;
+}
+.tab-btn {
+  padding: 8px 16px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+}
+.tab-btn.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(26, 115, 232, 0.2);
+}
+.tab-content {
+  display: none;
+}
+.tab-content.active {
+  display: block;
+  animation: fadeIn 0.3s;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* --- 4. 預報表單樣式 (Grid) --- */
+.forecast-form-grid {
+  display: grid;
+  gap: 15px;
+}
+@media (min-width: 600px) {
+  .forecast-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.forecast-form-grid .form-group.full {
+  grid-column: 1 / -1;
+}
+
+/* --- 5. 響應式列表 (Table / Card View) - 重點樣式 --- */
+/* 桌面版: 一般 Table */
+@media (min-width: 769px) {
+  .table-responsive {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: var(--shadow-sm);
+    overflow-x: auto;
+  }
+  .table-responsive table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 700px;
+  }
+  .table-responsive th {
+    background: #f9f9f9;
+    padding: 15px;
+    text-align: left;
+    font-weight: bold;
+    border-bottom: 1px solid #eee;
+  }
+  .table-responsive td {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+  }
+}
+
+/* 手機版: 強制轉卡片 */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 0 12px;
+  }
+  .table-responsive table,
+  .table-responsive tbody,
+  .table-responsive tr,
+  .table-responsive td {
+    display: block;
+    width: 100%;
+  }
+  .table-responsive thead {
+    display: none;
+  }
+
+  .table-responsive tr {
+    background: #fff;
+    margin-bottom: 15px;
+    border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #eee;
+    padding: 15px 15px 50px 15px;
+    position: relative;
+  }
+  /* 選中高亮 */
+  .table-responsive tr:has(input:checked) {
+    border-color: var(--color-primary);
+    background: #f8faff;
+  }
+
+  .table-responsive td {
+    padding: 2px 0;
+    border: none;
+    position: static;
+  }
+
+  /* [1] Checkbox */
+  .table-responsive td:first-child {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 10;
+  }
+  .table-responsive td input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* [2] Status */
+  .table-responsive td:nth-child(2) {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    text-align: right;
+  }
+
+  /* [3] Content */
+  .table-responsive td:nth-child(3) {
+    margin-top: 25px;
+    margin-bottom: 8px;
+  }
+  .table-responsive td:nth-child(3) div {
+    font-size: 16px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 4px;
+  }
+  .table-responsive td:nth-child(3) small {
+    font-family: monospace;
+    background: #f0f0f0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #666;
+    word-break: break-all;
+  }
+
+  /* [4] Info (Weight/Fee) */
+  .table-responsive td:nth-child(4) {
+    font-size: 13px;
+    color: #666;
+    display: flex;
+    gap: 8px;
+  }
+  .table-responsive td:nth-child(4) span {
+    background: #fff7e6;
+    color: #ff5000;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+  }
+
+  /* [5] Actions (Bottom Bar) */
+  .table-responsive td:last-child {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 44px;
+    background: #fafafa;
+    border-top: 1px solid #eee;
+    border-radius: 0 0 12px 12px;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+  }
+  .table-responsive td:last-child .btn {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    color: #555;
+    border-radius: 0;
+    border-right: 1px solid #eee;
+    font-size: 13px;
+    padding: 0;
+  }
+  .table-responsive td:last-child .btn:last-child {
+    border-right: none;
+  }
+  .table-responsive td:last-child .btn-primary {
+    color: var(--color-primary);
+    font-weight: bold;
+  }
+  .table-responsive td:last-child .btn-danger {
+    color: var(--color-danger);
+  }
+}
+
+/* --- 6. 懸浮結帳欄 (Sticky Checkout) --- */
+.sticky-checkout-bar {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  border-top: 1px solid #ddd;
+  padding: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-float);
+  z-index: 90;
+}
+.checkout-info {
+  font-weight: 600;
+}
+.checkout-info .highlight {
+  color: var(--color-accent);
+  font-size: 1.2em;
+  margin: 0 4px;
+}
+
+/* --- 7. 手機版 Profile RWD --- */
+@media (max-width: 768px) {
+  .profile-content {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .profile-details {
+    padding-top: 10px;
+  }
+  .user-meta {
+    justify-content: center;
+  }
+}

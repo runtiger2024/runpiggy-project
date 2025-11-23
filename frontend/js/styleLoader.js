@@ -1,29 +1,35 @@
 // frontend/js/styleLoader.js
-// 負責集中管理 CSS 的載入，避免在每個 HTML 檔案中重複寫 <link>
-// 也方便統一管理版本號 (Cache Busting)
-
 (function () {
-  // 1. 設定版本號 (修改這裡即可更新全站快取)
-  const CSS_VERSION = "3.0";
+  const CSS_VERSION = "3.1"; // 更新版本號以清除快取
 
-  // 2. 判斷當前頁面是否為管理後台
   const path = window.location.pathname;
-  // 判斷邏輯：只要檔名包含 "admin-"，就視為後台頁面
-  const isAdminPage = path.includes("admin-");
+  const page = path.split("/").pop() || "index.html"; // 取得檔名
 
-  // 3. 定義要載入的 CSS 檔案清單
+  // 1. 基礎 CSS (所有頁面共用)
   const cssFiles = [
-    "css/base.css", // 所有頁面共用
+    "css/base.css", // 基礎重置
   ];
 
-  if (isAdminPage) {
-    cssFiles.push("css/admin.css"); // 管理端專用
+  // 2. 判斷是前台還是後台
+  if (page.includes("admin-")) {
+    // --- 管理後台 ---
+    cssFiles.push("css/admin.css");
   } else {
-    cssFiles.push("css/client.css"); // 客戶端專用
+    // --- 客戶端前台 ---
+    cssFiles.push("css/client.css"); // 載入共用元件 (Header/Footer/Buttons...)
+
+    // 3. 根據頁面載入特定 CSS
+    if (page === "index.html" || page === "quote.html" || page === "") {
+      // 首頁與估價單頁面：載入計算機與費率樣式
+      cssFiles.push("css/client-index.css");
+    } else if (page === "dashboard.html" || page.includes("profile")) {
+      // 會員中心：載入儀表板與表格樣式
+      cssFiles.push("css/client-dashboard.css");
+    }
+    // login.html 或其他頁面只會載入 base + client (夠用了)
   }
 
-  // 4. 注入 <link> 標籤
-  // 使用 document.write 可以確保 CSS 在頁面渲染前就載入，避免畫面閃爍 (FOUC)
+  // 4. 注入 HTML
   cssFiles.forEach((file) => {
     document.write(`<link rel="stylesheet" href="${file}?v=${CSS_VERSION}">`);
   });
