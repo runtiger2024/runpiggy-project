@@ -1,5 +1,5 @@
 /* frontend/css/client-dashboard.css */
-/* 會員中心 (Dashboard) 專用樣式 */
+/* 會員中心 (Dashboard) 專用樣式 - V21 Mobile Vertical View */
 
 /* --- 1. Dashboard Header --- */
 .dashboard-header {
@@ -166,7 +166,7 @@
   }
 }
 
-/* 手機版: 強制轉卡片 */
+/* 手機版: 強制轉垂直卡片佈局 (Vertical Card View) */
 @media (max-width: 768px) {
   .dashboard-container {
     padding: 0 12px;
@@ -188,9 +188,10 @@
     border-radius: 12px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
     border: 1px solid #eee;
-    padding: 15px 15px 50px 15px;
+    padding: 15px; /* 移除原本底部的 50px padding */
     position: relative;
   }
+
   /* 選中高亮 */
   .table-responsive tr:has(input:checked) {
     border-color: var(--color-primary);
@@ -198,117 +199,169 @@
   }
 
   .table-responsive td {
-    padding: 2px 0;
+    padding: 4px 0;
     border: none;
     position: static;
   }
 
-  /* [1] Checkbox */
+  /* [1] Checkbox: 固定左上角 */
   .table-responsive td:first-child {
     position: absolute;
     top: 12px;
     left: 12px;
     z-index: 10;
+    width: auto;
   }
   .table-responsive td input[type="checkbox"] {
     width: 22px;
     height: 22px;
   }
 
-  /* [2] Status */
+  /* [2] Status: 固定右上角 */
   .table-responsive td:nth-child(2) {
     position: absolute;
     top: 12px;
     right: 12px;
+    width: auto;
     text-align: right;
   }
 
-  /* [3] Content */
+  /* [3] Content: 主內容區 */
   .table-responsive td:nth-child(3) {
-    margin-top: 25px;
+    margin-top: 25px; /* 避開 Header */
     margin-bottom: 8px;
+    padding-left: 0;
   }
   .table-responsive td:nth-child(3) div {
     font-size: 16px;
     font-weight: 700;
     color: #333;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   }
   .table-responsive td:nth-child(3) small {
+    display: block; /* 讓單號獨立一行 */
     font-family: monospace;
     background: #f0f0f0;
-    padding: 2px 6px;
+    padding: 4px 8px;
     border-radius: 4px;
     color: #666;
+    width: fit-content;
     word-break: break-all;
   }
 
-  /* [4] Info (Weight/Fee) */
+  /* [4] Info (Weight/Fee): 垂直排列 */
   .table-responsive td:nth-child(4) {
-    font-size: 13px;
-    color: #666;
+    font-size: 14px;
+    color: #555;
     display: flex;
-    gap: 8px;
+    flex-direction: column; /* 垂直堆疊 */
+    gap: 6px;
+    margin-bottom: 10px;
+    padding: 8px 0;
+    border-top: 1px dashed #eee;
+    border-bottom: 1px dashed #eee;
   }
   .table-responsive td:nth-child(4) span {
-    background: #fff7e6;
-    color: #ff5000;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: bold;
-  }
-
-  /* [5] Actions (Bottom Bar) */
-  .table-responsive td:last-child {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 44px;
-    background: #fafafa;
-    border-top: 1px solid #eee;
-    border-radius: 0 0 12px 12px;
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-  }
-  .table-responsive td:last-child .btn {
-    width: 100%;
-    height: 100%;
+    /* 移除背景色，改用純文字排版 */
     background: transparent;
     color: #555;
-    border-radius: 0;
-    border-right: 1px solid #eee;
-    font-size: 13px;
     padding: 0;
+    border-radius: 0;
+    font-weight: normal;
+    display: flex;
+    align-items: center;
   }
-  .table-responsive td:last-child .btn:last-child {
-    border-right: none;
-  }
-  .table-responsive td:last-child .btn-primary {
-    color: var(--color-primary);
+  /* 讓金額顯示更突出 */
+  .table-responsive td:nth-child(4) span:last-child {
+    color: #d32f2f;
     font-weight: bold;
+    font-size: 1.1em;
+  }
+  /* 在金額前加 icon (透過 CSS) */
+  .table-responsive td:nth-child(4) span:last-child::before {
+    content: "💰 ";
+    margin-right: 5px;
+  }
+  /* 在重量前加 icon */
+  .table-responsive td:nth-child(4) span:first-child::before {
+    content: "📦 ";
+    margin-right: 5px;
+  }
+
+  /* [5] Actions: 垂直按鈕列表 */
+  .table-responsive td:last-child {
+    position: static; /* 取消絕對定位 */
+    width: 100%;
+    height: auto;
+    background: transparent;
+    border: none;
+    padding-top: 10px;
+
+    display: flex;
+    flex-direction: column; /* 垂直排列按鈕 */
+    gap: 10px; /* 按鈕間距 */
+  }
+
+  .table-responsive td:last-child .btn {
+    width: 100%;
+    height: auto;
+    padding: 10px;
+    border-radius: 8px; /* 圓角按鈕 */
+    border: 1px solid #ddd;
+    background-color: #fff;
+    color: #555;
+    font-size: 14px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* 按鈕個別樣式優化 */
+  .table-responsive td:last-child .btn-primary {
+    background-color: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
   }
   .table-responsive td:last-child .btn-danger {
+    background-color: #fff1f0;
     color: var(--color-danger);
+    border-color: #ffa39e;
+  }
+  .table-responsive td:last-child .btn-secondary {
+    background-color: #f5f5f5;
+    color: #333;
+  }
+  .table-responsive td:last-child .btn:active {
+    transform: scale(0.98);
   }
 }
 
 /* --- 6. 懸浮結帳欄 (Sticky Checkout) --- */
 .sticky-checkout-bar {
-  position: sticky;
-  bottom: 0;
-  background: #fff;
+  position: fixed; /* 改為 fixed 確保在最上方圖層 */
+  bottom: var(--mobile-nav-height); /* 避開底部導航 */
+  left: 0;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.95);
   border-top: 1px solid #ddd;
-  padding: 15px;
+  padding: 12px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: var(--shadow-float);
+  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.05);
   z-index: 90;
+  backdrop-filter: blur(5px);
 }
+@media (min-width: 769px) {
+  .sticky-checkout-bar {
+    position: sticky;
+    bottom: 0;
+  }
+}
+
 .checkout-info {
   font-weight: 600;
+  font-size: 15px;
 }
 .checkout-info .highlight {
   color: var(--color-accent);
