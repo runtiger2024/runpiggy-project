@@ -1,5 +1,5 @@
 /* frontend/css/client-dashboard.css */
-/* 會員中心 (Dashboard) 專用樣式 - V22 Mobile Optimized */
+/* 會員中心 (Dashboard) 專用樣式 - V22.1 Mobile Width Optimized */
 
 /* --- 1. Dashboard Header --- */
 .dashboard-header {
@@ -169,9 +169,9 @@
 
 /* === 手機版 (Mobile): 垂直卡片佈局 === */
 @media (max-width: 768px) {
-  /* 調整容器，讓卡片更貼合螢幕邊緣 */
+  /* [關鍵修正] 增加容器內距，讓卡片寬度縮減，符合主流 390px 寬度手機的視覺比例 */
   .dashboard-container {
-    padding: 0 10px; /* 縮小左右 padding，讓卡片看起來更寬 */
+    padding: 0 16px; /* 改為 16px，這是 iOS/Android 的標準邊距 */
   }
 
   /* 移除表格容器的背景與陰影，將其移至個別卡片(tr) */
@@ -196,11 +196,11 @@
     display: flex;
     flex-direction: column; /* 內容垂直排列 */
     background: #fff;
-    margin-bottom: 15px;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* 加深陰影提升層次 */
-    border: 1px solid #eee;
-    padding: 15px;
+    margin-bottom: 16px; /* 增加卡片間距 */
+    border-radius: 16px; /* 更圓潤的導角，符合現代 App 風格 */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06); /* 柔和陰影 */
+    border: 1px solid #f0f0f0;
+    padding: 16px;
     position: relative;
     overflow: hidden;
   }
@@ -208,8 +208,8 @@
   /* 選中狀態 */
   .table-responsive tr:has(input:checked) {
     border-color: var(--color-primary);
-    background: #fcfdff;
-    box-shadow: 0 0 0 1px var(--color-primary) inset;
+    background: #f8fbff;
+    box-shadow: 0 0 0 1.5px var(--color-primary) inset;
   }
 
   /* 重置所有 td 的預設樣式 */
@@ -224,13 +224,12 @@
   /* --- 欄位細部設定 --- */
 
   /* 1. [Checkbox] 與 [Status] 放在同一行作為卡片標頭 */
-  /* 這裡我們使用 absolute 定位將其固定在卡片頂部 */
 
   /* Checkbox: 左上角 */
   .table-responsive td:first-child {
     position: absolute;
-    top: 12px;
-    left: 12px;
+    top: 16px;
+    left: 16px;
     width: auto;
     z-index: 5;
     margin: 0;
@@ -239,13 +238,14 @@
     width: 24px;
     height: 24px;
     cursor: pointer;
+    accent-color: var(--color-primary);
   }
 
   /* Status: 右上角 */
   .table-responsive td:nth-child(2) {
     position: absolute;
-    top: 12px;
-    right: 12px;
+    top: 16px;
+    right: 16px;
     width: auto;
     text-align: right;
     margin: 0;
@@ -254,34 +254,37 @@
   /* 2. [Content] 商品資訊 (標題) */
   /* 給上方留出空間，避免被 Checkbox/Status 蓋住 */
   .table-responsive td:nth-child(3) {
-    margin-top: 30px;
-    padding-bottom: 10px;
+    margin-top: 36px; /* 增加間距 */
+    padding-bottom: 12px;
     border-bottom: 1px dashed #eee;
   }
   .table-responsive td:nth-child(3) div {
     font-size: 17px;
     font-weight: 800;
-    color: #333;
+    color: #222;
     margin-bottom: 6px;
     padding-left: 2px;
+    line-height: 1.4;
   }
   .table-responsive td:nth-child(3) small {
     display: inline-block;
     font-family: var(--font-mono);
-    background: #f5f5f5;
+    background: #f5f7fa;
     padding: 4px 8px;
     border-radius: 6px;
-    color: #666;
+    color: #555;
     font-size: 13px;
     word-break: break-all;
+    border: 1px solid #eee;
   }
 
   /* 3. [Info] 費用與規格 (垂直列表) */
   .table-responsive td:nth-child(4) {
-    margin-bottom: 15px;
+    margin-bottom: 16px;
     display: flex;
     flex-direction: column; /* 垂直堆疊 */
-    gap: 8px;
+    gap: 10px;
+    padding-top: 4px;
   }
 
   /* 使用 Flex 讓 label 和 value 分開 */
@@ -289,7 +292,7 @@
     display: flex;
     align-items: center;
     font-size: 14px;
-    color: #555;
+    color: #444;
     background: transparent;
     padding: 0;
   }
@@ -297,66 +300,77 @@
   /* 為重量和金額添加圖示前綴 */
   .table-responsive td:nth-child(4) span:first-child::before {
     content: "📦 規格：";
-    color: #999;
+    color: #888;
     min-width: 60px;
+    font-weight: normal;
   }
   .table-responsive td:nth-child(4) span:last-child {
     font-size: 16px; /* 金額加大 */
   }
   .table-responsive td:nth-child(4) span:last-child::before {
     content: "💰 運費：";
-    color: #999;
+    color: #888;
     min-width: 60px;
+    font-weight: normal;
   }
   /* 強調金額 */
   .table-responsive td:nth-child(4) span:last-child {
     color: #d32f2f;
-    font-weight: bold;
+    font-weight: 800;
+    letter-spacing: 0.5px;
   }
 
   /* 4. [Actions] 操作按鈕 (垂直滿版) */
   .table-responsive td:last-child {
-    margin-top: 10px;
+    margin-top: 8px;
     margin-bottom: 0;
     display: flex;
     flex-direction: column; /* 按鈕垂直排列 */
     gap: 10px;
   }
 
-  /* 按鈕樣式優化 */
+  /* 按鈕樣式優化：更像 Mobile App 的按鈕 */
   .table-responsive td:last-child .btn {
     width: 100%; /* 滿寬 */
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 10px 0;
-    border-radius: 8px;
-    font-size: 14px;
+    padding: 12px 0;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
     background: #fff;
-    border: 1px solid #ddd;
-    color: #555;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e0e0e0;
+    color: #444;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    transition: all 0.2s;
   }
 
   /* 詳情按鈕 (主色) */
   .table-responsive td:last-child .btn-primary {
-    background: var(--color-primary-bg);
-    color: var(--color-primary);
+    background: var(--color-primary);
+    color: #fff;
     border-color: var(--color-primary);
-    font-weight: bold;
+    box-shadow: 0 2px 6px rgba(26, 115, 232, 0.2);
   }
 
   /* 刪除按鈕 (紅色) */
   .table-responsive td:last-child .btn-danger {
-    background: #fff5f5;
-    color: var(--color-danger);
-    border-color: #ffccc7;
+    background: #fff0f0;
+    color: #d32f2f;
+    border-color: #ffcccc;
   }
 
   /* 修改按鈕 (灰色) */
   .table-responsive td:last-child .btn-secondary {
-    background: #f8f9fa;
-    color: #333;
+    background: #f7f9fc;
+    color: #444;
+    border-color: #dae0e7;
+  }
+
+  .table-responsive td:last-child .btn:active {
+    transform: scale(0.98);
+    opacity: 0.9;
   }
 }
 
@@ -366,21 +380,23 @@
   bottom: var(--mobile-nav-height); /* 確保在手機底部導航欄上方 */
   left: 0;
   width: 100%;
-  background: rgba(255, 255, 255, 0.98);
+  background: rgba(255, 255, 255, 0.95);
   border-top: 1px solid #e0e0e0;
   padding: 12px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
   z-index: 90;
-  backdrop-filter: blur(8px);
-  padding-bottom: calc(12px + env(safe-area-inset-bottom)); /* 支援 iPhone X+ */
+  backdrop-filter: blur(10px);
+  /* 針對 iPhone X+ 底部 Home Bar 的優化 */
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 }
 
 /* 桌面版時吸底 */
 @media (min-width: 769px) {
   .sticky-checkout-bar {
+    position: sticky;
     bottom: 0;
     padding-bottom: 12px;
   }
@@ -389,7 +405,7 @@
 .checkout-info {
   font-size: 15px;
   color: #333;
-  font-weight: 500;
+  font-weight: 600;
 }
 .checkout-info .highlight {
   color: var(--color-accent);
@@ -401,7 +417,7 @@
 .btn-checkout {
   padding: 10px 24px;
   border-radius: 30px; /* 圓角更像按鈕 */
-  box-shadow: 0 4px 10px rgba(255, 80, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(255, 80, 0, 0.3);
   font-size: 15px;
 }
 
