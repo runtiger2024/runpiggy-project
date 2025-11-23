@@ -1,4 +1,4 @@
-// backend/controllers/authController.js (V9 完整版 - 含忘記密碼)
+// backend/controllers/authController.js (V10 完整版 - 含修改密碼功能)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -229,7 +229,6 @@ const forgotPassword = async (req, res) => {
     const resetPasswordExpire = new Date(Date.now() + 10 * 60 * 1000); // 10分鐘有效期
 
     // 更新使用者紀錄 (需確保 schema 有這兩個欄位，若無則需 migration)
-    // 若 Schema 尚未支援，此處會報錯，請確保 backend/prisma/schema.prisma 已新增欄位
     try {
       await prisma.user.update({
         where: { id: user.id },
@@ -249,7 +248,6 @@ const forgotPassword = async (req, res) => {
     }
 
     // 發送 Email (使用 SendGrid)
-    // 注意：這裡假設您已設定 SENDGRID_API_KEY
     if (process.env.SENDGRID_API_KEY) {
       // 取得前端網址 (假設)
       const resetUrl = `${
@@ -331,6 +329,57 @@ const resetPassword = async (req, res) => {
   }
 };
 
+/**
+ * @description 會員自行修改密碼 (登入狀態下)
+ * @route       PUT /api/auth/password
+ * @access      Private
+ */
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    // 1. 驗證輸入
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ success: false, message: "請輸入舊密碼與新密碼" });
+    }
+    if (newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ success: false, message: "新密碼長度至少需 6 位數" });
+    }
+
+    // 2. 撈取使用者並比對舊密碼
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "找不到使用者" });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return res
+        .status(400)
+        .json({ success: false, message: "目前的密碼輸入錯誤" });
+    }
+
+    // 3. 加密新密碼並儲存
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    res.json({ success: true, message: "密碼修改成功，下次登入請使用新密碼" });
+  } catch (error) {
+    console.error("修改密碼錯誤:", error);
+    res.status(500).json({ success: false, message: "伺服器錯誤" });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -338,4 +387,5 @@ module.exports = {
   updateMe,
   forgotPassword,
   resetPassword,
+  changePassword, // 匯出新功能
 };

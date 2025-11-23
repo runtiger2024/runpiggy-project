@@ -103,6 +103,60 @@ document.addEventListener("DOMContentLoaded", () => {
       window.showMessage("已更新", "success");
     });
 
+  // --- [新增] 修改密碼功能 ---
+  const btnChangePwd = document.getElementById("btn-change-password");
+  const modalChangePwd = document.getElementById("change-password-modal");
+  const formChangePwd = document.getElementById("change-password-form");
+
+  if (btnChangePwd && modalChangePwd) {
+    btnChangePwd.addEventListener("click", () => {
+      if (formChangePwd) formChangePwd.reset();
+      modalChangePwd.style.display = "flex";
+    });
+  }
+
+  if (formChangePwd) {
+    formChangePwd.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const currentPassword = document.getElementById("cp-current").value;
+      const newPassword = document.getElementById("cp-new").value;
+      const confirmPassword = document.getElementById("cp-confirm").value;
+
+      if (newPassword !== confirmPassword) {
+        alert("兩次輸入的新密碼不一致");
+        return;
+      }
+
+      const btn = formChangePwd.querySelector("button[type='submit']");
+      btn.disabled = true;
+      btn.textContent = "更新中...";
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/password`, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${window.dashboardToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ currentPassword, newPassword }),
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          alert(data.message);
+          modalChangePwd.style.display = "none";
+        } else {
+          alert(data.message || "修改失敗");
+        }
+      } catch (err) {
+        alert("網路錯誤");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "確認修改";
+      }
+    });
+  }
+
   // 建立訂單按鈕
   document
     .getElementById("btn-create-shipment")

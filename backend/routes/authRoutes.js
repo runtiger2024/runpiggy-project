@@ -1,4 +1,4 @@
-// backend/routes/authRoutes.js (V9 完整版 - 含忘記密碼路由)
+// backend/routes/authRoutes.js (V10 完整版 - 含修改密碼路由)
 
 const express = require("express");
 const router = express.Router();
@@ -9,8 +9,9 @@ const {
   loginUser,
   getMe,
   updateMe,
-  forgotPassword, // [New]
-  resetPassword, // [New]
+  forgotPassword,
+  resetPassword,
+  changePassword, // [New] 引入修改密碼控制器
 } = require("../controllers/authController");
 
 // 2. 匯入保全中介軟體
@@ -29,5 +30,8 @@ router.post("/reset-password/:token", resetPassword);
 // 會員個人資料 (受保護)
 // GET: 取得資料, PUT: 更新資料
 router.route("/me").get(protect, getMe).put(protect, updateMe);
+
+// 修改密碼 (受保護)
+router.route("/password").put(protect, changePassword);
 
 module.exports = router;

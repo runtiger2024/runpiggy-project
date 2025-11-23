@@ -470,3 +470,8 @@
     text-align: left;
   }
 }
+/* 新增算式區塊樣式 */
+.sub-pkg-calc-details {
+  border-left: 3px solid #1a73e8;
+  padding-left: 10px;
+}
