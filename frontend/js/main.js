@@ -605,7 +605,7 @@ window.saveToForecast = function () {
   }
 };
 
-// --- 功能 2: 產生分享連結 (新增) ---
+// --- 功能 2: 產生分享連結 (修改後) ---
 window.createShareLink = async function () {
   if (!window.currentCalculationResult) {
     alert("目前沒有試算結果可分享！");
@@ -637,8 +637,17 @@ window.createShareLink = async function () {
     const data = await res.json();
     const shareUrl = `${window.location.origin}/quote.html?id=${data.id}`;
 
-    // 使用 Prompt 讓使用者複製
-    prompt("複製下方連結分享給朋友：", shareUrl);
+    // [修改重點] 使用 Clipboard API 自動複製
+    navigator.clipboard
+      .writeText(shareUrl)
+      .then(() => {
+        alert("✅ 連結已自動複製！\n您可以直接貼上分享給朋友。");
+      })
+      .catch((err) => {
+        // 若瀏覽器不支援或權限不足的備案 (Fallback)
+        console.error("自動複製失敗:", err);
+        prompt("自動複製失敗，請手動複製下方連結：", shareUrl);
+      });
   } catch (e) {
     alert("分享失敗: " + e.message);
   } finally {
