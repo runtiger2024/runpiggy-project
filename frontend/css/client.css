@@ -1,8 +1,8 @@
 /* * ==========================================================================
  * frontend/css/client.css
  * 專案：小跑豬集運 (RunPiggy)
- * 版本：V18.0 (Flagship Edition)
- * 描述：客戶端專用樣式表 - 整合基礎重置、響應式佈局、組件庫與頁面邏輯
+ * 版本：V19.0 (Dashboard Optimization Edition)
+ * 描述：客戶端專用樣式表 - 針對儀表板 LOGO 與列表顯示進行深度優化
  * 主色調：#1a73e8 (藍) | 強調色：#ff5000 (橘)
  * ==========================================================================
  */
@@ -121,7 +121,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* 預留 Header 高度，避免內容被遮擋 */
+  /* 預留 Header 高度 */
   padding-top: var(--header-height-desktop);
   /* 預留 Footer 空間 */
   padding-bottom: 100px;
@@ -1215,11 +1215,33 @@ textarea:focus {
 /* ==========================================================================
    14. 會員儀表板 (Dashboard Specifics)
    ========================================================================== */
+/* --- Dashboard Header Fix --- */
 .dashboard-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-lg);
+  padding: 10px 0;
+}
+
+.dashboard-header .header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* 增加間距 */
+}
+
+/* LOGO 縮小與對齊 */
+.header-logo-sm {
+  height: 32px; /* 強制高度，避免過大 */
+  width: auto;
+  object-fit: contain;
+}
+
+.dashboard-header h1 {
+  font-size: 20px;
+  margin: 0;
+  line-height: 1.2;
+  color: var(--color-primary);
 }
 
 /* 用戶資料卡 */
@@ -1272,16 +1294,23 @@ textarea:focus {
   color: var(--text-secondary);
 }
 
-/* 標籤頁 (Tabs) */
+/* 標籤頁 (Tabs) - 優化版 */
 .dashboard-tabs {
   display: flex;
-  gap: 15px;
+  gap: 0; /* 移除間隙，改用 padding 控制 */
   margin-bottom: 20px;
   border-bottom: 2px solid var(--border-color);
   overflow-x: auto;
+  white-space: nowrap; /* 防止換行 */
+  scrollbar-width: none; /* 隱藏滾動條 (Firefox) */
+  -ms-overflow-style: none; /* 隱藏滾動條 (IE/Edge) */
 }
+.dashboard-tabs::-webkit-scrollbar {
+  display: none; /* 隱藏滾動條 (Chrome) */
+}
+
 .tab-btn {
-  padding: 12px 20px;
+  padding: 12px 24px;
   background: none;
   border: none;
   font-size: 16px;
@@ -1289,7 +1318,7 @@ textarea:focus {
   color: var(--text-secondary);
   cursor: pointer;
   margin-bottom: -2px;
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
   transition: all 0.2s;
   white-space: nowrap;
 }
@@ -1318,7 +1347,7 @@ textarea:focus {
 }
 
 /* ==========================================================================
-   15. 響應式表格 (RWD Tables)
+   15. 響應式表格 (RWD Tables) - 深度優化 (Card List View)
    ========================================================================== */
 /* 桌機版樣式 */
 .table-responsive {
@@ -1347,6 +1376,7 @@ textarea:focus {
 
 /* 手機版樣式 (Card List) - 這是關鍵優化 */
 @media (max-width: 768px) {
+  /* 強制切換為 Block 顯示 */
   .table-responsive table,
   .table-responsive tbody,
   .table-responsive tr,
@@ -1361,44 +1391,97 @@ textarea:focus {
   .table-responsive tr {
     background: #fff;
     margin-bottom: 15px;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg); /* 更圓潤 */
     box-shadow: var(--shadow-sm);
     border: 1px solid var(--border-color);
     padding: 15px;
+    position: relative; /* 作為定位基準 */
+    padding-bottom: 50px; /* 留空間給底部按鈕 */
+  }
+
+  /* --- 通用單元格樣式 --- */
+  .table-responsive td {
+    padding: 5px 0;
+    border-bottom: none;
+    text-align: left;
     position: relative;
   }
 
-  .table-responsive td {
-    padding: 8px 0;
-    border-bottom: none;
-    text-align: right; /* 內容靠右 */
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  /* --- 1. 選取框 (Checkbox) 區域 --- */
+  .table-responsive td:first-child {
+    padding-left: 30px; /* 留空間給 Checkbox */
+    margin-bottom: 5px;
+  }
+  .table-responsive td input[type="checkbox"] {
+    position: absolute;
+    left: 0;
+    top: 5px;
+    width: 20px;
+    height: 20px;
+    transform: scale(1.2); /* 放大點擊區域 */
   }
 
-  /* 選取框置頂 */
-  .table-responsive td:first-child {
+  /* --- 2. 狀態標籤 (Status) --- */
+  /* 透過 nth-child 鎖定狀態欄位 (假設是第2欄) */
+  .table-responsive td:nth-child(2) {
     position: absolute;
     top: 15px;
-    left: 15px;
+    right: 15px;
     width: auto;
     padding: 0;
-    justify-content: flex-start;
+    text-align: right;
   }
 
-  /* 操作按鈕區 */
-  .table-responsive td:last-child {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px dashed var(--border-color);
-    justify-content: flex-end;
+  /* --- 3. 主要內容 (商品/單號) --- */
+  .table-responsive td:nth-child(3) {
+    font-size: 16px;
+    margin-bottom: 5px;
+    padding-right: 80px; /* 避開狀態標籤 */
+  }
+  /* 單號樣式微調 */
+  .table-responsive td:nth-child(3) small {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-secondary);
+    background: var(--bg-input);
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+  }
+
+  /* --- 4. 規格/費用資訊 --- */
+  .table-responsive td:nth-child(4) {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
     gap: 10px;
   }
 
-  /* 調整卡片內的文字排列 */
-  .table-responsive td div {
-    text-align: right;
+  /* --- 5. 操作按鈕區 (Actions) --- */
+  .table-responsive td:last-child {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: var(--bg-input);
+    border-top: 1px solid var(--border-color);
+    padding: 8px 15px;
+    border-radius: 0 0 16px 16px; /* 底部圓角 */
+    display: flex;
+    justify-content: flex-end; /* 按鈕靠右 */
+    gap: 10px;
+    align-items: center;
+  }
+
+  /* 手機版按鈕調整 */
+  .table-responsive td:last-child .btn {
+    font-size: 13px;
+    padding: 6px 12px;
+    width: auto;
+    flex: 0 0 auto; /* 不伸展 */
   }
 }
 
@@ -1538,6 +1621,27 @@ textarea:focus {
   }
   .user-meta {
     justify-content: center;
+  }
+
+  /* Dashboard Tabs 手機優化 (膠囊狀) */
+  .dashboard-tabs {
+    padding: 5px 0;
+    gap: 10px;
+    border-bottom: none; /* 移除底線 */
+  }
+  .tab-btn {
+    background-color: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 14px;
+    margin: 0;
+    color: var(--text-body);
+  }
+  .tab-btn.active {
+    background-color: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
   }
 
   /* 彈窗全螢幕感 */
