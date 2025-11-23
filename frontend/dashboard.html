@@ -102,6 +102,23 @@
           <h3><i class="fas fa-box-open"></i> 預報新包裹</h3>
         </div>
         <div class="card-body">
+          <div
+            class="alert alert-warning"
+            style="
+              display: block;
+              font-size: 13px;
+              background-color: #fff3cd;
+              color: #856404;
+              border: 1px solid #ffeeba;
+              margin-bottom: 15px;
+            "
+          >
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>重要提醒：</strong>
+            若您的單件包裹重量超過
+            100kg，請務必確認台灣收件端可<strong>自行安排堆高機</strong>卸貨。
+          </div>
+
           <form id="forecast-form" class="forecast-form-grid">
             <div class="form-group">
               <label class="required">物流單號</label>
@@ -363,6 +380,17 @@
             </div>
 
             <div class="checkout-info-form">
+              <div
+                id="forklift-warning"
+                class="alert alert-danger"
+                style="display: none; margin-bottom: 15px"
+              >
+                <i class="fas fa-dolly"></i>
+                <strong>超重提醒：</strong> 偵測到包裹含有超重物品 (單件 >
+                100kg)。<br />
+                請確認台灣收件地址可<strong>自行安排堆高機</strong>下貨，否則司機可能無法派送。
+              </div>
+
               <h4>📝 收件資訊</h4>
               <div class="form-group">
                 <label class="required">收件人</label

@@ -1,4 +1,4 @@
-// frontend/js/dashboard-shipments.js (V22.6 - 完整版)
+// frontend/js/dashboard-shipments.js (V22.6 - 完整版 - 含堆高機動態檢查)
 // 負責：集運單列表、建立訂單(結帳)、取消訂單、詳情、上傳憑證
 
 // --- 1. 載入我的集運單 ---
@@ -102,6 +102,9 @@ window.handleCreateShipmentClick = function () {
 
   let html = "";
 
+  // [新增變數] 用於追蹤整單是否有任何一件超重
+  let shipmentHasOverweight = false;
+
   ids.forEach((id) => {
     const p = window.allPackagesData.find((x) => x.id === id);
     if (!p) return;
@@ -146,7 +149,12 @@ window.handleCreateShipmentClick = function () {
           h > CONSTANTS.OVERSIZED_LIMIT
         )
           hasOversized = true;
-        if (w > CONSTANTS.OVERWEIGHT_LIMIT) hasOverweight = true;
+
+        // [檢查超重並標記整單]
+        if (w > CONSTANTS.OVERWEIGHT_LIMIT) {
+          hasOverweight = true;
+          shipmentHasOverweight = true; // 只要有一箱超重，整單就需要堆高機
+        }
 
         // 生成單箱明細小字
         breakdownHtml += `
@@ -232,6 +240,12 @@ window.handleCreateShipmentClick = function () {
 
   if (window.renderShipmentRemoteAreaOptions)
     window.renderShipmentRemoteAreaOptions();
+
+  // [新增邏輯] 控制堆高機警告顯示
+  const warningEl = document.getElementById("forklift-warning");
+  if (warningEl) {
+    warningEl.style.display = shipmentHasOverweight ? "block" : "none";
+  }
 
   document.getElementById("create-shipment-modal").style.display = "flex";
 };

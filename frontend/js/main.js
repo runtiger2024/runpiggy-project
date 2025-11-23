@@ -1,4 +1,4 @@
-// frontend/js/main.js (V20 - 修復 undefined 與欄位對應)
+// frontend/js/main.js (V20 - 修復 undefined 與欄位對應 - 優化版)
 
 // --- 前端備案設定 (當後端完全掛掉時使用) ---
 const fallbackSettings = {
@@ -158,8 +158,9 @@ function renderRateTable() {
   if (noteList && window.CONSTANTS) {
     noteList.innerHTML = `
       <li>海運低消 <span class="highlight">$${window.CONSTANTS.MINIMUM_CHARGE}</span></li>
-      <li>超長限制 ${window.CONSTANTS.OVERSIZED_LIMIT}cm (費 $${window.CONSTANTS.OVERSIZED_FEE})</li>
-      <li>超重限制 ${window.CONSTANTS.OVERWEIGHT_LIMIT}kg (費 $${window.CONSTANTS.OVERWEIGHT_FEE})</li>
+      <li>長度超過 ${window.CONSTANTS.OVERSIZED_LIMIT}cm (超長費 $${window.CONSTANTS.OVERSIZED_FEE}/整筆訂單)</li>
+      <li>重量超過 ${window.CONSTANTS.OVERWEIGHT_LIMIT}kg (超重費 $${window.CONSTANTS.OVERWEIGHT_FEE}/整筆訂單)</li>
+      <li style="color: #d32f2f; font-weight: bold;">⚠️ 若貨物超重(單件>${window.CONSTANTS.OVERWEIGHT_LIMIT}kg)，請客戶於台灣端自行安排堆高機。</li>
     `;
   }
 }
