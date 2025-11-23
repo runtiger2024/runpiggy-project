@@ -1,5 +1,5 @@
-// frontend/js/dashboard-packages.js
-// 負責：包裹列表、預報、編輯、刪除、**詳細算式彈窗**
+// frontend/js/dashboard-packages.js (V22.2 - 完整版)
+// 負責：包裹列表、預報、編輯、刪除、詳細算式彈窗
 
 let currentEditPackageImages = [];
 
@@ -14,18 +14,23 @@ window.loadMyPackages = async function () {
     window.allPackagesData = data.packages || [];
     renderPackagesTable();
   } catch (e) {
-    tableBody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:red;">載入失敗: ${e.message}</td></tr>`;
+    if (tableBody) {
+      tableBody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:red;">載入失敗: ${e.message}</td></tr>`;
+    }
   }
 };
 
 function renderPackagesTable() {
   const tableBody = document.getElementById("packages-table-body");
+  if (!tableBody) return;
+
   tableBody.innerHTML = "";
 
   if (window.allPackagesData.length === 0) {
     tableBody.innerHTML =
       '<tr><td colspan="5" class="text-center" style="padding:30px; color:#999;">目前沒有包裹，請點擊上方「預報新包裹」</td></tr>';
-    if (window.updateCheckoutBar) window.updateCheckoutBar();
+    if (typeof window.updateCheckoutBar === "function")
+      window.updateCheckoutBar();
     return;
   }
 
@@ -111,7 +116,8 @@ function renderPackagesTable() {
 
     // 綁定事件
     tr.querySelector(".package-checkbox")?.addEventListener("change", () => {
-      if (window.updateCheckoutBar) window.updateCheckoutBar();
+      if (typeof window.updateCheckoutBar === "function")
+        window.updateCheckoutBar();
     });
     tr.querySelector(".btn-edit")?.addEventListener("click", () =>
       openEditPackageModal(pkg)
@@ -123,10 +129,11 @@ function renderPackagesTable() {
     tableBody.appendChild(tr);
   });
 
-  if (window.updateCheckoutBar) window.updateCheckoutBar();
+  if (typeof window.updateCheckoutBar === "function")
+    window.updateCheckoutBar();
 }
 
-// --- 2. [重點功能] 包裹詳情彈窗 (含算式) ---
+// --- 2. 包裹詳情彈窗 (含算式與總額即時累加) ---
 window.openPackageDetails = function (pkgDataStr) {
   try {
     const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
@@ -145,6 +152,9 @@ window.openPackageDetails = function (pkgDataStr) {
       ? pkg.arrivedBoxes
       : [];
     let boxesHtml = "";
+
+    // 初始化前端累加總金額 (解決資料庫欄位可能未更新的問題)
+    let currentTotalFee = 0;
 
     if (arrivedBoxes.length > 0) {
       boxesHtml = `<div class="detail-scroll-container">`;
@@ -168,6 +178,9 @@ window.openPackageDetails = function (pkgDataStr) {
         const wtFee = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
         const finalFee = Math.max(volFee, wtFee);
         const isVolWin = volFee >= wtFee;
+
+        // 累加總金額
+        currentTotalFee += finalFee;
 
         const isOversized =
           l > CONSTANTS.OVERSIZED_LIMIT ||
@@ -226,6 +239,8 @@ window.openPackageDetails = function (pkgDataStr) {
       }
       boxesListContainer.innerHTML = boxesHtml;
     } else {
+      // 如果沒有分箱資料，但 totalCalculatedFee 有值 (可能是舊資料)，則回退使用後端值
+      currentTotalFee = pkg.totalCalculatedFee || 0;
       boxesListContainer.innerHTML =
         '<p style="text-align: center; color: #888; padding:20px; background:#f9f9f9; border-radius:8px;">📦 倉庫尚未測量數據</p>';
     }
@@ -236,9 +251,11 @@ window.openPackageDetails = function (pkgDataStr) {
     );
     document.getElementById("details-total-weight").textContent =
       totalWeight.toFixed(1);
-    document.getElementById("details-total-fee").textContent = `NT$ ${(
-      pkg.totalCalculatedFee || 0
-    ).toLocaleString()}`;
+
+    // 使用前端即時累加的 currentTotalFee
+    document.getElementById(
+      "details-total-fee"
+    ).textContent = `NT$ ${currentTotalFee.toLocaleString()}`;
 
     const warehouseImages = Array.isArray(pkg.warehouseImages)
       ? pkg.warehouseImages
@@ -259,11 +276,11 @@ window.openPackageDetails = function (pkgDataStr) {
     modal.style.display = "flex";
   } catch (e) {
     console.error("詳情解析失敗", e);
-    window.showMessage("無法載入詳情", "error");
+    if (window.showMessage) window.showMessage("無法載入詳情", "error");
   }
 };
 
-// --- 3. 預報與編輯 ---
+// --- 3. 預報與編輯功能 ---
 window.handleForecastSubmit = async function (e) {
   e.preventDefault();
   const form = e.target;
@@ -286,9 +303,10 @@ window.handleForecastSubmit = async function (e) {
       body: fd,
     });
     if (res.ok) {
-      window.showMessage("預報成功", "success");
+      if (window.showMessage) window.showMessage("預報成功", "success");
       form.reset();
-      document.getElementById("file-count-display").style.display = "none";
+      const countDisp = document.getElementById("file-count-display");
+      if (countDisp) countDisp.style.display = "none";
       window.loadMyPackages();
       if (window.checkForecastDraftQueue) window.checkForecastDraftQueue(true);
     } else {
@@ -311,7 +329,7 @@ async function handleDeletePackage(pkg) {
       headers: { Authorization: `Bearer ${window.dashboardToken}` },
     });
     window.loadMyPackages();
-    window.showMessage("已刪除", "success");
+    if (window.showMessage) window.showMessage("已刪除", "success");
   } catch (e) {
     alert("刪除失敗");
   }
@@ -325,23 +343,22 @@ window.openEditPackageModal = function (pkg) {
   document.getElementById("edit-note").value = pkg.note || "";
   currentEditPackageImages = pkg.productImages || [];
 
+  renderEditImages();
+  document.getElementById("edit-package-modal").style.display = "flex";
+};
+
+function renderEditImages() {
   const container = document.getElementById("edit-package-images-container");
+  if (!container) return;
   container.innerHTML = "";
   currentEditPackageImages.forEach((url, idx) => {
     container.innerHTML += `<div style="position:relative; display:inline-block; margin:5px;"><img src="${API_BASE_URL}${url}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;"><span onclick="removeEditImg(${idx})" style="position:absolute;top:-5px;right:-5px;background:red;color:white;border-radius:50%;width:20px;height:20px;text-align:center;cursor:pointer;">&times;</span></div>`;
   });
-  document.getElementById("edit-package-modal").style.display = "flex";
-};
+}
 
 window.removeEditImg = function (idx) {
   currentEditPackageImages.splice(idx, 1);
-  // 重新渲染太麻煩，直接關閉再開一次模擬刷新（或抽取 render 函式，這裡簡化處理）
-  const pkgId = document.getElementById("edit-package-id").value;
-  const pkg = window.allPackagesData.find((p) => p.id === pkgId);
-  if (pkg) {
-    pkg.productImages = currentEditPackageImages;
-    openEditPackageModal(pkg);
-  }
+  renderEditImages();
 };
 
 window.handleEditPackageSubmit = async function (e) {
@@ -366,5 +383,5 @@ window.handleEditPackageSubmit = async function (e) {
   });
   document.getElementById("edit-package-modal").style.display = "none";
   window.loadMyPackages();
-  window.showMessage("更新成功", "success");
+  if (window.showMessage) window.showMessage("更新成功", "success");
 };
