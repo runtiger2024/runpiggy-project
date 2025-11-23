@@ -1,8 +1,8 @@
 /* * ==========================================================================
  * frontend/css/client.css
  * 專案：小跑豬集運 (RunPiggy)
- * 版本：V19.0 (Dashboard Optimization Edition)
- * 描述：客戶端專用樣式表 - 針對儀表板 LOGO 與列表顯示進行深度優化
+ * 版本：V20.0 (Mobile Experience Overhaul)
+ * 描述：客戶端專用樣式表 - 包含深度優化的手機版卡片視圖與頂部導航
  * 主色調：#1a73e8 (藍) | 強調色：#ff5000 (橘)
  * ==========================================================================
  */
@@ -52,7 +52,7 @@
 
   /* --- 尺寸系統 (Dimensions) --- */
   --header-height-desktop: 72px;
-  --header-height-mobile: 60px;
+  --header-height-mobile: 56px; /* [優化] 手機版 Header 更緊湊 */
   --mobile-nav-height: 60px; /* 手機底部導航高度 */
   --sticky-footer-height: 70px; /* 底部懸浮結算欄高度 */
 
@@ -268,6 +268,7 @@ hr {
   z-index: var(--z-header);
   display: flex;
   align-items: center;
+  transition: height 0.3s ease;
 }
 
 .header-container {
@@ -291,6 +292,7 @@ hr {
 .header-logo-img {
   height: 40px;
   width: auto;
+  transition: height 0.3s ease;
 }
 
 .logo-text {
@@ -534,7 +536,7 @@ textarea:focus {
   color: var(--color-primary);
 }
 
-/* 單選切換組 (Radio Toggle) - 用於切換尺寸/材積輸入 */
+/* 單選切換組 (Radio Toggle) */
 .calc-method-toggle {
   display: flex;
   background-color: var(--bg-input);
@@ -566,7 +568,6 @@ textarea:focus {
 /* 選中狀態：利用 :has() 或兄弟選擇器 */
 .calc-method-toggle label:has(input:checked),
 .calc-method-toggle input:checked + span {
-  /* Fallback logic structure if span used */
   background-color: var(--color-white);
   color: var(--color-primary);
   font-weight: 700;
@@ -1215,55 +1216,55 @@ textarea:focus {
 /* ==========================================================================
    14. 會員儀表板 (Dashboard Specifics)
    ========================================================================== */
-/* --- Dashboard Header Fix --- */
+/* 14.1 Header 區域優化 */
 .dashboard-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-lg);
-  padding: 10px 0;
+  padding: 15px 0;
 }
 
 .dashboard-header .header-left {
   display: flex;
   align-items: center;
-  gap: 10px; /* 增加間距 */
+  gap: 10px;
 }
 
-/* LOGO 縮小與對齊 */
 .header-logo-sm {
-  height: 32px; /* 強制高度，避免過大 */
+  height: 32px;
   width: auto;
   object-fit: contain;
 }
 
 .dashboard-header h1 {
-  font-size: 20px;
+  font-size: 18px;
   margin: 0;
   line-height: 1.2;
-  color: var(--color-primary);
+  color: var(--text-main);
 }
 
-/* 用戶資料卡 */
+/* 14.2 用戶資料卡 (User Profile) - 高度與排版優化 */
 .user-profile-card {
   padding-top: 0;
   overflow: hidden;
+  margin-bottom: 20px;
 }
 .profile-bg {
-  height: 120px;
+  height: 80px; /* [優化] 縮小背景高度 */
   background: linear-gradient(135deg, var(--color-primary), #004299);
 }
 .profile-content {
-  padding: 0 30px 30px 30px;
+  padding: 0 20px 20px 20px;
   position: relative;
   display: flex;
   align-items: flex-end;
-  gap: 20px;
-  margin-top: -60px; /* 頭像上移效果 */
+  gap: 15px;
+  margin-top: -40px; /* [優化] 頭像上移幅度調整 */
 }
 .avatar-circle {
-  width: 100px;
-  height: 100px;
+  width: 80px; /* [優化] 縮小頭像 */
+  height: 80px;
   background: #fff;
   border-radius: 50%;
   padding: 5px;
@@ -1271,54 +1272,64 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 40px;
+  font-size: 32px;
   color: var(--color-primary);
+  flex-shrink: 0;
 }
 .profile-details {
   flex: 1;
-  padding-top: 65px; /* 避開頭像 */
+  padding-top: 45px; /* [優化] 避開頭像 */
 }
 .profile-details h2 {
   margin-bottom: 5px;
+  font-size: 18px;
 }
 .user-meta {
   display: flex;
-  gap: 15px;
-  font-size: 14px;
+  gap: 10px;
+  font-size: 13px;
   color: var(--text-secondary);
   flex-wrap: wrap;
 }
 .user-address {
   margin-top: 5px;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+/* 編輯按鈕位置 */
+.btn-edit-profile {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
-/* 標籤頁 (Tabs) - 優化版 */
+/* 14.3 標籤頁 (Tabs) - 手機橫滑優化 */
 .dashboard-tabs {
   display: flex;
-  gap: 0; /* 移除間隙，改用 padding 控制 */
-  margin-bottom: 20px;
-  border-bottom: 2px solid var(--border-color);
+  gap: 10px;
+  margin-bottom: 15px;
   overflow-x: auto;
-  white-space: nowrap; /* 防止換行 */
-  scrollbar-width: none; /* 隱藏滾動條 (Firefox) */
-  -ms-overflow-style: none; /* 隱藏滾動條 (IE/Edge) */
+  white-space: nowrap;
+  padding-bottom: 5px;
+  border-bottom: none;
+  scrollbar-width: none;
 }
 .dashboard-tabs::-webkit-scrollbar {
-  display: none; /* 隱藏滾動條 (Chrome) */
+  display: none;
 }
 
 .tab-btn {
-  padding: 12px 24px;
-  background: none;
-  border: none;
-  font-size: 16px;
+  padding: 8px 16px;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 20px; /* 膠囊狀 */
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
-  margin-bottom: -2px;
-  border-bottom: 3px solid transparent;
+  margin-bottom: 0;
   transition: all 0.2s;
   white-space: nowrap;
 }
@@ -1326,8 +1337,10 @@ textarea:focus {
   color: var(--color-primary);
 }
 .tab-btn.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(26, 115, 232, 0.2);
 }
 
 .tab-content {
@@ -1347,36 +1360,44 @@ textarea:focus {
 }
 
 /* ==========================================================================
-   15. 響應式表格 (RWD Tables) - 深度優化 (Card List View)
+   15. 響應式表格 (Responsive Tables) - 卡片式優化 (Mobile Card View)
    ========================================================================== */
-/* 桌機版樣式 */
-.table-responsive {
-  overflow-x: auto;
-  background: #fff;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-}
-.table-responsive table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 600px; /* 防止太窄 */
-}
-.table-responsive th {
-  background: var(--bg-body);
-  text-align: left;
-  padding: 15px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-.table-responsive td {
-  padding: 15px;
-  border-bottom: 1px solid var(--bg-body);
-  vertical-align: middle;
+/* 15.1 桌機版樣式 (維持原樣) */
+@media (min-width: 769px) {
+  .table-responsive {
+    overflow-x: auto;
+    background: #fff;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+  }
+  .table-responsive table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 600px;
+  }
+  .table-responsive th {
+    background: var(--bg-body);
+    text-align: left;
+    padding: 15px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .table-responsive td {
+    padding: 15px;
+    border-bottom: 1px solid var(--bg-body);
+    vertical-align: middle;
+  }
 }
 
-/* 手機版樣式 (Card List) - 這是關鍵優化 */
+/* 15.2 手機版樣式 - 強制卡片化 (垂直堆疊，無橫向捲動) */
 @media (max-width: 768px) {
-  /* 強制切換為 Block 顯示 */
+  /* 容器調整 */
+  .container {
+    padding: 0 12px; /* 減少兩側邊距 */
+  }
+
+  /* 清除表格結構，改為 Block */
+  .table-responsive,
   .table-responsive table,
   .table-responsive tbody,
   .table-responsive tr,
@@ -1384,104 +1405,155 @@ textarea:focus {
     display: block;
     width: 100%;
   }
-  .table-responsive thead {
-    display: none;
-  } /* 隱藏表頭 */
 
+  .table-responsive thead {
+    display: none; /* 隱藏表頭 */
+  }
+
+  /* 每一行變成一張卡片 */
   .table-responsive tr {
     background: #fff;
     margin-bottom: 15px;
-    border-radius: var(--radius-lg); /* 更圓潤 */
-    box-shadow: var(--shadow-sm);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     border: 1px solid var(--border-color);
-    padding: 15px;
-    position: relative; /* 作為定位基準 */
-    padding-bottom: 50px; /* 留空間給底部按鈕 */
-  }
-
-  /* --- 通用單元格樣式 --- */
-  .table-responsive td {
-    padding: 5px 0;
-    border-bottom: none;
-    text-align: left;
+    padding: 15px 15px 55px 15px; /* 底部留白給按鈕 */
     position: relative;
   }
 
-  /* --- 1. 選取框 (Checkbox) 區域 --- */
-  .table-responsive td:first-child {
-    padding-left: 30px; /* 留空間給 Checkbox */
-    margin-bottom: 5px;
-  }
-  .table-responsive td input[type="checkbox"] {
-    position: absolute;
-    left: 0;
-    top: 5px;
-    width: 20px;
-    height: 20px;
-    transform: scale(1.2); /* 放大點擊區域 */
+  /* 選中狀態高亮 */
+  .table-responsive tr:has(input:checked) {
+    border-color: var(--color-primary);
+    background-color: #fbfdff;
   }
 
-  /* --- 2. 狀態標籤 (Status) --- */
-  /* 透過 nth-child 鎖定狀態欄位 (假設是第2欄) */
+  /* TD 通用重置 */
+  .table-responsive td {
+    padding: 2px 0;
+    border-bottom: none;
+    text-align: left;
+    position: static;
+  }
+
+  /* --- 卡片內部佈局 --- */
+
+  /* 1. Checkbox (絕對定位左上) */
+  .table-responsive td:first-child {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    width: auto;
+    height: auto;
+    z-index: 5;
+  }
+  /* 放大 Checkbox 點擊區 */
+  .table-responsive td input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+  }
+
+  /* 2. Status Badge (絕對定位右上) */
   .table-responsive td:nth-child(2) {
     position: absolute;
     top: 15px;
     right: 15px;
     width: auto;
-    padding: 0;
     text-align: right;
   }
 
-  /* --- 3. 主要內容 (商品/單號) --- */
+  /* 3. 主要內容 (商品名稱/單號/日期) */
   .table-responsive td:nth-child(3) {
-    font-size: 16px;
-    margin-bottom: 5px;
-    padding-right: 80px; /* 避開狀態標籤 */
+    margin-top: 5px;
+    padding-left: 35px; /* 避開 Checkbox */
+    margin-bottom: 8px;
   }
-  /* 單號樣式微調 */
+  /* 內容樣式強化 */
+  .table-responsive td:nth-child(3) div {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
   .table-responsive td:nth-child(3) small {
-    display: block;
-    margin-top: 2px;
+    font-family: var(--font-mono);
+    font-size: 13px;
     color: var(--text-secondary);
     background: var(--bg-input);
-    display: inline-block;
     padding: 2px 6px;
     border-radius: 4px;
-    font-family: var(--font-mono);
+    display: inline-block;
+    word-break: break-all;
   }
 
-  /* --- 4. 規格/費用資訊 --- */
+  /* 4. 規格/費用 (次要資訊) */
   .table-responsive td:nth-child(4) {
-    font-size: 14px;
+    padding-left: 35px;
+    font-size: 13px;
     color: var(--text-secondary);
-    margin-bottom: 5px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  /* 強調金額 */
+  .table-responsive td:nth-child(4) span {
+    background: #fff7e6;
+    color: var(--color-accent);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
   }
 
-  /* --- 5. 操作按鈕區 (Actions) --- */
+  /* 5. 操作按鈕 (Actions) - 固定底部 */
   .table-responsive td:last-child {
     position: absolute;
     bottom: 0;
     left: 0;
     width: 100%;
-    background: var(--bg-input);
+    height: 46px;
+    background: #fafafa;
     border-top: 1px solid var(--border-color);
-    padding: 8px 15px;
-    border-radius: 0 0 16px 16px; /* 底部圓角 */
-    display: flex;
-    justify-content: flex-end; /* 按鈕靠右 */
-    gap: 10px;
+    border-radius: 0 0 12px 12px;
+    padding: 0;
+
+    /* 使用 Grid 均分按鈕寬度 */
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
     align-items: center;
   }
 
-  /* 手機版按鈕調整 */
+  /* 按鈕樣式重置 */
   .table-responsive td:last-child .btn {
-    font-size: 13px;
-    padding: 6px 12px;
-    width: auto;
-    flex: 0 0 auto; /* 不伸展 */
+    height: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    color: #555;
+    font-size: 14px;
+    width: 100%;
+    margin: 0;
+    box-shadow: none;
+  }
+  /* 按鈕分隔線 */
+  .table-responsive td:last-child .btn:not(:last-child) {
+    border-right: 1px solid #eee;
+  }
+  /* 按鈕點擊效果 */
+  .table-responsive td:last-child .btn:active {
+    background: #e6f7ff;
+    color: var(--color-primary);
+  }
+
+  /* 特殊按鈕顏色覆寫 */
+  .table-responsive td:last-child .btn-primary {
+    color: var(--color-primary);
+    font-weight: bold;
+  }
+  .table-responsive td:last-child .btn-danger {
+    color: var(--color-danger);
   }
 }
 
@@ -1576,24 +1648,31 @@ textarea:focus {
     display: flex;
   } /* 顯示手機導航 */
 
-  /* 調整容器 */
-  .container {
-    padding: 0 15px;
-  }
-
-  /* 調整表單 */
+  /* 調整表單佈局 */
   .item-body,
   .warehouse-body {
     grid-template-columns: 1fr;
-  } /* 單欄 */
+  }
   .input-group-3 {
     gap: 8px;
+  }
+
+  /* 預報表單優化 */
+  .forecast-form-grid {
+    display: grid;
+    gap: 15px;
+  }
+  .forecast-form-grid .form-group.short {
+    grid-column: span 1;
+  }
+  .forecast-form-grid .form-group.full {
+    grid-column: 1 / -1;
   }
 
   /* 調整按鈕 */
   .btn {
     width: 100%;
-  } /* 按鈕全寬 */
+  }
 
   /* 調整文字 */
   h1 {
@@ -1608,13 +1687,11 @@ textarea:focus {
     padding: 20px 15px;
   }
 
-  /* 會員中心 */
+  /* 會員中心 Profile 調整 (已在上方 Section 14.2 定義，此處微調佈局方向) */
   .profile-content {
     flex-direction: column;
     align-items: center;
     text-align: center;
-    margin-top: -50px;
-    padding: 0 20px 20px 20px;
   }
   .profile-details {
     padding-top: 10px;
@@ -1623,44 +1700,18 @@ textarea:focus {
     justify-content: center;
   }
 
-  /* Dashboard Tabs 手機優化 (膠囊狀) */
-  .dashboard-tabs {
-    padding: 5px 0;
-    gap: 10px;
-    border-bottom: none; /* 移除底線 */
-  }
-  .tab-btn {
-    background-color: #fff;
-    border: 1px solid var(--border-color);
-    border-radius: 20px;
-    padding: 8px 16px;
-    font-size: 14px;
-    margin: 0;
-    color: var(--text-body);
-  }
-  .tab-btn.active {
-    background-color: var(--color-primary);
-    color: #fff;
-    border-color: var(--color-primary);
-  }
-
   /* 彈窗全螢幕感 */
   .modal-content {
-    max-height: 80vh;
-    width: 100%;
+    max-height: 85vh;
+    width: 95%;
     margin: 0;
-    border-radius: 16px 16px 0 0; /* 只有上方圓角 */
-    position: absolute;
-    bottom: 0;
-    animation: slideUpPanel 0.3s ease-out;
+    /* border-radius: 16px 16px 0 0;  如果喜歡底部抽屜式可開啟此行並 positioning absolute bottom */
   }
-  @keyframes slideUpPanel {
-    from {
-      transform: translateY(100%);
-    }
-    to {
-      transform: translateY(0);
-    }
+}
+
+@media (min-width: 600px) {
+  .forecast-form-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
