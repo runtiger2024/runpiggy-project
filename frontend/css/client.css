@@ -1,29 +1,28 @@
 /* frontend/css/client.css */
-/* 客戶端專用樣式：購物平台風格 (Shopee/Taobao Like) - V13 優化版 */
+/* 客戶端專用樣式：購物平台風格 (Shopee/Taobao Like) - V14 最終修復版 */
 
 /* =========================================
    1. 佈局容器 & 變數 (Layout)
    ========================================= */
 :root {
   --header-height: 70px; /* 電腦版 Header 高度 */
-  --header-height-mobile: 110px; /* 手機版 Header 高度 (含搜尋列換行) */
-  --footer-height: 80px;
+  --header-height-mobile: 120px; /* 手機版 Header 高度 (含搜尋列換行) */
+  --mobile-nav-height: 60px; /* 手機底部導航高度 */
   --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   --card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   --radius-md: 8px;
   --radius-lg: 12px;
-  --orange-action: #ff5722; /* 類似蝦皮橙 */
-  --blue-brand: #1a73e8;
+  --orange-action: #ff5722; /* 品牌橙 (行動按鈕) */
+  --blue-brand: #1a73e8; /* 品牌藍 (主色調) */
 }
 
 body.shopping-theme,
 body.dashboard-theme {
   background-color: #f5f5f5;
-  /* [修正] 預設 Padding */
+  /* [修正] 確保內容不被 Header 遮住 */
   padding-top: calc(var(--header-height) + 20px);
-  padding-bottom: calc(
-    var(--footer-height) + 60px
-  ); /* 預留底部懸浮空間 + Footer 緩衝 */
+  /* [修正] 確保底部不被懸浮欄遮住 */
+  padding-bottom: 100px;
 }
 
 .container.main-content,
@@ -36,7 +35,7 @@ body.dashboard-theme {
 }
 
 /* =========================================
-   2. 首頁 Header
+   2. Header & 電腦版導航
    ========================================= */
 .site-header {
   position: fixed;
@@ -138,21 +137,65 @@ body.dashboard-theme {
   background-color: #fafafa;
 }
 
-/* Header 導航 */
+/* 電腦版 Header 導航連結 */
 .header-nav .nav-link {
   border: none;
   background: none;
   font-size: 15px;
   color: #333;
   padding: 5px 10px;
-  box-shadow: none;
+  margin-left: 10px;
+  font-weight: 500;
 }
-.header-nav .nav-link:hover {
+.header-nav .nav-link:hover,
+.header-nav .nav-link.active {
   color: var(--orange-action);
 }
 
 /* =========================================
-   3. 倉庫名片
+   3. 手機版底部導航 (Mobile Bottom Nav)
+   ========================================= */
+.mobile-bottom-nav {
+  display: none; /* 電腦版隱藏 */
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: var(--mobile-nav-height);
+  background: #fff;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 2000; /* 最高層級，蓋過懸浮按鈕 */
+  justify-content: space-around;
+  align-items: center;
+  padding-bottom: env(safe-area-inset-bottom); /* 適配 iPhone X+ 底部橫條 */
+  border-top: 1px solid #eee;
+}
+
+.mobile-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-size: 12px;
+  height: 100%;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.mobile-nav-item .nav-icon {
+  font-size: 20px;
+  margin-bottom: 2px;
+}
+
+.mobile-nav-item.active {
+  color: var(--orange-action);
+  font-weight: bold;
+}
+
+/* =========================================
+   4. 倉庫名片 & 試算列表 UI
    ========================================= */
 .warehouse-card {
   background: #fff;
@@ -229,9 +272,7 @@ body.dashboard-theme {
   margin-top: 5px;
 }
 
-/* =========================================
-   4. 試算列表 & 收費標準
-   ========================================= */
+/* 費率表與折疊 */
 .rate-section-wrapper {
   margin-bottom: 20px;
 }
@@ -252,15 +293,12 @@ body.dashboard-theme {
   display: none;
 }
 
-/* 費率表容器 */
 .rate-table-container {
   background: #fff;
   border-radius: var(--radius-md);
   box-shadow: var(--card-shadow);
-  overflow: hidden; /* 圓角 */
+  overflow: hidden;
 }
-
-/* 費率表 - 電腦版預設 */
 .rate-table {
   width: 100%;
   border-collapse: collapse;
@@ -268,18 +306,16 @@ body.dashboard-theme {
 }
 .rate-table th {
   background: #f8f9fa;
-  color: #555;
-  font-weight: 600;
   padding: 12px 15px;
   text-align: left;
+  color: #555;
   font-size: 14px;
-  border-bottom: 1px solid #eee;
 }
 .rate-table td {
   padding: 12px 15px;
   border-bottom: 1px solid #eee;
-  font-size: 14px;
   color: #333;
+  font-size: 14px;
 }
 .rate-table tr:last-child td {
   border-bottom: none;
@@ -290,15 +326,15 @@ body.dashboard-theme {
   background: #e3f2fd;
   padding: 12px;
   border-radius: var(--radius-md);
-  font-size: 13px;
   color: #0d47a1;
+  font-size: 13px;
 }
 .rate-notes ul {
   margin: 5px 0 0 20px;
   padding: 0;
 }
 
-/* 試算表單 (購物車樣式) */
+/* 試算表單 (卡片式) */
 .shopping-list {
   display: flex;
   flex-direction: column;
@@ -308,9 +344,9 @@ body.dashboard-theme {
   background: #fff;
   border-radius: var(--radius-md);
   box-shadow: var(--card-shadow);
-  overflow: hidden;
   border: 1px solid #eee;
-  transition: transform 0.2s;
+  margin-bottom: 15px;
+  overflow: hidden;
 }
 .card-item:hover {
   border-color: var(--blue-brand);
@@ -321,7 +357,6 @@ body.dashboard-theme {
   padding: 10px 15px;
   display: flex;
   justify-content: space-between;
-  border-bottom: 1px solid #eee;
 }
 .item-index {
   font-weight: bold;
@@ -339,6 +374,13 @@ body.dashboard-theme {
   color: #888;
   margin-bottom: 4px;
   display: block;
+}
+
+.calc-method-toggle {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  margin-bottom: 5px;
 }
 .input-group-3 {
   display: flex;
@@ -445,21 +487,20 @@ body.dashboard-theme {
 }
 .btn-checkout {
   background: var(--orange-action);
-  font-size: 18px;
-  padding: 10px 30px;
-  border-radius: 4px;
-  width: auto;
   color: white;
   border: none;
+  padding: 10px 30px;
+  border-radius: 4px;
+  font-size: 18px;
 }
 
 /* =========================================
-   6. Footer 優化 (解決醜醜的問題)
+   6. Footer 優化
    ========================================= */
 .site-footer {
-  background: #fff; /* 改為白底或淺灰，看起來較乾淨 */
+  background: #fff;
   color: #666;
-  padding: 40px 0 20px; /* 增加上方留白 */
+  padding: 40px 0 20px;
   margin-top: 40px;
   border-top: 1px solid #eee;
   text-align: center;
@@ -484,14 +525,6 @@ body.dashboard-theme {
   padding: 8px 15px;
   background: #f5f5f5;
   border-radius: 20px;
-  transition: all 0.2s;
-}
-.footer-links a:hover {
-  background: #e0e0e0;
-  color: var(--blue-brand);
-}
-.footer-links i {
-  font-size: 18px;
 }
 .site-footer__copyright {
   font-size: 12px;
@@ -505,16 +538,18 @@ body.dashboard-theme {
 }
 
 /* =========================================
-   7. 響應式調整 (Mobile) - 解決遮擋與表格問題
+   7. 響應式調整 (Mobile)
    ========================================= */
 @media (max-width: 768px) {
-  /* [修正1] 增加 Body 上方 Padding，防止 Header 遮擋內容 */
+  /* 1. Header 高度補償 */
   body.shopping-theme {
     padding-top: calc(var(--header-height-mobile) + 20px);
+    padding-bottom: 140px; /* 增加底部空間給雙層 Bar */
   }
 
-  /* Header 手機版調整 */
+  /* 2. Header 調整 */
   .site-header {
+    flex-wrap: wrap;
     height: auto;
     padding: 10px 0;
   }
@@ -522,16 +557,21 @@ body.dashboard-theme {
     padding: 0 15px;
   }
   .header-search {
-    order: 3; /* 搜尋欄換行到最下方 */
+    order: 3;
     width: 100%;
     margin: 10px 0 0 0;
     max-width: none;
   }
   .header-nav {
-    display: none; /* 手機版可隱藏部分選單或收納 */
+    display: none !important; /* 手機版隱藏上方選單 */
   }
 
-  /* [修正2] 收費標準表格 -> 卡片式 (解決左右滑動問題) */
+  /* 3. 顯示底部 App 導航 */
+  .mobile-bottom-nav {
+    display: flex;
+  }
+
+  /* 4. 表格卡片化 (解決左右滑) */
   .rate-table thead {
     display: none;
   }
@@ -548,31 +588,24 @@ body.dashboard-theme {
     border: 1px solid #e0e0e0;
     border-radius: 8px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
-    padding: 0; /* 清除 padding */
     overflow: hidden;
   }
-
-  /* 第一個單元格 (類別) 變身為卡片標題 */
   .rate-table td:first-child {
-    background-color: #e3f2fd; /* 淺藍底 */
+    background-color: #e3f2fd;
     color: var(--blue-brand);
     font-weight: bold;
     text-align: center;
     border-bottom: 1px solid #bbdefb;
     padding: 10px;
   }
-
-  /* 其他單元格 */
   .rate-table td {
     padding: 10px 15px;
-    text-align: right; /* 內容靠右 */
+    text-align: right;
     border-bottom: 1px solid #f0f0f0;
     position: relative;
-    padding-left: 50%; /* 留空間給標籤 */
+    padding-left: 50%;
     min-height: 40px;
   }
-
-  /* 使用 data-label 屬性來顯示標題 (JS會注入) */
   .rate-table td::before {
     content: attr(data-label);
     position: absolute;
@@ -584,9 +617,9 @@ body.dashboard-theme {
   }
   .rate-table td:first-child::before {
     display: none;
-  } /* 標題列不需要 label */
+  }
 
-  /* 試算表單手機版 */
+  /* 5. 試算表單單欄 */
   .item-body {
     grid-template-columns: 1fr;
     gap: 10px;
@@ -595,22 +628,25 @@ body.dashboard-theme {
     grid-template-columns: 1fr;
   }
 
-  /* 底部懸浮欄手機版 */
-  .sticky-footer-bar {
+  /* 6. 懸浮結算欄上移 (避開底部導航) */
+  .sticky-footer-bar,
+  .sticky-checkout-bar {
+    bottom: var(--mobile-nav-height); /* 抬高 60px */
     flex-direction: column;
-    width: 100%;
-    border-radius: 0;
-    bottom: 0;
     padding: 10px 15px;
     border-top: 1px solid #ddd;
   }
   .footer-content {
     width: 100%;
-    justify-content: space-between;
-    gap: 0;
+    flex-direction: column;
+    gap: 10px;
   }
   .btn-checkout {
-    padding: 8px 20px;
-    font-size: 16px;
+    width: 100%;
+    padding: 8px 0;
+  }
+
+  .warehouse-body {
+    grid-template-columns: 1fr;
   }
 }

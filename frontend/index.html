@@ -11,17 +11,16 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
     />
     <style>
-      /* 公告橫幅樣式 (保留) */
       #announcement-bar {
         display: none;
         padding: 10px;
         text-align: center;
         color: white;
         font-weight: bold;
-        margin-bottom: 0; /* 貼頂 */
-        animation: fadeInDown 0.5s;
         position: relative;
         z-index: 1001;
+        margin-bottom: 0;
+        animation: fadeInDown 0.5s;
       }
       @keyframes fadeInDown {
         from {
@@ -54,7 +53,7 @@
             <input
               type="text"
               id="areaSearch"
-              placeholder="搜尋配送地區 (例: 阿里山, 墾丁)..."
+              placeholder="搜尋配送地區 (例: 阿里山)..."
               autocomplete="off"
             />
             <button class="search-btn"><i class="fas fa-search"></i></button>
@@ -138,7 +137,7 @@
           <div class="rate-notes">
             <strong><i class="fas fa-info-circle"></i> 運費說明：</strong>
             <ul id="rate-notes-list">
-              <li>海運低消 <span class="highlight">NT.2000</span> 元</li>
+              <li>載入中...</li>
             </ul>
           </div>
         </div>
@@ -153,118 +152,7 @@
         </div>
 
         <div id="item-list" class="shopping-list">
-          <div class="item-group card-item" data-id="1">
-            <div class="item-header">
-              <span class="item-index">商品 #1</span>
-            </div>
-
-            <div class="item-body">
-              <div class="form-group name-row">
-                <label>品名</label>
-                <input
-                  type="text"
-                  class="item-name"
-                  placeholder="例：三人沙發"
-                />
-              </div>
-
-              <div class="form-group type-row">
-                <label>種類 <span class="required">*</span></label>
-                <select class="item-type" id="item-type-select-1">
-                  <option value="general">一般家具</option>
-                  <option value="special_a">特殊家具A</option>
-                </select>
-              </div>
-
-              <div class="form-group method-row">
-                <div class="calc-method-toggle">
-                  <label
-                    ><input
-                      type="radio"
-                      name="calc-method-1"
-                      value="dimensions"
-                      checked
-                    />
-                    尺寸 (cm)</label
-                  >
-                  <label
-                    ><input type="radio" name="calc-method-1" value="cbm" />
-                    體積 (CBM)</label
-                  >
-                </div>
-              </div>
-
-              <div class="dimensions-inputs">
-                <div class="input-group-3">
-                  <div class="input-wrap">
-                    <input
-                      type="number"
-                      class="item-length"
-                      placeholder="長"
-                      min="0"
-                      step="0.1"
-                    /><span class="unit">cm</span>
-                  </div>
-                  <div class="input-wrap">
-                    <input
-                      type="number"
-                      class="item-width"
-                      placeholder="寬"
-                      min="0"
-                      step="0.1"
-                    /><span class="unit">cm</span>
-                  </div>
-                  <div class="input-wrap">
-                    <input
-                      type="number"
-                      class="item-height"
-                      placeholder="高"
-                      min="0"
-                      step="0.1"
-                    /><span class="unit">cm</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="cbm-inputs" style="display: none">
-                <div class="input-wrap">
-                  <input
-                    type="number"
-                    class="item-cbm"
-                    placeholder="立方數"
-                    min="0"
-                    step="0.01"
-                  /><span class="unit">m³</span>
-                </div>
-              </div>
-
-              <div class="weight-qty-row">
-                <div class="form-group">
-                  <label>單件重量 <span class="required">*</span></label>
-                  <div class="input-wrap">
-                    <input
-                      type="number"
-                      class="item-weight"
-                      placeholder="50"
-                      min="0.1"
-                      step="0.1"
-                    /><span class="unit">kg</span>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>數量</label>
-                  <div class="qty-control">
-                    <input
-                      type="number"
-                      class="item-quantity"
-                      value="1"
-                      min="1"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <div class="item-group card-item" data-id="1"></div>
         </div>
 
         <button type="button" id="btn-add-item" class="btn btn-dashed-add">
@@ -283,7 +171,7 @@
 
           <div class="select-wrapper">
             <select id="deliveryLocation" class="form-control">
-              <option value="" selected disabled>--- 載入中，請稍候 ---</option>
+              <option value="" selected disabled>--- 載入中 ---</option>
             </select>
           </div>
 
@@ -339,8 +227,7 @@
           >
         </div>
         <div class="site-footer__copyright">
-          © 2025 兩隻老虎國際貿易有限公司
-          <span class="separator">|</span>
+          © 2025 兩隻老虎國際貿易有限公司 |
           <a href="admin-login.html" class="admin-link">管理員</a>
         </div>
       </div>
@@ -354,6 +241,8 @@
     >
       <i class="fab fa-line"></i>
     </a>
+
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav"></nav>
 
     <script src="js/apiConfig.js"></script>
     <script src="js/shippingData.js"></script>
