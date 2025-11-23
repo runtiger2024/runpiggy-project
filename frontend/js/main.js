@@ -1,22 +1,15 @@
-// frontend/js/main.js (V12 - 購物平台風格版)
-// 相依: shippingData.js (作為預設值), apiConfig.js
+// frontend/js/main.js (V13 - 修正版)
+// 相依: shippingData.js (預設值), apiConfig.js
 
 // --- 全域變數 ---
 let currentCalculationResult = null;
 let itemIdCounter = 1;
 
-// --- (1) 初始化與設定載入 ---
+// --- (1) 初始化 ---
 document.addEventListener("DOMContentLoaded", () => {
-  // 計數器動畫
   initializeUsageCounter();
-
-  // 載入遠端設定 (費率/公告)
   loadPublicSettings();
-
-  // 綁定事件
   setupEventListeners();
-
-  // 預設綁定第一個商品的 Radio 事件
   bindRadioEvents(document.querySelector(".item-group"));
 });
 
@@ -50,13 +43,12 @@ async function loadPublicSettings() {
     console.log("使用預設設定");
   }
 
-  // 渲染費率表與地區選單
   renderRateTable();
   renderRemoteAreaOptions();
-  updateItemTypeSelects(); // 更新選單選項
+  updateItemTypeSelects();
 }
 
-// --- (2) 介面渲染 ---
+// --- (2) 渲染函式 ---
 
 function renderAnnouncement(ann) {
   const bar = document.getElementById("announcement-bar");
@@ -75,18 +67,17 @@ function renderWarehouseInfo(info) {
     phone: "13652554906",
     zip: "523920",
   };
-
   const setText = (id, txt) => {
     const el = document.getElementById(id);
     if (el) el.textContent = txt;
   };
-
   setText("wh-address", data.address);
   setText("wh-recipient", data.recipient);
   setText("wh-phone", data.phone);
   setText("wh-zip", data.zip);
 }
 
+// [關鍵修正] 渲染費率表，加入 data-label 供 CSS 手機版使用
 function renderRateTable() {
   const tbody = document.getElementById("rate-table-body");
   const noteList = document.getElementById("rate-notes-list");
@@ -94,16 +85,15 @@ function renderRateTable() {
 
   tbody.innerHTML = "";
   Object.values(window.RATES).forEach((rate) => {
-    // 簡易對應說明
     let desc = "一般傢俱";
     if (rate.name.includes("特殊")) desc = "易碎品/大理石/帶電";
 
     tbody.innerHTML += `
       <tr>
-        <td><strong>${rate.name}</strong></td>
-        <td>${desc}</td>
-        <td>${rate.weightRate}</td>
-        <td>${rate.volumeRate}</td>
+        <td data-label="類別"><strong>${rate.name}</strong></td>
+        <td data-label="品項說明">${desc}</td>
+        <td data-label="重量收費">$${rate.weightRate} / kg</td>
+        <td data-label="材積收費">$${rate.volumeRate} / 材</td>
       </tr>
     `;
   });
@@ -122,7 +112,7 @@ function renderRemoteAreaOptions() {
   if (!select || !window.REMOTE_AREAS) return;
 
   let html = `<option value="" selected disabled>--- 選擇地區 ---</option>`;
-  html += `<option value="0">✅ 一般地區 (無加價)</option>`;
+  html += `<option value="0">✅ 一般地區 (免加價)</option>`;
 
   const sortedFees = Object.keys(window.REMOTE_AREAS).sort((a, b) => a - b);
   sortedFees.forEach((fee) => {
@@ -158,10 +148,9 @@ function setupEventListeners() {
     updateItemTypeSelects();
   });
 
-  // 計算按鈕 (兩個位置)
-  const handleCalc = () => handleCalculate();
-  const mainCalcBtn = document.getElementById("btn-calculate"); // Footer 的
-  if (mainCalcBtn) mainCalcBtn.addEventListener("click", handleCalc);
+  // 計算按鈕
+  const mainCalcBtn = document.getElementById("btn-calculate");
+  if (mainCalcBtn) mainCalcBtn.addEventListener("click", handleCalculate);
 
   // 複製地址
   document.getElementById("copyAddressBtn").addEventListener("click", () => {
@@ -173,7 +162,7 @@ function setupEventListeners() {
     navigator.clipboard.writeText(txt).then(() => alert("地址已複製！"));
   });
 
-  // Header 搜尋 (取代原本的搜尋框邏輯)
+  // Header 搜尋
   const searchInput = document.getElementById("areaSearch");
   const searchResults = document.getElementById("searchResults");
 
@@ -209,7 +198,6 @@ function setupEventListeners() {
     }
   });
 
-  // 點擊外部關閉搜尋
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".header-search"))
       searchResults.style.display = "none";
@@ -223,7 +211,7 @@ function setupEventListeners() {
     const feeEl = document.getElementById("selectedAreaFee");
 
     if (delivSelect.value !== "") {
-      infoBox.style.display = "flex"; // CSS 設為 flex
+      infoBox.style.display = "block";
       const opt = delivSelect.options[delivSelect.selectedIndex];
       nameEl.textContent = opt.text;
       const fee = parseInt(delivSelect.value);
@@ -234,7 +222,7 @@ function setupEventListeners() {
   });
 }
 
-// 建立新的商品卡片 (HTML 結構必須符合 client.css)
+// 建立商品卡片
 function createItemElement(id) {
   const div = document.createElement("div");
   div.className = "item-group card-item";
@@ -300,7 +288,6 @@ function bindRadioEvents(el) {
   });
 }
 
-// 全域函式：選擇搜尋結果
 window.selectRemoteArea = function (name, fee) {
   const select = document.getElementById("deliveryLocation");
   for (let i = 0; i < select.options.length; i++) {
@@ -312,8 +299,6 @@ window.selectRemoteArea = function (name, fee) {
       select.dispatchEvent(new Event("change"));
       document.getElementById("areaSearch").value = name;
       document.getElementById("searchResults").style.display = "none";
-
-      // 滾動到選擇區塊
       document
         .querySelector(".delivery-block")
         .scrollIntoView({ behavior: "smooth" });
@@ -321,8 +306,6 @@ window.selectRemoteArea = function (name, fee) {
     }
   }
 };
-
-// --- (4) 計算邏輯 ---
 
 async function handleCalculate() {
   const spinner = document.getElementById("loading-spinner");
@@ -344,7 +327,6 @@ async function handleCalculate() {
       `input[name="calc-method-${id}"]:checked`
     ).value;
     const weight = parseFloat(el.querySelector(".item-weight").value);
-
     if (!weight || weight <= 0) valid = false;
 
     items.push({
@@ -366,7 +348,6 @@ async function handleCalculate() {
   }
 
   spinner.style.display = "flex";
-
   try {
     const res = await fetch(`${API_BASE_URL}/api/calculator/sea`, {
       method: "POST",
@@ -376,7 +357,6 @@ async function handleCalculate() {
         deliveryLocationRate: parseFloat(locationVal),
       }),
     });
-
     const data = await res.json();
     if (data.success) {
       currentCalculationResult = data.calculationResult;
@@ -393,13 +373,10 @@ async function handleCalculate() {
 
 function renderResults(result) {
   const container = document.getElementById("results-container");
-
-  // 更新底部總額
   const stickyTotal = document.getElementById("sticky-total-price");
   if (stickyTotal)
     stickyTotal.textContent = `NT$ ${result.finalTotal.toLocaleString()}`;
 
-  // 渲染詳細結果卡片
   let html = `
     <div class="result-summary-card">
       <h3><i class="fas fa-receipt"></i> 費用明細</h3>
@@ -423,20 +400,17 @@ function renderResults(result) {
       </button>
     </div>
   `;
-
   container.innerHTML = html;
   container.style.display = "block";
   container.scrollIntoView({ behavior: "smooth" });
 }
 
-// 儲存並跳轉
 window.saveToForecast = function () {
   if (!currentCalculationResult) return;
   localStorage.setItem(
     "forecast_draft_list",
     JSON.stringify(currentCalculationResult.allItemsData)
   );
-
   const token = localStorage.getItem("token");
   window.location.href = token ? "dashboard.html" : "login.html";
 };

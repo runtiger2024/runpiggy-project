@@ -1,11 +1,12 @@
 /* frontend/css/client.css */
-/* 客戶端專用樣式：購物平台風格 (Shopee/Taobao Like) */
+/* 客戶端專用樣式：購物平台風格 (Shopee/Taobao Like) - V13 優化版 */
 
 /* =========================================
    1. 佈局容器 & 變數 (Layout)
    ========================================= */
 :root {
-  --header-height: 70px;
+  --header-height: 70px; /* 電腦版 Header 高度 */
+  --header-height-mobile: 110px; /* 手機版 Header 高度 (含搜尋列換行) */
   --footer-height: 80px;
   --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   --card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
@@ -18,43 +19,48 @@
 body.shopping-theme,
 body.dashboard-theme {
   background-color: #f5f5f5;
+  /* [修正] 預設 Padding */
   padding-top: calc(var(--header-height) + 20px);
-  padding-bottom: calc(var(--footer-height) + 40px); /* 預留底部懸浮空間 */
+  padding-bottom: calc(
+    var(--footer-height) + 60px
+  ); /* 預留底部懸浮空間 + Footer 緩衝 */
 }
 
 .container.main-content,
 .container.dashboard-container {
   max-width: 960px;
   margin: 0 auto;
-  background: transparent; /* 移除預設白底 */
+  background: transparent;
   box-shadow: none;
   padding: 0 15px;
 }
 
 /* =========================================
-   2. 首頁 Header (購物網風格)
+   2. 首頁 Header
    ========================================= */
 .site-header {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
-  height: var(--header-height);
+  min-height: var(--header-height);
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
   z-index: 1000;
   display: flex;
   align-items: center;
+  transition: all 0.3s ease;
 }
 
 .header-container {
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 10px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap; /* 允許手機版換行 */
 }
 
 .logo-link {
@@ -64,6 +70,7 @@ body.dashboard-theme {
   color: var(--blue-brand);
   font-size: 1.5rem;
   font-weight: bold;
+  margin-right: 20px;
 }
 
 .header-logo-img {
@@ -75,7 +82,7 @@ body.dashboard-theme {
 .header-search {
   flex: 1;
   max-width: 500px;
-  margin: 0 30px;
+  margin: 0 20px;
   position: relative;
 }
 
@@ -84,6 +91,7 @@ body.dashboard-theme {
   border: 2px solid var(--orange-action);
   border-radius: 4px;
   overflow: hidden;
+  background: #fff;
 }
 
 .search-wrapper input {
@@ -112,7 +120,7 @@ body.dashboard-theme {
   border: 1px solid #eee;
   border-top: none;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  display: none; /* JS控制 */
+  display: none;
   max-height: 300px;
   overflow-y: auto;
   z-index: 1001;
@@ -141,14 +149,10 @@ body.dashboard-theme {
 }
 .header-nav .nav-link:hover {
   color: var(--orange-action);
-  background: none;
-}
-.header-nav .nav-link.btn-logout {
-  color: #666;
 }
 
 /* =========================================
-   3. 倉庫名片 (Warehouse Card)
+   3. 倉庫名片
    ========================================= */
 .warehouse-card {
   background: #fff;
@@ -185,7 +189,6 @@ body.dashboard-theme {
   font-size: 1.1rem;
   color: #333;
 }
-
 .badge-official {
   background: #d0021b;
   color: white;
@@ -194,7 +197,6 @@ body.dashboard-theme {
   border-radius: 4px;
   margin-left: 5px;
 }
-
 .btn-follow {
   margin-left: auto;
   border-radius: 20px;
@@ -205,7 +207,6 @@ body.dashboard-theme {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
-
 .wh-info-row .label {
   color: #888;
   font-size: 13px;
@@ -221,7 +222,6 @@ body.dashboard-theme {
   border-radius: 4px;
   border: 1px dashed #ccc;
 }
-
 .wh-notice {
   grid-column: 1 / -1;
   font-size: 12px;
@@ -230,15 +230,17 @@ body.dashboard-theme {
 }
 
 /* =========================================
-   4. 試算列表 (Shopping List Style)
+   4. 試算列表 & 收費標準
    ========================================= */
+.rate-section-wrapper {
+  margin-bottom: 20px;
+}
 .section-header-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 15px;
 }
-
 .btn-toggle-rates {
   background: none;
   border: none;
@@ -246,17 +248,62 @@ body.dashboard-theme {
   cursor: pointer;
   font-size: 13px;
 }
-
 .rate-details.hidden {
   display: none;
 }
 
+/* 費率表容器 */
+.rate-table-container {
+  background: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: var(--card-shadow);
+  overflow: hidden; /* 圓角 */
+}
+
+/* 費率表 - 電腦版預設 */
+.rate-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+.rate-table th {
+  background: #f8f9fa;
+  color: #555;
+  font-weight: 600;
+  padding: 12px 15px;
+  text-align: left;
+  font-size: 14px;
+  border-bottom: 1px solid #eee;
+}
+.rate-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+  color: #333;
+}
+.rate-table tr:last-child td {
+  border-bottom: none;
+}
+
+.rate-notes {
+  margin-top: 10px;
+  background: #e3f2fd;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: #0d47a1;
+}
+.rate-notes ul {
+  margin: 5px 0 0 20px;
+  padding: 0;
+}
+
+/* 試算表單 (購物車樣式) */
 .shopping-list {
   display: flex;
   flex-direction: column;
   gap: 15px;
 }
-
 .card-item {
   background: #fff;
   border-radius: var(--radius-md);
@@ -284,28 +331,15 @@ body.dashboard-theme {
 .item-body {
   padding: 15px;
   display: grid;
-  grid-template-columns: 2fr 1.5fr 1fr; /* 品名+種類 | 尺寸 | 重量+數量 */
+  grid-template-columns: 2fr 1.5fr 1fr;
   gap: 15px;
-}
-
-/* 內部表單排版 */
-.item-body .form-group {
-  margin-bottom: 10px;
 }
 .item-body label {
   font-size: 12px;
   color: #888;
   margin-bottom: 4px;
+  display: block;
 }
-
-.calc-method-toggle {
-  font-size: 13px;
-  margin-bottom: 5px;
-  display: flex;
-  gap: 10px;
-}
-
-/* 尺寸輸入 3欄 */
 .input-group-3 {
   display: flex;
   gap: 5px;
@@ -316,7 +350,7 @@ body.dashboard-theme {
 }
 .input-wrap input {
   width: 100%;
-  padding-right: 25px; /* 留給單位 */
+  padding-right: 25px;
 }
 .input-wrap .unit {
   position: absolute;
@@ -326,8 +360,6 @@ body.dashboard-theme {
   font-size: 12px;
   color: #999;
 }
-
-/* 重量與數量 */
 .weight-qty-row {
   display: flex;
   gap: 10px;
@@ -342,19 +374,22 @@ body.dashboard-theme {
   color: #666;
   margin-top: 15px;
   width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
 }
 .btn-dashed-add:hover {
   border-color: var(--blue-brand);
   color: var(--blue-brand);
 }
 
-/* 配送地區塊 */
+/* 配送地區 */
 .delivery-block {
   background: #fff;
   padding: 20px;
   border-radius: var(--radius-md);
   box-shadow: var(--card-shadow);
-  margin-bottom: 100px; /* 防止被 Footer 遮擋 */
+  margin-top: 20px;
 }
 .remote-area-notice {
   background: #fff3cd;
@@ -392,7 +427,6 @@ body.dashboard-theme {
   display: flex;
   justify-content: center;
 }
-
 .footer-content {
   width: 100%;
   max-width: 960px;
@@ -401,7 +435,6 @@ body.dashboard-theme {
   align-items: center;
   gap: 20px;
 }
-
 .footer-total {
   font-size: 16px;
 }
@@ -410,257 +443,174 @@ body.dashboard-theme {
   font-size: 24px;
   font-weight: bold;
 }
-
 .btn-checkout {
   background: var(--orange-action);
   font-size: 18px;
   padding: 10px 30px;
   border-radius: 4px;
-  width: auto; /* 改為自動寬度 */
-}
-.btn-checkout:hover {
-  background: #e64a19;
-}
-
-/* =========================================
-   6. 會員中心 (Dashboard)
-   ========================================= */
-.dashboard-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-.header-logo-sm {
-  height: 30px;
-  margin-right: 10px;
-}
-.header-left {
-  display: flex;
-  align-items: center;
-}
-
-/* 個人卡片 */
-.user-profile-card {
-  background: #fff;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--card-shadow);
-  overflow: hidden;
-  position: relative;
-  margin-bottom: 20px;
-}
-.profile-bg {
-  height: 80px;
-  background: linear-gradient(135deg, #1a73e8 0%, #82b1ff 100%);
-}
-.profile-content {
-  padding: 0 20px 20px 20px;
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-}
-.avatar-circle {
-  width: 70px;
-  height: 70px;
-  background: #fff;
-  border-radius: 50%;
-  border: 3px solid #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 30px;
-  color: #ccc;
-  margin-top: -35px; /* 上移 */
-  margin-right: 15px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-}
-.profile-details {
-  flex: 1;
-  padding-top: 10px;
-}
-.profile-details h2 {
-  margin: 0;
-  font-size: 1.2rem;
-}
-.user-meta {
-  font-size: 13px;
-  color: #666;
-  margin-top: 5px;
-}
-.meta-item {
-  margin-right: 15px;
-}
-.btn-edit-profile {
-  margin-bottom: 5px;
-  border: 1px solid #ddd;
-  color: #555;
-}
-
-/* 預報區塊 */
-.forecast-section {
-  background: #fff;
-  border-radius: var(--radius-md);
-  box-shadow: var(--card-shadow);
-  margin-bottom: 30px;
-}
-.card-header {
-  padding: 15px 20px;
-  border-bottom: 1px solid #eee;
-}
-.card-header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: var(--blue-brand);
-}
-.card-body {
-  padding: 20px;
-}
-.forecast-form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr; /* 單號 品名 數量 照片 */
-  gap: 15px;
-  align-items: start;
-}
-.forecast-form-grid .full {
-  grid-column: 1 / -1;
-}
-.forecast-form-grid .action {
-  grid-column: 1 / -1;
-  text-align: right;
-}
-.file-upload-btn {
-  display: block;
-  border: 1px solid #ddd;
-  background: #fafafa;
-  text-align: center;
-  padding: 8px;
-  cursor: pointer;
-  border-radius: 4px;
-  font-size: 13px;
-}
-.file-upload-btn:hover {
-  background: #eee;
-}
-
-/* 列表 Tabs */
-.dashboard-tabs {
-  display: flex;
-  border-bottom: 2px solid #eee;
-  margin-bottom: 20px;
-}
-.dashboard-tabs .tab-btn {
-  padding: 12px 20px;
+  width: auto;
+  color: white;
   border: none;
-  background: none;
-  font-size: 15px;
-  font-weight: bold;
-  color: #888;
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
-}
-.dashboard-tabs .tab-btn.active {
-  color: var(--blue-brand);
-  border-bottom-color: var(--blue-brand);
-}
-
-/* 表格/列表樣式 (Cart Style) */
-.table-responsive {
-  background: #fff;
-  border-radius: var(--radius-md);
-  box-shadow: var(--card-shadow);
-  padding: 10px;
-  overflow-x: auto;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 600px;
-}
-th {
-  background: #f8f9fa;
-  padding: 12px;
-  text-align: left;
-  font-size: 13px;
-  color: #555;
-}
-td {
-  padding: 12px;
-  border-bottom: 1px solid #f0f0f0;
-  font-size: 14px;
-  vertical-align: middle;
-}
-td:last-child {
-  text-align: right;
-}
-
-/* 懸浮打包欄 */
-.sticky-checkout-bar {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 90%;
-  max-width: 800px;
-  background: #fff;
-  padding: 10px 20px;
-  border-radius: 50px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 900;
-  border: 1px solid #eee;
-}
-.checkout-info {
-  font-size: 15px;
-}
-.checkout-info .highlight {
-  color: var(--blue-brand);
-  font-size: 18px;
-  font-weight: bold;
-}
-.btn-checkout {
-  border-radius: 30px;
-  padding: 8px 25px;
-  font-size: 15px;
 }
 
 /* =========================================
-   7. 響應式調整 (Mobile)
+   6. Footer 優化 (解決醜醜的問題)
+   ========================================= */
+.site-footer {
+  background: #fff; /* 改為白底或淺灰，看起來較乾淨 */
+  color: #666;
+  padding: 40px 0 20px; /* 增加上方留白 */
+  margin-top: 40px;
+  border-top: 1px solid #eee;
+  text-align: center;
+}
+.site-footer__container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+.footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #555;
+  font-weight: 500;
+  padding: 8px 15px;
+  background: #f5f5f5;
+  border-radius: 20px;
+  transition: all 0.2s;
+}
+.footer-links a:hover {
+  background: #e0e0e0;
+  color: var(--blue-brand);
+}
+.footer-links i {
+  font-size: 18px;
+}
+.site-footer__copyright {
+  font-size: 12px;
+  color: #999;
+  line-height: 1.5;
+}
+.admin-link {
+  color: #ccc;
+  margin-left: 5px;
+  font-size: 11px;
+}
+
+/* =========================================
+   7. 響應式調整 (Mobile) - 解決遮擋與表格問題
    ========================================= */
 @media (max-width: 768px) {
-  .item-body {
-    grid-template-columns: 1fr; /* 手機版單欄 */
-    gap: 10px;
+  /* [修正1] 增加 Body 上方 Padding，防止 Header 遮擋內容 */
+  body.shopping-theme {
+    padding-top: calc(var(--header-height-mobile) + 20px);
   }
 
+  /* Header 手機版調整 */
+  .site-header {
+    height: auto;
+    padding: 10px 0;
+  }
+  .header-container {
+    padding: 0 15px;
+  }
   .header-search {
-    display: none; /* 手機版可考慮隱藏或移到下方 */
+    order: 3; /* 搜尋欄換行到最下方 */
+    width: 100%;
+    margin: 10px 0 0 0;
+    max-width: none;
+  }
+  .header-nav {
+    display: none; /* 手機版可隱藏部分選單或收納 */
   }
 
-  .forecast-form-grid {
-    grid-template-columns: 1fr 1fr;
+  /* [修正2] 收費標準表格 -> 卡片式 (解決左右滑動問題) */
+  .rate-table thead {
+    display: none;
   }
-  .forecast-form-grid .form-group:nth-child(1), /* 單號 */
-  .forecast-form-grid .form-group:nth-child(2) {
-    /* 品名 */
-    grid-column: 1 / -1;
-  }
-
-  .sticky-footer-bar {
-    flex-direction: column;
-    padding: 10px;
-  }
-  .footer-content {
-    flex-direction: column;
-    gap: 10px;
-  }
-  .btn-checkout {
+  .rate-table,
+  .rate-table tbody,
+  .rate-table tr,
+  .rate-table td {
+    display: block;
     width: 100%;
   }
+  .rate-table tr {
+    margin-bottom: 15px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+    padding: 0; /* 清除 padding */
+    overflow: hidden;
+  }
 
-  .warehouse-body {
+  /* 第一個單元格 (類別) 變身為卡片標題 */
+  .rate-table td:first-child {
+    background-color: #e3f2fd; /* 淺藍底 */
+    color: var(--blue-brand);
+    font-weight: bold;
+    text-align: center;
+    border-bottom: 1px solid #bbdefb;
+    padding: 10px;
+  }
+
+  /* 其他單元格 */
+  .rate-table td {
+    padding: 10px 15px;
+    text-align: right; /* 內容靠右 */
+    border-bottom: 1px solid #f0f0f0;
+    position: relative;
+    padding-left: 50%; /* 留空間給標籤 */
+    min-height: 40px;
+  }
+
+  /* 使用 data-label 屬性來顯示標題 (JS會注入) */
+  .rate-table td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 15px;
+    top: 10px;
+    font-weight: bold;
+    color: #777;
+    font-size: 13px;
+  }
+  .rate-table td:first-child::before {
+    display: none;
+  } /* 標題列不需要 label */
+
+  /* 試算表單手機版 */
+  .item-body {
     grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .forecast-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* 底部懸浮欄手機版 */
+  .sticky-footer-bar {
+    flex-direction: column;
+    width: 100%;
+    border-radius: 0;
+    bottom: 0;
+    padding: 10px 15px;
+    border-top: 1px solid #ddd;
+  }
+  .footer-content {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0;
+  }
+  .btn-checkout {
+    padding: 8px 20px;
+    font-size: 16px;
   }
 }
