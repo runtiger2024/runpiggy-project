@@ -1,5 +1,5 @@
 /* frontend/css/client-dashboard.css */
-/* 會員中心 (Dashboard) 專用樣式 - V21 Mobile Vertical View */
+/* 會員中心 (Dashboard) 專用樣式 - V22 Mobile Optimized */
 
 /* --- 1. Dashboard Header --- */
 .dashboard-header {
@@ -138,8 +138,9 @@
   grid-column: 1 / -1;
 }
 
-/* --- 5. 響應式列表 (Table / Card View) - 重點樣式 --- */
-/* 桌面版: 一般 Table */
+/* --- 5. 響應式列表 (Table / Card View) --- */
+
+/* === 電腦版 (Desktop): 傳統表格 === */
 @media (min-width: 769px) {
   .table-responsive {
     background: #fff;
@@ -166,207 +167,242 @@
   }
 }
 
-/* 手機版: 強制轉垂直卡片佈局 (Vertical Card View) */
+/* === 手機版 (Mobile): 垂直卡片佈局 === */
 @media (max-width: 768px) {
+  /* 調整容器，讓卡片更貼合螢幕邊緣 */
   .dashboard-container {
-    padding: 0 12px;
+    padding: 0 10px; /* 縮小左右 padding，讓卡片看起來更寬 */
   }
+
+  /* 移除表格容器的背景與陰影，將其移至個別卡片(tr) */
+  .table-responsive {
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    overflow: visible;
+  }
+
   .table-responsive table,
-  .table-responsive tbody,
-  .table-responsive tr,
-  .table-responsive td {
+  .table-responsive tbody {
     display: block;
     width: 100%;
   }
   .table-responsive thead {
-    display: none;
+    display: none; /* 隱藏表頭 */
   }
 
+  /* 卡片本體 (原本的 tr) */
   .table-responsive tr {
+    display: flex;
+    flex-direction: column; /* 內容垂直排列 */
     background: #fff;
     margin-bottom: 15px;
     border-radius: 12px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* 加深陰影提升層次 */
     border: 1px solid #eee;
-    padding: 15px; /* 移除原本底部的 50px padding */
+    padding: 15px;
     position: relative;
+    overflow: hidden;
   }
 
-  /* 選中高亮 */
+  /* 選中狀態 */
   .table-responsive tr:has(input:checked) {
     border-color: var(--color-primary);
-    background: #f8faff;
+    background: #fcfdff;
+    box-shadow: 0 0 0 1px var(--color-primary) inset;
   }
 
+  /* 重置所有 td 的預設樣式 */
   .table-responsive td {
-    padding: 4px 0;
+    display: block;
+    padding: 0;
     border: none;
-    position: static;
+    width: 100%;
+    margin-bottom: 8px;
   }
 
-  /* [1] Checkbox: 固定左上角 */
+  /* --- 欄位細部設定 --- */
+
+  /* 1. [Checkbox] 與 [Status] 放在同一行作為卡片標頭 */
+  /* 這裡我們使用 absolute 定位將其固定在卡片頂部 */
+
+  /* Checkbox: 左上角 */
   .table-responsive td:first-child {
     position: absolute;
     top: 12px;
     left: 12px;
-    z-index: 10;
     width: auto;
+    z-index: 5;
+    margin: 0;
   }
   .table-responsive td input[type="checkbox"] {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
   }
 
-  /* [2] Status: 固定右上角 */
+  /* Status: 右上角 */
   .table-responsive td:nth-child(2) {
     position: absolute;
     top: 12px;
     right: 12px;
     width: auto;
     text-align: right;
+    margin: 0;
   }
 
-  /* [3] Content: 主內容區 */
+  /* 2. [Content] 商品資訊 (標題) */
+  /* 給上方留出空間，避免被 Checkbox/Status 蓋住 */
   .table-responsive td:nth-child(3) {
-    margin-top: 25px; /* 避開 Header */
-    margin-bottom: 8px;
-    padding-left: 0;
+    margin-top: 30px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #eee;
   }
   .table-responsive td:nth-child(3) div {
-    font-size: 16px;
-    font-weight: 700;
+    font-size: 17px;
+    font-weight: 800;
     color: #333;
     margin-bottom: 6px;
+    padding-left: 2px;
   }
   .table-responsive td:nth-child(3) small {
-    display: block; /* 讓單號獨立一行 */
-    font-family: monospace;
-    background: #f0f0f0;
+    display: inline-block;
+    font-family: var(--font-mono);
+    background: #f5f5f5;
     padding: 4px 8px;
-    border-radius: 4px;
+    border-radius: 6px;
     color: #666;
-    width: fit-content;
+    font-size: 13px;
     word-break: break-all;
   }
 
-  /* [4] Info (Weight/Fee): 垂直排列 */
+  /* 3. [Info] 費用與規格 (垂直列表) */
   .table-responsive td:nth-child(4) {
-    font-size: 14px;
-    color: #555;
+    margin-bottom: 15px;
     display: flex;
     flex-direction: column; /* 垂直堆疊 */
-    gap: 6px;
-    margin-bottom: 10px;
-    padding: 8px 0;
-    border-top: 1px dashed #eee;
-    border-bottom: 1px dashed #eee;
+    gap: 8px;
   }
+
+  /* 使用 Flex 讓 label 和 value 分開 */
   .table-responsive td:nth-child(4) span {
-    /* 移除背景色，改用純文字排版 */
-    background: transparent;
-    color: #555;
-    padding: 0;
-    border-radius: 0;
-    font-weight: normal;
     display: flex;
     align-items: center;
+    font-size: 14px;
+    color: #555;
+    background: transparent;
+    padding: 0;
   }
-  /* 讓金額顯示更突出 */
+
+  /* 為重量和金額添加圖示前綴 */
+  .table-responsive td:nth-child(4) span:first-child::before {
+    content: "📦 規格：";
+    color: #999;
+    min-width: 60px;
+  }
+  .table-responsive td:nth-child(4) span:last-child {
+    font-size: 16px; /* 金額加大 */
+  }
+  .table-responsive td:nth-child(4) span:last-child::before {
+    content: "💰 運費：";
+    color: #999;
+    min-width: 60px;
+  }
+  /* 強調金額 */
   .table-responsive td:nth-child(4) span:last-child {
     color: #d32f2f;
     font-weight: bold;
-    font-size: 1.1em;
-  }
-  /* 在金額前加 icon (透過 CSS) */
-  .table-responsive td:nth-child(4) span:last-child::before {
-    content: "💰 ";
-    margin-right: 5px;
-  }
-  /* 在重量前加 icon */
-  .table-responsive td:nth-child(4) span:first-child::before {
-    content: "📦 ";
-    margin-right: 5px;
   }
 
-  /* [5] Actions: 垂直按鈕列表 */
+  /* 4. [Actions] 操作按鈕 (垂直滿版) */
   .table-responsive td:last-child {
-    position: static; /* 取消絕對定位 */
-    width: 100%;
-    height: auto;
-    background: transparent;
-    border: none;
-    padding-top: 10px;
-
+    margin-top: 10px;
+    margin-bottom: 0;
     display: flex;
-    flex-direction: column; /* 垂直排列按鈕 */
-    gap: 10px; /* 按鈕間距 */
+    flex-direction: column; /* 按鈕垂直排列 */
+    gap: 10px;
   }
 
+  /* 按鈕樣式優化 */
   .table-responsive td:last-child .btn {
-    width: 100%;
-    height: auto;
-    padding: 10px;
-    border-radius: 8px; /* 圓角按鈕 */
-    border: 1px solid #ddd;
-    background-color: #fff;
-    color: #555;
-    font-size: 14px;
+    width: 100%; /* 滿寬 */
     display: flex;
     justify-content: center;
     align-items: center;
+    padding: 10px 0;
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    border: 1px solid #ddd;
+    color: #555;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   }
 
-  /* 按鈕個別樣式優化 */
+  /* 詳情按鈕 (主色) */
   .table-responsive td:last-child .btn-primary {
-    background-color: var(--color-primary);
-    color: #fff;
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
     border-color: var(--color-primary);
+    font-weight: bold;
   }
+
+  /* 刪除按鈕 (紅色) */
   .table-responsive td:last-child .btn-danger {
-    background-color: #fff1f0;
+    background: #fff5f5;
     color: var(--color-danger);
-    border-color: #ffa39e;
+    border-color: #ffccc7;
   }
+
+  /* 修改按鈕 (灰色) */
   .table-responsive td:last-child .btn-secondary {
-    background-color: #f5f5f5;
+    background: #f8f9fa;
     color: #333;
-  }
-  .table-responsive td:last-child .btn:active {
-    transform: scale(0.98);
   }
 }
 
 /* --- 6. 懸浮結帳欄 (Sticky Checkout) --- */
 .sticky-checkout-bar {
-  position: fixed; /* 改為 fixed 確保在最上方圖層 */
-  bottom: var(--mobile-nav-height); /* 避開底部導航 */
+  position: fixed;
+  bottom: var(--mobile-nav-height); /* 確保在手機底部導航欄上方 */
   left: 0;
   width: 100%;
-  background: rgba(255, 255, 255, 0.95);
-  border-top: 1px solid #ddd;
-  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.98);
+  border-top: 1px solid #e0e0e0;
+  padding: 12px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
   z-index: 90;
-  backdrop-filter: blur(5px);
+  backdrop-filter: blur(8px);
+  padding-bottom: calc(12px + env(safe-area-inset-bottom)); /* 支援 iPhone X+ */
 }
+
+/* 桌面版時吸底 */
 @media (min-width: 769px) {
   .sticky-checkout-bar {
-    position: sticky;
     bottom: 0;
+    padding-bottom: 12px;
   }
 }
 
 .checkout-info {
-  font-weight: 600;
   font-size: 15px;
+  color: #333;
+  font-weight: 500;
 }
 .checkout-info .highlight {
   color: var(--color-accent);
-  font-size: 1.2em;
+  font-size: 1.3em;
+  font-weight: 800;
   margin: 0 4px;
+}
+
+.btn-checkout {
+  padding: 10px 24px;
+  border-radius: 30px; /* 圓角更像按鈕 */
+  box-shadow: 0 4px 10px rgba(255, 80, 0, 0.3);
+  font-size: 15px;
 }
 
 /* --- 7. 手機版 Profile RWD --- */
