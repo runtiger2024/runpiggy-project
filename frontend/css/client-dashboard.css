@@ -552,3 +552,67 @@
   }
   */
 }
+/* frontend/css/client-dashboard.css (請追加在檔案最下方) */
+
+/* --- 9. 彈窗底部按鈕修復 (Fix Footer Positioning) --- */
+
+/* [關鍵修正] 強制重置 footer 內的關閉按鈕，取消絕對定位 */
+.modal-footer .modal-close-btn {
+  position: static !important; /* 恢復靜態定位，讓它待在 footer 裡 */
+  top: auto;
+  right: auto;
+  font-size: 15px; /* 恢復正常字體大小 */
+  color: #fff; /* 恢復按鈕文字顏色 */
+  width: 100%; /* 手機版滿寬 */
+  margin: 0;
+}
+
+/* Footer 佈局設定 */
+.modal-footer.sticky-footer-actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+/* 讓主要動作按鈕 (如提交) 佔據更多寬度 */
+.modal-footer.sticky-footer-actions .btn-primary {
+  flex: 2;
+}
+
+/* 次要按鈕 (如取消) 佔據較少寬度 */
+.modal-footer.sticky-footer-actions .btn-secondary {
+  flex: 1;
+  background-color: #f1f3f5;
+  border-color: #e9ecef;
+  color: #666;
+}
+
+/* === 手機版彈窗優化 === */
+@media (max-width: 768px) {
+  /* 強制轉單欄排版 */
+  .info-grid-responsive {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  /* 提交訂單頁面：調整順序 */
+  .checkout-layout {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .checkout-items {
+    margin-bottom: 20px;
+    background: #f5f7fa;
+    border: 1px solid #eee;
+  }
+
+  /* 增加底部按鈕的高度，方便手指點擊 */
+  .modal-footer.sticky-footer-actions .btn {
+    padding: 12px;
+    font-size: 16px;
+    border-radius: 8px;
+  }
+}

@@ -502,6 +502,7 @@
               </div>
             </div>
           </div>
+
           <div class="modal-footer sticky-footer-actions">
             <button type="button" class="btn btn-secondary modal-close-btn">
               取消
@@ -619,7 +620,7 @@
         <h3>訂單詳情</h3>
         <div
           class="modal-body"
-          style="max-height: 80vh; overflow-y: auto; padding: 10px"
+          style="max-height: 70vh; overflow-y: auto; padding: 10px"
         >
           <div class="modal-section-title">📝 訂單資訊</div>
           <div class="info-grid-responsive">
@@ -636,14 +637,7 @@
           </div>
 
           <div class="modal-section-title">👤 收件人</div>
-          <div
-            style="
-              background: #f9f9f9;
-              padding: 12px;
-              border-radius: 8px;
-              border: 1px solid #eee;
-            "
-          >
+          <div style="background: #f9f9f9; padding: 10px; border-radius: 5px">
             <p style="margin: 5px 0">
               <strong>姓名:</strong> <span id="sd-name"></span>
             </p>
@@ -651,8 +645,7 @@
               <strong>電話:</strong> <span id="sd-phone"></span>
             </p>
             <p style="margin: 5px 0">
-              <strong>地址:</strong>
-              <span id="sd-address" style="word-break: break-all"></span>
+              <strong>地址:</strong> <span id="sd-address"></span>
             </p>
           </div>
 
@@ -660,13 +653,13 @@
           <div
             id="sd-fee-breakdown"
             style="
-              background: #fff7e6;
-              padding: 12px;
-              border-radius: 8px;
-              border: 1px solid #ffecb3;
-              color: #b76e00;
+              background: #fff3e0;
+              padding: 10px;
+              border-radius: 5px;
+              color: #e65100;
             "
           ></div>
+
           <div class="modal-section-title">🛒 購買證明</div>
           <div id="sd-proof-images" class="gallery-grid"></div>
         </div>
