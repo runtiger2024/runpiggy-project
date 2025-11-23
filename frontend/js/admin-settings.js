@@ -1,4 +1,4 @@
-// frontend/js/admin-settings.js (V11 - 定點回填版)
+// frontend/js/admin-settings.js (V12 - 智慧回填與局部更新修復版)
 
 document.addEventListener("DOMContentLoaded", async () => {
   const token = localStorage.getItem("admin_token");
@@ -25,6 +25,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 
+  // --- [關鍵新增] 全域快取，用於暫存後端回傳的完整設定 ---
+  // 這能解決「未修改欄位被清空」以及「敏感資料(如HashKey)不需每次重填」的問題
+  let serverSettingsCache = {};
+
   // --- 2. 載入設定 (API) ---
   async function loadSettings() {
     try {
@@ -36,31 +40,30 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!res.ok) throw new Error(data.message || "載入失敗");
 
       const settings = data.settings || {};
+      serverSettingsCache = settings; // 將設定存入快取
 
-      // A. 填入運費 (Rates) - 使用定點回填，不依賴動態渲染
+      // A. 填入運費 (Rates) - 使用定點回填
       const rates = settings.rates_config || {};
       const cats = rates.categories || {};
-      const consts = rates.constants || {};
+      // const consts = rates.constants || {}; // constants 直接遍歷填入
 
-      // 1. 一般家具 (general) - 若資料庫無值，預設給空字串或0
-      setInputValue("rate-general-name", cats.general?.name || "一般家具");
-      setInputValue("rate-general-weight", cats.general?.weightRate);
-      setInputValue("rate-general-volume", cats.general?.volumeRate);
+      // 輔助函式：填入單一分類 (包含新增的 description)
+      const fillCategory = (key, defaultName) => {
+        const c = cats[key] || {};
+        setInputValue(`rate-${key}-name`, c.name || defaultName);
+        setInputValue(`rate-${key}-desc`, c.description || ""); // [New] 回填說明
+        setInputValue(`rate-${key}-weight`, c.weightRate);
+        setInputValue(`rate-${key}-volume`, c.volumeRate);
+      };
 
-      // 2. 特殊家具 A (special_a)
-      setInputValue("rate-special_a-name", cats.special_a?.name || "特殊家具A");
-      setInputValue("rate-special_a-weight", cats.special_a?.weightRate);
-      setInputValue("rate-special_a-volume", cats.special_a?.volumeRate);
-
-      // 3. 特殊家具 B (special_b)
-      setInputValue("rate-special_b-name", cats.special_b?.name || "特殊家具B");
-      setInputValue("rate-special_b-weight", cats.special_b?.weightRate);
-      setInputValue("rate-special_b-volume", cats.special_b?.volumeRate);
-
-      // 4. 特殊家具 C (special_c)
-      setInputValue("rate-special_c-name", cats.special_c?.name || "特殊家具C");
-      setInputValue("rate-special_c-weight", cats.special_c?.weightRate);
-      setInputValue("rate-special_c-volume", cats.special_c?.volumeRate);
+      // 1. 一般家具
+      fillCategory("general", "一般家具");
+      // 2. 特殊家具 A
+      fillCategory("special_a", "特殊家具A");
+      // 3. 特殊家具 B
+      fillCategory("special_b", "特殊家具B");
+      // 4. 特殊家具 C
+      fillCategory("special_c", "特殊家具C");
 
       // 填入常數 (Constants)
       if (rates.constants) {
@@ -79,14 +82,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         setInputValue("bank-holder", bank.holder);
       }
 
-      // C. 填入發票 (Invoice)
+      // C. 填入發票 (Invoice) - [智慧顯示邏輯]
       if (settings.invoice_config) {
         const inv = settings.invoice_config;
         document.getElementById("invoice-enabled").checked =
           inv.enabled === true;
         setInputValue("invoice-mode", inv.mode || "TEST");
         setInputValue("invoice-merchant-id", inv.merchantId);
-        // HashKey 不回顯
+
+        // HashKey 特殊處理：若已設定，顯示提示但不顯示明文，讓使用者知道不用重填
+        const hashInput = document.getElementById("invoice-hash-key");
+        if (hashInput) {
+          if (inv.hashKey) {
+            hashInput.placeholder = "******** (已設定，若不修改請留空)";
+            hashInput.value = ""; // 清空數值，避免顯示
+          } else {
+            hashInput.placeholder = "請輸入 Hash Key";
+          }
+        }
       }
 
       // D. 填入 Email
@@ -142,6 +155,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       const data = await res.json();
       if (res.ok) {
         alert(`「${description}」儲存成功！`);
+        // 儲存成功後，重新載入一次設定以更新快取 (特別是 HashKey 狀態)
+        loadSettings();
       } else {
         throw new Error(data.message);
       }
@@ -152,64 +167,31 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- 4. 各表單監聽 ---
 
-  // (A) 儲存運費 - 改為定點抓取
+  // (A) 儲存運費 (包含說明欄位)
   document.getElementById("form-rates").addEventListener("submit", (e) => {
     e.preventDefault();
 
-    // 手動建構資料結構，確保四個類別都在
+    // 收集分類數據的輔助函式
+    const getCatData = (key, defaultName) => ({
+      name: document.getElementById(`rate-${key}-name`).value || defaultName,
+      description: document.getElementById(`rate-${key}-desc`).value || "", // [New] 讀取說明
+      weightRate:
+        parseFloat(document.getElementById(`rate-${key}-weight`).value) || 0,
+      volumeRate:
+        parseFloat(document.getElementById(`rate-${key}-volume`).value) || 0,
+    });
+
     const newRates = {
       categories: {
-        general: {
-          name:
-            document.getElementById("rate-general-name").value || "一般家具",
-          weightRate:
-            parseFloat(document.getElementById("rate-general-weight").value) ||
-            0,
-          volumeRate:
-            parseFloat(document.getElementById("rate-general-volume").value) ||
-            0,
-        },
-        special_a: {
-          name:
-            document.getElementById("rate-special_a-name").value || "特殊家具A",
-          weightRate:
-            parseFloat(
-              document.getElementById("rate-special_a-weight").value
-            ) || 0,
-          volumeRate:
-            parseFloat(
-              document.getElementById("rate-special_a-volume").value
-            ) || 0,
-        },
-        special_b: {
-          name:
-            document.getElementById("rate-special_b-name").value || "特殊家具B",
-          weightRate:
-            parseFloat(
-              document.getElementById("rate-special_b-weight").value
-            ) || 0,
-          volumeRate:
-            parseFloat(
-              document.getElementById("rate-special_b-volume").value
-            ) || 0,
-        },
-        special_c: {
-          name:
-            document.getElementById("rate-special_c-name").value || "特殊家具C",
-          weightRate:
-            parseFloat(
-              document.getElementById("rate-special_c-weight").value
-            ) || 0,
-          volumeRate:
-            parseFloat(
-              document.getElementById("rate-special_c-volume").value
-            ) || 0,
-        },
+        general: getCatData("general", "一般家具"),
+        special_a: getCatData("special_a", "特殊家具A"),
+        special_b: getCatData("special_b", "特殊家具B"),
+        special_c: getCatData("special_c", "特殊家具C"),
       },
       constants: {},
     };
 
-    // 收集 Constants (這部分維持 ID 遍歷即可，因為也是寫死的)
+    // 收集 Constants
     document.querySelectorAll('[id^="const-"]').forEach((input) => {
       const key = input.id.replace("const-", "");
       newRates.constants[key] = parseFloat(input.value) || 0;
@@ -230,14 +212,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     saveSetting("bank_info", data, "銀行匯款資訊");
   });
 
-  // (C) 儲存發票
+  // (C) 儲存發票 - [關鍵修正：局部更新邏輯]
   document.getElementById("form-invoice").addEventListener("submit", (e) => {
     e.preventDefault();
+
+    // 檢查使用者是否有輸入新的 Hash Key
+    const inputHashKey = document
+      .getElementById("invoice-hash-key")
+      .value.trim();
+
+    // 智慧判斷：
+    // 1. 如果輸入框有值 -> 使用新輸入的值
+    // 2. 如果輸入框是空的 -> 使用快取中的舊值 (serverSettingsCache)
+    // 這樣使用者就不需要每次都重新翻找並輸入金鑰
+    const finalHashKey = inputHashKey
+      ? inputHashKey
+      : serverSettingsCache.invoice_config?.hashKey || "";
+
     const data = {
       enabled: document.getElementById("invoice-enabled").checked,
       mode: document.getElementById("invoice-mode").value,
       merchantId: document.getElementById("invoice-merchant-id").value,
-      hashKey: document.getElementById("invoice-hash-key").value,
+      hashKey: finalHashKey, // 使用判斷後的金鑰
     };
     saveSetting("invoice_config", data, "電子發票設定");
   });
