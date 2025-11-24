@@ -634,6 +634,37 @@ const updateShipmentStatus = async (req, res) => {
     if (totalCost !== undefined) dataToUpdate.totalCost = parseFloat(totalCost);
     if (trackingNumberTW !== undefined)
       dataToUpdate.trackingNumberTW = trackingNumberTW;
+    // [新增修復邏輯] 如果狀態被改為 CANCELLED (取消/退回)，必須釋放包裹
+    if (status === "CANCELLED") {
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. 釋放關聯的包裹回已入庫 (ARRIVED)
+        const released = await tx.package.updateMany({
+          where: { shipmentId: id },
+          data: { status: "ARRIVED", shipmentId: null },
+        });
+
+        // 2. 更新集運單狀態
+        const updatedShipment = await tx.shipment.update({
+          where: { id },
+          data: dataToUpdate,
+        });
+
+        return { shipment: updatedShipment, count: released.count };
+      });
+
+      await createLog(
+        req.user.id,
+        "UPDATE_SHIPMENT",
+        id,
+        `訂單取消，已釋放 ${result.count} 件包裹`
+      );
+
+      return res.status(200).json({
+        success: true,
+        shipment: result.shipment,
+        message: `訂單已取消，並成功釋放 ${result.count} 件包裹回倉庫`,
+      });
+    }
 
     // 自動發票開立
     if (
