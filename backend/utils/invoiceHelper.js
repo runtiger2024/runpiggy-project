@@ -108,7 +108,7 @@ const createInvoice = async (shipment, user) => {
 
     const productItems = [
       {
-        Description: "國際運費",
+        Description: "理貨費",
         Quantity: 1,
         UnitPrice: total,
         Amount: total,
