@@ -1,4 +1,4 @@
-// backend/utils/invoiceHelper.js (V10 旗艦版 - 資料庫驅動設定)
+// backend/utils/invoiceHelper.js (V10.1 修正版 - 修復 API 網址)
 
 const axios = require("axios");
 const crypto = require("crypto");
@@ -7,11 +7,10 @@ const prisma = require("../config/db.js");
 require("dotenv").config();
 
 // 發票 API 網址 (測試與正式)
-// 注意：請依實際光貿文件確認測試網址，以下為範例
+// [修正] 光貿 2025 新版 API (MIG 4.0) 統一使用此網址，測試/正式僅差在 MerchantID 與 HashKey
 const API_URLS = {
-  TEST: "https://test-api-invoice.amego.tw/invoice/create",
-  PROD:
-    process.env.AMEGO_API_URL || "https://api-invoice.amego.tw/invoice/create",
+  TEST: "https://invoice-api.amego.tw/json/f0401",
+  PROD: "https://invoice-api.amego.tw/json/f0401",
 };
 
 /**
@@ -38,19 +37,25 @@ const getInvoiceConfig = async () => {
       if (typeof dbConfig.enabled === "boolean")
         config.enabled = dbConfig.enabled;
       if (dbConfig.mode) config.mode = dbConfig.mode;
+
       // 允許 DB 覆蓋金鑰 (若管理員在後台輸入)
       if (dbConfig.merchantId) config.merchantId = dbConfig.merchantId;
       if (dbConfig.hashKey) config.hashKey = dbConfig.hashKey;
+
+      // [修正] 若資料庫有設定 apiUrl (通常是正確的預設值)，優先使用資料庫的值
+      if (dbConfig.apiUrl) config.apiUrl = dbConfig.apiUrl;
     }
   } catch (error) {
     console.warn("[Invoice] 讀取 invoice_config 失敗，使用預設環境變數");
   }
 
-  // 根據模式決定 URL
-  if (config.mode === "PROD") {
-    config.apiUrl = API_URLS.PROD;
-  } else {
-    config.apiUrl = API_URLS.TEST;
+  // [修正] 僅在 config.apiUrl 尚未設定時，才使用 API_URLS 備案
+  if (!config.apiUrl) {
+    if (config.mode === "PROD") {
+      config.apiUrl = API_URLS.PROD;
+    } else {
+      config.apiUrl = API_URLS.TEST;
+    }
   }
 
   return config;
@@ -154,6 +159,7 @@ const createInvoice = async (shipment, user) => {
     const resData = response.data;
 
     // --- 4. 處理結果 ---
+    // 光貿 API 成功代碼為 0
     if (resData.code === 0) {
       return {
         success: true,
