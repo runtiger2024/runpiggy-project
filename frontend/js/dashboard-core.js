@@ -5,6 +5,7 @@
 window.currentUser = null;
 window.allPackagesData = []; // 包裹快取
 window.dashboardToken = localStorage.getItem("token");
+window.BANK_INFO_CACHE = null; // [新增] 用於暫存銀行資訊
 
 // --- 工具函式 ---
 window.showMessage = function (message, type) {
@@ -80,8 +81,13 @@ window.loadSystemSettings = async function () {
           window.CONSTANTS = data.rates.constants || window.CONSTANTS;
         }
         if (data.remoteAreas) window.REMOTE_AREAS = data.remoteAreas;
-        if (data.bankInfo && typeof window.updateBankInfoDOM === "function") {
-          window.updateBankInfoDOM(data.bankInfo);
+
+        // [修改] 儲存銀行資訊到全域變數，並更新 DOM
+        if (data.bankInfo) {
+          window.BANK_INFO_CACHE = data.bankInfo;
+          if (typeof window.updateBankInfoDOM === "function") {
+            window.updateBankInfoDOM(data.bankInfo);
+          }
         }
       }
     }
@@ -89,9 +95,6 @@ window.loadSystemSettings = async function () {
     console.warn("Config load failed, using defaults.");
   }
 };
-// frontend/js/dashboard-core.js
-
-// ... (保留原有內容) ...
 
 /**
  * [NEW] 初始化動態圖片上傳器

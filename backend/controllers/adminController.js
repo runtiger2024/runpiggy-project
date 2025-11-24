@@ -62,6 +62,7 @@ const buildShipmentWhereClause = (status, search) => {
   if (search) {
     const searchLower = search.trim();
     where.OR = [
+      { id: { contains: searchLower, mode: "insensitive" } }, // [新增] 支援搜尋訂單 ID
       { recipientName: { contains: searchLower, mode: "insensitive" } },
       { phone: { contains: searchLower, mode: "insensitive" } },
       { idNumber: { contains: searchLower, mode: "insensitive" } },

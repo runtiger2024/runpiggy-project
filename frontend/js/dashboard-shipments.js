@@ -470,6 +470,24 @@ window.openShipmentDetails = async function (id) {
 // --- 9. 其他輔助功能 ---
 window.openUploadProof = function (id) {
   document.getElementById("upload-proof-id").value = id;
+  // [新增] 渲染銀行資訊
+  const bankContainer = document.getElementById("upload-proof-bank-info");
+  if (bankContainer) {
+    if (window.BANK_INFO_CACHE) {
+      const b = window.BANK_INFO_CACHE;
+      bankContainer.innerHTML = `
+            <div style="text-align:center; margin-bottom:10px; font-weight:bold; color:#1a73e8;">請匯款至以下帳戶</div>
+            <div><strong>銀行：</strong> ${b.bankName} ${b.branch || ""}</div>
+            <div><strong>帳號：</strong> <span style="color:#d32f2f; font-weight:bold; font-size:1.1em; user-select:all;">${
+              b.account
+            }</span></div>
+            <div><strong>戶名：</strong> ${b.holder}</div>
+            <div style="margin-top:10px; font-size:12px; color:#888; text-align:center;">(請上傳包含「轉帳金額」與「成功畫面」的截圖)</div>
+          `;
+    } else {
+      bankContainer.innerHTML = `<p style="color:#999; text-align:center;">暫無匯款資訊，請聯繫客服。</p>`;
+    }
+  }
   document.getElementById("upload-proof-modal").style.display = "flex";
 };
 
