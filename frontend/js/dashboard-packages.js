@@ -1,4 +1,4 @@
-// frontend/js/dashboard-packages.js (V23.0 - 費用透明優化版)
+// frontend/js/dashboard-packages.js (V23.1 - 修復超規判斷 >= 版)
 // 負責：包裹列表、預報、編輯、刪除、詳細算式彈窗
 
 let currentEditPackageImages = [];
@@ -80,15 +80,15 @@ function renderPackagesTable() {
         const boxFee = Math.max(volFee, wtFee);
         calculatedBaseTotal += boxFee;
 
-        // 超規判斷
+        // [修正] 超規判斷 (改為 >=)
         if (
-          l > CONSTANTS.OVERSIZED_LIMIT ||
-          wd > CONSTANTS.OVERSIZED_LIMIT ||
-          h > CONSTANTS.OVERSIZED_LIMIT
+          l >= CONSTANTS.OVERSIZED_LIMIT ||
+          wd >= CONSTANTS.OVERSIZED_LIMIT ||
+          h >= CONSTANTS.OVERSIZED_LIMIT
         ) {
           hasOversized = true;
         }
-        if (w > CONSTANTS.OVERWEIGHT_LIMIT) {
+        if (w >= CONSTANTS.OVERWEIGHT_LIMIT) {
           hasOverweight = true;
         }
       });
@@ -214,12 +214,12 @@ window.openPackageDetails = function (pkgDataStr) {
 
         totalBaseFee += baseBoxFee;
 
-        // 超規判定
+        // [修正] 超規判定 (改為 >=)
         const isItemOversized =
-          l > CONSTANTS.OVERSIZED_LIMIT ||
-          w_dim > CONSTANTS.OVERSIZED_LIMIT ||
-          h > CONSTANTS.OVERSIZED_LIMIT;
-        const isItemOverweight = weight > CONSTANTS.OVERWEIGHT_LIMIT;
+          l >= CONSTANTS.OVERSIZED_LIMIT ||
+          w_dim >= CONSTANTS.OVERSIZED_LIMIT ||
+          h >= CONSTANTS.OVERSIZED_LIMIT;
+        const isItemOverweight = weight >= CONSTANTS.OVERWEIGHT_LIMIT;
 
         if (isItemOversized) hasOversized = true;
         if (isItemOverweight) hasOverweight = true;

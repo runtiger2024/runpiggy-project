@@ -1,4 +1,4 @@
-// backend/controllers/calculatorController.js (V12 - 穩健版，含自動預設值)
+// backend/controllers/calculatorController.js (V12.1 - 修復超規判斷 >= 版)
 
 const prisma = require("../config/db.js");
 const ratesManager = require("../utils/ratesManager.js");
@@ -168,10 +168,11 @@ const calculateSeaFreight = async (req, res) => {
           (length * width * height) / CONSTANTS.VOLUME_DIVISOR
         );
 
+        // [修正] 檢查超規 (改為 >=)
         if (
-          length > CONSTANTS.OVERSIZED_LIMIT ||
-          width > CONSTANTS.OVERSIZED_LIMIT ||
-          height > CONSTANTS.OVERSIZED_LIMIT
+          length >= CONSTANTS.OVERSIZED_LIMIT ||
+          width >= CONSTANTS.OVERSIZED_LIMIT ||
+          height >= CONSTANTS.OVERSIZED_LIMIT
         ) {
           isItemOversized = true;
         }
@@ -186,7 +187,8 @@ const calculateSeaFreight = async (req, res) => {
         singleVolume = Math.ceil(cbm * CONSTANTS.CBM_TO_CAI_FACTOR);
       }
 
-      const isItemOverweight = singleWeight > CONSTANTS.OVERWEIGHT_LIMIT;
+      // [修正] 檢查超重 (改為 >=)
+      const isItemOverweight = singleWeight >= CONSTANTS.OVERWEIGHT_LIMIT;
 
       if (isItemOversized) hasAnyOversizedItem = true;
       if (isItemOverweight) hasAnyOverweightItem = true;

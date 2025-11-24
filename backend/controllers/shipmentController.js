@@ -1,4 +1,4 @@
-// backend/controllers/shipmentController.js (V10.0 - 完整修復版)
+// backend/controllers/shipmentController.js (V10.1 - 修復超規判斷 >= 版)
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
@@ -32,15 +32,15 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
           const type = box.type || "general";
           const rateInfo = CATEGORIES[type] || { weightRate: 0, volumeRate: 0 };
 
-          // 檢查超規
+          // [修正] 檢查超規 (改為 >=)
           if (
-            l > CONSTANTS.OVERSIZED_LIMIT ||
-            w > CONSTANTS.OVERSIZED_LIMIT ||
-            h > CONSTANTS.OVERSIZED_LIMIT
+            l >= CONSTANTS.OVERSIZED_LIMIT ||
+            w >= CONSTANTS.OVERSIZED_LIMIT ||
+            h >= CONSTANTS.OVERSIZED_LIMIT
           ) {
             hasOversized = true;
           }
-          if (weight > CONSTANTS.OVERWEIGHT_LIMIT) {
+          if (weight >= CONSTANTS.OVERWEIGHT_LIMIT) {
             hasOverweight = true;
           }
 

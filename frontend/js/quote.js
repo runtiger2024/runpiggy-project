@@ -1,4 +1,4 @@
-// frontend/js/quote.js (V19 - 詳細費用明細版)
+// frontend/js/quote.js (V19.1 - 修復超規判斷 >= 版)
 
 document.addEventListener("DOMContentLoaded", () => {
   const params = new URLSearchParams(window.location.search);
@@ -132,12 +132,12 @@ function renderQuoteView(result, defaultRules, date) {
 
             ${
               item.hasOversizedItem
-                ? `<div style="color:#d32f2f; font-size:12px; margin-top:5px;">⚠️ 此商品超長 (> ${rules.OVERSIZED_LIMIT}cm)</div>`
+                ? `<div style="color:#d32f2f; font-size:12px; margin-top:5px;">⚠️ 此商品超長 (>= ${rules.OVERSIZED_LIMIT}cm)</div>`
                 : ""
             }
             ${
               item.isOverweight
-                ? `<div style="color:#d32f2f; font-size:12px; margin-top:2px;">⚠️ 此商品超重 (> ${rules.OVERWEIGHT_LIMIT}kg)</div>`
+                ? `<div style="color:#d32f2f; font-size:12px; margin-top:2px;">⚠️ 此商品超重 (>= ${rules.OVERWEIGHT_LIMIT}kg)</div>`
                 : ""
             }
         </div>

@@ -1,4 +1,4 @@
-// frontend/js/dashboard-shipments.js (V23.0 - 費用透明優化版)
+// frontend/js/dashboard-shipments.js (V23.1 - 修復超規判斷 >= 版)
 // 負責：集運單列表、建立訂單(結帳)、取消訂單、詳情、上傳憑證
 
 // --- 1. 載入我的集運單 ---
@@ -142,17 +142,17 @@ window.handleCreateShipmentClick = function () {
 
         pkgTotalFee += boxFee;
 
-        // 檢查超規
+        // [修正] 檢查超規 (改為 >=)
         if (
-          l > CONSTANTS.OVERSIZED_LIMIT ||
-          wd > CONSTANTS.OVERSIZED_LIMIT ||
-          h > CONSTANTS.OVERSIZED_LIMIT
+          l >= CONSTANTS.OVERSIZED_LIMIT ||
+          wd >= CONSTANTS.OVERSIZED_LIMIT ||
+          h >= CONSTANTS.OVERSIZED_LIMIT
         ) {
           hasOversized = true;
           shipmentHasOversized = true;
         }
 
-        if (w > CONSTANTS.OVERWEIGHT_LIMIT) {
+        if (w >= CONSTANTS.OVERWEIGHT_LIMIT) {
           hasOverweight = true;
           shipmentHasOverweight = true;
         }
@@ -237,10 +237,10 @@ window.handleCreateShipmentClick = function () {
   const warningEl = document.getElementById("forklift-warning");
   if (warningEl) {
     if (shipmentHasOverweight) {
-      warningEl.innerHTML = `<i class="fas fa-dolly"></i> <strong>超重提醒：</strong> 偵測到超重物品 (>100kg)，請確認收件地可<strong>自行安排堆高機</strong>卸貨。`;
+      warningEl.innerHTML = `<i class="fas fa-dolly"></i> <strong>超重提醒：</strong> 偵測到超重物品 (≥100kg)，請確認收件地可<strong>自行安排堆高機</strong>卸貨。`;
       warningEl.style.display = "block";
     } else if (shipmentHasOversized) {
-      warningEl.innerHTML = `<i class="fas fa-ruler-combined"></i> <strong>超長提醒：</strong> 偵測到超長物品 (>300cm)，請確認收件地動線可供貨車進出。`;
+      warningEl.innerHTML = `<i class="fas fa-ruler-combined"></i> <strong>超長提醒：</strong> 偵測到超長物品 (≥300cm)，請確認收件地動線可供貨車進出。`;
       warningEl.style.display = "block";
     } else {
       warningEl.style.display = "none";
