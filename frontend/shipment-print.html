@@ -165,7 +165,7 @@
         display: flex;
         justify-content: flex-end;
         margin-top: -21px; /* 接合表格 */
-        margin-bottom: 30px;
+        margin-bottom: 20px;
       }
       .totals-box {
         border: 1px solid var(--border-color);
@@ -187,11 +187,54 @@
         margin-top: 5px;
       }
 
+      /* [新增] 附加服務區塊 */
+      .additional-services-box {
+        border: 2px solid #000;
+        padding: 10px;
+        margin-bottom: 20px;
+        font-size: 13px;
+      }
+      .services-title {
+        font-weight: bold;
+        margin-bottom: 8px;
+        border-bottom: 1px solid #ccc;
+        padding-bottom: 5px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .services-list {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .service-item {
+        display: flex;
+        align-items: flex-start;
+      }
+      .service-checkbox {
+        margin-right: 5px;
+        font-family: "Segoe UI Symbol", sans-serif; /* 支援特殊符號 */
+      }
+      .service-note {
+        font-style: italic;
+        color: #333;
+        font-size: 12px;
+        margin-left: 5px;
+      }
+      .service-warning {
+        margin-top: 10px;
+        font-weight: bold;
+        font-size: 12px;
+        text-align: center;
+        border-top: 1px dashed #ccc;
+        padding-top: 5px;
+      }
+
       /* 簽名與備註區 */
       .bottom-section {
         display: flex;
         justify-content: space-between;
-        margin-top: 30px;
+        margin-top: 10px;
         font-size: 14px;
       }
       .remarks-box {
@@ -403,6 +446,22 @@
         </div>
       </div>
 
+      <div
+        id="p-services-section"
+        class="additional-services-box"
+        style="display: none"
+      >
+        <div class="services-title">
+          <span>🛠️ 附加服務需求 (Additional Services)</span>
+          <span style="font-weight: normal; font-size: 12px">※ 司機存查</span>
+        </div>
+        <div id="p-services-list" class="services-list"></div>
+        <div class="service-warning">
+          ⚠️
+          提醒：實際報價以現場情況為準，附加費用請客戶直接支付給派送司機確認。
+        </div>
+      </div>
+
       <div class="bottom-section">
         <div class="remarks-box">
           <strong>客戶備註 / Notes:</strong><br />
@@ -550,6 +609,64 @@
         );
         document.getElementById("p-address").textContent = ship.shippingAddress;
         document.getElementById("p-note").textContent = ship.note || "無";
+
+        // --- [新增] 渲染附加服務 ---
+        const svcs = ship.additionalServices || {};
+        const svcContainer = document.getElementById("p-services-list");
+        const svcSection = document.getElementById("p-services-section");
+
+        let svcHtml = "";
+        let hasService = false;
+
+        const svcMap = [
+          { key: "floor", label: "上樓搬運" },
+          { key: "wood", label: "回收木架" },
+          { key: "assembly", label: "傢俱組裝" },
+          { key: "old", label: "回收舊傢俱" },
+        ];
+
+        svcMap.forEach((s) => {
+          const data = svcs[s.key];
+          if (data && data.selected) {
+            hasService = true;
+            let detail = "";
+
+            if (s.key === "floor") {
+              // 強調是否無電梯，這對司機很重要
+              detail += data.hasElevator
+                ? " (有電梯)"
+                : " <b style='color:#000; border-bottom:2px solid #000;'>★ 無電梯</b>";
+            }
+
+            if (data.note) {
+              detail += ` <span class="service-note">(${data.note})</span>`;
+            }
+
+            svcHtml += `
+              <div class="service-item">
+                <span class="service-checkbox">☑</span> 
+                <strong>${s.label}</strong>
+                ${detail}
+              </div>
+            `;
+          } else {
+            // 沒選的也顯示，但標記未勾選，方便確認
+            svcHtml += `
+              <div class="service-item" style="opacity:0.4;">
+                <span class="service-checkbox">☐</span> 
+                <span>${s.label}</span>
+              </div>
+            `;
+          }
+        });
+
+        if (hasService) {
+          svcContainer.innerHTML = svcHtml;
+          svcSection.style.display = "block";
+        } else {
+          // 完全沒選服務則隱藏
+          svcSection.style.display = "none";
+        }
 
         // --- 填寫包裹表格 ---
         const tbody = document.getElementById("p-pkg-body");

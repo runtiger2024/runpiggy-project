@@ -1,4 +1,4 @@
-// backend/controllers/shipmentController.js (V10.1 - 修復超規判斷 >= 版)
+// backend/controllers/shipmentController.js (V11.0 - 支援附加服務儲存)
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
@@ -172,6 +172,7 @@ const createShipment = async (req, res) => {
       note,
       deliveryLocationRate,
       productUrl,
+      additionalServices, // [新增] 接收附加服務 JSON 字串
     } = req.body;
 
     const userId = req.user.id;
@@ -232,6 +233,14 @@ const createShipment = async (req, res) => {
       deliveryLocationRate
     );
 
+    // [新增] 簡單的 additionalServices 處理 (若為 undefined 則存 null)
+    // 建議保持為 JSON 字串存入 DB
+    let finalAdditionalServices = null;
+    if (additionalServices) {
+      // 嘗試解析驗證一下，或是直接存
+      finalAdditionalServices = additionalServices;
+    }
+
     const newShipment = await prisma.$transaction(async (tx) => {
       const createdShipment = await tx.shipment.create({
         data: {
@@ -242,6 +251,7 @@ const createShipment = async (req, res) => {
           taxId: taxId || null,
           invoiceTitle: invoiceTitle || null,
           note: note || null,
+          additionalServices: finalAdditionalServices, // 儲存附加服務
           totalCost: calcResult.totalCost, // 使用重新計算的總金額
           deliveryLocationRate: parseFloat(deliveryLocationRate) || 0,
           status: "PENDING_PAYMENT",
@@ -413,10 +423,16 @@ const getShipmentById = async (req, res) => {
       );
     } catch (e) {}
 
+    // 解析附加服務 JSON
+    let additionalServicesObj = {};
+    try {
+      additionalServicesObj = JSON.parse(shipment.additionalServices || "{}");
+    } catch (e) {}
+
     const processedShipment = {
       ...shipment,
       packages: processedPackages,
-      additionalServices: JSON.parse(shipment.additionalServices || "{}"),
+      additionalServices: additionalServicesObj,
       shipmentProductImages: shipmentProductImages,
     };
 

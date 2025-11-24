@@ -549,6 +549,177 @@
                   />
                 </div>
               </div>
+
+              <div
+                class="form-section"
+                style="
+                  margin-top: 20px;
+                  border-top: 1px dashed #ccc;
+                  padding-top: 15px;
+                "
+              >
+                <h4 style="margin-bottom: 15px; color: #2c3e50">
+                  🛠️ 附加服務 (協助搬運/組裝/回收)
+                </h4>
+
+                <div class="service-item" style="margin-bottom: 10px">
+                  <div style="display: flex; align-items: center; gap: 10px">
+                    <input
+                      type="checkbox"
+                      id="srv-floor"
+                      style="width: 18px; height: 18px"
+                    />
+                    <label for="srv-floor" style="font-weight: bold; margin: 0"
+                      >需要上樓搬運</label
+                    >
+                  </div>
+                  <div
+                    id="srv-floor-options"
+                    style="
+                      display: none;
+                      margin-left: 28px;
+                      margin-top: 8px;
+                      padding: 10px;
+                      background: #f8f9fa;
+                      border-radius: 5px;
+                    "
+                  >
+                    <div style="margin-bottom: 8px">
+                      <label
+                        style="
+                          font-size: 13px;
+                          display: block;
+                          margin-bottom: 3px;
+                        "
+                        >電梯設施：</label
+                      >
+                      <div style="display: flex; gap: 15px">
+                        <label style="font-weight: normal; font-size: 14px"
+                          ><input
+                            type="radio"
+                            name="srv-elevator"
+                            value="yes"
+                          />
+                          有電梯</label
+                        >
+                        <label style="font-weight: normal; font-size: 14px"
+                          ><input type="radio" name="srv-elevator" value="no" />
+                          無電梯 (需爬梯)</label
+                        >
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      id="srv-floor-note"
+                      class="form-control"
+                      placeholder="備註 (例: 5樓, 樓梯較窄)..."
+                      style="font-size: 13px"
+                    />
+                  </div>
+                </div>
+
+                <div class="service-item" style="margin-bottom: 10px">
+                  <div style="display: flex; align-items: center; gap: 10px">
+                    <input
+                      type="checkbox"
+                      id="srv-wood"
+                      style="width: 18px; height: 18px"
+                    />
+                    <label for="srv-wood" style="font-weight: bold; margin: 0"
+                      >回收木架</label
+                    >
+                  </div>
+                  <div
+                    id="srv-wood-input"
+                    style="display: none; margin-left: 28px; margin-top: 5px"
+                  >
+                    <input
+                      type="text"
+                      id="srv-wood-note"
+                      class="form-control"
+                      placeholder="數量/備註..."
+                      style="font-size: 13px"
+                    />
+                  </div>
+                </div>
+
+                <div class="service-item" style="margin-bottom: 10px">
+                  <div style="display: flex; align-items: center; gap: 10px">
+                    <input
+                      type="checkbox"
+                      id="srv-assembly"
+                      style="width: 18px; height: 18px"
+                    />
+                    <label
+                      for="srv-assembly"
+                      style="font-weight: bold; margin: 0"
+                      >傢俱組裝</label
+                    >
+                  </div>
+                  <div
+                    id="srv-assembly-input"
+                    style="display: none; margin-left: 28px; margin-top: 5px"
+                  >
+                    <input
+                      type="text"
+                      id="srv-assembly-note"
+                      class="form-control"
+                      placeholder="備註..."
+                      style="font-size: 13px"
+                    />
+                  </div>
+                </div>
+
+                <div class="service-item" style="margin-bottom: 10px">
+                  <div style="display: flex; align-items: center; gap: 10px">
+                    <input
+                      type="checkbox"
+                      id="srv-old"
+                      style="width: 18px; height: 18px"
+                    />
+                    <label for="srv-old" style="font-weight: bold; margin: 0"
+                      >回收舊傢俱</label
+                    >
+                  </div>
+                  <div
+                    id="srv-old-input"
+                    style="display: none; margin-left: 28px; margin-top: 5px"
+                  >
+                    <input
+                      type="text"
+                      id="srv-old-note"
+                      class="form-control"
+                      placeholder="品項/數量 (例: 雙人床墊x1)..."
+                      style="font-size: 13px"
+                    />
+                  </div>
+                </div>
+
+                <div
+                  class="alert alert-warning"
+                  style="
+                    display: block;
+                    margin-top: 15px;
+                    background-color: #fff3cd;
+                    color: #856404;
+                    border: 1px solid #ffeeba;
+                    font-size: 13px;
+                    line-height: 1.6;
+                  "
+                >
+                  <strong
+                    ><i class="fas fa-exclamation-triangle"></i>
+                    費用說明：</strong
+                  ><br />
+                  因每個社區中庭距離及規定不同，以上需求僅供司機參考。<br />
+                  <span style="color: #d32f2f; font-weight: bold"
+                    >實際報價以派送司機視現場情況為準，現場請務必與派送司機確認金額！</span
+                  ><br />
+                  此附加費用由客戶直接支付給派貨司機。<br />
+                  (附加服務非我司收取，僅提供協助聯繫)
+                </div>
+              </div>
+
               <div
                 class="proof-section"
                 style="

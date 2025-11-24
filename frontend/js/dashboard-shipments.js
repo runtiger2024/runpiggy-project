@@ -85,12 +85,72 @@ window.updateCheckoutBar = function () {
   }
 };
 
+// --- [新增] 附加服務邏輯初始化 ---
+function setupServiceOptionsLogic() {
+  // 1. 上樓 -> 顯示電梯選項
+  const floorCheck = document.getElementById("srv-floor");
+  const floorOptions = document.getElementById("srv-floor-options");
+  if (floorCheck && floorOptions) {
+    floorCheck.addEventListener("change", (e) => {
+      floorOptions.style.display = e.target.checked ? "block" : "none";
+    });
+  }
+
+  // 2. 通用：勾選 -> 顯示備註欄
+  const toggleInput = (checkboxId, inputDivId) => {
+    const cb = document.getElementById(checkboxId);
+    const div = document.getElementById(inputDivId);
+    if (cb && div) {
+      cb.addEventListener("change", (e) => {
+        div.style.display = e.target.checked ? "block" : "none";
+      });
+    }
+  };
+
+  toggleInput("srv-wood", "srv-wood-input");
+  toggleInput("srv-assembly", "srv-assembly-input");
+  toggleInput("srv-old", "srv-old-input");
+}
+
+// --- [新增] 重置附加服務表單 ---
+function resetServiceForm() {
+  // 1. 清空勾選
+  const checkboxes = ["srv-floor", "srv-wood", "srv-assembly", "srv-old"];
+  checkboxes.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.checked = false;
+      el.dispatchEvent(new Event("change")); // 觸發隱藏邏輯
+    }
+  });
+
+  // 2. 重置電梯 radio
+  const radios = document.querySelectorAll('input[name="srv-elevator"]');
+  radios.forEach((r) => (r.checked = false));
+
+  // 3. 清空備註文字
+  const inputs = [
+    "srv-floor-note",
+    "srv-wood-note",
+    "srv-assembly-note",
+    "srv-old-note",
+  ];
+  inputs.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+}
+
 // --- 4. 點擊合併打包 (生成詳細算式與檢視) ---
 window.handleCreateShipmentClick = function () {
   const ids = Array.from(
     document.querySelectorAll(".package-checkbox:checked")
   ).map((c) => c.dataset.id);
   if (ids.length === 0) return;
+
+  // 初始化服務邏輯與重置表單
+  setupServiceOptionsLogic();
+  resetServiceForm();
 
   // 準備費率常數
   const CONSTANTS = window.CONSTANTS || {
@@ -363,6 +423,29 @@ window.handleCreateShipmentSubmit = async function (e) {
     .trim();
   const fullAddress = (areaName === "一般地區" ? "" : areaName + " ") + street;
 
+  // [新增] 收集附加服務資料
+  const services = {
+    floor: {
+      selected: document.getElementById("srv-floor").checked,
+      hasElevator:
+        document.querySelector('input[name="srv-elevator"]:checked')?.value ===
+        "yes",
+      note: document.getElementById("srv-floor-note").value,
+    },
+    wood: {
+      selected: document.getElementById("srv-wood").checked,
+      note: document.getElementById("srv-wood-note").value,
+    },
+    assembly: {
+      selected: document.getElementById("srv-assembly").checked,
+      note: document.getElementById("srv-assembly-note").value,
+    },
+    old: {
+      selected: document.getElementById("srv-old").checked,
+      note: document.getElementById("srv-old-note").value,
+    },
+  };
+
   const fd = new FormData();
   fd.append("packageIds", JSON.stringify(ids));
   fd.append("recipientName", document.getElementById("ship-name").value);
@@ -374,6 +457,8 @@ window.handleCreateShipmentSubmit = async function (e) {
   fd.append("invoiceTitle", document.getElementById("ship-invoiceTitle").value);
   fd.append("note", document.getElementById("ship-note").value);
   fd.append("productUrl", document.getElementById("ship-product-url").value);
+  // 附加服務 (轉 JSON 字串)
+  fd.append("additionalServices", JSON.stringify(services));
 
   const files = document.getElementById("ship-product-images").files;
   for (let i = 0; i < files.length; i++) fd.append("shipmentImages", files[i]);

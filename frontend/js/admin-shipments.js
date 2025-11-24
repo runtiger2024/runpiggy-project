@@ -1,4 +1,4 @@
-// frontend/js/admin-shipments.js (V10.1 - 支援分頁、批量、匯出、發票顯示)
+// frontend/js/admin-shipments.js (V11.0 - 支援附加服務顯示)
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 權限與初始化 ---
@@ -399,9 +399,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // 為了取得完整圖片與詳細資料，重新 fetch 單筆
     let fullShipment = ship;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/shipments/${ship.id}`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/shipments/${ship.id}`,
+        {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        }
+      );
       if (res.ok) {
         const data = await res.json();
         fullShipment = data.shipment;
@@ -473,26 +476,21 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // [修改] 商品證明 (連結) - 支援多行連結顯示
+    // 商品證明 (連結)
     const productUrlEl = document.getElementById("modal-product-url");
     const rawUrl = fullShipment.productUrl || "";
 
     if (rawUrl.trim()) {
-      // 將內容依換行符號切割
       const urls = rawUrl.split(/\r?\n/).filter((u) => u.trim() !== "");
-
-      // 清空原本的內容
       productUrlEl.innerHTML = "";
       productUrlEl.style.display = "block";
-
-      // 生成多個連結
       urls.forEach((url, index) => {
         const link = document.createElement("a");
         link.href = url.trim();
         link.target = "_blank";
         link.style.cssText =
           "display: block; color: #1a73e8; word-break: break-all; margin-bottom: 4px;";
-        link.textContent = `[連結 ${index + 1}] ${url.substring(0, 40)}...`; // 縮短顯示以免太長
+        link.textContent = `[連結 ${index + 1}] ${url.substring(0, 40)}...`;
         productUrlEl.appendChild(link);
       });
     } else {
@@ -500,13 +498,13 @@ document.addEventListener("DOMContentLoaded", () => {
       productUrlEl.style.display = "inline";
     }
 
-    // [修改] 商品證明 (圖片) - 增加 flex-wrap
+    // 商品證明 (圖片)
     const prodImgContainer = document.getElementById(
       "modal-product-images-container"
     );
     prodImgContainer.innerHTML = "";
     prodImgContainer.style.cssText =
-      "display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px;"; // 新增樣式
+      "display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px;";
 
     const pImages = fullShipment.shipmentProductImages || [];
     if (pImages.length > 0) {
@@ -521,7 +519,59 @@ document.addEventListener("DOMContentLoaded", () => {
     shipmentPackageList.innerHTML = (fullShipment.packages || [])
       .map((p) => `<p>${p.productName} (<b>${p.trackingNumber}</b>)</p>`)
       .join("");
-    modalServices.innerHTML = "<p>(無附加服務)</p>";
+
+    // [新增] 渲染附加服務
+    if (modalServices) {
+      let svcs = fullShipment.additionalServices || {}; // 應在 controller 已解析
+      let svcHtml = "";
+
+      // 定義服務項目映射
+      const svcMap = [
+        { key: "floor", label: "上樓搬運" },
+        { key: "wood", label: "回收木架" },
+        { key: "assembly", label: "傢俱組裝" },
+        { key: "old", label: "回收舊傢俱" },
+      ];
+
+      let hasAnyService = false;
+
+      svcMap.forEach((s) => {
+        const data = svcs[s.key];
+        if (data && data.selected) {
+          hasAnyService = true;
+          let detail = "";
+
+          // 特殊處理：上樓是否有電梯
+          if (s.key === "floor") {
+            detail += data.hasElevator
+              ? `<span class="badge-service yes-elevator">有電梯</span>`
+              : `<span class="badge-service no-elevator">無電梯</span>`;
+          }
+
+          // 備註
+          if (data.note) {
+            detail += `<span class="service-note">備註: ${data.note}</span>`;
+          }
+
+          svcHtml += `
+            <div class="service-row">
+              <span class="service-check">✅</span> 
+              <strong>${s.label}</strong>
+              ${detail}
+            </div>
+          `;
+        }
+      });
+
+      if (!hasAnyService) {
+        modalServices.innerHTML = "<p style='color:#999;'>(無附加服務)</p>";
+      } else {
+        modalServices.innerHTML = svcHtml;
+        // 簡單樣式注入 (若 CSS 未定義)
+        modalServices.style.lineHeight = "1.8";
+        modalServices.style.fontSize = "14px";
+      }
+    }
 
     document.getElementById("modal-status").value = fullShipment.status;
     document.getElementById("modal-totalCost").value =
@@ -546,7 +596,6 @@ document.addEventListener("DOMContentLoaded", () => {
       delBtn.textContent = "⚠️ 永久刪除此集運單 (危險)";
       updateForm.appendChild(delBtn);
     }
-    // 重新綁定事件 (cloneNode 移除舊 listener)
     const newDelBtn = delBtn.cloneNode(true);
     delBtn.parentNode.replaceChild(newDelBtn, delBtn);
 
