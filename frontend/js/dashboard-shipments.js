@@ -1,4 +1,4 @@
-// frontend/js/dashboard-shipments.js (V23.1 - 修復超規判斷 >= 版)
+// frontend/js/dashboard-shipments.js (V24.0 - 新增付款憑證一鍵複製帳號功能)
 // 負責：集運單列表、建立訂單(結帳)、取消訂單、詳情、上傳憑證
 
 // --- 1. 載入我的集運單 ---
@@ -560,12 +560,21 @@ window.openUploadProof = function (id) {
   if (bankContainer) {
     if (window.BANK_INFO_CACHE) {
       const b = window.BANK_INFO_CACHE;
+      // [修改] 新增複製按鈕
       bankContainer.innerHTML = `
             <div style="text-align:center; margin-bottom:10px; font-weight:bold; color:#1a73e8;">請匯款至以下帳戶</div>
             <div><strong>銀行：</strong> ${b.bankName} ${b.branch || ""}</div>
-            <div><strong>帳號：</strong> <span style="color:#d32f2f; font-weight:bold; font-size:1.1em; user-select:all;">${
-              b.account
-            }</span></div>
+            <div>
+                <strong>帳號：</strong> 
+                <span id="proof-account-text" style="color:#d32f2f; font-weight:bold; font-size:1.1em; user-select:all;">${
+                  b.account
+                }</span>
+                <button type="button" class="btn btn-outline-primary btn-sm" 
+                    style="padding: 1px 8px; font-size: 12px; width: auto; display: inline-block; margin-left: 8px; border-radius: 12px;" 
+                    onclick="window.copyToClipboard('${b.account}')">
+                    <i class="far fa-copy"></i> 複製
+                </button>
+            </div>
             <div><strong>戶名：</strong> ${b.holder}</div>
             <div style="margin-top:10px; font-size:12px; color:#888; text-align:center;">(請上傳包含「轉帳金額」與「成功畫面」的截圖)</div>
           `;
@@ -617,4 +626,34 @@ window.updateBankInfoDOM = function (info) {
     document.getElementById("bank-account").textContent = info.account;
   if (document.getElementById("bank-holder"))
     document.getElementById("bank-holder").textContent = info.holder;
+};
+
+// --- [NEW] 複製到剪貼簿輔助函式 ---
+window.copyToClipboard = function (text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        alert("✅ 已複製帳號：" + text);
+      })
+      .catch((err) => {
+        console.error("複製失敗:", err);
+        prompt("您的瀏覽器不支援自動複製，請手動複製：", text);
+      });
+  } else {
+    // Fallback 方案
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed"; // 避免頁面滾動
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand("copy");
+      alert("✅ 已複製帳號：" + text);
+    } catch (err) {
+      prompt("您的瀏覽器不支援自動複製，請手動複製：", text);
+    }
+    document.body.removeChild(textArea);
+  }
 };
