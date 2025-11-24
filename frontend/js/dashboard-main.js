@@ -202,6 +202,34 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // --- [Fix] 訂單成功彈窗的「複製資訊」按鈕邏輯 ---
+  const btnCopyBank = document.getElementById("btn-copy-bank-info");
+  if (btnCopyBank) {
+    btnCopyBank.addEventListener("click", () => {
+      const bName = document.getElementById("bank-name").innerText.trim();
+      const bAcc = document.getElementById("bank-account").innerText.trim();
+      const bHolder = document.getElementById("bank-holder").innerText.trim();
+
+      // 組合複製文字
+      const textToCopy = `【匯款資訊】\n銀行：${bName}\n帳號：${bAcc}\n戶名：${bHolder}`;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+          .writeText(textToCopy)
+          .then(() => {
+            alert("✅ 匯款資訊已複製到剪貼簿！");
+          })
+          .catch((err) => {
+            console.error("Clipboard Error:", err);
+            alert("複製失敗，請手動選取文字複製。");
+          });
+      } else {
+        // 備用方案 (針對舊版瀏覽器)
+        alert("您的瀏覽器不支援自動複製，請手動截圖或複製。");
+      }
+    });
+  }
+
   // 關閉彈窗通用
   document.querySelectorAll(".modal-overlay").forEach((m) => {
     m.addEventListener("click", (e) => {
