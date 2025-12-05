@@ -1,5 +1,5 @@
 // frontend/js/admin-parcels.js
-// V2025.Security - 包含單號重複檢核提示
+// V2025.Security (Mobile Optimized)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -49,15 +49,19 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // 綁定全選
-    selectAll.addEventListener("change", (e) => {
-      document.querySelectorAll(".pkg-checkbox").forEach((cb) => {
-        cb.checked = e.target.checked;
-        toggleSelection(cb.value, e.target.checked);
+    if (selectAll) {
+      selectAll.addEventListener("change", (e) => {
+        document.querySelectorAll(".pkg-checkbox").forEach((cb) => {
+          cb.checked = e.target.checked;
+          toggleSelection(cb.value, e.target.checked);
+        });
       });
-    });
+    }
 
     // 綁定批量刪除
-    btnBulkDelete.addEventListener("click", performBulkDelete);
+    if (btnBulkDelete) {
+      btnBulkDelete.addEventListener("click", performBulkDelete);
+    }
 
     // 綁定分箱新增
     document
@@ -195,22 +199,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const pkgStr = encodeURIComponent(JSON.stringify(pkg));
 
+      // [Mobile Opt] 加入 data-label
       tr.innerHTML = `
         <td><input type="checkbox" class="pkg-checkbox" value="${pkg.id}"></td>
-        <td>${new Date(pkg.createdAt).toLocaleDateString()}</td>
-        <td>${
+        <td data-label="預報時間">${new Date(
+          pkg.createdAt
+        ).toLocaleDateString()}</td>
+        <td data-label="會員">${
           pkg.user ? pkg.user.name : "-"
         } <br><small class="text-gray-500">${
         pkg.user ? pkg.user.email : ""
       }</small></td>
-        <td><span style="font-family:monospace; font-weight:bold;">${
+        <td data-label="物流單號"><span style="font-family:monospace; font-weight:bold;">${
           pkg.trackingNumber
         }</span></td>
-        <td>${pkg.productName}</td>
-        <td>${weightInfo}</td>
-        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-        <td>
-          <button class="btn btn-primary btn-sm" onclick="openEditModal('${pkgStr}')"><i class="fas fa-edit"></i></button>
+        <td data-label="商品名稱">${pkg.productName}</td>
+        <td data-label="重量/尺寸">${weightInfo}</td>
+        <td data-label="狀態"><span class="status-badge ${statusClass}">${statusText}</span></td>
+        <td data-label="操作">
+          <button class="btn btn-primary btn-sm" onclick="openEditModal('${pkgStr}')"><i class="fas fa-edit"></i> 編輯</button>
         </td>
       `;
 
@@ -290,7 +297,7 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.style.display = "flex";
   };
 
-  function openCreateModal() {
+  window.openCreateModal = function () {
     isCreateMode = true;
     document.getElementById("modal-title").textContent = "代客預報 (新增包裹)";
     form.reset();
@@ -305,7 +312,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-status").value = "PENDING";
 
     modal.style.display = "flex";
-  }
+  };
 
   function renderSubPackages() {
     const list = document.getElementById("sub-package-list");
@@ -518,37 +525,39 @@ document.addEventListener("DOMContentLoaded", () => {
   const searchInput = document.getElementById("admin-customer-search");
   const resultDiv = document.getElementById("admin-customer-search-results");
 
-  searchInput.addEventListener("input", async (e) => {
-    const val = e.target.value.trim();
-    if (val.length < 2) {
-      resultDiv.style.display = "none";
-      return;
-    }
-
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/admin/users/list?search=${val}`,
-        {
-          headers: { Authorization: `Bearer ${adminToken}` },
-        }
-      );
-      const d = await res.json();
-      if (d.users && d.users.length > 0) {
-        resultDiv.innerHTML = d.users
-          .map(
-            (u) => `
-                  <div class="p-2 border-bottom" style="cursor:pointer;" onclick="selectUser('${u.id}', '${u.email}', '${u.name}')">
-                      ${u.name} (${u.email})
-                  </div>
-              `
-          )
-          .join("");
-        resultDiv.style.display = "block";
-      } else {
+  if (searchInput && resultDiv) {
+    searchInput.addEventListener("input", async (e) => {
+      const val = e.target.value.trim();
+      if (val.length < 2) {
         resultDiv.style.display = "none";
+        return;
       }
-    } catch (e) {}
-  });
+
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/api/admin/users/list?search=${val}`,
+          {
+            headers: { Authorization: `Bearer ${adminToken}` },
+          }
+        );
+        const d = await res.json();
+        if (d.users && d.users.length > 0) {
+          resultDiv.innerHTML = d.users
+            .map(
+              (u) => `
+                      <div class="p-2 border-bottom" style="cursor:pointer;" onclick="selectUser('${u.id}', '${u.email}', '${u.name}')">
+                          ${u.name} (${u.email})
+                      </div>
+                  `
+            )
+            .join("");
+          resultDiv.style.display = "block";
+        } else {
+          resultDiv.style.display = "none";
+        }
+      } catch (e) {}
+    });
+  }
 
   window.selectUser = function (id, email, name) {
     document.getElementById("admin-create-userId").value = id;
@@ -562,9 +571,11 @@ document.addEventListener("DOMContentLoaded", () => {
     updateBulkUI();
   }
   function updateBulkUI() {
-    btnBulkDelete.style.display =
-      selectedIds.size > 0 ? "inline-block" : "none";
-    btnBulkDelete.textContent = `批量刪除 (${selectedIds.size})`;
+    if (btnBulkDelete) {
+      btnBulkDelete.style.display =
+        selectedIds.size > 0 ? "inline-block" : "none";
+      btnBulkDelete.textContent = `批量刪除 (${selectedIds.size})`;
+    }
   }
   async function performBulkDelete() {
     if (!confirm(`確定刪除 ${selectedIds.size} 筆?`)) return;

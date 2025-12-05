@@ -473,3 +473,133 @@ body {
   margin-top: 2px;
   margin-left: 10px;
 }
+/* frontend/css/admin-modern.css */
+/* ... (保留原本上方的 Desktop 樣式) ... */
+
+/* --- 響應式設計 (Mobile Optimization) --- */
+@media (max-width: 768px) {
+  /* 1. 側邊欄改為抽屜式 (Off-canvas) */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 1050;
+    width: 250px !important; /* 強制固定寬度 */
+    transform: translateX(-100%); /* 預設藏在左側 */
+    transition: transform 0.3s ease-in-out;
+  }
+
+  .sidebar.toggled {
+    transform: translateX(0); /* 滑入顯示 */
+    width: 250px !important;
+  }
+
+  #content-wrapper {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+
+  /* 遮罩層 (需搭配 JS 動態加入) */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1040;
+    backdrop-filter: blur(2px);
+  }
+  .sidebar-overlay.show {
+    display: block;
+  }
+
+  /* 2. Topbar 調整 */
+  .topbar {
+    padding: 0 15px;
+  }
+  .user-info .user-name {
+    display: none; /* 手機版隱藏名稱，只留頭像 */
+  }
+
+  /* 3. 表格轉卡片 (Table to Card View) */
+  .modern-table thead {
+    display: none; /* 隱藏表頭 */
+  }
+
+  .modern-table tbody tr {
+    display: block;
+    background: #fff;
+    margin-bottom: 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e3e6f0;
+    padding: 15px;
+    position: relative;
+  }
+
+  .modern-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px dashed #f0f0f0;
+    text-align: right;
+    font-size: 14px;
+  }
+
+  .modern-table tbody td:last-child {
+    border-bottom: none;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+  }
+
+  /* 利用 data-label 屬性顯示欄位名稱 */
+  .modern-table tbody td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-right: 15px;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  /* 第一個欄位 (通常是 Checkbox) 特殊處理 */
+  .modern-table tbody td:first-child {
+    justify-content: flex-start;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  /* 4. 篩選器堆疊 */
+  .filters-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .filters-bar > div,
+  .filters-bar input,
+  .filters-bar select,
+  .filters-bar button {
+    width: 100% !important;
+    margin: 0 !important;
+    flex: none !important;
+  }
+
+  /* 5. 統計卡片調整 */
+  .stats-grid {
+    grid-template-columns: 1fr; /* 單欄 */
+  }
+
+  /* 6. 彈窗優化 */
+  .modal .card {
+    width: 95% !important;
+    margin: 20px auto;
+    max-height: 85vh;
+  }
+}

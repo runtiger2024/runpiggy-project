@@ -1,4 +1,4 @@
-// frontend/js/admin-layout.js (V2025 - 權限分級版)
+// frontend/js/admin-layout.js (V2025 - Mobile Optimized)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -45,7 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
       label: "新增員工",
       icon: "fas fa-user-plus",
       href: "admin-register.html",
-      perm: "USER_MANAGE", // 只有能管理會員的人才能新增員工
+      perm: "USER_MANAGE",
     },
     {
       label: "系統設定",
@@ -67,6 +67,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const wrapper = document.createElement("div");
   wrapper.id = "wrapper";
+
+  // [Mobile Fix] 插入遮罩層 (用於手機版點擊關閉選單)
+  const overlay = document.createElement("div");
+  overlay.className = "sidebar-overlay";
+  document.body.appendChild(overlay);
 
   // 3.1 建立 Sidebar
   let navItemsHtml = "";
@@ -162,16 +167,22 @@ document.addEventListener("DOMContentLoaded", () => {
   // 4. 綁定事件
   const toggleBtn = document.getElementById("sidebarToggleTop");
   const sidebar = document.querySelector(".sidebar");
-  if (toggleBtn) {
-    toggleBtn.addEventListener("click", () => {
+
+  if (toggleBtn && sidebar) {
+    toggleBtn.addEventListener("click", (e) => {
+      e.stopPropagation(); // 防止事件冒泡
       sidebar.classList.toggle("toggled");
+
+      // [Mobile Fix] 手機版同步切換遮罩
       if (window.innerWidth <= 768) {
-        if (sidebar.classList.contains("toggled")) {
-          sidebar.style.width = "250px";
-        } else {
-          sidebar.style.width = "0";
-        }
+        overlay.classList.toggle("show");
       }
+    });
+
+    // [Mobile Fix] 點擊遮罩關閉側邊欄
+    overlay.addEventListener("click", () => {
+      sidebar.classList.remove("toggled");
+      overlay.classList.remove("show");
     });
   }
 

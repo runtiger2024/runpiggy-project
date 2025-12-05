@@ -1,5 +1,5 @@
 // frontend/js/admin-members.js
-// V2025.Security - 包含刪除防呆 (雙重確認)
+// V2025.Security (Mobile Optimized)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -120,33 +120,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const uStr = encodeURIComponent(JSON.stringify(u));
 
+      // [Mobile Opt] 加入 data-label
       tr.innerHTML = `
-            <td><div class="font-weight-bold text-dark">${
+            <td data-label="姓名"><div class="font-weight-bold text-dark">${
               u.name || "-"
             }</div></td>
-            <td>${u.email}</td>
-            <td>${u.phone || "-"}</td>
-            <td>${roleBadge}</td>
-            <td>${new Date(u.createdAt).toLocaleDateString()}</td>
-            <td>${statusHtml}</td>
-            <td>
-                <button class="btn btn-primary btn-sm" title="編輯" onclick="openModal('${uStr}')">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-sm ${
-                  u.isActive ? "btn-warning" : "btn-success"
-                }" 
-                        title="${u.isActive ? "停用帳號" : "啟用帳號"}" 
-                        onclick="toggleStatus('${u.id}', ${!u.isActive})">
-                    <i class="fas ${
-                      u.isActive ? "fa-user-slash" : "fa-user-check"
-                    }"></i>
-                </button>
-                <button class="btn btn-danger btn-sm" title="刪除" onclick="deleteUser('${
-                  u.id
-                }', '${u.email}')">
-                    <i class="fas fa-trash"></i>
-                </button>
+            <td data-label="帳號">${u.email}</td>
+            <td data-label="電話">${u.phone || "-"}</td>
+            <td data-label="角色">${roleBadge}</td>
+            <td data-label="註冊日期">${new Date(
+              u.createdAt
+            ).toLocaleDateString()}</td>
+            <td data-label="狀態">${statusHtml}</td>
+            <td data-label="操作">
+                <div style="display:flex; gap:5px; justify-content:flex-end;">
+                    <button class="btn btn-primary btn-sm" title="編輯" onclick="openModal('${uStr}')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm ${
+                      u.isActive ? "btn-warning" : "btn-success"
+                    }" 
+                            title="${u.isActive ? "停用帳號" : "啟用帳號"}" 
+                            onclick="toggleStatus('${u.id}', ${!u.isActive})">
+                        <i class="fas ${
+                          u.isActive ? "fa-user-slash" : "fa-user-check"
+                        }"></i>
+                    </button>
+                    <button class="btn btn-danger btn-sm" title="刪除" onclick="deleteUser('${
+                      u.id
+                    }', '${u.email}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
             </td>
           `;
       tbody.appendChild(tr);
@@ -369,7 +374,6 @@ document.addEventListener("DOMContentLoaded", () => {
         alert("會員已成功刪除");
         loadMembers();
       } else {
-        // 顯示後端回傳的具體錯誤 (例如：尚有未完成訂單)
         alert("刪除失敗：\n" + (data.message || "未知錯誤"));
       }
     } catch (err) {

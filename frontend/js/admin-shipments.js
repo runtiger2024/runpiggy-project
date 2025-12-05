@@ -1,5 +1,5 @@
 // frontend/js/admin-shipments.js
-// V2025.Security - 包含財務鎖定 (Financial Lock)
+// V2025.Security (Mobile Optimized)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -35,20 +35,28 @@ document.addEventListener("DOMContentLoaded", () => {
       .addEventListener("submit", handleUpdate);
 
     // 全選
-    document.getElementById("select-all").addEventListener("change", (e) => {
-      document.querySelectorAll(".ship-checkbox").forEach((cb) => {
-        cb.checked = e.target.checked;
-        toggleSelection(cb.value, e.target.checked);
+    const selectAll = document.getElementById("select-all");
+    if (selectAll) {
+      selectAll.addEventListener("change", (e) => {
+        document.querySelectorAll(".ship-checkbox").forEach((cb) => {
+          cb.checked = e.target.checked;
+          toggleSelection(cb.value, e.target.checked);
+        });
       });
-    });
+    }
 
     // 批量按鈕
-    document
-      .getElementById("btn-bulk-process")
-      .addEventListener("click", () => performBulkAction("PROCESSING"));
-    document
-      .getElementById("btn-bulk-delete")
-      .addEventListener("click", performBulkDelete);
+    const btnBulkProcess = document.getElementById("btn-bulk-process");
+    if (btnBulkProcess) {
+      btnBulkProcess.addEventListener("click", () =>
+        performBulkAction("PROCESSING")
+      );
+    }
+
+    const btnBulkDelete = document.getElementById("btn-bulk-delete");
+    if (btnBulkDelete) {
+      btnBulkDelete.addEventListener("click", performBulkDelete);
+    }
 
     loadShipments();
   }
@@ -116,18 +124,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const sStr = encodeURIComponent(JSON.stringify(s));
 
+      // [Mobile Opt] 加入 data-label
       tr.innerHTML = `
         <td><input type="checkbox" class="ship-checkbox" value="${s.id}"></td>
-        <td><strong>${s.id.slice(-8).toUpperCase()}</strong></td>
-        <td>${new Date(s.createdAt).toLocaleDateString()}</td>
-        <td>
+        <td data-label="訂單號"><strong>${s.id
+          .slice(-8)
+          .toUpperCase()}</strong></td>
+        <td data-label="建立時間">${new Date(
+          s.createdAt
+        ).toLocaleDateString()}</td>
+        <td data-label="會員/收件人">
           <div>${s.recipientName}</div>
           <small class="text-muted">${s.user?.email}</small>
         </td>
-        <td><span class="text-danger font-weight-bold">NT$ ${s.totalCost.toLocaleString()}</span></td>
-        <td>${invHtml}</td>
-        <td><span class="status-badge ${statusClass}">${displayStatus}</span></td>
-        <td>
+        <td data-label="總金額"><span class="text-danger font-weight-bold">NT$ ${s.totalCost.toLocaleString()}</span></td>
+        <td data-label="發票狀態">${invHtml}</td>
+        <td data-label="訂單狀態"><span class="status-badge ${statusClass}">${displayStatus}</span></td>
+        <td data-label="操作">
           <button class="btn btn-primary btn-sm" onclick="openModal('${sStr}')">管理</button>
         </td>
       `;
@@ -362,12 +375,18 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateBulkUI() {
     const count = selectedIds.size;
     const span = document.getElementById("selected-count");
-    span.textContent = `已選 ${count} 筆`;
-    span.style.display = count > 0 ? "inline" : "none";
-    document.getElementById("btn-bulk-process").style.display =
-      count > 0 ? "inline-block" : "none";
-    document.getElementById("btn-bulk-delete").style.display =
-      count > 0 ? "inline-block" : "none";
+    if (span) {
+      span.textContent = `已選 ${count} 筆`;
+      span.style.display = count > 0 ? "inline" : "none";
+    }
+
+    const btnProcess = document.getElementById("btn-bulk-process");
+    if (btnProcess)
+      btnProcess.style.display = count > 0 ? "inline-block" : "none";
+
+    const btnDelete = document.getElementById("btn-bulk-delete");
+    if (btnDelete)
+      btnDelete.style.display = count > 0 ? "inline-block" : "none";
   }
 
   async function performBulkAction(status) {
