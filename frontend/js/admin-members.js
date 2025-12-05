@@ -1,4 +1,4 @@
-// frontend/js/admin-members.js (V2025.1 - 模擬登入權限控制版)
+// frontend/js/admin-members.js (V2025.2 - 權限對齊版)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -106,6 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
         perms = [];
       }
 
+      // 使用新版權限判斷角色
       if (perms.includes("USER_MANAGE") || perms.includes("CAN_MANAGE_USERS")) {
         roleBadge =
           '<span class="status-badge" style="background:#fff3cd; color:#856404;">管理員</span>';
@@ -196,19 +197,21 @@ document.addEventListener("DOMContentLoaded", () => {
       ? u.permissions
       : JSON.parse(u.permissions || "[]");
 
+    // 勾選權限 Checkbox (確保 modal 中有對應 value 的 checkbox)
     document.querySelectorAll(".perm-check").forEach((checkbox) => {
       checkbox.checked = perms.includes(checkbox.value);
     });
 
-    // [新增] 根據權限控制「模擬登入」按鈕顯示
+    // [權限控制] 根據權限決定是否顯示「模擬登入」按鈕
     if (btnImpersonate) {
+      // 檢查新版權限 (USER_IMPERSONATE) 或 舊版兼容 (CAN_...)
       const canImpersonate =
         myPermissions.includes("USER_IMPERSONATE") ||
-        myPermissions.includes("CAN_IMPERSONATE_USERS") || // 相容舊版
+        myPermissions.includes("CAN_IMPERSONATE_USERS") ||
         myPermissions.includes("CAN_MANAGE_USERS"); // 超級管理員
 
-      // 如果是自己也不能模擬自己
-      const isSelf = u.email === localStorage.getItem("admin_name"); // 這裡假設 admin_name 存的是 Email 或 Name，建議後端登入時回傳 ID 更準確
+      // 防止模擬自己
+      const isSelf = u.email === localStorage.getItem("admin_name"); // 注意: 這裡假設 admin_name 存的是 email 或 name，若能用 ID 比對更佳
 
       if (canImpersonate && !isSelf) {
         btnImpersonate.style.display = "inline-block";
@@ -243,6 +246,7 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify(profileBody),
       });
 
+      // 收集權限
       const selectedPerms = [];
       document
         .querySelectorAll(".perm-check:checked")
