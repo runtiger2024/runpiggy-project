@@ -17,9 +17,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const email = document.getElementById("staff-email").value;
       const password = document.getElementById("staff-password").value;
 
-      // 收集權限
+      // 通用權限收集邏輯：收集所有被勾選的 checkbox value
       const permissions = [];
-      document
+      e.target
         .querySelectorAll("input[type='checkbox']:checked")
         .forEach((cb) => {
           permissions.push(cb.value);
@@ -40,10 +40,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (res.ok) {
           alert(`成功建立員工帳號：${data.user.email}`);
           e.target.reset();
-          // 恢復預設勾選
-          document.getElementById("p-dashboard").checked = true;
-          document.getElementById("p-packages").checked = true;
-          document.getElementById("p-shipments").checked = true;
+          // 重置後，恢復預設的基礎勾選
+          const defaults = ["DASHBOARD_VIEW", "PACKAGE_VIEW", "SHIPMENT_VIEW"];
+          e.target.querySelectorAll("input[type='checkbox']").forEach((cb) => {
+            cb.checked = defaults.includes(cb.value);
+          });
         } else {
           alert("建立失敗: " + (data.message || "未知錯誤"));
         }

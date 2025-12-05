@@ -1,4 +1,4 @@
-// frontend/js/admin-parcels.js (V25.0 - 運費公式透明化版)
+// frontend/js/admin-parcels.js
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -37,6 +37,11 @@ document.addEventListener("DOMContentLoaded", () => {
     document
       .getElementById("btn-show-create-modal")
       .addEventListener("click", openCreateModal);
+
+    // [新增] 匯出 CSV 事件綁定
+    document
+      .getElementById("btn-export")
+      .addEventListener("click", exportPackages);
 
     // 綁定 Modal 關閉
     document.querySelectorAll(".modal-close-btn").forEach((btn) => {
@@ -95,6 +100,66 @@ document.addEventListener("DOMContentLoaded", () => {
       renderPagination(data.pagination);
     } catch (e) {
       tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger p-3">載入錯誤: ${e.message}</td></tr>`;
+    }
+  }
+
+  // [新增] 匯出功能
+  async function exportPackages() {
+    const btn = document.getElementById("btn-export");
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 匯出中...';
+
+    try {
+      let url = `${API_BASE_URL}/api/admin/packages/export?`;
+      if (currentStatus) url += `status=${currentStatus}&`;
+      if (currentSearch)
+        url += `search=${encodeURIComponent(currentSearch.trim())}`;
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const json = await res.json();
+
+      if (!json.success || !json.data) throw new Error("匯出失敗");
+
+      // 轉換 JSON to CSV
+      const items = json.data;
+      if (items.length === 0) {
+        alert("無資料可匯出");
+        return;
+      }
+
+      const replacer = (key, value) => (value === null ? "" : value);
+      const header = Object.keys(items[0]);
+      const csv = [
+        header.join(","), // 標題列
+        ...items.map((row) =>
+          header
+            .map((fieldName) => JSON.stringify(row[fieldName], replacer))
+            .join(",")
+        ),
+      ].join("\r\n");
+
+      // 下載觸發
+      const blob = new Blob(["\uFEFF" + csv], {
+        type: "text/csv;charset=utf-8;",
+      });
+      const link = document.createElement("a");
+      const urlBlob = URL.createObjectURL(blob);
+      link.setAttribute("href", urlBlob);
+      link.setAttribute(
+        "download",
+        `packages_export_${new Date().toISOString().slice(0, 10)}.csv`
+      );
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      alert("匯出錯誤: " + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-file-export"></i> 匯出 CSV';
     }
   }
 

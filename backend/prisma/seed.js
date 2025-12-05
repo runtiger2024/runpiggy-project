@@ -17,24 +17,44 @@ async function main() {
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash(adminPassword, salt);
 
-  // 3. 定義完整的管理權限
-  // 這些權限字串對應您的前端權限檢查邏輯
+  // 3. 定義完整的管理權限 (包含新舊版相容)
   const allPermissions = [
+    // --- 舊版相容 ---
     "CAN_VIEW_DASHBOARD",
     "CAN_MANAGE_PACKAGES",
     "CAN_MANAGE_SHIPMENTS",
     "CAN_MANAGE_USERS",
     "CAN_MANAGE_SYSTEM",
     "CAN_VIEW_LOGS",
+    "CAN_IMPERSONATE_USERS",
+
+    // --- V2025 細緻權限 ---
+    "DASHBOARD_VIEW",
+
+    // 包裹
+    "PACKAGE_VIEW",
+    "PACKAGE_EDIT",
+    "PACKAGE_DELETE",
+
+    // 訂單
+    "SHIPMENT_VIEW",
+    "SHIPMENT_PROCESS",
+    "FINANCE_AUDIT",
+
+    // 會員與系統
+    "USER_VIEW",
+    "USER_MANAGE",
+    "USER_IMPERSONATE",
+    "SYSTEM_CONFIG",
+    "LOGS_VIEW",
   ];
 
   // 4. 使用 upsert (有則更新，無則新增)
-  // 注意：Prisma 的 Json 欄位可以直接接收 JavaScript 陣列
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
     update: {
       passwordHash: passwordHash,
-      permissions: allPermissions,
+      permissions: allPermissions, // 更新權限列表
       isActive: true,
     },
     create: {
@@ -46,8 +66,8 @@ async function main() {
     },
   });
 
-  console.log(`✅ 管理員帳號已就緒: ${admin.email} (密碼: ${adminPassword})`);
-  console.log(`🔑 權限設定:`, admin.permissions);
+  console.log(`✅ 管理員帳號已就緒: ${admin.email}`);
+  console.log(`🔑 權限已更新為全功能模式`);
 }
 
 main()

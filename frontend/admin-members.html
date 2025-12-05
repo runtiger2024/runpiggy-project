@@ -97,7 +97,16 @@
         justify-content: center;
       "
     >
-      <div class="card" style="width: 500px; max-width: 95%; margin: 5% auto">
+      <div
+        class="card"
+        style="
+          width: 500px;
+          max-width: 95%;
+          margin: 5% auto;
+          max-height: 90vh;
+          overflow-y: auto;
+        "
+      >
         <div class="card-header">
           <span id="modal-title">編輯會員資料</span>
           <button type="button" class="btn btn-sm btn-danger modal-close-btn">
@@ -138,6 +147,73 @@
             </div>
 
             <hr />
+
+            <div
+              class="form-group mb-3"
+              style="background: #f8f9fc; padding: 10px; border-radius: 5px"
+            >
+              <label class="font-weight-bold text-primary">後台權限設定</label>
+              <div
+                style="
+                  display: grid;
+                  grid-template-columns: 1fr 1fr;
+                  gap: 5px;
+                  margin-top: 5px;
+                "
+              >
+                <div>
+                  <input
+                    type="checkbox"
+                    class="perm-check"
+                    value="CAN_VIEW_DASHBOARD"
+                  />
+                  查看儀表板
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    class="perm-check"
+                    value="CAN_VIEW_LOGS"
+                  />
+                  查看日誌
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    class="perm-check"
+                    value="CAN_MANAGE_PACKAGES"
+                  />
+                  管理包裹
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    class="perm-check"
+                    value="CAN_MANAGE_SHIPMENTS"
+                  />
+                  管理訂單
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    class="perm-check"
+                    value="CAN_MANAGE_USERS"
+                  />
+                  管理會員 (Admin)
+                </div>
+                <div>
+                  <input
+                    type="checkbox"
+                    class="perm-check"
+                    value="CAN_MANAGE_SYSTEM"
+                  />
+                  系統設定 (System)
+                </div>
+              </div>
+            </div>
+
+            <hr />
+
             <div style="display: flex; gap: 10px; flex-wrap: wrap">
               <button
                 type="button"

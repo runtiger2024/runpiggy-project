@@ -1,4 +1,4 @@
-// frontend/js/admin-settings.js (V2025 - 動態類別版)
+// frontend/js/admin-settings.js (V2025 - 完整版)
 
 document.addEventListener("DOMContentLoaded", async () => {
   const token = localStorage.getItem("admin_token");
@@ -28,10 +28,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     .getElementById("form-announcement")
     .addEventListener("submit", saveAnnouncement);
   document.getElementById("form-bank").addEventListener("submit", saveBankInfo);
+  document
+    .getElementById("form-invoice")
+    .addEventListener("submit", saveInvoiceConfig);
+  document
+    .getElementById("form-email")
+    .addEventListener("submit", saveEmailConfig);
 
   // 4. 綁定新增按鈕
   document.getElementById("btn-add-category").addEventListener("click", () => {
-    // 預設給一個空的區塊，並標記為新 (key可編輯)
     addCategoryBlock("", {}, true);
   });
 
@@ -45,12 +50,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       const data = await res.json();
       const s = data.settings || {};
 
-      // A. 運費設定 (Rates)
+      // A. 運費設定
       if (s.rates_config) {
         const c = s.rates_config.constants || {};
         const cats = s.rates_config.categories || {};
 
-        // 填入常數
         setValue("const-MINIMUM_CHARGE", c.MINIMUM_CHARGE);
         setValue("const-VOLUME_DIVISOR", c.VOLUME_DIVISOR);
         setValue("const-CBM_TO_CAI_FACTOR", c.CBM_TO_CAI_FACTOR);
@@ -59,12 +63,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         setValue("const-OVERWEIGHT_LIMIT", c.OVERWEIGHT_LIMIT || 100);
         setValue("const-OVERWEIGHT_FEE", c.OVERWEIGHT_FEE || 800);
 
-        // 清空舊的
         document.getElementById("categories-container").innerHTML = "";
-
-        // 動態渲染所有類別
         const order = ["general", "special_a", "special_b", "special_c"];
-        // 排序：優先顯示已知順序，其他排後面
         const keys = Object.keys(cats).sort((a, b) => {
           const idxA = order.indexOf(a);
           const idxB = order.indexOf(b);
@@ -74,24 +74,41 @@ document.addEventListener("DOMContentLoaded", async () => {
           return a.localeCompare(b);
         });
 
-        keys.forEach((key) => {
-          addCategoryBlock(key, cats[key], false);
-        });
+        keys.forEach((key) => addCategoryBlock(key, cats[key], false));
       }
 
-      // B. 公告 (Announcement)
+      // B. 公告
       if (s.announcement) {
         setValue("ann-text", s.announcement.text);
         document.getElementById("ann-enabled").checked = s.announcement.enabled;
         setValue("ann-color", s.announcement.color || "info");
       }
 
-      // C. 銀行 (Bank)
+      // C. 銀行
       if (s.bank_info) {
         setValue("bank-name", s.bank_info.bankName);
         setValue("bank-branch", s.bank_info.branch);
         setValue("bank-account", s.bank_info.account);
         setValue("bank-holder", s.bank_info.holder);
+      }
+
+      // D. 發票設定 (New)
+      if (s.invoice_config) {
+        document.getElementById("inv-enabled").checked =
+          s.invoice_config.enabled;
+        setValue("inv-merchant-id", s.invoice_config.merchantId);
+        setValue("inv-hash-key", s.invoice_config.hashKey);
+        setValue("inv-mode", s.invoice_config.mode);
+      }
+
+      // E. Email 設定 (New)
+      if (s.email_config) {
+        setValue("email-sender-name", s.email_config.senderName);
+        setValue("email-sender-addr", s.email_config.senderEmail);
+        const recipients = Array.isArray(s.email_config.recipients)
+          ? s.email_config.recipients.join(", ")
+          : "";
+        setValue("email-recipients", recipients);
       }
     } catch (e) {
       console.error("載入失敗", e);
@@ -99,11 +116,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // 渲染單一類別區塊 (isNew=true 時 key 可編輯)
   function addCategoryBlock(key, data, isNew) {
     const container = document.getElementById("categories-container");
-
-    // 判斷背景色，讓不同類別容易區分
     let bgColor = "#fff";
     if (key.includes("special")) bgColor = "#fdfdfe";
 
@@ -115,12 +129,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div class="category-block card mb-3" style="border-left: 4px solid #4e73df;">
             <div class="card-body p-3" style="background:${bgColor};">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="font-weight-bold text-primary m-0">
-                        類別設定
-                    </h6>
+                    <h6 class="font-weight-bold text-primary m-0">類別設定</h6>
                     <i class="fas fa-trash-alt btn-remove-cat" title="刪除此類別" onclick="this.closest('.category-block').remove()"></i>
                 </div>
-                
                 <div class="row">
                     <div class="col-md-3 mb-2">
                         <label class="small text-muted">系統代碼 (Key)</label>
@@ -159,8 +170,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function saveRates(e) {
     e.preventDefault();
-
-    // 1. 收集常數
     const constants = {
       MINIMUM_CHARGE: parseFloat(
         document.getElementById("const-MINIMUM_CHARGE").value
@@ -184,49 +193,37 @@ document.addEventListener("DOMContentLoaded", async () => {
         800,
     };
 
-    // 2. 收集所有動態類別
     const categories = {};
     let hasError = false;
-
     document.querySelectorAll(".category-block").forEach((block) => {
-      // 取得 Key (如果是新的是 input，舊的是 disabled input，取 value 即可)
       const keyInput = block.querySelector(".cat-key");
       let key = keyInput.value.trim();
-
       if (!key) {
         alert("錯誤：有類別未填寫代碼 (Key)");
         hasError = true;
         return;
       }
-
-      // 檢查重複 key (簡單檢查)
       if (categories[key]) {
         alert(`錯誤：代碼 ${key} 重複，請修正`);
         hasError = true;
         return;
       }
-
-      const name = block.querySelector(".cat-name").value;
-      const desc = block.querySelector(".cat-desc").value;
-      const weightRate = parseFloat(block.querySelector(".cat-weight").value);
-      const volumeRate = parseFloat(block.querySelector(".cat-volume").value);
-
       categories[key] = {
-        name: name,
-        description: desc,
-        weightRate: weightRate,
-        volumeRate: volumeRate,
+        name: block.querySelector(".cat-name").value,
+        description: block.querySelector(".cat-desc").value,
+        weightRate: parseFloat(block.querySelector(".cat-weight").value),
+        volumeRate: parseFloat(block.querySelector(".cat-volume").value),
       };
     });
 
     if (hasError) return;
+    if (
+      Object.keys(categories).length === 0 &&
+      !confirm("警告：無類別，確定嗎？")
+    )
+      return;
 
-    if (Object.keys(categories).length === 0) {
-      if (!confirm("警告：目前沒有任何運費類別，確定要儲存嗎？")) return;
-    }
-
-    const data = { constants, categories };
-    await sendUpdate("rates_config", data, "費率設定");
+    await sendUpdate("rates_config", { constants, categories }, "費率設定");
   }
 
   async function saveAnnouncement(e) {
@@ -250,6 +247,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     await sendUpdate("bank_info", data, "銀行資訊");
   }
 
+  async function saveInvoiceConfig(e) {
+    e.preventDefault();
+    const data = {
+      enabled: document.getElementById("inv-enabled").checked,
+      merchantId: document.getElementById("inv-merchant-id").value,
+      hashKey: document.getElementById("inv-hash-key").value,
+      mode: document.getElementById("inv-mode").value,
+    };
+    await sendUpdate("invoice_config", data, "發票設定");
+  }
+
+  async function saveEmailConfig(e) {
+    e.preventDefault();
+    const rawRecipients = document.getElementById("email-recipients").value;
+    const recipients = rawRecipients
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s);
+    const data = {
+      senderName: document.getElementById("email-sender-name").value,
+      senderEmail: document.getElementById("email-sender-addr").value,
+      recipients: recipients,
+    };
+    await sendUpdate("email_config", data, "郵件設定");
+  }
+
   async function sendUpdate(key, value, name) {
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/settings/${key}`, {
@@ -261,8 +284,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         body: JSON.stringify({ value }),
       });
       if (res.ok) {
-        alert(`[${name}] 更新成功！前台將即時生效。`);
-        loadSettings(); // 重新載入以確認數據
+        alert(`[${name}] 更新成功！`);
+        loadSettings();
       } else {
         const d = await res.json();
         alert(`更新失敗: ${d.message}`);

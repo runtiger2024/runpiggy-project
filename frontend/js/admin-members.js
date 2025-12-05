@@ -1,4 +1,4 @@
-// frontend/js/admin-members.js (V2025 現代化版)
+// frontend/js/admin-members.js (V2025 - 權限管理增強版)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -91,10 +91,15 @@ document.addEventListener("DOMContentLoaded", () => {
         '<span class="status-badge" style="background:#e3f2fd; color:#0d47a1;">會員</span>';
       let perms = [];
       try {
-        perms = JSON.parse(u.permissions || "[]");
-      } catch (e) {}
+        // 如果後端直接回傳 Array 則直接用，若是 JSON string 則 parse
+        perms = Array.isArray(u.permissions)
+          ? u.permissions
+          : JSON.parse(u.permissions || "[]");
+      } catch (e) {
+        perms = [];
+      }
 
-      if (perms.includes("CAN_MANAGE_USERS")) {
+      if (perms.includes("USER_MANAGE")) {
         roleBadge =
           '<span class="status-badge" style="background:#fff3cd; color:#856404;">管理員</span>';
       } else if (perms.length > 0) {
@@ -183,36 +188,66 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("m-name").value = u.name || "";
     document.getElementById("m-phone").value = u.phone || "";
     document.getElementById("m-address").value = u.defaultAddress || "";
+
+    // 勾選權限 Checkbox
+    const perms = Array.isArray(u.permissions)
+      ? u.permissions
+      : JSON.parse(u.permissions || "[]");
+
+    document.querySelectorAll(".perm-check").forEach((checkbox) => {
+      checkbox.checked = perms.includes(checkbox.value);
+    });
+
     modal.style.display = "flex";
   };
 
   async function saveProfile(e) {
     e.preventDefault();
     const id = document.getElementById("edit-user-id").value;
-    const body = {
-      name: document.getElementById("m-name").value,
-      phone: document.getElementById("m-phone").value,
-      defaultAddress: document.getElementById("m-address").value,
-    };
+    const btn = e.target.querySelector("button[type='submit']");
+    btn.disabled = true;
+    btn.textContent = "儲存中...";
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}/profile`, {
+      // 1. 更新基本資料
+      const profileBody = {
+        name: document.getElementById("m-name").value,
+        phone: document.getElementById("m-phone").value,
+        defaultAddress: document.getElementById("m-address").value,
+      };
+
+      await fetch(`${API_BASE_URL}/api/admin/users/${id}/profile`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${adminToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(profileBody),
       });
-      if (res.ok) {
-        alert("更新成功");
-        modal.style.display = "none";
-        loadMembers();
-      } else {
-        alert("更新失敗");
-      }
+
+      // 2. 更新權限 (收集所有勾選的 checkbox)
+      const selectedPerms = [];
+      document
+        .querySelectorAll(".perm-check:checked")
+        .forEach((cb) => selectedPerms.push(cb.value));
+
+      await fetch(`${API_BASE_URL}/api/admin/users/${id}/permissions`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ permissions: selectedPerms }),
+      });
+
+      alert("資料與權限更新成功");
+      modal.style.display = "none";
+      loadMembers();
     } catch (err) {
-      alert("連線錯誤");
+      alert("更新失敗：" + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "儲存變更";
     }
   }
 
@@ -252,9 +287,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (res.ok) {
         // 在新視窗中打開前台並寫入 Token
         const win = window.open("index.html", "_blank");
-        // 稍微延遲等待新視窗載入 (或直接讓使用者自行操作，這裡簡單處理：alert token)
-        // 更佳做法：將 token 寫入 localStorage。但在跨域或新視窗較難直接操作。
-        // 這裡我們假設同源：
+        // 延遲寫入 localStorage
         setTimeout(() => {
           win.localStorage.setItem("token", data.token);
           win.localStorage.setItem(

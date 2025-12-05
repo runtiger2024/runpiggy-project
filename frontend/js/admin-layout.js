@@ -1,4 +1,4 @@
-// frontend/js/admin-layout.js (V2025 - 自動化佈局渲染)
+// frontend/js/admin-layout.js (V2025 - 權限分級版)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -15,55 +15,53 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   if (isLoginPage) return; // 登入頁不渲染佈局
 
-  // 2. 定義側邊欄選單
-  // 結構: label, icon, href, requiredPermission (null = public for all staff)
+  // 2. 定義側邊欄選單 (使用新版細緻權限)
   const menuItems = [
     {
       label: "儀表板",
       icon: "fas fa-tachometer-alt",
       href: "admin-dashboard.html",
-      perm: "CAN_VIEW_DASHBOARD",
+      perm: "DASHBOARD_VIEW",
     },
     {
       label: "包裹管理",
       icon: "fas fa-box",
       href: "admin-parcels.html",
-      perm: "CAN_MANAGE_PACKAGES",
+      perm: "PACKAGE_VIEW",
     },
     {
       label: "集運單管理",
       icon: "fas fa-shipping-fast",
       href: "admin-shipments.html",
-      perm: "CAN_MANAGE_SHIPMENTS",
+      perm: "SHIPMENT_VIEW",
     },
     {
       label: "會員管理",
       icon: "fas fa-users",
       href: "admin-members.html",
-      perm: "CAN_MANAGE_USERS",
+      perm: "USER_VIEW",
     },
     {
       label: "新增員工",
       icon: "fas fa-user-plus",
       href: "admin-register.html",
-      perm: "CAN_MANAGE_USERS",
+      perm: "USER_MANAGE", // 只有能管理會員的人才能新增員工
     },
     {
       label: "系統設定",
       icon: "fas fa-cogs",
       href: "admin-settings.html",
-      perm: "CAN_MANAGE_SYSTEM", // 或 CAN_MANAGE_USERS
+      perm: "SYSTEM_CONFIG",
     },
     {
       label: "操作日誌",
       icon: "fas fa-history",
       href: "admin-logs.html",
-      perm: "CAN_VIEW_LOGS",
+      perm: "LOGS_VIEW",
     },
   ];
 
   // 3. 渲染主框架 (Sidebar + Topbar)
-  // 我們將直接把 body 的內容包進 wrapper
   const originalContent = document.body.innerHTML;
   document.body.innerHTML = ""; // 清空 body，準備重構
 
@@ -75,24 +73,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const currentPath = window.location.pathname.split("/").pop();
 
   menuItems.forEach((item) => {
-    // 權限判斷
-    let hasAccess = true;
+    // 權限判斷：擁有指定權限 OR 擁有舊版超級管理員權限 (相容性)
+    let hasAccess = false;
     if (item.perm) {
-      // 若需要特定權限，且使用者沒有，也沒有管理員全權
       if (
-        !adminPermissions.includes(item.perm) &&
-        !adminPermissions.includes("CAN_MANAGE_USERS")
+        adminPermissions.includes(item.perm) ||
+        adminPermissions.includes("CAN_MANAGE_USERS") || // 舊版超級權限
+        adminPermissions.includes("CAN_MANAGE_SYSTEM") // 舊版超級權限
       ) {
-        // 特例：設定頁面若無 CAN_MANAGE_SYSTEM 但有 CAN_MANAGE_USERS 則可進
-        if (
-          item.href === "admin-settings.html" &&
-          adminPermissions.includes("CAN_MANAGE_USERS")
-        ) {
-          hasAccess = true;
-        } else {
-          hasAccess = false;
-        }
+        hasAccess = true;
       }
+    } else {
+      hasAccess = true; // 無指定權限則公開
     }
 
     if (hasAccess) {
@@ -153,14 +145,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 3.3 注入原本內容
   const mainContainer = document.getElementById("main-content-container");
-  // 這裡需要過濾掉原本可能存在的 admin-header-container DIV
   const parser = new DOMParser();
   const doc = parser.parseFromString(originalContent, "text/html");
-  const oldHeader = doc.getElementById("admin-header-container");
-  if (oldHeader) oldHeader.remove(); // 移除舊版 header 佔位
 
-  // 移除舊版 container wrapper 如果有的話，避免雙重 container
-  // 假設舊版內容都包在 <div class="container"> 裡
+  // 移除舊版 header 佔位
+  const oldHeader = doc.getElementById("admin-header-container");
+  if (oldHeader) oldHeader.remove();
+
   const oldContainer = doc.querySelector(".container");
   if (oldContainer) {
     mainContainer.innerHTML = oldContainer.innerHTML;
@@ -169,13 +160,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // 4. 綁定事件
-  // 漢堡選單
   const toggleBtn = document.getElementById("sidebarToggleTop");
   const sidebar = document.querySelector(".sidebar");
   if (toggleBtn) {
     toggleBtn.addEventListener("click", () => {
       sidebar.classList.toggle("toggled");
-      // 手機版邏輯：toggled 時 width 設為 250px (CSS 已定義)
       if (window.innerWidth <= 768) {
         if (sidebar.classList.contains("toggled")) {
           sidebar.style.width = "250px";
@@ -186,7 +175,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 登出
   const logoutBtn = document.getElementById("layoutLogoutBtn");
   if (logoutBtn) {
     logoutBtn.addEventListener("click", (e) => {
