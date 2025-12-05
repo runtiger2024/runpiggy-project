@@ -1,5 +1,5 @@
 // backend/routes/shipmentRoutes.js
-// V12.0 - 包含發票操作路由
+// V12.1 - 移除管理員專用的發票路由 (已移至 adminRoutes)
 
 const express = require("express");
 const router = express.Router();
@@ -13,8 +13,8 @@ const {
   getShipmentById,
   uploadPaymentProof,
   deleteMyShipment,
-  manualIssueInvoice, // [New]
-  manualVoidInvoice, // [New]
+  // manualIssueInvoice, // [Moved] 移至 adminRoutes 以確保權限與路徑正確
+  // manualVoidInvoice,  // [Moved]
 } = require("../controllers/shipmentController");
 
 const { protect } = require("../middleware/authMiddleware.js");
@@ -36,10 +36,6 @@ router.route("/my").get(protect, getMyShipments);
 router
   .route("/:id/payment")
   .put(protect, upload.single("paymentProof"), uploadPaymentProof);
-
-// [NEW] 發票手動操作 (需登入)
-router.route("/:id/invoice/issue").post(protect, manualIssueInvoice);
-router.route("/:id/invoice/void").post(protect, manualVoidInvoice);
 
 // 單一集運單操作 (必須放在最後，以免 :id 攔截其他路徑)
 router
