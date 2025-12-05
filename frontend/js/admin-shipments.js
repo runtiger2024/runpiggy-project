@@ -1,4 +1,4 @@
-// frontend/js/admin-shipments.js (V2025.Invoice - 完整串接版)
+// frontend/js/admin-shipments.js (V2025.Invoice - Final Fix)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    // 批量按鈕 - [修正] 改為呼叫真實 API
+    // 批量按鈕
     document
       .getElementById("btn-bulk-process")
       .addEventListener("click", () => performBulkAction("PROCESSING"));
@@ -237,7 +237,11 @@ document.addEventListener("DOMContentLoaded", () => {
         `${API_BASE_URL}/api/admin/shipments/${id}/invoice/issue`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${adminToken}` },
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            "Content-Type": "application/json", // [Fix] 補上 Content-Type
+          },
+          body: JSON.stringify({}), // [Fix] 補上空的 JSON body
         }
       );
       const data = await res.json();
@@ -340,7 +344,7 @@ document.addEventListener("DOMContentLoaded", () => {
       count > 0 ? "inline-block" : "none";
   }
 
-  // [新增] 批量狀態變更 (支援發票自動開立)
+  // [Fix] 批量狀態變更 (支援發票自動開立)
   async function performBulkAction(status) {
     if (!confirm(`確定將 ${selectedIds.size} 筆訂單改為「${status}」?`)) return;
     if (
@@ -380,6 +384,11 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.textContent = originalText;
     } catch (e) {
       alert("錯誤");
+      const btn = document.getElementById("btn-bulk-process");
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "批量確認收款";
+      }
     }
   }
 

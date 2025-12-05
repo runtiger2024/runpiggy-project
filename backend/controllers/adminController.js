@@ -9,6 +9,12 @@ const createLog = require("../utils/createLog.js");
 const generateToken = require("../utils/generateToken.js");
 const invoiceHelper = require("../utils/invoiceHelper.js");
 
+// 從 shipmentController 引入手動開立函式
+const {
+  manualIssueInvoice,
+  manualVoidInvoice,
+} = require("../controllers/shipmentController");
+
 const deleteFiles = (filePaths) => {
   if (!Array.isArray(filePaths) || filePaths.length === 0) return;
   const uploadDir = path.join(__dirname, "../public/uploads");
@@ -459,10 +465,7 @@ const exportShipments = async (req, res) => {
   }
 };
 
-/**
- * [修改] 批量更新集運單狀態
- * 修正: 當狀態轉為 PROCESSING (已收款) 時，若未開立發票則自動開立。
- */
+// [修改] 批量更新集運單狀態 (支援發票)
 const bulkUpdateShipmentStatus = async (req, res) => {
   try {
     const { ids, status } = req.body;
@@ -479,7 +482,7 @@ const bulkUpdateShipmentStatus = async (req, res) => {
       let invoiceCount = 0;
       let successCount = 0;
 
-      // 為了發票 API 的安全性與順序，這裡使用迴圈處理 (雖然較慢但較穩)
+      // 為了發票 API 的安全性與順序，這裡使用迴圈處理
       for (const ship of shipments) {
         let updateData = { status: "PROCESSING" };
 
@@ -580,6 +583,7 @@ const bulkDeleteShipments = async (req, res) => {
   }
 };
 
+// [Fix] 單筆更新訂單狀態 (修復發票開立)
 const updateShipmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -636,7 +640,6 @@ const updateShipmentStatus = async (req, res) => {
         dataToUpdate.invoiceNumber = result.invoiceNumber;
         dataToUpdate.invoiceStatus = "ISSUED";
         dataToUpdate.invoiceDate = result.invoiceDate;
-        // [修正] 補上 randomCode 儲存
         dataToUpdate.invoiceRandomCode = result.randomCode;
 
         await createLog(
@@ -1060,9 +1063,9 @@ module.exports = {
   updatePackageDetails,
   getAllShipments,
   exportShipments,
-  bulkUpdateShipmentStatus, // 已修正
+  bulkUpdateShipmentStatus,
   bulkDeleteShipments,
-  updateShipmentStatus, // 已修正
+  updateShipmentStatus,
   rejectShipment,
   adminDeleteShipment,
   getUsers,
@@ -1077,4 +1080,7 @@ module.exports = {
   getDashboardStats,
   getActivityLogs,
   getDailyReport,
+  // 記得匯出這兩項，Routes 才能使用
+  manualIssueInvoice,
+  manualVoidInvoice,
 };
