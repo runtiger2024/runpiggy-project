@@ -58,12 +58,15 @@
 
         <div id="tab-rates" class="tab-content active">
           <form id="form-rates">
-            <h5 class="text-primary font-weight-bold mb-3">全域運算常數</h5>
+            <h5 class="text-primary font-weight-bold mb-3">
+              全域運算常數 (Constants)
+            </h5>
             <div
               style="
                 display: grid;
                 grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
                 gap: 20px;
+                margin-bottom: 20px;
               "
             >
               <div>
@@ -95,40 +98,65 @@
                   placeholder="35.3"
                 />
               </div>
+              <div>
+                <label>超長限制 (cm)</label>
+                <input
+                  type="number"
+                  id="const-OVERSIZED_LIMIT"
+                  class="form-control"
+                  placeholder="300"
+                />
+              </div>
+              <div>
+                <label>超長附加費 ($)</label>
+                <input
+                  type="number"
+                  id="const-OVERSIZED_FEE"
+                  class="form-control"
+                  placeholder="800"
+                />
+              </div>
+              <div>
+                <label>超重限制 (kg)</label>
+                <input
+                  type="number"
+                  id="const-OVERWEIGHT_LIMIT"
+                  class="form-control"
+                  placeholder="100"
+                />
+              </div>
+              <div>
+                <label>超重附加費 ($)</label>
+                <input
+                  type="number"
+                  id="const-OVERWEIGHT_FEE"
+                  class="form-control"
+                  placeholder="800"
+                />
+              </div>
             </div>
 
             <hr class="my-4" />
 
-            <h5 class="text-primary font-weight-bold mb-3">家具類別費率</h5>
-            <div id="categories-container">
-              <div class="p-3 bg-light rounded mb-3 border">
-                <strong>一般家具 (General)</strong>
-                <div class="d-flex gap-3 mt-2">
-                  <div style="flex: 1">
-                    <label class="small text-muted">重量費率 ($/kg)</label
-                    ><input
-                      id="rate-general-weight"
-                      type="number"
-                      step="0.1"
-                      class="form-control"
-                    />
-                  </div>
-                  <div style="flex: 1">
-                    <label class="small text-muted">材積費率 ($/材)</label
-                    ><input
-                      id="rate-general-volume"
-                      type="number"
-                      step="0.1"
-                      class="form-control"
-                    />
-                  </div>
-                </div>
-              </div>
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 15px;
+              "
+            >
+              <h5 class="text-primary font-weight-bold mb-0">
+                家具類別費率 (Categories)
+              </h5>
+              <small class="text-muted">修改後將即時同步至客戶端首頁</small>
             </div>
 
-            <div style="text-align: right">
+            <div id="categories-container"></div>
+
+            <div style="text-align: right; margin-top: 20px">
               <button type="submit" class="btn btn-success btn-lg">
-                <i class="fas fa-save"></i> 儲存費率設定
+                <i class="fas fa-save"></i> 儲存所有費率設定
               </button>
             </div>
           </form>
