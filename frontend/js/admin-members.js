@@ -1,8 +1,13 @@
-// frontend/js/admin-members.js (V2025 - 權限管理增強版)
+// frontend/js/admin-members.js (V2025.1 - 模擬登入權限控制版)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
-  if (!adminToken) return; // 依賴 layout.js 處理跳轉
+  // 讀取當前管理員的權限列表
+  const myPermissions = JSON.parse(
+    localStorage.getItem("admin_permissions") || "[]"
+  );
+
+  if (!adminToken) return;
 
   // 變數
   let currentPage = 1;
@@ -16,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const paginationDiv = document.getElementById("pagination");
   const modal = document.getElementById("member-modal");
   const form = document.getElementById("member-form");
+  const btnImpersonate = document.getElementById("btn-impersonate"); // 獲取按鈕參照
 
   // 初始化
   init();
@@ -39,9 +45,11 @@ document.addEventListener("DOMContentLoaded", () => {
     document
       .getElementById("btn-reset-pwd")
       .addEventListener("click", resetPassword);
-    document
-      .getElementById("btn-impersonate")
-      .addEventListener("click", impersonateUser);
+
+    // 綁定模擬登入事件
+    if (btnImpersonate) {
+      btnImpersonate.addEventListener("click", impersonateUser);
+    }
 
     // 表單提交
     form.addEventListener("submit", saveProfile);
@@ -91,7 +99,6 @@ document.addEventListener("DOMContentLoaded", () => {
         '<span class="status-badge" style="background:#e3f2fd; color:#0d47a1;">會員</span>';
       let perms = [];
       try {
-        // 如果後端直接回傳 Array 則直接用，若是 JSON string 則 parse
         perms = Array.isArray(u.permissions)
           ? u.permissions
           : JSON.parse(u.permissions || "[]");
@@ -99,7 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
         perms = [];
       }
 
-      if (perms.includes("USER_MANAGE")) {
+      if (perms.includes("USER_MANAGE") || perms.includes("CAN_MANAGE_USERS")) {
         roleBadge =
           '<span class="status-badge" style="background:#fff3cd; color:#856404;">管理員</span>';
       } else if (perms.length > 0) {
@@ -107,12 +114,10 @@ document.addEventListener("DOMContentLoaded", () => {
           '<span class="status-badge" style="background:#d1e7dd; color:#0f5132;">操作員</span>';
       }
 
-      // 狀態顯示
       const statusHtml = u.isActive
         ? '<span class="text-success"><i class="fas fa-check-circle"></i> 啟用中</span>'
         : '<span class="text-danger"><i class="fas fa-ban"></i> 已停用</span>';
 
-      // 序列化資料
       const uStr = encodeURIComponent(JSON.stringify(u));
 
       tr.innerHTML = `
@@ -168,12 +173,10 @@ document.addEventListener("DOMContentLoaded", () => {
     paginationDiv.appendChild(
       createBtn("上一頁", currentPage - 1, currentPage === 1)
     );
-
     const infoSpan = document.createElement("span");
     infoSpan.className = "btn btn-sm btn-primary disabled";
     infoSpan.textContent = `${currentPage} / ${pg.totalPages}`;
     paginationDiv.appendChild(infoSpan);
-
     paginationDiv.appendChild(
       createBtn("下一頁", currentPage + 1, currentPage === pg.totalPages)
     );
@@ -189,7 +192,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("m-phone").value = u.phone || "";
     document.getElementById("m-address").value = u.defaultAddress || "";
 
-    // 勾選權限 Checkbox
     const perms = Array.isArray(u.permissions)
       ? u.permissions
       : JSON.parse(u.permissions || "[]");
@@ -197,6 +199,23 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".perm-check").forEach((checkbox) => {
       checkbox.checked = perms.includes(checkbox.value);
     });
+
+    // [新增] 根據權限控制「模擬登入」按鈕顯示
+    if (btnImpersonate) {
+      const canImpersonate =
+        myPermissions.includes("USER_IMPERSONATE") ||
+        myPermissions.includes("CAN_IMPERSONATE_USERS") || // 相容舊版
+        myPermissions.includes("CAN_MANAGE_USERS"); // 超級管理員
+
+      // 如果是自己也不能模擬自己
+      const isSelf = u.email === localStorage.getItem("admin_name"); // 這裡假設 admin_name 存的是 Email 或 Name，建議後端登入時回傳 ID 更準確
+
+      if (canImpersonate && !isSelf) {
+        btnImpersonate.style.display = "inline-block";
+      } else {
+        btnImpersonate.style.display = "none";
+      }
+    }
 
     modal.style.display = "flex";
   };
@@ -209,7 +228,6 @@ document.addEventListener("DOMContentLoaded", () => {
     btn.textContent = "儲存中...";
 
     try {
-      // 1. 更新基本資料
       const profileBody = {
         name: document.getElementById("m-name").value,
         phone: document.getElementById("m-phone").value,
@@ -225,7 +243,6 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify(profileBody),
       });
 
-      // 2. 更新權限 (收集所有勾選的 checkbox)
       const selectedPerms = [];
       document
         .querySelectorAll(".perm-check:checked")
@@ -274,7 +291,12 @@ document.addEventListener("DOMContentLoaded", () => {
       !confirm("確定要模擬此會員登入前台？\n(這將開啟新視窗並使用該會員身分)")
     )
       return;
+
     const id = document.getElementById("edit-user-id").value;
+    const btn = document.getElementById("btn-impersonate");
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 處理中...';
+
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/admin/users/${id}/impersonate`,
@@ -284,23 +306,34 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       );
       const data = await res.json();
+
       if (res.ok) {
-        // 在新視窗中打開前台並寫入 Token
+        // 在新視窗中打開前台
         const win = window.open("index.html", "_blank");
-        // 延遲寫入 localStorage
+
+        // 延遲寫入 Token 到新視窗的 localStorage
         setTimeout(() => {
-          win.localStorage.setItem("token", data.token);
-          win.localStorage.setItem(
-            "userName",
-            data.user.name || data.user.email
-          );
-          win.location.href = "dashboard.html"; // 重整跳轉
-        }, 1000);
+          if (win) {
+            try {
+              win.localStorage.setItem("token", data.token);
+              win.localStorage.setItem(
+                "userName",
+                data.user.name || data.user.email
+              );
+              win.location.href = "dashboard.html";
+            } catch (e) {
+              console.warn("無法自動寫入 localStorage (可能跨域阻擋)", e);
+            }
+          }
+        }, 800);
       } else {
-        alert("模擬失敗: " + data.message);
+        alert("模擬失敗: " + (data.message || "權限不足"));
       }
     } catch (err) {
-      alert("錯誤");
+      alert("錯誤: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-user-secret"></i> 模擬登入';
     }
   }
 

@@ -1,20 +1,15 @@
-// backend/routes/adminRoutes.js (V10 旗艦版 - 包含系統設定路由)
+// backend/routes/adminRoutes.js (V11.1 - 修正模擬登入權限)
 
 const express = require("express");
 const router = express.Router();
 const upload = require("../utils/upload.js");
 
 const {
-  // 系統與報表
   getDashboardStats,
   getActivityLogs,
   getDailyReport,
-
-  // [新增/修改] 系統全域設定
   getSystemSettings,
   updateSystemSetting,
-
-  // 包裹
   getAllPackages,
   exportPackages,
   bulkUpdatePackageStatus,
@@ -23,8 +18,6 @@ const {
   adminDeletePackage,
   updatePackageStatus,
   updatePackageDetails,
-
-  // 集運單
   getAllShipments,
   exportShipments,
   bulkUpdateShipmentStatus,
@@ -32,8 +25,6 @@ const {
   updateShipmentStatus,
   rejectShipment,
   adminDeleteShipment,
-
-  // 會員
   getUsers,
   getUsersList,
   createStaffUser,
@@ -50,147 +41,126 @@ const { protect, checkPermission } = require("../middleware/authMiddleware.js");
 // --- 1. 儀表板與報表 ---
 router
   .route("/stats")
-  .get(protect, checkPermission("CAN_VIEW_DASHBOARD"), getDashboardStats);
+  .get(protect, checkPermission("DASHBOARD_VIEW"), getDashboardStats);
 router
   .route("/logs")
-  .get(protect, checkPermission("CAN_VIEW_LOGS"), getActivityLogs);
+  .get(protect, checkPermission("LOGS_VIEW"), getActivityLogs);
 router
   .route("/reports")
-  .get(protect, checkPermission("CAN_VIEW_DASHBOARD"), getDailyReport);
+  .get(protect, checkPermission("DASHBOARD_VIEW"), getDailyReport);
 
-// --- 2. [優化] 系統全域設定 ---
-// 取代原本的 /config/rates，改為更通用的 settings 接口
-// 權限建議使用 CAN_MANAGE_SYSTEM (最高權限)
+// --- 2. 系統全域設定 ---
 router
   .route("/settings")
-  .get(protect, checkPermission("CAN_MANAGE_SYSTEM"), getSystemSettings);
+  .get(protect, checkPermission("SYSTEM_CONFIG"), getSystemSettings);
 
 router
   .route("/settings/:key")
-  .put(protect, checkPermission("CAN_MANAGE_SYSTEM"), updateSystemSetting);
-
-// (舊的費率路由保留做相容，或者您可以選擇移除，前端將改呼叫新的 settings 接口)
-// 建議：若前端尚未完全更新，這行可暫時保留，指向新的 controller 方法
-// router.route("/config/rates")... (已整合進上方 settings 邏輯)
+  .put(protect, checkPermission("SYSTEM_CONFIG"), updateSystemSetting);
 
 // --- 3. 包裹管理 ---
-// 匯出
 router
   .route("/packages/export")
-  .get(protect, checkPermission("CAN_MANAGE_PACKAGES"), exportPackages);
+  .get(protect, checkPermission("PACKAGE_VIEW"), exportPackages);
 
-// 批量更新
 router
   .route("/packages/bulk-status")
-  .put(
-    protect,
-    checkPermission("CAN_MANAGE_PACKAGES"),
-    bulkUpdatePackageStatus
-  );
+  .put(protect, checkPermission("PACKAGE_EDIT"), bulkUpdatePackageStatus);
 
-// 批量刪除
 router
   .route("/packages/bulk-delete")
-  .delete(protect, checkPermission("CAN_MANAGE_PACKAGES"), bulkDeletePackages);
+  .delete(protect, checkPermission("PACKAGE_DELETE"), bulkDeletePackages);
 
-// 查詢列表
 router
   .route("/packages/all")
-  .get(protect, checkPermission("CAN_MANAGE_PACKAGES"), getAllPackages);
+  .get(protect, checkPermission("PACKAGE_VIEW"), getAllPackages);
 
-// 單筆操作
 router
   .route("/packages/create")
   .post(
     protect,
-    checkPermission("CAN_MANAGE_PACKAGES"),
+    checkPermission("PACKAGE_EDIT"),
     upload.array("images", 5),
     adminCreatePackage
   );
+
 router
   .route("/packages/:id/status")
-  .put(protect, checkPermission("CAN_MANAGE_PACKAGES"), updatePackageStatus);
+  .put(protect, checkPermission("PACKAGE_EDIT"), updatePackageStatus);
+
 router
   .route("/packages/:id/details")
   .put(
     protect,
-    checkPermission("CAN_MANAGE_PACKAGES"),
+    checkPermission("PACKAGE_EDIT"),
     upload.array("warehouseImages", 5),
     updatePackageDetails
   );
+
 router
   .route("/packages/:id")
-  .delete(protect, checkPermission("CAN_MANAGE_PACKAGES"), adminDeletePackage);
+  .delete(protect, checkPermission("PACKAGE_DELETE"), adminDeletePackage);
 
 // --- 4. 集運單管理 ---
-// 匯出
 router
   .route("/shipments/export")
-  .get(protect, checkPermission("CAN_MANAGE_SHIPMENTS"), exportShipments);
+  .get(protect, checkPermission("SHIPMENT_VIEW"), exportShipments);
 
-// 批量更新
 router
   .route("/shipments/bulk-status")
-  .put(
-    protect,
-    checkPermission("CAN_MANAGE_SHIPMENTS"),
-    bulkUpdateShipmentStatus
-  );
+  .put(protect, checkPermission("SHIPMENT_PROCESS"), bulkUpdateShipmentStatus);
 
-// 批量刪除
 router
   .route("/shipments/bulk-delete")
-  .delete(
-    protect,
-    checkPermission("CAN_MANAGE_SHIPMENTS"),
-    bulkDeleteShipments
-  );
+  .delete(protect, checkPermission("SHIPMENT_PROCESS"), bulkDeleteShipments);
 
-// 查詢列表
 router
   .route("/shipments/all")
-  .get(protect, checkPermission("CAN_MANAGE_SHIPMENTS"), getAllShipments);
+  .get(protect, checkPermission("SHIPMENT_VIEW"), getAllShipments);
 
-// 單筆操作
 router
   .route("/shipments/:id")
-  .put(protect, checkPermission("CAN_MANAGE_SHIPMENTS"), updateShipmentStatus)
-  .delete(
-    protect,
-    checkPermission("CAN_MANAGE_SHIPMENTS"),
-    adminDeleteShipment
-  );
+  .put(protect, checkPermission("SHIPMENT_PROCESS"), updateShipmentStatus)
+  .delete(protect, checkPermission("SHIPMENT_PROCESS"), adminDeleteShipment);
+
 router
   .route("/shipments/:id/reject")
-  .put(protect, checkPermission("CAN_MANAGE_SHIPMENTS"), rejectShipment);
+  .put(protect, checkPermission("SHIPMENT_PROCESS"), rejectShipment);
 
 // --- 5. 會員管理 ---
-router
-  .route("/users")
-  .get(protect, checkPermission("CAN_MANAGE_USERS"), getUsers);
+router.route("/users").get(protect, checkPermission("USER_VIEW"), getUsers);
+
 router
   .route("/users/list")
-  .get(protect, checkPermission("CAN_MANAGE_PACKAGES"), getUsersList);
+  .get(protect, checkPermission("PACKAGE_VIEW"), getUsersList);
+
 router
   .route("/users/create")
-  .post(protect, checkPermission("CAN_MANAGE_USERS"), createStaffUser);
+  .post(protect, checkPermission("USER_MANAGE"), createStaffUser);
+
 router
   .route("/users/:id/status")
-  .put(protect, checkPermission("CAN_MANAGE_USERS"), toggleUserStatus);
+  .put(protect, checkPermission("USER_MANAGE"), toggleUserStatus);
+
 router
   .route("/users/:id/profile")
-  .put(protect, checkPermission("CAN_MANAGE_USERS"), adminUpdateUserProfile);
+  .put(protect, checkPermission("USER_MANAGE"), adminUpdateUserProfile);
+
 router
   .route("/users/:id/permissions")
-  .put(protect, checkPermission("CAN_MANAGE_USERS"), updateUserPermissions);
+  .put(protect, checkPermission("USER_MANAGE"), updateUserPermissions);
+
 router
   .route("/users/:id/reset-password")
-  .put(protect, checkPermission("CAN_MANAGE_USERS"), resetUserPassword);
+  .put(protect, checkPermission("USER_MANAGE"), resetUserPassword);
+
 router
   .route("/users/:id")
-  .delete(protect, checkPermission("CAN_MANAGE_USERS"), deleteUser);
+  .delete(protect, checkPermission("USER_MANAGE"), deleteUser);
+
+// [修正] 使用 USER_IMPERSONATE 權限以匹配前端與 seed 設定
 router
   .route("/users/:id/impersonate")
-  .post(protect, checkPermission("CAN_IMPERSONATE_USERS"), impersonateUser);
+  .post(protect, checkPermission("USER_IMPERSONATE"), impersonateUser);
 
 module.exports = router;
