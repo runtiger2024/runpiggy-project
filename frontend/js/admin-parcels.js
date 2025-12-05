@@ -1,4 +1,4 @@
-// frontend/js/admin-parcels.js (V2025 現代化版)
+// frontend/js/admin-parcels.js (V25.0 - 運費公式透明化版)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -132,7 +132,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }箱`;
       }
 
-      // 將 pkg 物件轉為字串存入 dataset，方便編輯時讀取
       const pkgStr = encodeURIComponent(JSON.stringify(pkg));
 
       tr.innerHTML = `
@@ -181,7 +180,6 @@ document.addEventListener("DOMContentLoaded", () => {
     paginationDiv.appendChild(
       createBtn("上一頁", currentPage - 1, false, currentPage === 1)
     );
-    // 簡化版分頁，只顯示當前頁
     paginationDiv.appendChild(
       createBtn(`${currentPage} / ${pg.totalPages}`, currentPage, true, true)
     );
@@ -198,7 +196,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-title").textContent = "編輯包裹 / 入庫";
     document.getElementById("modal-pkg-id").value = pkg.id;
 
-    // 顯示會員資訊
     document.getElementById("user-info-section").style.display = "block";
     document.getElementById("create-user-search").style.display = "none";
     document.getElementById("modal-user-display").innerHTML = `
@@ -227,7 +224,6 @@ document.addEventListener("DOMContentLoaded", () => {
     renderSubPackages();
     updateFeesOnInput();
 
-    // 圖片預覽
     currentExistingImages = pkg.warehouseImages || [];
     renderImages(currentExistingImages);
 
@@ -240,19 +236,18 @@ document.addEventListener("DOMContentLoaded", () => {
     form.reset();
     document.getElementById("modal-pkg-id").value = "";
 
-    // 切換為搜尋會員模式
     document.getElementById("user-info-section").style.display = "block";
     document.getElementById("modal-user-display").innerHTML = "";
     document.getElementById("create-user-search").style.display = "block";
     document.getElementById("admin-create-userId").value = "";
 
-    document.getElementById("boxes-section").style.display = "none"; // 新增時不需分箱
+    document.getElementById("boxes-section").style.display = "none";
     document.getElementById("modal-status").value = "PENDING";
 
     modal.style.display = "flex";
   }
 
-  // --- 分箱邏輯 (與舊版相同，但在 render 時使用 bootstrap grid) ---
+  // --- 分箱與公式顯示 ---
   function renderSubPackages() {
     const list = document.getElementById("sub-package-list");
     list.innerHTML = "";
@@ -272,7 +267,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <select class="form-control sub-pkg-type">
                     <option value="general" ${
                       box.type === "general" ? "selected" : ""
-                    }>一般</option>
+                    }>一般家具</option>
                     <option value="special_a" ${
                       box.type === "special_a" ? "selected" : ""
                     }>特殊A</option>
@@ -298,7 +293,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     }" placeholder="H">
                 </div>
             </div>
-            <div class="sub-pkg-fee text-right mt-1 font-weight-bold text-primary"></div>
+            <div class="calc-formula-box sub-pkg-fee-display">
+               <span style="color:#999">請輸入數值以計算...</span>
+            </div>
         `;
       div.addEventListener("input", updateFeesOnInput);
       list.appendChild(div);
@@ -311,15 +308,21 @@ document.addEventListener("DOMContentLoaded", () => {
     updateFeesOnInput();
   };
 
+  // --- 即時算式邏輯 ---
   function updateFeesOnInput() {
-    // 收集數據 & 計算 (簡化版，邏輯同舊版)
     const rows = document.querySelectorAll("#sub-package-list > div");
     const RATES = window.RATES || {};
-    const CONSTANTS = window.CONSTANTS || { VOLUME_DIVISOR: 28317 };
+    const CONSTANTS = window.CONSTANTS || {
+      VOLUME_DIVISOR: 28317,
+      MINIMUM_CHARGE: 2000,
+    };
     let total = 0;
 
     rows.forEach((row, idx) => {
-      const type = row.querySelector(".sub-pkg-type").value;
+      const typeSelect = row.querySelector(".sub-pkg-type");
+      const type = typeSelect.value;
+      const typeName = typeSelect.options[typeSelect.selectedIndex].text;
+
       const w = parseFloat(row.querySelector(".sub-pkg-weight").value) || 0;
       const l = parseFloat(row.querySelector(".sub-pkg-l").value) || 0;
       const wd = parseFloat(row.querySelector(".sub-pkg-w").value) || 0;
@@ -335,19 +338,58 @@ document.addEventListener("DOMContentLoaded", () => {
         height: h,
       };
 
+      const displayDiv = row.querySelector(".sub-pkg-fee-display");
+
       if (w > 0 && l > 0 && wd > 0 && h > 0) {
         const rate = RATES[type] || { weightRate: 0, volumeRate: 0 };
-        const vol =
-          Math.ceil((l * wd * h) / CONSTANTS.VOLUME_DIVISOR) * rate.volumeRate;
-        const wt = (Math.ceil(w * 10) / 10) * rate.weightRate;
-        const fee = Math.max(vol, wt);
+
+        // 材積公式：(L*W*H)/Divisor = 材 (進位)
+        const rawCai = (l * wd * h) / CONSTANTS.VOLUME_DIVISOR;
+        const cai = Math.ceil(rawCai);
+
+        // 費用
+        const volFee = Math.round(cai * rate.volumeRate);
+        const wtFee = Math.round((Math.ceil(w * 10) / 10) * rate.weightRate); // 重量進位小數點後一位 (模擬後端)
+
+        const isVolWin = volFee >= wtFee;
+        const fee = Math.max(volFee, wtFee);
         total += fee;
-        row.querySelector(".sub-pkg-fee").textContent = `$${Math.round(fee)}`;
+
+        // 生成詳細 HTML
+        let html = `
+            <div class="calc-row ${!isVolWin ? "winner" : ""}">
+                <span>重量重 (${w}kg)</span>
+                <span>$${wtFee}</span>
+            </div>
+            <span class="calc-math">公式: ${w}kg x $${rate.weightRate}</span>
+            
+            <div style="border-top:1px dashed #eee; margin:4px 0;"></div>
+
+            <div class="calc-row ${isVolWin ? "winner" : ""}">
+                <span>材積重 (${cai}材)</span>
+                <span>$${volFee}</span>
+            </div>
+            <span class="calc-math">公式: (${l}x${wd}x${h}) / ${
+          CONSTANTS.VOLUME_DIVISOR
+        } = ${rawCai.toFixed(2)}材</span>
+            <span class="calc-math">計費: ${cai}材 x $${rate.volumeRate}</span>
+        `;
+        displayDiv.innerHTML = html;
       } else {
-        row.querySelector(".sub-pkg-fee").textContent = "-";
+        displayDiv.innerHTML = `<span style="color:#ccc;">等待完整輸入...</span>`;
       }
     });
-    document.getElementById("modal-shippingFee").value = total;
+
+    // 總計
+    const finalTotal = Math.max(total, CONSTANTS.MINIMUM_CHARGE || 0);
+    const minChargeMsg =
+      total > 0 && total < CONSTANTS.MINIMUM_CHARGE
+        ? ` (未達低消 $${CONSTANTS.MINIMUM_CHARGE})`
+        : "";
+
+    document.getElementById("modal-shippingFee").value = finalTotal;
+    document.getElementById("modal-fee-tips").textContent =
+      total > 0 ? `原始加總: $${total}${minChargeMsg}` : "";
   }
 
   function renderImages(images) {
@@ -368,7 +410,6 @@ document.addEventListener("DOMContentLoaded", () => {
     renderImages(currentExistingImages);
   };
 
-  // --- 表單提交 ---
   async function handleFormSubmit(e) {
     e.preventDefault();
     const id = document.getElementById("modal-pkg-id").value;
@@ -385,7 +426,6 @@ document.addEventListener("DOMContentLoaded", () => {
     fd.append("quantity", document.getElementById("modal-quantity").value);
     fd.append("note", document.getElementById("modal-note").value);
 
-    // 圖片
     const files = document.getElementById("modal-warehouseImages").files;
     for (let f of files)
       fd.append(isCreateMode ? "images" : "warehouseImages", f);
@@ -426,7 +466,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- 搜尋會員邏輯 ---
   const searchInput = document.getElementById("admin-customer-search");
   const resultDiv = document.getElementById("admin-customer-search-results");
 
@@ -468,7 +507,6 @@ document.addEventListener("DOMContentLoaded", () => {
     resultDiv.style.display = "none";
   };
 
-  // --- 批量操作 UI ---
   function toggleSelection(id, checked) {
     if (checked) selectedIds.add(id);
     else selectedIds.delete(id);

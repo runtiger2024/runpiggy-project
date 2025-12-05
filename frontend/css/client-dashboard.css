@@ -991,3 +991,61 @@
     width: auto !important; /* 寬度隨內容 */
   }
 }
+/* --- V25.0 運費算式透明化樣式 (Client) --- */
+.detail-calc-box {
+  background-color: #f0f7ff;
+  border: 1px solid #cce5ff;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.calc-comparison-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px dashed #e0e0e0;
+}
+
+.calc-comparison-row:last-child {
+  border-bottom: none;
+}
+
+.calc-comparison-row.is-winner {
+  background-color: #fff;
+  border: 1px solid #b3d7ff;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin: 4px -10px; /* 負邊距讓背景延伸 */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+}
+
+.calc-label {
+  color: #666;
+  font-weight: 500;
+}
+
+.calc-formula {
+  font-family: var(--font-mono);
+  color: #888;
+  font-size: 12px;
+  margin: 0 8px;
+}
+
+.calc-amount {
+  font-weight: bold;
+  color: #333;
+  min-width: 60px;
+  text-align: right;
+}
+
+.is-winner .calc-amount {
+  color: #d32f2f;
+  font-size: 14px;
+}
+
+.is-winner .calc-label::before {
+  content: "✅ ";
+}

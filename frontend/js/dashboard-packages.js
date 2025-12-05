@@ -1,5 +1,5 @@
 // frontend/js/dashboard-packages.js
-// V24.0 (優化版) - 前端零計算邏輯，完全依賴後端 API
+// V25.0 (透明化版) - 在詳情中顯示運費計算公式
 
 let currentEditPackageImages = [];
 
@@ -7,7 +7,6 @@ let currentEditPackageImages = [];
 window.loadMyPackages = async function () {
   const tableBody = document.getElementById("packages-table-body");
   try {
-    // 呼叫後端，後端已經計算好所有費用並注入在 packages 陣列中
     const res = await fetch(`${API_BASE_URL}/api/packages/my`, {
       headers: { Authorization: `Bearer ${window.dashboardToken}` },
     });
@@ -43,23 +42,18 @@ function renderPackagesTable() {
     const statusClass = statusClasses[pkg.status] || "";
     const isArrived = pkg.status === "ARRIVED";
 
-    // --- 優化：直接使用後端回傳的計算結果與旗標 ---
     let infoHtml = "<span>-</span>";
     let badgesHtml = "";
 
     const boxes = Array.isArray(pkg.arrivedBoxes) ? pkg.arrivedBoxes : [];
 
     if (boxes.length > 0) {
-      // 總重僅作顯示加總，不涉及費率
       const totalW = boxes.reduce(
         (sum, b) => sum + (parseFloat(b.weight) || 0),
         0
       );
-
-      // 直接使用後端給的 totalCalculatedFee
       const displayFee = pkg.totalCalculatedFee || 0;
 
-      // 使用後端給的旗標 (isOversized, isOverweight)
       if (pkg.isOversized)
         badgesHtml += `<span class="badge-alert small" style="background:#ffebee; color:#c62828; border:1px solid #ef9a9a;">⚠️ 超長</span> `;
       if (pkg.isOverweight)
@@ -103,7 +97,6 @@ function renderPackagesTable() {
       </td>
     `;
 
-    // 綁定事件
     tr.querySelector(".package-checkbox")?.addEventListener("change", () => {
       if (typeof window.updateCheckoutBar === "function")
         window.updateCheckoutBar();
@@ -122,7 +115,7 @@ function renderPackagesTable() {
     window.updateCheckoutBar();
 }
 
-// --- 2. 包裹詳情彈窗 (直接渲染後端明細) ---
+// --- 2. 包裹詳情彈窗 (顯示透明化算式) ---
 window.openPackageDetails = function (pkgDataStr) {
   try {
     const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
@@ -135,92 +128,87 @@ window.openPackageDetails = function (pkgDataStr) {
       : [];
     let boxesHtml = "";
 
-    // 注意：這裡不定義 CONSTANTS/RATES，完全依賴 pkg 資料
+    // 取得系統常數 (若無則使用預設)
+    const DIVISOR =
+      (window.CONSTANTS && window.CONSTANTS.VOLUME_DIVISOR) || 28317;
 
     if (arrivedBoxes.length > 0) {
       boxesHtml = `<div class="detail-scroll-container">`;
 
       arrivedBoxes.forEach((box, idx) => {
-        // 使用後端提供的 calculatedFee, isVolWin 等欄位
         const fee = box.calculatedFee || 0;
         const isVolWin = box.isVolWin;
         const rateName = box.rateName || "一般";
+
+        // [New] 構建透明化算式
+        const volFee = box.volFee || 0;
+        const wtFee = box.wtFee || 0;
+        const cai =
+          box.cai || Math.ceil((box.length * box.width * box.height) / DIVISOR); // 簡單補算
 
         boxesHtml += `
           <div class="detail-box-card">
             <div class="box-header">
               <span class="box-title">📦 第 ${idx + 1} 箱 (${rateName})</span>
-              <span class="box-fee">基本運費: $${fee.toLocaleString()}</span>
+              <span class="box-fee">運費 $${fee.toLocaleString()}</span>
             </div>
             <div class="box-specs">
               <div class="spec-item"><span class="label">尺寸:</span> <span class="value">${
                 box.length
-              } x ${box.width} x ${box.height} cm</span> ${
-          box.isOversized
-            ? '<span class="badge-alert" style="background:#ffebee; color:#c62828;">超長</span>'
-            : ""
-        }</div>
-              <div class="spec-item"><span class="label">實重:</span> <span class="value">${
+              }x${box.width}x${box.height} cm</span></div>
+              <div class="spec-item"><span class="label">重量:</span> <span class="value">${
                 box.weight
-              } kg</span> ${
-          box.isOverweight
-            ? '<span class="badge-alert" style="background:#ffebee; color:#c62828;">超重</span>'
-            : ""
-        }</div>
+              } kg</span></div>
             </div>
-            <div class="calc-breakdown">
-              <div class="formula-row ${isVolWin ? "winner" : ""}">
-                <span class="method">材積計費</span>
-                <span class="formula">(${box.cai || "?"}材)</span>
-                <span class="sub-total">$${(
-                  box.volFee || 0
-                ).toLocaleString()}</span>
-              </div>
-              <div class="formula-row ${!isVolWin ? "winner" : ""}">
-                <span class="method">重量計費</span>
-                <span class="formula">(${box.weight}kg)</span>
-                <span class="sub-total">$${(
-                  box.wtFee || 0
-                ).toLocaleString()}</span>
-              </div>
+            
+            <div class="detail-calc-box">
+                <div class="calc-comparison-row ${
+                  !isVolWin ? "is-winner" : ""
+                }">
+                    <span class="calc-label">重量計費</span>
+                    <span class="calc-formula">${box.weight}kg x 費率</span>
+                    <span class="calc-amount">$${wtFee.toLocaleString()}</span>
+                </div>
+                <div class="calc-comparison-row ${isVolWin ? "is-winner" : ""}">
+                    <span class="calc-label">材積計費</span>
+                    <span class="calc-formula">(${box.length}*${box.width}*${
+          box.height
+        })/${DIVISOR} = ${cai}材</span>
+                    <span class="calc-amount">$${volFee.toLocaleString()}</span>
+                </div>
+                <div style="text-align:right; margin-top:8px; color:#999; font-size:12px;">
+                    * 取兩者較高者為準
+                </div>
             </div>
+
+            ${
+              box.isOversized
+                ? '<div style="color:red; font-size:12px; margin-top:5px;">⚠️ 此箱超長</div>'
+                : ""
+            }
+            ${
+              box.isOverweight
+                ? '<div style="color:red; font-size:12px; margin-top:5px;">⚠️ 此箱超重</div>'
+                : ""
+            }
           </div>`;
       });
       boxesHtml += `</div>`;
 
-      // 總結算式顯示區塊 (使用後端數據)
       const totalBaseFee = pkg.totalCalculatedFee || 0;
 
       boxesHtml += `
         <div style="background:#f0f8ff; padding:15px; border-radius:8px; border:1px solid #b3d8ff; margin-top:15px;">
-            <h4 style="margin:0 0 10px 0; color:#0056b3; border-bottom:1px dashed #9ec5fe; padding-bottom:5px;">💰 費用試算詳情</h4>
-            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                <span>基本運費總計：</span>
-                <span>$${totalBaseFee.toLocaleString()}</span>
+            <div style="display:flex; justify-content:space-between;">
+                <strong>基本運費總計：</strong>
+                <strong style="color:#d32f2f; font-size:1.2em;">$${totalBaseFee.toLocaleString()}</strong>
             </div>
-            ${
-              pkg.isOversized
-                ? `<div style="display:flex; justify-content:space-between; color:#c62828; margin-bottom:5px;">
-                    <span>⚠️ 包含超長物品</span>
-                    <span>(將於訂單加收附加費)</span>
-                   </div>`
-                : ""
-            }
-            ${
-              pkg.isOverweight
-                ? `<div style="display:flex; justify-content:space-between; color:#c62828; margin-bottom:5px;">
-                    <span>⚠️ 包含超重物品</span>
-                    <span>(將於訂單加收附加費)</span>
-                   </div>`
-                : ""
-            }
-            <small style="display:block; margin-top:5px; color:#666;">* 實際總費用請以合併打包後的集運單為準 (含低消與偏遠費)。</small>
+            <small style="display:block; margin-top:5px; color:#666;">* 此金額僅包含該包裹的基本海運費，尚未包含可能產生的低消補足、偏遠費或特殊附加費 (將在合併訂單時計算)。</small>
         </div>
       `;
 
       boxesListContainer.innerHTML = boxesHtml;
     } else {
-      // 回退邏輯 (舊資料或未入庫)
       const baseFee = pkg.totalCalculatedFee || 0;
       boxesListContainer.innerHTML =
         '<p style="text-align: center; color: #888; padding:20px; background:#f9f9f9; border-radius:8px;">📦 倉庫尚未測量數據</p>';
@@ -229,7 +217,6 @@ window.openPackageDetails = function (pkgDataStr) {
       ).textContent = `NT$ ${baseFee.toLocaleString()} (概估)`;
     }
 
-    // 顯示總重
     const totalWeight = arrivedBoxes.reduce(
       (sum, box) => sum + (parseFloat(box.weight) || 0),
       0
@@ -243,7 +230,6 @@ window.openPackageDetails = function (pkgDataStr) {
       ).toLocaleString()} (基本)`;
     }
 
-    // 圖片處理
     const warehouseImages = Array.isArray(pkg.warehouseImages)
       ? pkg.warehouseImages
       : [];
@@ -292,7 +278,6 @@ window.handleForecastSubmit = async function (e) {
     if (res.ok) {
       if (window.showMessage) window.showMessage("預報成功", "success");
       form.reset();
-      // Reset Uploader UI if exists
       const input = document.getElementById("images");
       if (input && input.resetUploader) input.resetUploader();
 

@@ -440,3 +440,36 @@ body {
     grid-template-columns: 1fr;
   }
 }
+/* --- V25.0 運費算式透明化樣式 (Admin) --- */
+.calc-formula-box {
+  background-color: #f8f9fc;
+  border: 1px dashed #d1d3e2;
+  border-radius: 5px;
+  padding: 8px;
+  margin-top: 5px;
+  font-size: 0.85rem;
+  color: #5a5c69;
+}
+
+.calc-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.calc-row.winner {
+  color: #e74a3b; /* 勝出的費用用紅色強調 */
+  font-weight: bold;
+  background-color: #ffebe9;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+.calc-math {
+  font-family: "Consolas", "Monaco", monospace;
+  color: #858796;
+  font-size: 0.8rem;
+  display: block;
+  margin-top: 2px;
+  margin-left: 10px;
+}
