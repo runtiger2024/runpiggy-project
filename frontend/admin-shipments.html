@@ -160,6 +160,49 @@
               <div><strong>會員:</strong> <span id="m-user"></span></div>
             </div>
 
+            <div
+              style="
+                margin-top: 15px;
+                border: 1px solid #e3e6f0;
+                padding: 10px;
+                border-radius: 5px;
+              "
+            >
+              <label
+                class="text-primary font-weight-bold"
+                style="font-size: 0.9rem"
+              >
+                <i class="fas fa-file-invoice"></i> 發票資訊 (修正統編錯誤用)
+              </label>
+              <div
+                style="
+                  display: grid;
+                  grid-template-columns: 1fr 1fr;
+                  gap: 15px;
+                  margin-top: 5px;
+                "
+              >
+                <div>
+                  <label class="small text-muted">統一編號 (Tax ID)</label>
+                  <input
+                    type="text"
+                    id="m-tax-id"
+                    class="form-control form-control-sm"
+                    placeholder="8碼數字 (B2C請留空)"
+                  />
+                </div>
+                <div>
+                  <label class="small text-muted">發票抬頭 (Title)</label>
+                  <input
+                    type="text"
+                    id="m-invoice-title"
+                    class="form-control form-control-sm"
+                    placeholder="公司抬頭"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div style="margin-top: 15px">
               <label class="text-primary font-weight-bold">📦 包裹內容</label>
               <div

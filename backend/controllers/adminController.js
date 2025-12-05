@@ -587,7 +587,10 @@ const bulkDeleteShipments = async (req, res) => {
 const updateShipmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, totalCost, trackingNumberTW } = req.body;
+    // [修改] 允許接收 taxId 與 invoiceTitle
+    const { status, totalCost, trackingNumberTW, taxId, invoiceTitle } =
+      req.body;
+
     const originalShipment = await prisma.shipment.findUnique({
       where: { id },
       include: { user: true },
@@ -600,6 +603,10 @@ const updateShipmentStatus = async (req, res) => {
     if (totalCost !== undefined) dataToUpdate.totalCost = parseFloat(totalCost);
     if (trackingNumberTW !== undefined)
       dataToUpdate.trackingNumberTW = trackingNumberTW;
+
+    // [新增] 允許更新統編與抬頭
+    if (taxId !== undefined) dataToUpdate.taxId = taxId;
+    if (invoiceTitle !== undefined) dataToUpdate.invoiceTitle = invoiceTitle;
 
     if (status === "CANCELLED") {
       const result = await prisma.$transaction(async (tx) => {
@@ -632,8 +639,12 @@ const updateShipmentStatus = async (req, res) => {
       !originalShipment.invoiceNumber &&
       originalShipment.totalCost > 0
     ) {
+      // 確保使用最新的資料進行開立 (可能剛剛更新了統編)
+      // 若 dataToUpdate 有統編，暫時合併進去傳給 helper
+      const shipmentForInvoice = { ...originalShipment, ...dataToUpdate };
+
       const result = await invoiceHelper.createInvoice(
-        originalShipment,
+        shipmentForInvoice,
         originalShipment.user
       );
       if (result.success) {

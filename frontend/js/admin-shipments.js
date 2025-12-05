@@ -170,6 +170,10 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("m-user").textContent =
       s.user?.name || s.user?.email;
 
+    // [新增] 回填發票資訊
+    document.getElementById("m-tax-id").value = s.taxId || "";
+    document.getElementById("m-invoice-title").value = s.invoiceTitle || "";
+
     document.getElementById("m-packages").innerHTML = s.packages
       .map(
         (p) =>
@@ -239,9 +243,9 @@ document.addEventListener("DOMContentLoaded", () => {
           method: "POST",
           headers: {
             Authorization: `Bearer ${adminToken}`,
-            "Content-Type": "application/json", // [Fix] 補上 Content-Type
+            "Content-Type": "application/json",
           },
-          body: JSON.stringify({}), // [Fix] 補上空的 JSON body
+          body: JSON.stringify({}),
         }
       );
       const data = await res.json();
@@ -298,6 +302,9 @@ document.addEventListener("DOMContentLoaded", () => {
       status: document.getElementById("m-status").value,
       totalCost: document.getElementById("m-cost").value,
       trackingNumberTW: document.getElementById("m-tracking-tw").value,
+      // [新增] 收集發票資訊
+      taxId: document.getElementById("m-tax-id").value.trim(),
+      invoiceTitle: document.getElementById("m-invoice-title").value.trim(),
     };
 
     if (
@@ -344,7 +351,6 @@ document.addEventListener("DOMContentLoaded", () => {
       count > 0 ? "inline-block" : "none";
   }
 
-  // [Fix] 批量狀態變更 (支援發票自動開立)
   async function performBulkAction(status) {
     if (!confirm(`確定將 ${selectedIds.size} 筆訂單改為「${status}」?`)) return;
     if (
