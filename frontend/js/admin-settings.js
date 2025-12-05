@@ -1,4 +1,4 @@
-// frontend/js/admin-settings.js
+// frontend/js/admin-settings.js (V2025 - 動態類別版)
 
 document.addEventListener("DOMContentLoaded", async () => {
   const token = localStorage.getItem("admin_token");
@@ -29,6 +29,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     .addEventListener("submit", saveAnnouncement);
   document.getElementById("form-bank").addEventListener("submit", saveBankInfo);
 
+  // 4. 綁定新增按鈕
+  document.getElementById("btn-add-category").addEventListener("click", () => {
+    // 預設給一個空的區塊，並標記為新 (key可編輯)
+    addCategoryBlock("", {}, true);
+  });
+
   // --- 核心函式 ---
 
   async function loadSettings() {
@@ -53,8 +59,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         setValue("const-OVERWEIGHT_LIMIT", c.OVERWEIGHT_LIMIT || 100);
         setValue("const-OVERWEIGHT_FEE", c.OVERWEIGHT_FEE || 800);
 
+        // 清空舊的
+        document.getElementById("categories-container").innerHTML = "";
+
         // 動態渲染所有類別
-        renderCategories(cats);
+        const order = ["general", "special_a", "special_b", "special_c"];
+        // 排序：優先顯示已知順序，其他排後面
+        const keys = Object.keys(cats).sort((a, b) => {
+          const idxA = order.indexOf(a);
+          const idxB = order.indexOf(b);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return a.localeCompare(b);
+        });
+
+        keys.forEach((key) => {
+          addCategoryBlock(key, cats[key], false);
+        });
       }
 
       // B. 公告 (Announcement)
@@ -77,63 +99,62 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // 渲染類別輸入框 (支援 Name, Description, Weight, Volume)
-  function renderCategories(cats) {
+  // 渲染單一類別區塊 (isNew=true 時 key 可編輯)
+  function addCategoryBlock(key, data, isNew) {
     const container = document.getElementById("categories-container");
-    container.innerHTML = ""; // 清空
 
-    // 定義顯示順序 (可選)
-    const order = ["general", "special_a", "special_b", "special_c"];
-    const keys = Object.keys(cats).sort((a, b) => {
-      return order.indexOf(a) - order.indexOf(b);
-    });
+    // 判斷背景色，讓不同類別容易區分
+    let bgColor = "#fff";
+    if (key.includes("special")) bgColor = "#fdfdfe";
 
-    keys.forEach((key) => {
-      const cat = cats[key];
-      // 判斷背景色，讓不同類別容易區分
-      let bgColor = "#fff";
-      if (key.includes("special")) bgColor = "#fdfdfe";
+    const keyInputHtml = isNew
+      ? `<input type="text" class="form-control cat-key text-primary font-weight-bold" placeholder="設定代碼 (如: special_d)" required>`
+      : `<input type="text" class="form-control cat-key" value="${key}" disabled style="background:#e9ecef; font-weight:bold;">`;
 
-      const html = `
-        <div class="category-block card mb-3" data-key="${key}" style="border-left: 4px solid #4e73df;">
+    const html = `
+        <div class="category-block card mb-3" style="border-left: 4px solid #4e73df;">
             <div class="card-body p-3" style="background:${bgColor};">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="font-weight-bold text-primary m-0" style="text-transform:uppercase;">
-                        ${key} (代碼)
+                    <h6 class="font-weight-bold text-primary m-0">
+                        類別設定
                     </h6>
+                    <i class="fas fa-trash-alt btn-remove-cat" title="刪除此類別" onclick="this.closest('.category-block').remove()"></i>
                 </div>
                 
                 <div class="row">
-                    <div class="col-md-4 mb-2">
-                        <label class="small text-muted">類別顯示名稱 (Name)</label>
+                    <div class="col-md-3 mb-2">
+                        <label class="small text-muted">系統代碼 (Key)</label>
+                        ${keyInputHtml}
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <label class="small text-muted">顯示名稱 (Name)</label>
                         <input type="text" class="form-control cat-name" value="${
-                          cat.name || ""
+                          data.name || ""
                         }" required>
                     </div>
-                    <div class="col-md-4 mb-2">
+                    <div class="col-md-3 mb-2">
                         <label class="small text-muted">重量費率 ($/KG)</label>
                         <input type="number" step="0.1" class="form-control cat-weight" value="${
-                          cat.weightRate || 0
+                          data.weightRate || 0
                         }" required>
                     </div>
-                    <div class="col-md-4 mb-2">
+                    <div class="col-md-3 mb-2">
                         <label class="small text-muted">材積費率 ($/材)</label>
                         <input type="number" step="0.1" class="form-control cat-volume" value="${
-                          cat.volumeRate || 0
+                          data.volumeRate || 0
                         }" required>
                     </div>
                     <div class="col-12">
                         <label class="small text-muted">前台說明文字 (Description)</label>
                         <input type="text" class="form-control cat-desc" value="${
-                          cat.description || ""
+                          data.description || ""
                         }" placeholder="例如：易碎品、大理石...">
                     </div>
                 </div>
             </div>
         </div>
       `;
-      container.insertAdjacentHTML("beforeend", html);
-    });
+    container.insertAdjacentHTML("beforeend", html);
   }
 
   async function saveRates(e) {
@@ -163,10 +184,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         800,
     };
 
-    // 2. 收集動態類別
+    // 2. 收集所有動態類別
     const categories = {};
+    let hasError = false;
+
     document.querySelectorAll(".category-block").forEach((block) => {
-      const key = block.getAttribute("data-key");
+      // 取得 Key (如果是新的是 input，舊的是 disabled input，取 value 即可)
+      const keyInput = block.querySelector(".cat-key");
+      let key = keyInput.value.trim();
+
+      if (!key) {
+        alert("錯誤：有類別未填寫代碼 (Key)");
+        hasError = true;
+        return;
+      }
+
+      // 檢查重複 key (簡單檢查)
+      if (categories[key]) {
+        alert(`錯誤：代碼 ${key} 重複，請修正`);
+        hasError = true;
+        return;
+      }
+
       const name = block.querySelector(".cat-name").value;
       const desc = block.querySelector(".cat-desc").value;
       const weightRate = parseFloat(block.querySelector(".cat-weight").value);
@@ -174,11 +213,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       categories[key] = {
         name: name,
-        description: desc, // 這是關鍵，前台需要這個欄位
+        description: desc,
         weightRate: weightRate,
         volumeRate: volumeRate,
       };
     });
+
+    if (hasError) return;
+
+    if (Object.keys(categories).length === 0) {
+      if (!confirm("警告：目前沒有任何運費類別，確定要儲存嗎？")) return;
+    }
 
     const data = { constants, categories };
     await sendUpdate("rates_config", data, "費率設定");

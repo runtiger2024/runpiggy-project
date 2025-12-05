@@ -37,6 +37,16 @@
       .tab-content.active {
         display: block;
       }
+      /* 新增：刪除按鈕樣式 */
+      .btn-remove-cat {
+        color: #e74a3b;
+        cursor: pointer;
+        transition: 0.2s;
+      }
+      .btn-remove-cat:hover {
+        color: #c0392b;
+        transform: scale(1.1);
+      }
     </style>
   </head>
   <body>
@@ -153,6 +163,17 @@
             </div>
 
             <div id="categories-container"></div>
+
+            <div class="mb-4">
+              <button
+                type="button"
+                id="btn-add-category"
+                class="btn btn-outline-primary btn-sm"
+                style="border-style: dashed"
+              >
+                <i class="fas fa-plus"></i> 新增類別
+              </button>
+            </div>
 
             <div style="text-align: right; margin-top: 20px">
               <button type="submit" class="btn btn-success btn-lg">
