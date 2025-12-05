@@ -1,45 +1,50 @@
-// backend/routes/shipmentRoutes.js (V9 優化版 - 含預估運費 API)
+// backend/routes/shipmentRoutes.js
+// V12.0 - 包含發票操作路由
 
 const express = require("express");
 const router = express.Router();
-const upload = require("../utils/upload.js"); // 引入上傳工具
+const upload = require("../utils/upload.js");
 
 // 1. 匯入控制器
 const {
-  previewShipmentCost, // [New] 預估運費
+  previewShipmentCost,
   createShipment,
   getMyShipments,
   getShipmentById,
   uploadPaymentProof,
   deleteMyShipment,
+  manualIssueInvoice, // [New]
+  manualVoidInvoice, // [New]
 } = require("../controllers/shipmentController");
 
-// 2. 匯入保全 (Auth Middleware)
 const { protect } = require("../middleware/authMiddleware.js");
 
-// 3. --- 設定路由 ---
+// 2. --- 設定路由 ---
 
-// [新增] 預估運費 (不建立訂單，僅計算) - 用於前端懸浮結算欄
+// 預估運費
 router.route("/preview").post(protect, previewShipmentCost);
 
-// 建立集運單 (支援上傳最多5張商品照片)
-// 注意：前端 input name 必須為 "shipmentImages"
+// 建立集運單
 router
   .route("/create")
   .post(protect, upload.array("shipmentImages", 20), createShipment);
 
-// 取得我的集運單列表
+// 取得我的集運單
 router.route("/my").get(protect, getMyShipments);
 
-// 上傳付款憑證 (單張圖片)
+// 上傳付款憑證
 router
   .route("/:id/payment")
   .put(protect, upload.single("paymentProof"), uploadPaymentProof);
 
-// 單一集運單操作
+// [NEW] 發票手動操作 (需登入)
+router.route("/:id/invoice/issue").post(protect, manualIssueInvoice);
+router.route("/:id/invoice/void").post(protect, manualVoidInvoice);
+
+// 單一集運單操作 (必須放在最後，以免 :id 攔截其他路徑)
 router
   .route("/:id")
-  .get(protect, getShipmentById) // 查看詳情
-  .delete(protect, deleteMyShipment); // 取消/刪除 (僅限待付款)
+  .get(protect, getShipmentById)
+  .delete(protect, deleteMyShipment);
 
 module.exports = router;

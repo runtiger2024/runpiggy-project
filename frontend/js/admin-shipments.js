@@ -1,4 +1,4 @@
-// frontend/js/admin-shipments.js (V2025)
+// frontend/js/admin-shipments.js (V2025.Invoice)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -54,7 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadShipments() {
     tbody.innerHTML =
-      '<tr><td colspan="9" class="text-center p-3">載入中...</td></tr>';
+      '<tr><td colspan="8" class="text-center p-3">載入中...</td></tr>';
     selectedIds.clear();
     updateBulkUI();
 
@@ -71,7 +71,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderTable(data.shipments || []);
       renderPagination(data.pagination);
     } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger p-3">錯誤: ${e.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger p-3">錯誤: ${e.message}</td></tr>`;
     }
   }
 
@@ -79,13 +79,13 @@ document.addEventListener("DOMContentLoaded", () => {
     tbody.innerHTML = "";
     if (shipments.length === 0) {
       tbody.innerHTML =
-        '<tr><td colspan="9" class="text-center p-3">無資料</td></tr>';
+        '<tr><td colspan="8" class="text-center p-3">無資料</td></tr>';
       return;
     }
 
     const statusClasses = {
       PENDING_PAYMENT: "status-PENDING",
-      PENDING_REVIEW: "status-PENDING", // 黃色，待審
+      PENDING_REVIEW: "status-PENDING",
       PROCESSING: "status-info",
       SHIPPED: "status-info",
       COMPLETED: "status-COMPLETED",
@@ -94,33 +94,40 @@ document.addEventListener("DOMContentLoaded", () => {
 
     shipments.forEach((s) => {
       const tr = document.createElement("tr");
-      // 判斷是否為「已付款待審核」
       let displayStatus = s.status;
       let statusClass = statusClasses[s.status] || "status-secondary";
       if (s.status === "PENDING_PAYMENT" && s.paymentProof) {
         displayStatus = "待審核";
-        statusClass = "status-PENDING"; // 保持黃色但文字不同
+        statusClass = "status-warning";
       }
 
-      // 發票狀態
-      let inv = '<span class="text-gray-400">-</span>';
-      if (s.invoiceNumber)
-        inv = `<span class="text-success"><i class="fas fa-file-invoice"></i> ${s.invoiceNumber}</span>`;
+      // --- 發票狀態欄位 ---
+      let invHtml = `<span class="badge" style="background:#e0e0e0; color:#888; padding:2px 6px; font-size:12px; border-radius:4px;">未開立</span>`;
+      if (s.invoiceStatus === "ISSUED" && s.invoiceNumber) {
+        invHtml = `<span class="badge" style="background:#d4edda; color:#155724; padding:2px 6px; font-size:12px; border-radius:4px;">
+                     <i class="fas fa-check"></i> 已開立<br>${s.invoiceNumber}
+                   </span>`;
+      } else if (s.invoiceStatus === "VOID") {
+        invHtml = `<span class="badge" style="background:#f8d7da; color:#721c24; padding:2px 6px; font-size:12px; border-radius:4px;">
+                     <i class="fas fa-ban"></i> 已作廢
+                   </span>`;
+      }
 
-      // 序列化物件
       const sStr = encodeURIComponent(JSON.stringify(s));
 
       tr.innerHTML = `
         <td><input type="checkbox" class="ship-checkbox" value="${s.id}"></td>
         <td><strong>${s.id.slice(-8).toUpperCase()}</strong></td>
         <td>${new Date(s.createdAt).toLocaleDateString()}</td>
-        <td>${s.user?.email}</td>
-        <td>${s.recipientName}</td>
+        <td>
+          <div>${s.recipientName}</div>
+          <small class="text-muted">${s.user?.email}</small>
+        </td>
         <td><span class="text-danger font-weight-bold">NT$ ${s.totalCost.toLocaleString()}</span></td>
-        <td>${inv}</td>
+        <td>${invHtml}</td>
         <td><span class="status-badge ${statusClass}">${displayStatus}</span></td>
         <td>
-          <button class="btn btn-primary btn-sm" onclick="openModal('${sStr}')">詳情</button>
+          <button class="btn btn-primary btn-sm" onclick="openModal('${sStr}')">管理</button>
         </td>
       `;
       tr.querySelector(".ship-checkbox").addEventListener("change", (e) =>
@@ -181,7 +188,106 @@ document.addEventListener("DOMContentLoaded", () => {
       proofDiv.innerHTML = "尚未上傳";
     }
 
+    // --- 發票管理區塊 ---
+    const invSection = document.getElementById("invoice-management-section");
+    // 重置區塊樣式與內容
+    invSection.innerHTML = "";
+    invSection.style.cssText =
+      "margin-top:15px; padding:15px; border:1px solid #bce8f1; background:#d9edf7; border-radius:5px;";
+
+    let invContent = `<h5 style="margin-top:0; color:#31708f; font-size:1rem; margin-bottom:10px;"><i class="fas fa-file-invoice"></i> 電子發票管理</h5>`;
+
+    if (s.invoiceStatus === "ISSUED" && s.invoiceNumber) {
+      invContent += `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+              <span class="text-success font-weight-bold">✅ 已開立</span><br>
+              號碼：<strong>${s.invoiceNumber}</strong><br>
+              隨機碼：${s.invoiceRandomCode || "-"}
+          </div>
+          <button type="button" class="btn btn-danger btn-sm" onclick="handleVoidInvoice('${
+            s.id
+          }', '${s.invoiceNumber}')">
+              <i class="fas fa-ban"></i> 作廢發票
+          </button>
+        </div>`;
+    } else if (s.invoiceStatus === "VOID") {
+      invContent += `
+        <div class="text-danger font-weight-bold">
+          <i class="fas fa-times-circle"></i> 此發票已作廢 (${s.invoiceNumber})
+        </div>`;
+    } else {
+      invContent += `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="text-muted">尚未開立發票</span>
+          <button type="button" class="btn btn-success btn-sm" onclick="handleIssueInvoice('${s.id}')">
+              <i class="fas fa-paper-plane"></i> 立即開立
+          </button>
+        </div>
+        <small class="text-muted" style="display:block; margin-top:5px;">* 點擊後將立即串接 AMEGO 開立並更新狀態。</small>`;
+    }
+    invSection.innerHTML = invContent;
+
     modal.style.display = "flex";
+  };
+
+  // --- 發票操作函式 ---
+  window.handleIssueInvoice = async function (id) {
+    if (!confirm("確定要開立電子發票嗎？\n(將傳送資料至 AMEGO)")) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/shipments/${id}/invoice/issue`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${adminToken}` },
+        }
+      );
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(`成功！發票號碼：${data.invoiceNumber}`);
+        modal.style.display = "none";
+        loadShipments();
+      } else {
+        alert(`失敗：${data.message}`);
+      }
+    } catch (e) {
+      alert("連線錯誤");
+    }
+  };
+
+  window.handleVoidInvoice = async function (id, invNum) {
+    const reason = prompt(
+      `確定要作廢發票 ${invNum} 嗎？\n請輸入作廢原因：`,
+      "訂單取消/金額異動"
+    );
+    if (!reason) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/shipments/${id}/invoice/void`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({ reason }),
+        }
+      );
+      const data = await res.json();
+
+      if (res.ok) {
+        alert("發票已作廢");
+        modal.style.display = "none";
+        loadShipments();
+      } else {
+        alert(`作廢失敗：${data.message}`);
+      }
+    } catch (e) {
+      alert("連線錯誤");
+    }
   };
 
   async function handleUpdate(e) {
@@ -193,7 +299,6 @@ document.addEventListener("DOMContentLoaded", () => {
       trackingNumberTW: document.getElementById("m-tracking-tw").value,
     };
 
-    // 特殊邏輯：如果是 Cancelled，需要 confirm
     if (
       data.status === "CANCELLED" &&
       !confirm("確定取消訂單？包裹將釋放回入庫狀態。")
@@ -240,7 +345,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function performBulkAction(status) {
     if (!confirm(`確定將 ${selectedIds.size} 筆訂單改為 ${status}?`)) return;
-    // 呼叫後端 API (略，需後端支援)
     alert("功能尚未連接後端");
   }
 
