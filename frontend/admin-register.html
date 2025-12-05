@@ -2,146 +2,139 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>新增員工帳號 - 管理後台</title>
-    <link rel="icon" href="assets/logo.png" type="image/png" />
-    <script src="js/styleLoader.js"></script>
+    <title>新增員工 - 小跑豬後台</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="css/admin-modern.css" />
   </head>
   <body>
-    <div class="container" style="max-width: 500px">
-      <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
+    <div class="container-fluid">
+      <h1 class="page-title">新增內部員工帳號</h1>
 
-      <h1>新增員工帳號</h1>
-
-      <div id="admin-only-content">
-        <div id="message-box" class="alert" style="display: none"></div>
-
-        <form id="register-form" class="auth-form active">
-          <div class="form-group">
-            <label for="staff-name" class="required">員工姓名</label>
-            <input type="text" id="staff-name" required />
-          </div>
-          <div class="form-group">
-            <label for="staff-email" class="required">登入 Email</label>
-            <input type="email" id="staff-email" required />
-          </div>
-          <div class="form-group">
-            <label for="staff-password" class="required"
-              >登入密碼 (至少6位數)</label
+      <div style="max-width: 650px; margin: 0 auto">
+        <div class="card">
+          <div
+            class="card-header bg-primary text-white"
+            style="background: linear-gradient(135deg, #4e73df, #224abe)"
+          >
+            <span style="font-size: 1.1rem"
+              ><i class="fas fa-user-shield"></i> 建立管理帳號</span
             >
-            <input type="password" id="staff-password" minlength="6" required />
           </div>
-
-          <div class="form-group">
-            <label class="required">帳號權限</label>
-            <fieldset
-              id="permissions-fieldset"
-              style="border: 1px solid #ccc; padding: 10px; border-radius: 5px"
-            >
-              <div style="margin-bottom: 5px">
+          <div class="card-body">
+            <form id="register-form">
+              <div class="form-group mb-3">
+                <label class="font-weight-bold">員工姓名</label>
                 <input
-                  type="checkbox"
-                  id="perm-CAN_VIEW_DASHBOARD"
-                  value="CAN_VIEW_DASHBOARD"
-                  checked
+                  type="text"
+                  id="staff-name"
+                  class="form-control"
+                  placeholder="請輸入姓名"
+                  required
                 />
-                <label for="perm-CAN_VIEW_DASHBOARD">查看儀表板</label>
               </div>
-              <div style="margin-bottom: 5px">
+              <div class="form-group mb-3">
+                <label class="font-weight-bold">登入 Email</label>
                 <input
-                  type="checkbox"
-                  id="perm-CAN_MANAGE_PACKAGES"
-                  value="CAN_MANAGE_PACKAGES"
-                  checked
+                  type="email"
+                  id="staff-email"
+                  class="form-control"
+                  placeholder="example@runpiggy.com"
+                  required
                 />
-                <label for="perm-CAN_MANAGE_PACKAGES"
-                  >管理包裹 (入庫/更新)</label
-                >
               </div>
-              <div style="margin-bottom: 5px">
+              <div class="form-group mb-3">
+                <label class="font-weight-bold">登入密碼 (至少6位)</label>
                 <input
-                  type="checkbox"
-                  id="perm-CAN_MANAGE_SHIPMENTS"
-                  value="CAN_MANAGE_SHIPMENTS"
-                  checked
+                  type="password"
+                  id="staff-password"
+                  class="form-control"
+                  minlength="6"
+                  placeholder="******"
+                  required
                 />
-                <label for="perm-CAN_MANAGE_SHIPMENTS"
-                  >管理集運單 (出貨/退回)</label
-                >
               </div>
 
-              <hr style="margin: 10px 0" />
-
-              <div style="margin-bottom: 5px">
-                <input
-                  type="checkbox"
-                  id="perm-CAN_MANAGE_USERS"
-                  value="CAN_MANAGE_USERS"
-                />
-                <label
-                  for="perm-CAN_MANAGE_USERS"
-                  style="color: #d32f2f; font-weight: bold"
-                  >[A] 管理會員/員工 (高權限)</label
-                >
-              </div>
-              <div style="margin-bottom: 5px">
-                <input
-                  type="checkbox"
-                  id="perm-CAN_VIEW_LOGS"
-                  value="CAN_VIEW_LOGS"
-                />
-                <label
-                  for="perm-CAN_VIEW_LOGS"
-                  style="color: #d32f2f; font-weight: bold"
-                  >[A] 查看操作日誌 (高權限)</label
-                >
-              </div>
-              <div style="margin-bottom: 5px">
-                <input
-                  type="checkbox"
-                  id="perm-CAN_IMPERSONATE_USERS"
-                  value="CAN_IMPERSONATE_USERS"
-                />
-                <label
-                  for="perm-CAN_IMPERSONATE_USERS"
-                  style="color: #d32f2f; font-weight: bold"
-                  >[A] 模擬客戶登入 (高權限)</label
-                >
-              </div>
-
-              <div style="margin-bottom: 5px">
-                <input
-                  type="checkbox"
-                  id="perm-CAN_MANAGE_SYSTEM"
-                  value="CAN_MANAGE_SYSTEM"
-                />
-                <label
-                  for="perm-CAN_MANAGE_SYSTEM"
+              <div class="form-group mb-4">
+                <label class="font-weight-bold mb-2">權限設定</label>
+                <div
                   style="
-                    color: #d32f2f;
-                    font-weight: bold;
-                    background: #e3f2fd;
-                    padding: 2px 5px;
+                    background: #f8f9fc;
+                    padding: 15px;
+                    border-radius: 8px;
+                    border: 1px solid #e3e6f0;
                   "
-                  >[S] 系統全域設定 (最高權限)</label
                 >
+                  <div class="form-check mb-2">
+                    <input
+                      type="checkbox"
+                      id="p-dashboard"
+                      value="CAN_VIEW_DASHBOARD"
+                      checked
+                    />
+                    <label for="p-dashboard">查看儀表板</label>
+                  </div>
+                  <div class="form-check mb-2">
+                    <input
+                      type="checkbox"
+                      id="p-packages"
+                      value="CAN_MANAGE_PACKAGES"
+                      checked
+                    />
+                    <label for="p-packages">管理包裹 (入庫/更新)</label>
+                  </div>
+                  <div class="form-check mb-2">
+                    <input
+                      type="checkbox"
+                      id="p-shipments"
+                      value="CAN_MANAGE_SHIPMENTS"
+                      checked
+                    />
+                    <label for="p-shipments">管理集運單 (出貨/審核)</label>
+                  </div>
+                  <hr style="margin: 10px 0" />
+                  <div class="form-check mb-2">
+                    <input
+                      type="checkbox"
+                      id="p-users"
+                      value="CAN_MANAGE_USERS"
+                    />
+                    <label for="p-users" class="text-danger font-weight-bold"
+                      >會員與員工管理 (Admin)</label
+                    >
+                  </div>
+                  <div class="form-check mb-2">
+                    <input
+                      type="checkbox"
+                      id="p-system"
+                      value="CAN_MANAGE_SYSTEM"
+                    />
+                    <label for="p-system" class="text-danger font-weight-bold"
+                      >系統全域設定 (System)</label
+                    >
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" id="p-logs" value="CAN_VIEW_LOGS" />
+                    <label for="p-logs" class="text-secondary"
+                      >查看操作日誌</label
+                    >
+                  </div>
+                </div>
               </div>
-            </fieldset>
+
+              <button type="submit" class="btn btn-primary w-100 py-2">
+                <i class="fas fa-check"></i> 建立帳號
+              </button>
+            </form>
           </div>
-          <button type="submit" class="btn btn-primary">建立新帳號</button>
-        </form>
+        </div>
       </div>
-      <a
-        href="admin-dashboard.html"
-        class="btn btn-secondary"
-        style="text-decoration: none; text-align: center; margin-top: 10px"
-      >
-        返回儀表板
-      </a>
     </div>
 
-    <script src="js/admin-header.js"></script>
     <script src="js/apiConfig.js"></script>
+    <script src="js/admin-layout.js"></script>
     <script src="js/admin-register.js"></script>
   </body>
 </html>

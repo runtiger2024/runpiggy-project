@@ -2,44 +2,77 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>操作日誌 - 管理後台</title>
-    <link rel="icon" href="assets/logo.png" type="image/png" />
-    <script src="js/styleLoader.js"></script>
+    <title>操作日誌</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="css/admin-modern.css" />
   </head>
   <body>
-    <div class="container" style="max-width: 1400px">
-      <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
+    <div class="container-fluid">
+      <h1 class="page-title">系統操作日誌 (Audit Logs)</h1>
 
-      <div id="admin-header-container" data-title="儀表板"></div>
+      <div class="card">
+        <div class="card-body">
+          <div class="filters-bar" style="margin-bottom: 0">
+            <div style="flex: 1">
+              <input
+                type="text"
+                id="search-input"
+                class="form-control"
+                placeholder="搜尋操作員 / 動作 / 詳細內容..."
+              />
+            </div>
+            <div style="flex: 0 0 200px">
+              <input
+                type="text"
+                id="action-input"
+                class="form-control"
+                placeholder="篩選動作 (如 DELETE)"
+              />
+            </div>
+            <button class="btn btn-primary" id="btn-search">
+              <i class="fas fa-filter"></i> 篩選
+            </button>
+          </div>
+        </div>
+      </div>
 
-      <div id="admin-only-content">
-        <div class="members-table-container">
-          <table class="members-table">
-            <thead>
-              <tr>
-                <th style="width: 15%">時間</th>
-                <th style="width: 15%">操作員工</th>
-                <th style="width: 20%">動作 (Action)</th>
-                <th style="width: 20%">目標 ID</th>
-                <th style="width: 30%">詳細資訊</th>
-              </tr>
-            </thead>
-            <tbody id="logsTableBody">
-              <tr>
-                <td colspan="5" class="loading">
-                  <div class="spinner"></div>
-                  <p>載入日誌資料中...</p>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      <div class="card">
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th style="width: 180px">時間</th>
+                  <th>操作人員 (Email)</th>
+                  <th>動作類型 (Action)</th>
+                  <th>目標 ID</th>
+                  <th>詳細內容</th>
+                </tr>
+              </thead>
+              <tbody id="logs-list">
+                <tr>
+                  <td colspan="5" class="text-center p-3">載入中...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div
+          class="card-body border-top"
+          style="display: flex; justify-content: flex-end; gap: 5px"
+        >
+          <button id="btn-prev" class="btn btn-sm btn-light">上一頁</button>
+          <span id="page-info" class="btn btn-sm disabled border">1</span>
+          <button id="btn-next" class="btn btn-sm btn-light">下一頁</button>
         </div>
       </div>
     </div>
 
-    <script src="js/admin-header.js"></script>
     <script src="js/apiConfig.js"></script>
+    <script src="js/admin-layout.js"></script>
     <script src="js/admin-logs.js"></script>
   </body>
 </html>

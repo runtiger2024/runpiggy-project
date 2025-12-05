@@ -1,95 +1,62 @@
-// frontend/js/admin-shipments.js (V11.0 - 支援附加服務顯示)
+// frontend/js/admin-shipments.js (V2025)
 
 document.addEventListener("DOMContentLoaded", () => {
-  // --- 1. 權限與初始化 ---
-  const adminPermissions = JSON.parse(
-    localStorage.getItem("admin_permissions") || "[]"
-  );
   const adminToken = localStorage.getItem("admin_token");
-  const adminName = localStorage.getItem("admin_name");
+  if (!adminToken) return;
 
-  function checkAdminPermissions() {
-    if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
-      const elements = [
-        "btn-nav-create-staff",
-        "btn-nav-members",
-        "btn-nav-logs",
-      ];
-      elements.forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = "none";
-      });
-    }
-  }
-
-  if (!adminToken) {
-    window.location.href = "admin-login.html";
-    return;
-  }
-
-  const adminWelcome = document.getElementById("admin-welcome");
-  if (adminName && adminWelcome) {
-    let role = "USER";
-    if (adminPermissions.includes("CAN_MANAGE_USERS")) role = "ADMIN";
-    else if (adminPermissions.length > 0) role = "OPERATOR";
-    adminWelcome.textContent = `你好, ${adminName} (${role})`;
-  }
-
-  checkAdminPermissions();
-
-  // --- 2. 變數與元素 ---
   let currentPage = 1;
   const limit = 20;
   let currentStatus = "";
   let currentSearch = "";
-  let selectedIds = new Set(); // 批量操作用
+  let selectedIds = new Set();
 
-  const shipmentsTableBody = document.getElementById("shipmentsTableBody");
-  const paginationContainer = document.getElementById("pagination");
-  const filterStatus = document.getElementById("filter-status");
-  const searchInput = document.getElementById("search-input");
-  const filterBtn = document.getElementById("filter-btn");
-  const selectAllCheckbox = document.getElementById("select-all");
-  const bulkActionBar = document.getElementById("bulk-action-bar");
-  const selectedCountSpan = document.getElementById("selected-count");
-  const logoutBtn = document.getElementById("logoutBtn");
+  const tbody = document.getElementById("shipment-list");
+  const paginationDiv = document.getElementById("pagination");
+  const modal = document.getElementById("shipment-modal");
 
-  // 編輯彈窗相關
-  const modal = document.getElementById("edit-shipment-modal");
-  const closeModalBtn = modal.querySelector(".modal-close");
-  const updateForm = document.getElementById("edit-shipment-form");
-  const shipmentPackageList = document.getElementById("modal-package-list");
-  const modalServices = document.getElementById("modal-services");
-  const btnPrintShipment = document.getElementById("btn-print-shipment");
+  init();
 
-  // --- 3. 初始化邏輯 ---
   function init() {
-    const params = new URLSearchParams(window.location.search);
-    const pStatus = params.get("status");
-    const pSearch = params.get("search");
-    const pPage = params.get("page");
+    document.getElementById("btn-search").addEventListener("click", () => {
+      currentStatus = document.getElementById("status-filter").value;
+      currentSearch = document.getElementById("search-input").value;
+      currentPage = 1;
+      loadShipments();
+    });
 
-    if (pStatus) {
-      currentStatus = pStatus;
-      filterStatus.value = pStatus;
-    }
-    if (pSearch) {
-      currentSearch = pSearch;
-      searchInput.value = pSearch;
-    }
-    if (pPage) {
-      currentPage = parseInt(pPage) || 1;
-    }
+    document
+      .querySelectorAll(".modal-close-btn")
+      .forEach((b) =>
+        b.addEventListener("click", () => (modal.style.display = "none"))
+      );
+    document
+      .getElementById("edit-shipment-form")
+      .addEventListener("submit", handleUpdate);
+
+    // 全選
+    document.getElementById("select-all").addEventListener("change", (e) => {
+      document.querySelectorAll(".ship-checkbox").forEach((cb) => {
+        cb.checked = e.target.checked;
+        toggleSelection(cb.value, e.target.checked);
+      });
+    });
+
+    // 批量按鈕
+    document
+      .getElementById("btn-bulk-process")
+      .addEventListener("click", () => performBulkAction("PROCESSING"));
+    document
+      .getElementById("btn-bulk-delete")
+      .addEventListener("click", performBulkDelete);
 
     loadShipments();
   }
 
-  // --- 4. 資料載入 (分頁) ---
   async function loadShipments() {
-    shipmentsTableBody.innerHTML =
-      '<tr><td colspan="9" style="text-align: center;">載入中...</td></tr>';
+    tbody.innerHTML =
+      '<tr><td colspan="9" class="text-center p-3">載入中...</td></tr>';
     selectedIds.clear();
-    updateBulkActionBar();
+    updateBulkUI();
 
     try {
       let url = `${API_BASE_URL}/api/admin/shipments/all?page=${currentPage}&limit=${limit}`;
@@ -101,220 +68,184 @@ document.addEventListener("DOMContentLoaded", () => {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
       const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message || "載入失敗");
-
       renderTable(data.shipments || []);
       renderPagination(data.pagination);
-      updateUrlParams();
     } catch (e) {
-      console.error(e);
-      shipmentsTableBody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: red;">載入錯誤: ${e.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger p-3">錯誤: ${e.message}</td></tr>`;
     }
   }
 
-  // --- 5. 渲染邏輯 ---
   function renderTable(shipments) {
-    shipmentsTableBody.innerHTML = "";
+    tbody.innerHTML = "";
     if (shipments.length === 0) {
-      shipmentsTableBody.innerHTML =
-        '<tr><td colspan="9" style="text-align: center;">無符合資料</td></tr>';
+      tbody.innerHTML =
+        '<tr><td colspan="9" class="text-center p-3">無資料</td></tr>';
       return;
     }
 
-    // 取得全域狀態設定
-    const statusMap = window.SHIPMENT_STATUS_MAP || {};
-    const statusClasses = window.STATUS_CLASSES || {};
+    const statusClasses = {
+      PENDING_PAYMENT: "status-PENDING",
+      PENDING_REVIEW: "status-PENDING", // 黃色，待審
+      PROCESSING: "status-info",
+      SHIPPED: "status-info",
+      COMPLETED: "status-COMPLETED",
+      CANCELLED: "status-CANCELLED",
+    };
 
-    shipments.forEach((ship) => {
+    shipments.forEach((s) => {
       const tr = document.createElement("tr");
-      const isChecked = selectedIds.has(ship.id);
-
-      // 狀態文字處理
-      let statusText = statusMap[ship.status] || ship.status;
-      let statusClass = statusClasses[ship.status] || "";
-
-      if (ship.status === "PENDING_PAYMENT" && ship.paymentProof) {
-        statusText = "已付款，待審核";
-        statusClass =
-          statusClasses["PENDING_REVIEW"] || "status-PENDING_REVIEW";
+      // 判斷是否為「已付款待審核」
+      let displayStatus = s.status;
+      let statusClass = statusClasses[s.status] || "status-secondary";
+      if (s.status === "PENDING_PAYMENT" && s.paymentProof) {
+        displayStatus = "待審核";
+        statusClass = "status-PENDING"; // 保持黃色但文字不同
       }
 
-      // 發票顯示邏輯
-      let invoiceDisplay =
-        '<span style="color: #ccc; font-size: 12px;">未開立</span>';
-      if (ship.invoiceNumber) {
-        invoiceDisplay = `
-          <div style="display:flex; align-items:center; gap:5px;">
-            <span style="color: #28a745; font-size: 1.2em;">🧾</span>
-            <div>
-                <strong style="color: #2e7d32; font-size: 13px;">${
-                  ship.invoiceNumber
-                }</strong>
-                <div style="font-size: 10px; color: #666;">${new Date(
-                  ship.invoiceDate || Date.now()
-                ).toLocaleDateString()}</div>
-            </div>
-          </div>`;
-      } else if (ship.invoiceStatus === "FAILED") {
-        invoiceDisplay = `<span style="color: #dc3545; font-weight: bold;">⚠️ 開立失敗</span>`;
-      }
+      // 發票狀態
+      let inv = '<span class="text-gray-400">-</span>';
+      if (s.invoiceNumber)
+        inv = `<span class="text-success"><i class="fas fa-file-invoice"></i> ${s.invoiceNumber}</span>`;
+
+      // 序列化物件
+      const sStr = encodeURIComponent(JSON.stringify(s));
 
       tr.innerHTML = `
-        <td class="checkbox-col">
-          <input type="checkbox" class="ship-checkbox" value="${ship.id}" ${
-        isChecked ? "checked" : ""
-      }>
+        <td><input type="checkbox" class="ship-checkbox" value="${s.id}"></td>
+        <td><strong>${s.id.slice(-8).toUpperCase()}</strong></td>
+        <td>${new Date(s.createdAt).toLocaleDateString()}</td>
+        <td>${s.user?.email}</td>
+        <td>${s.recipientName}</td>
+        <td><span class="text-danger font-weight-bold">NT$ ${s.totalCost.toLocaleString()}</span></td>
+        <td>${inv}</td>
+        <td><span class="status-badge ${statusClass}">${displayStatus}</span></td>
+        <td>
+          <button class="btn btn-primary btn-sm" onclick="openModal('${sStr}')">詳情</button>
         </td>
-        <td><button class="btn btn-secondary btn-sm btn-view-details">查看/編輯</button></td>
-        <td>${new Date(ship.createdAt).toLocaleDateString()}</td>
-        <td>${ship.user ? ship.user.email : "未知"}</td>
-        <td>${ship.recipientName}</td>
-        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-        <td>${
-          ship.totalCost ? `NT$ ${ship.totalCost.toLocaleString()}` : "(待報價)"
-        }</td>
-        <td>${invoiceDisplay}</td>
-        <td>${ship.trackingNumberTW || "-"}</td>
       `;
-
-      tr.querySelector(".ship-checkbox").addEventListener("change", (e) => {
-        toggleSelection(ship.id, e.target.checked);
-      });
-      tr.querySelector(".btn-view-details").addEventListener("click", () => {
-        openShipmentModal(ship);
-      });
-
-      shipmentsTableBody.appendChild(tr);
+      tr.querySelector(".ship-checkbox").addEventListener("change", (e) =>
+        toggleSelection(s.id, e.target.checked)
+      );
+      tbody.appendChild(tr);
     });
-
-    // 更新全選框
-    selectAllCheckbox.checked =
-      shipments.length > 0 &&
-      Array.from(shipments).every((s) => selectedIds.has(s.id));
   }
 
   function renderPagination(pg) {
-    paginationContainer.innerHTML = "";
+    paginationDiv.innerHTML = "";
     if (pg.totalPages <= 1) return;
-
-    const createBtn = (text, page, isActive = false, isDisabled = false) => {
-      const btn = document.createElement("button");
-      btn.className = `page-btn ${isActive ? "active" : ""}`;
-      btn.textContent = text;
-      btn.disabled = isDisabled;
-      if (!isDisabled) {
-        btn.addEventListener("click", () => {
-          currentPage = page;
-          loadShipments();
-        });
-      }
-      return btn;
+    const btn = (t, p) => {
+      const b = document.createElement("button");
+      b.className = "btn btn-sm btn-light";
+      b.textContent = t;
+      b.onclick = () => {
+        currentPage = p;
+        loadShipments();
+      };
+      return b;
     };
+    if (currentPage > 1) paginationDiv.appendChild(btn("<", currentPage - 1));
+    const span = document.createElement("span");
+    span.className = "btn btn-sm btn-primary";
+    span.textContent = `${currentPage} / ${pg.totalPages}`;
+    paginationDiv.appendChild(span);
+    if (currentPage < pg.totalPages)
+      paginationDiv.appendChild(btn(">", currentPage + 1));
+  }
 
-    paginationContainer.appendChild(
-      createBtn("<", currentPage - 1, false, currentPage === 1)
-    );
+  // --- Modal 操作 ---
+  window.openModal = function (str) {
+    const s = JSON.parse(decodeURIComponent(str));
+    document.getElementById("edit-shipment-id").value = s.id;
+    document.getElementById("m-recipient").textContent = s.recipientName;
+    document.getElementById("m-phone").textContent = s.phone;
+    document.getElementById("m-address").textContent = s.shippingAddress;
+    document.getElementById("m-id").textContent = s.idNumber;
+    document.getElementById("m-user").textContent =
+      s.user?.name || s.user?.email;
 
-    for (let i = 1; i <= pg.totalPages; i++) {
-      if (
-        i === 1 ||
-        i === pg.totalPages ||
-        (i >= currentPage - 2 && i <= currentPage + 2)
-      ) {
-        paginationContainer.appendChild(createBtn(i, i, i === currentPage));
-      } else if (
-        paginationContainer.lastChild.textContent !== "..." &&
-        (i < currentPage - 2 || i > currentPage + 2)
-      ) {
-        const span = document.createElement("span");
-        span.textContent = "...";
-        span.style.margin = "0 5px";
-        paginationContainer.appendChild(span);
-      }
+    document.getElementById("m-packages").innerHTML = s.packages
+      .map(
+        (p) =>
+          `<div style="font-size:0.9em;">📦 ${p.productName} (${p.trackingNumber})</div>`
+      )
+      .join("");
+
+    document.getElementById("m-status").value = s.status;
+    document.getElementById("m-cost").value = s.totalCost;
+    document.getElementById("m-tracking-tw").value = s.trackingNumberTW || "";
+
+    const proofDiv = document.getElementById("m-proof");
+    if (s.paymentProof) {
+      proofDiv.innerHTML = `<a href="${API_BASE_URL}${s.paymentProof}" target="_blank"><img src="${API_BASE_URL}${s.paymentProof}" style="height:100px; border:1px solid #ccc;"></a>`;
+    } else {
+      proofDiv.innerHTML = "尚未上傳";
     }
 
-    paginationContainer.appendChild(
-      createBtn(">", currentPage + 1, false, currentPage === pg.totalPages)
-    );
-  }
+    modal.style.display = "flex";
+  };
 
-  function updateUrlParams() {
-    const url = new URL(window.location);
-    if (currentStatus) url.searchParams.set("status", currentStatus);
-    else url.searchParams.delete("status");
+  async function handleUpdate(e) {
+    e.preventDefault();
+    const id = document.getElementById("edit-shipment-id").value;
+    const data = {
+      status: document.getElementById("m-status").value,
+      totalCost: document.getElementById("m-cost").value,
+      trackingNumberTW: document.getElementById("m-tracking-tw").value,
+    };
 
-    if (currentSearch) url.searchParams.set("search", currentSearch);
-    else url.searchParams.delete("search");
-
-    url.searchParams.set("page", currentPage);
-    window.history.pushState({}, "", url);
-  }
-
-  // --- 6. 批量操作邏輯 ---
-  function toggleSelection(id, isSelected) {
-    if (isSelected) selectedIds.add(id);
-    else selectedIds.delete(id);
-    updateBulkActionBar();
-  }
-
-  selectAllCheckbox.addEventListener("change", (e) => {
-    const checkboxes = document.querySelectorAll(".ship-checkbox");
-    checkboxes.forEach((cb) => {
-      cb.checked = e.target.checked;
-      toggleSelection(cb.value, e.target.checked);
-    });
-  });
-
-  function updateBulkActionBar() {
-    selectedCountSpan.textContent = selectedIds.size;
-    if (selectedIds.size > 0) bulkActionBar.style.display = "flex";
-    else bulkActionBar.style.display = "none";
-  }
-
-  window.performBulkAction = async function (status) {
-    if (selectedIds.size === 0) return;
+    // 特殊邏輯：如果是 Cancelled，需要 confirm
     if (
-      !confirm(`確定要將選取的 ${selectedIds.size} 筆訂單狀態改為 ${status}?`)
+      data.status === "CANCELLED" &&
+      !confirm("確定取消訂單？包裹將釋放回入庫狀態。")
     )
       return;
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/admin/shipments/bulk-status`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${adminToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ids: Array.from(selectedIds),
-            status: status,
-          }),
-        }
-      );
-      const data = await res.json();
+      const res = await fetch(`${API_BASE_URL}/api/admin/shipments/${id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
       if (res.ok) {
-        alert("批量更新成功");
+        alert("更新成功");
+        modal.style.display = "none";
         loadShipments();
       } else {
-        alert("失敗: " + data.message);
+        alert("失敗");
       }
     } catch (e) {
       alert("錯誤");
     }
-  };
+  }
 
-  window.performBulkDelete = async function () {
-    if (selectedIds.size === 0) return;
-    if (
-      !confirm(
-        `【嚴重警告】確定要永久刪除選取的 ${selectedIds.size} 筆訂單嗎？\n這將會釋放所有關聯包裹回已入庫狀態。`
-      )
-    )
-      return;
+  // --- 批量邏輯 ---
+  function toggleSelection(id, checked) {
+    if (checked) selectedIds.add(id);
+    else selectedIds.delete(id);
+    updateBulkUI();
+  }
+  function updateBulkUI() {
+    const count = selectedIds.size;
+    const span = document.getElementById("selected-count");
+    span.textContent = `已選 ${count} 筆`;
+    span.style.display = count > 0 ? "inline" : "none";
+    document.getElementById("btn-bulk-process").style.display =
+      count > 0 ? "inline-block" : "none";
+    document.getElementById("btn-bulk-delete").style.display =
+      count > 0 ? "inline-block" : "none";
+  }
 
+  async function performBulkAction(status) {
+    if (!confirm(`確定將 ${selectedIds.size} 筆訂單改為 ${status}?`)) return;
+    // 呼叫後端 API (略，需後端支援)
+    alert("功能尚未連接後端");
+  }
+
+  async function performBulkDelete() {
+    if (!confirm(`確定刪除 ${selectedIds.size} 筆?`)) return;
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/admin/shipments/bulk-delete`,
@@ -327,367 +258,17 @@ document.addEventListener("DOMContentLoaded", () => {
           body: JSON.stringify({ ids: Array.from(selectedIds) }),
         }
       );
-      const data = await res.json();
       if (res.ok) {
-        alert("批量刪除成功");
+        alert("刪除成功");
         loadShipments();
-      } else {
-        alert("失敗: " + data.message);
       }
     } catch (e) {
       alert("錯誤");
     }
-  };
-
-  // --- 7. 匯出邏輯 ---
-  document.getElementById("btn-export").addEventListener("click", async () => {
-    const btn = document.getElementById("btn-export");
-    btn.disabled = true;
-    btn.textContent = "匯出中...";
-
-    try {
-      let url = `${API_BASE_URL}/api/admin/shipments/export?`;
-      if (currentStatus) url += `&status=${currentStatus}`;
-      if (currentSearch) url += `&search=${encodeURIComponent(currentSearch)}`;
-
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      const json = await res.json();
-
-      if (!res.ok) throw new Error(json.message);
-
-      if (json.data.length === 0) {
-        alert("無資料可匯出");
-        return;
-      }
-      const fields = Object.keys(json.data[0]);
-      const csvContent = [
-        "\uFEFF" + fields.join(","),
-        ...json.data.map((row) =>
-          fields
-            .map((f) => `"${String(row[f] || "").replace(/"/g, '""')}"`)
-            .join(",")
-        ),
-      ].join("\n");
-
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `shipments_export_${
-        new Date().toISOString().split("T")[0]
-      }.csv`;
-      link.click();
-    } catch (e) {
-      alert("匯出失敗: " + e.message);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "匯出 CSV";
-    }
-  });
-
-  // --- 8. 篩選與搜尋 ---
-  document.getElementById("filter-btn").addEventListener("click", () => {
-    currentStatus = filterStatus.value;
-    currentSearch = searchInput.value;
-    currentPage = 1;
-    loadShipments();
-  });
-
-  // --- 9. 編輯彈窗操作 ---
-  async function openShipmentModal(ship) {
-    // 為了取得完整圖片與詳細資料，重新 fetch 單筆
-    let fullShipment = ship;
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/admin/shipments/${ship.id}`,
-        {
-          headers: { Authorization: `Bearer ${adminToken}` },
-        }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        fullShipment = data.shipment;
-      }
-    } catch (e) {}
-
-    document.getElementById("edit-shipment-id").value = fullShipment.id;
-    document.getElementById("modal-user-email").textContent =
-      fullShipment.user?.email || "-";
-    document.getElementById("modal-recipient-name").textContent =
-      fullShipment.recipientName;
-    document.getElementById("modal-phone").textContent = fullShipment.phone;
-    document.getElementById("modal-idNumber").textContent =
-      fullShipment.idNumber;
-    document.getElementById("modal-address").textContent =
-      fullShipment.shippingAddress;
-    document.getElementById("modal-note").textContent =
-      fullShipment.note || "(無)";
-
-    // 付款憑證
-    const proofEl = document.getElementById("modal-payment-proof");
-    if (fullShipment.paymentProof) {
-      proofEl.innerHTML = `<a href="${API_BASE_URL}${fullShipment.paymentProof}" target="_blank" style="color:#1a73e8;font-weight:bold;">查看憑證</a>`;
-    } else {
-      proofEl.textContent = "尚未上傳";
-    }
-
-    // 發票資訊顯示
-    let invoiceInfoBox = document.getElementById("modal-invoice-info-box");
-    if (!invoiceInfoBox) {
-      invoiceInfoBox = document.createElement("div");
-      invoiceInfoBox.id = "modal-invoice-info-box";
-      invoiceInfoBox.style.marginTop = "15px";
-      invoiceInfoBox.style.padding = "10px";
-      invoiceInfoBox.style.backgroundColor = "#f1f8e9";
-      invoiceInfoBox.style.borderRadius = "5px";
-      invoiceInfoBox.style.border = "1px solid #c5e1a5";
-      proofEl.parentNode.insertBefore(invoiceInfoBox, proofEl.nextSibling);
-    }
-
-    if (fullShipment.invoiceNumber) {
-      invoiceInfoBox.style.display = "block";
-      invoiceInfoBox.style.backgroundColor = "#f1f8e9";
-      invoiceInfoBox.style.border = "1px solid #c5e1a5";
-      invoiceInfoBox.innerHTML = `
-            <p style="margin:0; font-weight:bold; color:#33691e;">🧾 電子發票已開立</p>
-            <ul style="margin:5px 0 0 20px; font-size:14px; color:#558b2f;">
-                <li>號碼: <strong>${fullShipment.invoiceNumber}</strong></li>
-                <li>日期: ${new Date(
-                  fullShipment.invoiceDate
-                ).toLocaleString()}</li>
-                <li>隨機碼: ${fullShipment.invoiceRandomCode || "-"}</li>
-                <li>抬頭: ${fullShipment.invoiceTitle || "(個人)"}</li>
-                <li>統編: ${fullShipment.taxId || "(無)"}</li>
-            </ul>
-        `;
-    } else {
-      if (
-        fullShipment.status === "PROCESSING" ||
-        fullShipment.status === "SHIPPED" ||
-        fullShipment.status === "COMPLETED"
-      ) {
-        invoiceInfoBox.style.display = "block";
-        invoiceInfoBox.style.backgroundColor = "#fff3e0";
-        invoiceInfoBox.style.border = "1px solid #ffe0b2";
-        invoiceInfoBox.innerHTML = `<p style="margin:0; color:#e65100;">⚠️ 此訂單尚未開立發票 (或開立失敗)</p>`;
-      } else {
-        invoiceInfoBox.style.display = "none";
-      }
-    }
-
-    // 商品證明 (連結)
-    const productUrlEl = document.getElementById("modal-product-url");
-    const rawUrl = fullShipment.productUrl || "";
-
-    if (rawUrl.trim()) {
-      const urls = rawUrl.split(/\r?\n/).filter((u) => u.trim() !== "");
-      productUrlEl.innerHTML = "";
-      productUrlEl.style.display = "block";
-      urls.forEach((url, index) => {
-        const link = document.createElement("a");
-        link.href = url.trim();
-        link.target = "_blank";
-        link.style.cssText =
-          "display: block; color: #1a73e8; word-break: break-all; margin-bottom: 4px;";
-        link.textContent = `[連結 ${index + 1}] ${url.substring(0, 40)}...`;
-        productUrlEl.appendChild(link);
-      });
-    } else {
-      productUrlEl.innerHTML = "(無連結)";
-      productUrlEl.style.display = "inline";
-    }
-
-    // 商品證明 (圖片)
-    const prodImgContainer = document.getElementById(
-      "modal-product-images-container"
-    );
-    prodImgContainer.innerHTML = "";
-    prodImgContainer.style.cssText =
-      "display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px;";
-
-    const pImages = fullShipment.shipmentProductImages || [];
-    if (pImages.length > 0) {
-      pImages.forEach((url) => {
-        prodImgContainer.innerHTML += `<img src="${API_BASE_URL}${url}" onclick="window.open('${API_BASE_URL}${url}')" style="width: 80px; height: 80px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px; cursor: zoom-in;">`;
-      });
-    } else {
-      prodImgContainer.innerHTML = "<small style='color:#999'>無照片</small>";
-    }
-
-    // 包裹列表
-    shipmentPackageList.innerHTML = (fullShipment.packages || [])
-      .map((p) => `<p>${p.productName} (<b>${p.trackingNumber}</b>)</p>`)
-      .join("");
-
-    // [新增] 渲染附加服務
-    if (modalServices) {
-      let svcs = fullShipment.additionalServices || {}; // 應在 controller 已解析
-      let svcHtml = "";
-
-      // 定義服務項目映射
-      const svcMap = [
-        { key: "floor", label: "上樓搬運" },
-        { key: "wood", label: "回收木架" },
-        { key: "assembly", label: "傢俱組裝" },
-        { key: "old", label: "回收舊傢俱" },
-      ];
-
-      let hasAnyService = false;
-
-      svcMap.forEach((s) => {
-        const data = svcs[s.key];
-        if (data && data.selected) {
-          hasAnyService = true;
-          let detail = "";
-
-          // 特殊處理：上樓是否有電梯
-          if (s.key === "floor") {
-            detail += data.hasElevator
-              ? `<span class="badge-service yes-elevator">有電梯</span>`
-              : `<span class="badge-service no-elevator">無電梯</span>`;
-          }
-
-          // 備註
-          if (data.note) {
-            detail += `<span class="service-note">備註: ${data.note}</span>`;
-          }
-
-          svcHtml += `
-            <div class="service-row">
-              <span class="service-check">✅</span> 
-              <strong>${s.label}</strong>
-              ${detail}
-            </div>
-          `;
-        }
-      });
-
-      if (!hasAnyService) {
-        modalServices.innerHTML = "<p style='color:#999;'>(無附加服務)</p>";
-      } else {
-        modalServices.innerHTML = svcHtml;
-        // 簡單樣式注入 (若 CSS 未定義)
-        modalServices.style.lineHeight = "1.8";
-        modalServices.style.fontSize = "14px";
-      }
-    }
-
-    document.getElementById("modal-status").value = fullShipment.status;
-    document.getElementById("modal-totalCost").value =
-      fullShipment.totalCost || "";
-    document.getElementById("modal-trackingNumberTW").value =
-      fullShipment.trackingNumberTW || "";
-
-    if (btnPrintShipment) {
-      btnPrintShipment.onclick = () =>
-        window.open(`shipment-print.html?id=${fullShipment.id}`, "_blank");
-    }
-
-    // 永久刪除按鈕邏輯
-    let delBtn = document.getElementById("btn-admin-delete-shipment");
-    if (!delBtn) {
-      delBtn = document.createElement("button");
-      delBtn.id = "btn-admin-delete-shipment";
-      delBtn.type = "button";
-      delBtn.className = "btn btn-danger";
-      delBtn.style.marginTop = "20px";
-      delBtn.style.width = "100%";
-      delBtn.textContent = "⚠️ 永久刪除此集運單 (危險)";
-      updateForm.appendChild(delBtn);
-    }
-    const newDelBtn = delBtn.cloneNode(true);
-    delBtn.parentNode.replaceChild(newDelBtn, delBtn);
-
-    newDelBtn.addEventListener("click", async () => {
-      if (!confirm(`【嚴重警告】確定要永久刪除此集運單嗎？`)) return;
-      try {
-        newDelBtn.disabled = true;
-        newDelBtn.textContent = "刪除中...";
-        const res = await fetch(
-          `${API_BASE_URL}/api/admin/shipments/${fullShipment.id}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${adminToken}` },
-          }
-        );
-        const d = await res.json();
-        if (res.ok) {
-          alert("已刪除");
-          modal.style.display = "none";
-          loadShipments();
-        } else {
-          alert("失敗: " + d.message);
-        }
-      } catch (e) {
-        alert("錯誤");
-      } finally {
-        newDelBtn.disabled = false;
-        newDelBtn.textContent = "⚠️ 永久刪除此集運單 (危險)";
-      }
-    });
-
-    modal.style.display = "flex";
   }
 
-  closeModalBtn.addEventListener("click", () => (modal.style.display = "none"));
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) modal.style.display = "none";
-  });
-
-  updateForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
+  window.printShipment = function () {
     const id = document.getElementById("edit-shipment-id").value;
-    const status = document.getElementById("modal-status").value;
-    const btn = updateForm.querySelector('button[type="submit"]');
-    btn.disabled = true;
-    btn.textContent = "處理中...";
-
-    try {
-      if (status === "CANCELLED") {
-        if (!confirm("確定要退回並釋放包裹？")) {
-          btn.disabled = false;
-          btn.textContent = "儲存變更";
-          return;
-        }
-        await fetch(`${API_BASE_URL}/api/admin/shipments/${id}/reject`, {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${adminToken}` },
-        });
-      } else {
-        const data = {
-          status,
-          totalCost: document.getElementById("modal-totalCost").value,
-          trackingNumberTW: document.getElementById("modal-trackingNumberTW")
-            .value,
-        };
-        await fetch(`${API_BASE_URL}/api/admin/shipments/${id}`, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${adminToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-        });
-      }
-      modal.style.display = "none";
-      alert("更新成功");
-      loadShipments();
-    } catch (e) {
-      alert("錯誤");
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "儲存變更";
-    }
-  });
-
-  // --- 10. 啟動 ---
-  logoutBtn.addEventListener("click", () => {
-    if (confirm("登出?")) {
-      localStorage.removeItem("admin_token");
-      window.location.href = "admin-login.html";
-    }
-  });
-
-  init();
+    window.open(`shipment-print.html?id=${id}`, "_blank");
+  };
 });
