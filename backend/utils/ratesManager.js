@@ -1,4 +1,4 @@
-// backend/utils/ratesManager.js (V10 旗艦版 - 資料庫驅動)
+// backend/utils/ratesManager.js (V10.1 修正版 - 修復 JSON 解析錯誤)
 
 const prisma = require("../config/db.js");
 
@@ -33,7 +33,11 @@ const getRates = async () => {
     });
 
     if (setting && setting.value) {
-      return JSON.parse(setting.value);
+      // [修正] Prisma 的 Json 欄位通常直接回傳物件，無需再 Parse
+      // 為了保險，判斷一下是否為字串，如果是字串才 parse，否則直接使用
+      return typeof setting.value === "string"
+        ? JSON.parse(setting.value)
+        : setting.value;
     }
   } catch (error) {
     console.error("讀取運費設定失敗 (將使用預設值):", error.message);
