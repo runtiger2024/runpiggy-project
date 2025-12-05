@@ -3,12 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>儀表板 - 管理後台</title>
+    <title>儀表板 - 小跑豬管理系統</title>
     <link rel="icon" href="assets/logo.png" type="image/png" />
-    <script src="js/styleLoader.js"></script>
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
+    <link rel="stylesheet" href="css/admin-modern.css" />
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
@@ -17,117 +22,134 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh-tw.js"></script>
   </head>
   <body>
-    <div class="container" style="max-width: 1400px">
-      <img src="assets/logo.png" alt="小跑豬 LOGO" class="header-logo" />
+    <div class="container-fluid">
+      <h1 class="page-title">數據儀表板 (Dashboard)</h1>
 
-      <div id="admin-header-container" data-title="儀表板"></div>
-
-      <div id="admin-only-content">
+      <div class="stats-grid">
         <div
-          class="stats-container"
-          style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr))"
+          class="stat-card-modern border-left-success"
+          id="card-total-revenue"
         >
-          <div class="stat-card total clickable" id="card-total-revenue">
-            <h3>總營收 (已完成訂單)</h3>
-            <p class="number" id="stats-total-revenue">
-              <span class="loading-text">...</span>
-            </p>
+          <div>
+            <div class="stat-text-xs text-success">總營收 (已完成)</div>
+            <div class="stat-number" id="stats-total-revenue">Loading...</div>
           </div>
-          <div class="stat-card pending clickable" id="card-pending-revenue">
-            <h3>待付款金額</h3>
-            <p class="number" id="stats-pending-revenue">
-              <span class="loading-text">...</span>
-            </p>
-          </div>
-          <div class="stat-card active clickable" id="card-total-users">
-            <h3>總會員數</h3>
-            <p class="number" id="stats-total-users">
-              <span class="loading-text">...</span>
-            </p>
-          </div>
-          <div class="stat-card clickable" id="card-new-users">
-            <h3>今日新註冊</h3>
-            <p class="number" id="stats-new-users-today">
-              <span class="loading-text">...</span>
-            </p>
+          <div class="stat-icon text-gray-300">
+            <i class="fas fa-dollar-sign"></i>
           </div>
         </div>
 
         <div
-          class="stats-container"
-          style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr))"
+          class="stat-card-modern border-left-warning"
+          id="card-pending-revenue"
         >
-          <div class="stat-card pending clickable" id="card-pkg-pending">
-            <h3>待確認包裹</h3>
-            <p class="number" id="stats-pkg-pending">...</p>
+          <div>
+            <div class="stat-text-xs text-warning">待付款金額</div>
+            <div class="stat-number" id="stats-pending-revenue">Loading...</div>
           </div>
-          <div class="stat-card arrived clickable" id="card-pkg-arrived">
-            <h3>已到倉包裹</h3>
-            <p class="number" id="stats-pkg-arrived">...</p>
-          </div>
-          <div class="stat-card completed clickable" id="card-ship-pending">
-            <h3>待付款訂單</h3>
-            <p class="number" id="stats-ship-pending-payment">...</p>
-          </div>
-          <div class="stat-card total clickable" id="card-ship-processing">
-            <h3>處理中訂單</h3>
-            <p class="number" id="stats-ship-processing">...</p>
+          <div class="stat-icon text-gray-300">
+            <i class="fas fa-file-invoice-dollar"></i>
           </div>
         </div>
 
-        <div
-          class="form-section"
-          style="margin-top: 30px; padding-bottom: 30px"
-        >
-          <h3 style="margin-top: 0">📈 詳細數據報告</h3>
-
-          <div
-            class="filters-container"
-            style="background: none; padding: 0; border: 0; margin-bottom: 20px"
-          >
-            <div class="filters">
-              <input
-                type="text"
-                id="report-date-range"
-                placeholder="請選擇日期區間..."
-              />
-              <button
-                class="btn btn-primary"
-                id="btn-fetch-report"
-                style="width: auto"
-              >
-                查詢報表
-              </button>
-            </div>
+        <div class="stat-card-modern border-left-info" id="card-total-users">
+          <div>
+            <div class="stat-text-xs text-info">總會員數</div>
+            <div class="stat-number" id="stats-total-users">Loading...</div>
           </div>
+          <div class="stat-icon text-gray-300">
+            <i class="fas fa-users"></i>
+          </div>
+        </div>
 
+        <div class="stat-card-modern border-left-primary" id="card-new-users">
+          <div>
+            <div class="stat-text-xs text-primary">今日新註冊</div>
+            <div class="stat-number" id="stats-new-users-today">Loading...</div>
+          </div>
+          <div class="stat-icon text-gray-300">
+            <i class="fas fa-user-plus"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card-modern border-left-warning" id="card-pkg-pending">
+          <div>
+            <div class="stat-text-xs text-warning">待確認包裹</div>
+            <div class="stat-number" id="stats-pkg-pending">...</div>
+          </div>
+          <i class="fas fa-box-open stat-icon"></i>
+        </div>
+
+        <div class="stat-card-modern border-left-info" id="card-pkg-arrived">
+          <div>
+            <div class="stat-text-xs text-info">已到倉包裹</div>
+            <div class="stat-number" id="stats-pkg-arrived">...</div>
+          </div>
+          <i class="fas fa-warehouse stat-icon"></i>
+        </div>
+
+        <div class="stat-card-modern border-left-danger" id="card-ship-pending">
+          <div>
+            <div class="stat-text-xs text-danger">待付款訂單</div>
+            <div class="stat-number" id="stats-ship-pending-payment">...</div>
+          </div>
+          <i class="fas fa-credit-card stat-icon"></i>
+        </div>
+
+        <div
+          class="stat-card-modern border-left-primary"
+          id="card-ship-processing"
+        >
+          <div>
+            <div class="stat-text-xs text-primary">處理中訂單</div>
+            <div class="stat-number" id="stats-ship-processing">...</div>
+          </div>
+          <i class="fas fa-truck-loading stat-icon"></i>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span><i class="fas fa-chart-line"></i> 詳細數據趨勢</span>
+          <div style="display: flex; gap: 10px">
+            <input
+              type="text"
+              id="report-date-range"
+              class="form-control"
+              style="width: 250px; height: 35px"
+              placeholder="選擇日期區間..."
+            />
+            <button class="btn btn-primary btn-sm" id="btn-fetch-report">
+              查詢
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
           <div
             id="report-loading-spinner"
             style="display: none; text-align: center; padding: 20px"
           >
-            <div class="spinner"></div>
-            <p>正在抓取報表數據...</p>
+            <i class="fas fa-spinner fa-spin"></i> 載入數據中...
           </div>
-
-          <div class="form-grid-2" style="gap: 30px; margin-top: 20px">
-            <div>
-              <h4>每日營業額 (NT$)</h4>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px">
+            <div style="height: 300px">
               <canvas id="revenueChart"></canvas>
             </div>
-            <div>
-              <h4>每日新註冊會員</h4>
+            <div style="height: 300px">
               <canvas id="userChart"></canvas>
             </div>
           </div>
         </div>
-        <div class="form-grid-2" style="margin-top: 30px; gap: 30px">
-          <div class="form-section" style="margin-bottom: 0">
-            <h3 style="margin-top: 0">📦 最近 5 筆包裹預報</h3>
-            <div
-              class="table-container"
-              style="max-height: 300px; overflow-y: auto"
-            >
-              <table class="members-table">
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px">
+        <div class="card">
+          <div class="card-header text-primary">📦 最新包裹預報</div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="modern-table">
                 <thead>
                   <tr>
                     <th>時間</th>
@@ -136,35 +158,26 @@
                     <th>狀態</th>
                   </tr>
                 </thead>
-                <tbody id="recent-packages-table">
-                  <tr>
-                    <td colspan="4" class="loading">載入中...</td>
-                  </tr>
-                </tbody>
+                <tbody id="recent-packages-table"></tbody>
               </table>
             </div>
           </div>
+        </div>
 
-          <div class="form-section" style="margin-bottom: 0">
-            <h3 style="margin-top: 0">🚚 最近 5 筆集運單</h3>
-            <div
-              class="table-container"
-              style="max-height: 300px; overflow-y: auto"
-            >
-              <table class="members-table">
+        <div class="card">
+          <div class="card-header text-success">🚚 最新集運單</div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="modern-table">
                 <thead>
                   <tr>
                     <th>時間</th>
                     <th>會員</th>
-                    <th>總金額</th>
+                    <th>金額</th>
                     <th>狀態</th>
                   </tr>
                 </thead>
-                <tbody id="recent-shipments-table">
-                  <tr>
-                    <td colspan="4" class="loading">載入中...</td>
-                  </tr>
-                </tbody>
+                <tbody id="recent-shipments-table"></tbody>
               </table>
             </div>
           </div>
@@ -172,9 +185,9 @@
       </div>
     </div>
 
-    <script src="js/admin-header.js"></script>
     <script src="js/apiConfig.js"></script>
     <script src="js/shippingData.js"></script>
+    <script src="js/admin-layout.js"></script>
     <script src="js/admin-dashboard.js"></script>
   </body>
 </html>

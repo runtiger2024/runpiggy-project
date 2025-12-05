@@ -1,275 +1,256 @@
-// frontend/js/admin-dashboard.js (V10.2 - 修正權限與閃爍)
+// frontend/js/admin-dashboard.js (V2025 現代化版)
 
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. 權限檢查與初始化
-  const adminPermissions = JSON.parse(
-    localStorage.getItem("admin_permissions") || "[]"
-  );
   const adminToken = localStorage.getItem("admin_token");
-  const adminName = localStorage.getItem("admin_name");
 
-  function checkAdminPermissions() {
-    // 檢查使用者管理權限 (反向邏輯：無權限則隱藏)
-    if (!adminPermissions.includes("CAN_MANAGE_USERS")) {
-      const btnNavCreateStaff = document.getElementById("btn-nav-create-staff");
-      const btnNavMembers = document.getElementById("btn-nav-members");
-      const btnNavLogs = document.getElementById("btn-nav-logs");
+  // (權限檢查與導航欄渲染已由 admin-layout.js 統一處理，此處僅處理 Dashboard 數據)
 
-      if (btnNavCreateStaff) btnNavCreateStaff.style.display = "none";
-      if (btnNavMembers) btnNavMembers.style.display = "none";
-      if (btnNavLogs) btnNavLogs.style.display = "none";
+  if (!adminToken) return; // 登入檢查交給 layout
+
+  // --- 1. 卡片快速導航 (Drill-down) ---
+  const mapping = {
+    "card-total-revenue": "admin-shipments.html?status=CANCEL", // 已完成的訂單算營收
+    "card-pending-revenue": "admin-shipments.html?status=PENDING_PAYMENT",
+    "card-total-users": "admin-members.html",
+    "card-new-users": "admin-members.html?filter=new_today",
+    "card-pkg-pending": "admin-parcels.html?status=PENDING",
+    "card-pkg-arrived": "admin-parcels.html?status=ARRIVED",
+    "card-ship-pending": "admin-shipments.html?status=PENDING_PAYMENT",
+    "card-ship-processing": "admin-shipments.html?status=PROCESSING",
+  };
+
+  Object.keys(mapping).forEach((cardId) => {
+    const card = document.getElementById(cardId);
+    if (card) {
+      card.addEventListener("click", () => {
+        window.location.href = mapping[cardId];
+      });
     }
+  });
 
-    // [修正] 檢查系統設定權限
-    // 邏輯調整：只要擁有 "CAN_MANAGE_SYSTEM" (系統管理)
-    // 或者 "CAN_MANAGE_USERS" (超級管理員/ADMIN)，都可以看到系統設定按鈕
-    if (
-      adminPermissions.includes("CAN_MANAGE_SYSTEM") ||
-      adminPermissions.includes("CAN_MANAGE_USERS")
-    ) {
-      const btnNavSettings = document.getElementById("btn-nav-settings");
-      if (btnNavSettings) btnNavSettings.style.display = "inline-block";
-    }
-  }
-
-  if (!adminToken) {
-    alert("偵測到未登入，將跳轉至管理員登入頁面");
-    window.location.href = "admin-login.html";
-    return;
-  }
-
-  checkAdminPermissions();
-
-  // --- 2. 卡片快速導航 (Drill-down) ---
-  function setupCardNavigation() {
-    const mapping = {
-      "card-total-revenue": "admin-shipments.html?status=CANCEL",
-      "card-pending-revenue": "admin-shipments.html?status=PENDING_PAYMENT",
-      "card-total-users": "admin-members.html",
-      "card-new-users": "admin-members.html?filter=new_today",
-      "card-pkg-pending": "admin-parcels.html?status=PENDING",
-      "card-pkg-arrived": "admin-parcels.html?status=ARRIVED",
-      "card-ship-pending": "admin-shipments.html?status=PENDING_PAYMENT",
-      "card-ship-processing": "admin-shipments.html?status=PROCESSING",
-    };
-
-    Object.keys(mapping).forEach((cardId) => {
-      const card = document.getElementById(cardId);
-      if (card) {
-        card.addEventListener("click", () => {
-          window.location.href = mapping[cardId];
-        });
-      }
-    });
-  }
-
-  setupCardNavigation();
-
-  // --- 3. 獲取元素與初始化 ---
-  const statsTotalRevenue = document.getElementById("stats-total-revenue");
-  const statsPendingRevenue = document.getElementById("stats-pending-revenue");
-  const statsTotalUsers = document.getElementById("stats-total-users");
-  const statsNewUsersToday = document.getElementById("stats-new-users-today");
-  const statsPkgPending = document.getElementById("stats-pkg-pending");
-  const statsPkgArrived = document.getElementById("stats-pkg-arrived");
-  const statsShipPendingPayment = document.getElementById(
-    "stats-ship-pending-payment"
-  );
-  const statsShipProcessing = document.getElementById("stats-ship-processing");
-  const recentPackagesTable = document.getElementById("recent-packages-table");
-  const recentShipmentsTable = document.getElementById(
-    "recent-shipments-table"
-  );
-
-  const pkgStatusMap = window.PACKAGE_STATUS_MAP || {};
-  const shipStatusMap = window.SHIPMENT_STATUS_MAP || {};
-  const statusClasses = window.STATUS_CLASSES || {};
-
-  // --- 4. 載入儀表板統計 ---
+  // --- 2. 載入即時統計數據 ---
   async function loadDashboardStats() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
 
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          window.location.href = "admin-login.html";
-        }
-        throw new Error("載入統計失敗");
-      }
+      if (!response.ok) return; // layout.js 會處理 401
 
       const data = await response.json();
       const stats = data.stats;
 
-      statsTotalRevenue.textContent = `NT$ ${stats.totalRevenue.toLocaleString()}`;
-      statsPendingRevenue.textContent = `NT$ ${stats.pendingRevenue.toLocaleString()}`;
-      statsTotalUsers.textContent = stats.totalUsers.toLocaleString();
-      statsNewUsersToday.textContent = stats.newUsersToday.toLocaleString();
+      // 更新卡片數字
+      setText(
+        "stats-total-revenue",
+        `NT$ ${stats.totalRevenue.toLocaleString()}`
+      );
+      setText(
+        "stats-pending-revenue",
+        `NT$ ${stats.pendingRevenue.toLocaleString()}`
+      );
+      setText("stats-total-users", stats.totalUsers.toLocaleString());
+      setText("stats-new-users-today", stats.newUsersToday.toLocaleString());
 
-      statsPkgPending.textContent = stats.packageStats.PENDING || 0;
-      statsPkgArrived.textContent = stats.packageStats.ARRIVED || 0;
-      statsShipPendingPayment.textContent =
-        stats.shipmentStats.PENDING_PAYMENT || 0;
-      statsShipProcessing.textContent = stats.shipmentStats.PROCESSING || 0;
+      setText("stats-pkg-pending", stats.packageStats.PENDING || 0);
+      setText("stats-pkg-arrived", stats.packageStats.ARRIVED || 0);
+      setText(
+        "stats-ship-pending-payment",
+        stats.shipmentStats.PENDING_PAYMENT || 0
+      );
+      setText("stats-ship-processing", stats.shipmentStats.PROCESSING || 0);
 
-      if (stats.recentPackages && stats.recentPackages.length > 0) {
-        recentPackagesTable.innerHTML = stats.recentPackages
-          .map((pkg) => {
-            const statusText = pkgStatusMap[pkg.status] || pkg.status;
-            const statusClass = statusClasses[pkg.status] || pkg.status;
-            return `
-          <tr>
-            <td>${new Date(pkg.createdAt).toLocaleDateString()}</td>
-            <td>${pkg.user.email}</td>
-            <td>${pkg.productName}</td>
-            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-          </tr>
-        `;
-          })
-          .join("");
-      } else {
-        recentPackagesTable.innerHTML =
-          '<tr><td colspan="4" style="text-align: center;">尚無包裹</td></tr>';
-      }
-
-      if (stats.recentShipments && stats.recentShipments.length > 0) {
-        recentShipmentsTable.innerHTML = stats.recentShipments
-          .map((ship) => {
-            const statusText = shipStatusMap[ship.status] || ship.status;
-            const statusClass = statusClasses[ship.status] || ship.status;
-            return `
-          <tr>
-            <td>${new Date(ship.createdAt).toLocaleDateString()}</td>
-            <td>${ship.user.email}</td>
-            <td>${
-              ship.totalCost ? `NT$ ${ship.totalCost.toLocaleString()}` : "-"
-            }</td>
-            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-          </tr>
-        `;
-          })
-          .join("");
-      } else {
-        recentShipmentsTable.innerHTML =
-          '<tr><td colspan="4" style="text-align: center;">尚無訂單</td></tr>';
-      }
+      // 更新下方表格
+      renderRecentTable(
+        "recent-packages-table",
+        stats.recentPackages,
+        "package"
+      );
+      renderRecentTable(
+        "recent-shipments-table",
+        stats.recentShipments,
+        "shipment"
+      );
     } catch (error) {
-      console.error("載入儀表板失敗:", error);
+      console.error("載入統計失敗:", error);
     }
   }
 
-  // --- 5. 詳細報表圖表邏輯 ---
+  function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+
+  function renderRecentTable(id, items, type) {
+    const tbody = document.getElementById(id);
+    if (!tbody) return;
+    tbody.innerHTML = "";
+
+    if (!items || items.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#999;">尚無資料</td></tr>`;
+      return;
+    }
+
+    const pkgStatusMap = window.PACKAGE_STATUS_MAP || {};
+    const shipStatusMap = window.SHIPMENT_STATUS_MAP || {};
+    const statusClasses = window.STATUS_CLASSES || {};
+
+    items.forEach((item) => {
+      const tr = document.createElement("tr");
+      let statusText, statusClass, col3;
+
+      if (type === "package") {
+        statusText = pkgStatusMap[item.status] || item.status;
+        statusClass = statusClasses[item.status] || "";
+        col3 = item.productName;
+      } else {
+        statusText = shipStatusMap[item.status] || item.status;
+        statusClass = statusClasses[item.status] || "";
+        col3 = item.totalCost ? `NT$ ${item.totalCost.toLocaleString()}` : "-";
+      }
+
+      tr.innerHTML = `
+            <td>${new Date(item.createdAt).toLocaleDateString()}</td>
+            <td>${item.user.email}</td>
+            <td>${col3}</td>
+            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+        `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // --- 3. 圖表初始化 (Chart.js) ---
   const dateRangePicker = document.getElementById("report-date-range");
   const btnFetchReport = document.getElementById("btn-fetch-report");
   const reportLoading = document.getElementById("report-loading-spinner");
-  const revenueChartCtx = document.getElementById("revenueChart");
-  const userChartCtx = document.getElementById("userChart");
-
   let revenueChartInstance = null;
   let userChartInstance = null;
 
-  const fp = flatpickr(dateRangePicker, {
-    mode: "range",
-    dateFormat: "Y-m-d",
-    locale: "zh_tw",
-    defaultDate: [getNDaysAgo(30), getNDaysAgo(0)],
-  });
+  if (dateRangePicker) {
+    const fp = flatpickr(dateRangePicker, {
+      mode: "range",
+      dateFormat: "Y-m-d",
+      locale: "zh_tw",
+      defaultDate: [getNDaysAgo(30), getNDaysAgo(0)],
+    });
 
-  btnFetchReport.addEventListener("click", fetchDetailedReport);
+    btnFetchReport.addEventListener("click", () => fetchDetailedReport(fp));
+    // 初始載入
+    fetchDetailedReport(fp);
+  }
 
-  async function fetchDetailedReport() {
+  async function fetchDetailedReport(fp) {
     const selectedDates = fp.selectedDates;
-    if (selectedDates.length < 2) {
-      alert("請選擇一個完整的日期區間");
-      return;
-    }
+    if (selectedDates.length < 2) return;
 
     const startDate = selectedDates[0].toISOString().split("T")[0];
     const endDate = selectedDates[1].toISOString().split("T")[0];
 
     reportLoading.style.display = "block";
     btnFetchReport.disabled = true;
-    btnFetchReport.textContent = "查詢中...";
 
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/admin/reports?startDate=${startDate}&endDate=${endDate}`,
-        {
-          headers: { Authorization: `Bearer ${adminToken}` },
-        }
+        { headers: { Authorization: `Bearer ${adminToken}` } }
       );
-
-      if (!response.ok) throw new Error("抓取報表失敗");
       const data = await response.json();
-
-      const allDates = getDateArray(selectedDates[0], selectedDates[1]);
-      const processedReport = processReportData(data.report, allDates);
-
-      renderCharts(processedReport);
-    } catch (error) {
-      console.error("報表錯誤:", error);
-      alert(error.message);
+      if (data.success) {
+        renderCharts(data.report, selectedDates[0], selectedDates[1]);
+      }
+    } catch (e) {
+      console.error(e);
     } finally {
       reportLoading.style.display = "none";
       btnFetchReport.disabled = false;
-      btnFetchReport.textContent = "查詢報表";
     }
   }
 
-  function renderCharts(report) {
+  function renderCharts(report, start, end) {
+    const allDates = getDateArray(start, end);
+    const revenueMap = new Map(
+      report.revenueData.map((i) => [i.date.split("T")[0], i.revenue])
+    );
+    const userMap = new Map(
+      report.userData.map((i) => [i.date.split("T")[0], i.newUsers])
+    );
+
+    const labels = allDates;
+    const revData = labels.map((d) => revenueMap.get(d) || 0);
+    const usrData = labels.map((d) => userMap.get(d) || 0);
+
+    const revCtx = document.getElementById("revenueChart");
+    const usrCtx = document.getElementById("userChart");
+
     if (revenueChartInstance) revenueChartInstance.destroy();
     if (userChartInstance) userChartInstance.destroy();
 
-    revenueChartInstance = new Chart(revenueChartCtx, {
+    // 營收圖表 (Line)
+    revenueChartInstance = new Chart(revCtx, {
       type: "line",
       data: {
-        labels: report.labels,
+        labels: labels,
         datasets: [
           {
-            label: "每日營業額 (NT$)",
-            data: report.revenueData,
-            borderColor: "#1a73e8",
-            backgroundColor: "rgba(26, 115, 232, 0.1)",
+            label: "營收 (NT$)",
+            data: revData,
+            borderColor: "#4e73df",
+            backgroundColor: "rgba(78, 115, 223, 0.05)",
+            pointRadius: 3,
+            pointBackgroundColor: "#4e73df",
+            pointBorderColor: "#4e73df",
+            pointHoverRadius: 3,
+            pointHoverBackgroundColor: "#4e73df",
+            pointHoverBorderColor: "#4e73df",
+            pointHitRadius: 10,
+            pointBorderWidth: 2,
+            tension: 0.3,
             fill: true,
-            tension: 0.1,
           },
         ],
       },
       options: {
-        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { left: 10, right: 25, top: 25, bottom: 0 } },
         scales: {
+          x: {
+            grid: { display: false, drawBorder: false },
+            ticks: { maxTicksLimit: 7 },
+          },
           y: {
-            beginAtZero: true,
-            ticks: {
-              callback: (value) => "NT$ " + value.toLocaleString(),
-            },
+            ticks: { maxTicksLimit: 5, padding: 10, callback: (v) => "$" + v },
           },
         },
+        plugins: { legend: { display: false } },
       },
     });
 
-    userChartInstance = new Chart(userChartCtx, {
+    // 用戶圖表 (Bar)
+    userChartInstance = new Chart(usrCtx, {
       type: "bar",
       data: {
-        labels: report.labels,
+        labels: labels,
         datasets: [
           {
-            label: "每日新註冊會員",
-            data: report.userData,
-            borderColor: "#2ecc71",
-            backgroundColor: "rgba(46, 204, 113, 0.5)",
+            label: "新註冊數",
+            data: usrData,
+            backgroundColor: "#1cc88a",
+            hoverBackgroundColor: "#17a673",
+            borderColor: "#4e73df",
+            maxBarThickness: 25,
           },
         ],
       },
       options: {
-        responsive: true,
+        maintainAspectRatio: false,
         scales: {
+          x: { grid: { display: false, drawBorder: false } },
           y: {
-            beginAtZero: true,
             ticks: { stepSize: 1 },
+            grid: { borderDash: [2], drawBorder: false },
           },
         },
+        plugins: { legend: { display: false } },
       },
     });
   }
@@ -290,22 +271,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return arr;
   }
 
-  function processReportData(report, allDates) {
-    const revenueMap = new Map(
-      report.revenueData.map((item) => [item.date.split("T")[0], item.revenue])
-    );
-    const userMap = new Map(
-      report.userData.map((item) => [item.date.split("T")[0], item.newUsers])
-    );
-
-    const labels = allDates;
-    const revenueData = labels.map((date) => revenueMap.get(date) || 0);
-    const userData = labels.map((date) => userMap.get(date) || 0);
-
-    return { labels, revenueData, userData };
-  }
-
-  // 初始載入
+  // 啟動
   loadDashboardStats();
-  fetchDetailedReport();
 });

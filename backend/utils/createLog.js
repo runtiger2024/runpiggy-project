@@ -1,4 +1,4 @@
-// 這是 backend/utils/createLog.js (新檔案)
+// backend/utils/createLog.js
 // 專門用來異步寫入操作日誌
 
 const prisma = require("../config/db.js");
@@ -6,8 +6,8 @@ const prisma = require("../config/db.js");
 /**
  * 建立一筆操作日誌
  * @param {string} userId - 執行動作的員工 ID
- * @param {string} action - 動作的代號 (例如 "UPDATE_PACKAGE", "RESET_PASSWORD")
- * @param {string} targetId - 被操作的物件 ID (例如 package.id 或 user.id)
+ * @param {string} action - 動作的代號 (例如 "UPDATE_PACKAGE")
+ * @param {string} targetId - 被操作的物件 ID
  * @param {string} details - (選填) 額外的詳細資訊
  */
 const createLog = async (userId, action, targetId = "", details = "") => {

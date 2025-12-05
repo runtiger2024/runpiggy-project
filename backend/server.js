@@ -1,4 +1,4 @@
-// 這是 backend/server.js (最終版，包含 quoteRoutes)
+// backend/server.js
 
 const express = require("express");
 const dotenv = require("dotenv");
@@ -13,7 +13,7 @@ const packageRoutes = require("./routes/packageRoutes");
 const calculatorRoutes = require("./routes/calculatorRoutes");
 const shipmentRoutes = require("./routes/shipmentRoutes");
 const adminRoutes = require("./routes/adminRoutes");
-const quoteRoutes = require("./routes/quoteRoutes"); // <-- (1) 載入新路由
+const quoteRoutes = require("./routes/quoteRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,11 +29,11 @@ app.use("/api/auth", authRoutes);
 app.use("/api/packages", packageRoutes);
 app.use("/api/calculator", calculatorRoutes);
 app.use("/api/shipments", shipmentRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/quotes", quoteRoutes); // <-- (2) 啟用新路由
+app.use("/api/admin", adminRoutes); // 管理員專用
+app.use("/api/quotes", quoteRoutes); // 估價單分享
 
 app.get("/", (req, res) => {
-  res.json({ message: "小跑豬後端伺服器 (已包含估價單功能)!" });
+  res.json({ message: "小跑豬後端伺服器 (System V12 Ready)!" });
 });
 
 app.listen(PORT, () => {

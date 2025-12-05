@@ -1,0 +1,442 @@
+/* frontend/css/admin-modern.css */
+/* 小跑豬管理後台 - V2025 現代化樣式 */
+
+:root {
+  --primary-color: #4e73df; /* 現代感科技藍 */
+  --primary-dark: #224abe;
+  --secondary-color: #858796;
+  --success-color: #1cc88a;
+  --info-color: #36b9cc;
+  --warning-color: #f6c23e;
+  --danger-color: #e74a3b;
+  --light-bg: #f8f9fc;
+  --white: #ffffff;
+  --dark-text: #5a5c69;
+  --gray-text: #858796;
+  --sidebar-bg: #4e73df;
+  --sidebar-width: 250px;
+  --header-height: 70px;
+  --card-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+  --transition-speed: 0.3s;
+}
+
+* {
+  box-sizing: border-box;
+  outline: none;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--light-bg);
+  color: var(--dark-text);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* --- 佈局架構 (Layout) --- */
+#wrapper {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* 1. 側邊欄 (Sidebar) */
+.sidebar {
+  width: var(--sidebar-width);
+  background: linear-gradient(
+    180deg,
+    var(--primary-color) 10%,
+    var(--primary-dark) 100%
+  );
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  transition: var(--transition-speed);
+}
+
+.sidebar-brand {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  color: var(--white);
+  font-weight: 800;
+  font-size: 1.2rem;
+  text-decoration: none;
+  letter-spacing: 1px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-brand i {
+  font-size: 1.5rem;
+  margin-right: 10px;
+  transform: rotate(-15deg);
+}
+
+.sidebar-nav {
+  padding: 1rem 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.nav-item {
+  display: block;
+  padding: 0 1rem;
+  margin-bottom: 5px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  font-weight: 700;
+  border-radius: 5px;
+  transition: all 0.2s;
+}
+
+.nav-link:hover {
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-link.active {
+  color: var(--primary-color);
+  background: var(--white);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.nav-link i {
+  margin-right: 10px;
+  width: 20px;
+  text-align: center;
+}
+
+/* 2. 主內容區 (Content Wrapper) */
+#content-wrapper {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: var(--transition-speed);
+}
+
+/* 3. 頂部導航 (Top Bar) */
+.topbar {
+  height: var(--header-height);
+  background-color: var(--white);
+  box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  position: sticky;
+  top: 0;
+  z-index: 90;
+}
+
+.toggle-sidebar-btn {
+  background: transparent;
+  border: none;
+  color: var(--primary-color);
+  font-size: 1.5rem;
+  cursor: pointer;
+  display: none; /* Desktop 預設隱藏 */
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-name {
+  font-weight: 600;
+  color: var(--dark-text);
+  font-size: 0.9rem;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  background-color: var(--primary-color);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.btn-logout-icon {
+  color: var(--gray-text);
+  cursor: pointer;
+  transition: 0.2s;
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+}
+.btn-logout-icon:hover {
+  color: var(--danger-color);
+}
+
+/* 4. 頁面內容 (Page Content) */
+.container-fluid {
+  padding: 1.5rem;
+}
+
+.page-title {
+  color: var(--dark-text);
+  font-size: 1.75rem;
+  margin-bottom: 1.5rem;
+  font-weight: 400;
+}
+
+/* --- 元件樣式 (Components) --- */
+
+/* 卡片 (Cards) */
+.card {
+  background-color: var(--white);
+  border-radius: 0.35rem;
+  box-shadow: var(--card-shadow);
+  margin-bottom: 1.5rem;
+  border: none;
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 1rem 1.25rem;
+  background-color: #f8f9fc;
+  border-bottom: 1px solid #e3e6f0;
+  font-weight: 700;
+  color: var(--primary-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-body {
+  padding: 1.25rem;
+}
+
+/* 統計卡片 (Stats Dashboard) */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-card-modern {
+  background: var(--white);
+  border-left: 0.25rem solid var(--primary-color);
+  border-radius: 0.35rem;
+  padding: 1.5rem;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: transform 0.2s;
+  cursor: pointer;
+}
+.stat-card-modern:hover {
+  transform: translateY(-5px);
+}
+
+.stat-text-xs {
+  color: var(--primary-color);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.stat-number {
+  color: var(--dark-text);
+  font-weight: 700;
+  font-size: 1.5rem;
+}
+
+.stat-icon {
+  font-size: 2rem;
+  color: #dddfeb;
+}
+
+/* 不同顏色的邊框 */
+.border-left-primary {
+  border-left-color: var(--primary-color);
+}
+.border-left-success {
+  border-left-color: var(--success-color);
+}
+.border-left-info {
+  border-left-color: var(--info-color);
+}
+.border-left-warning {
+  border-left-color: var(--warning-color);
+}
+.text-primary {
+  color: var(--primary-color) !important;
+}
+.text-success {
+  color: var(--success-color) !important;
+}
+.text-info {
+  color: var(--info-color) !important;
+}
+.text-warning {
+  color: var(--warning-color) !important;
+}
+
+/* 表格 (Tables) */
+.table-responsive {
+  overflow-x: auto;
+}
+
+.modern-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--dark-text);
+}
+
+.modern-table thead th {
+  background-color: #f8f9fc;
+  color: var(--primary-color);
+  font-weight: 800;
+  padding: 1rem;
+  border-bottom: 2px solid #e3e6f0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.modern-table tbody td {
+  padding: 1rem;
+  border-bottom: 1px solid #e3e6f0;
+  vertical-align: middle;
+}
+
+.modern-table tbody tr:hover {
+  background-color: #f8f9fc;
+}
+
+/* 按鈕 (Buttons) */
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: 0.35rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: 0.2s;
+  display: inline-block;
+  text-align: center;
+}
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+}
+.btn-primary:hover {
+  background: var(--primary-dark);
+}
+.btn-success {
+  background: var(--success-color);
+  color: white;
+}
+.btn-danger {
+  background: var(--danger-color);
+  color: white;
+}
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* 表單與篩選器 (Forms) */
+.filters-bar {
+  background: var(--light-bg);
+  padding: 1rem;
+  border-radius: 0.35rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  padding: 0.375rem 0.75rem;
+  font-size: 1rem;
+  color: #6e707e;
+  background-color: #fff;
+  border: 1px solid #d1d3e2;
+  border-radius: 0.35rem;
+}
+
+/* 狀態標籤 (Badges) - 沿用但美化 */
+.status-badge {
+  padding: 0.35em 0.65em;
+  font-size: 0.75em;
+  font-weight: 700;
+  border-radius: 1rem;
+  color: white;
+}
+.status-PENDING {
+  background-color: var(--warning-color);
+  color: #fff;
+}
+.status-ARRIVED {
+  background-color: var(--info-color);
+}
+.status-COMPLETED {
+  background-color: var(--success-color);
+}
+.status-CANCELLED {
+  background-color: var(--danger-color);
+}
+
+/* --- 響應式設計 (Mobile) --- */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 0;
+    overflow: hidden;
+  }
+
+  .sidebar.toggled {
+    width: var(--sidebar-width);
+  }
+
+  #content-wrapper {
+    margin-left: 0;
+  }
+
+  .toggle-sidebar-btn {
+    display: block;
+  }
+
+  .topbar {
+    padding: 0 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}

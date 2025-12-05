@@ -1,4 +1,4 @@
-// backend/prisma/schema.prisma (V5 完整優化版)
+// backend/prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
@@ -24,7 +24,7 @@ model User {
   // 帳號狀態
   isActive            Boolean   @default(true) 
 
-  // 忘記密碼欄位 [New]
+  // 忘記密碼欄位
   resetPasswordToken  String?
   resetPasswordExpire DateTime?
 
@@ -45,11 +45,11 @@ model Package {
   productName         String    
   quantity            Int       @default(1)
   note                String?
-  
+
   // 圖片儲存 (JSON 字串陣列)
   productImages       String    @default("[]") 
   warehouseImages     String    @default("[]") 
-  warehouseThumbnails String    @default("[]") // [New] 縮圖路徑，優化前端載入
+  warehouseThumbnails String    @default("[]") // 縮圖路徑，優化前端載入
 
   status              String    @default("PENDING") 
   
@@ -85,9 +85,8 @@ model Shipment {
   invoiceTitle          String?   // 發票抬頭
   
   note                  String?
-  additionalServices    String?   // JSON
-  deliveryLocationRate  Float?
-  
+  additionalServices    String?   // JSON (附加服務：上樓、打木架等)
+  deliveryLocationRate  Float?    // 偏遠地區費率
   status                String    @default("PENDING_PAYMENT") 
   totalCost             Float?
   trackingNumberTW      String?   
@@ -99,7 +98,7 @@ model Shipment {
   invoiceRandomCode     String?
   invoiceStatus         String?
 
-  // 商品證明 [New]
+  // 商品證明
   productUrl            String?
   shipmentProductImages String?   @default("[]")
 
@@ -118,7 +117,7 @@ model Shipment {
 model CalculationQuote {
   id                String    @id @default(cuid())
   createdAt         DateTime  @default(now())
-  calculationResult String    // JSON
+  calculationResult String    // JSON (儲存試算結果)
 }
 
 // --- 5. 操作日誌 (Audit Log) ---

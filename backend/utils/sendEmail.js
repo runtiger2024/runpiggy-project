@@ -2,19 +2,13 @@
 
 const sgMail = require("@sendgrid/mail");
 const prisma = require("../config/db.js");
-require("dotenv").config(); // 確保讀取 .env
+require("dotenv").config();
 
-// 初始化 SendGrid (API Key 建議仍保留在 .env 以確保安全性，但也可從資料庫擴充)
+// 初始化 SendGrid
 if (process.env.SENDGRID_API_KEY) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 } else {
-  console.warn(
-    "****************************************************************"
-  );
   console.warn("* SENDGRID_API_KEY 未設定，Email 通知功能將無法使用。 *");
-  console.warn(
-    "****************************************************************"
-  );
 }
 
 /**
@@ -56,9 +50,7 @@ const getEmailConfig = async () => {
 };
 
 /**
- * [新功能] 發送「新集運單成立」的通知給管理員
- * @param {object} shipment - 剛剛在 Prisma 中建立的集運單物件
- * @param {object} customer - 執行此操作的客戶 (req.user)
+ * 發送「新集運單成立」的通知給管理員
  */
 const sendNewShipmentNotification = async (shipment, customer) => {
   try {
@@ -98,11 +90,7 @@ const sendNewShipmentNotification = async (shipment, customer) => {
           <li><strong>客戶 Email:</strong> ${customer.email}</li>
           <li><strong>收件人:</strong> ${shipment.recipientName}</li>
           <li><strong>電話:</strong> ${shipment.phone}</li>
-          <li><strong>身分證:</strong> ${shipment.idNumber}</li>
           <li><strong>總金額:</strong> <strong style="color: #d32f2f; font-size: 1.2em;">NT$ ${shipment.totalCost.toLocaleString()}</strong></li>
-          <li><strong>配送地區費率:</strong> $${
-            shipment.deliveryLocationRate
-          }/方</li>
           <li><strong>地址:</strong> ${shipment.shippingAddress}</li>
           <li><strong>客戶備註:</strong> ${shipment.note || "(無)"}</li>
         </ul>
@@ -130,9 +118,6 @@ const sendNewShipmentNotification = async (shipment, customer) => {
     );
   } catch (error) {
     console.error(`[Email] 發送 SendGrid 郵件時發生錯誤:`, error);
-    if (error.response) {
-      console.error(error.response.body);
-    }
   }
 };
 
