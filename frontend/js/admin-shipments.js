@@ -1,4 +1,4 @@
-// frontend/js/admin-shipments.js (V2025.Invoice)
+// frontend/js/admin-shipments.js (V2025.Invoice - 完整串接版)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    // 批量按鈕
+    // 批量按鈕 - [修正] 改為呼叫真實 API
     document
       .getElementById("btn-bulk-process")
       .addEventListener("click", () => performBulkAction("PROCESSING"));
@@ -188,9 +188,7 @@ document.addEventListener("DOMContentLoaded", () => {
       proofDiv.innerHTML = "尚未上傳";
     }
 
-    // --- 發票管理區塊 ---
     const invSection = document.getElementById("invoice-management-section");
-    // 重置區塊樣式與內容
     invSection.innerHTML = "";
     invSection.style.cssText =
       "margin-top:15px; padding:15px; border:1px solid #bce8f1; background:#d9edf7; border-radius:5px;";
@@ -231,7 +229,6 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.style.display = "flex";
   };
 
-  // --- 發票操作函式 ---
   window.handleIssueInvoice = async function (id) {
     if (!confirm("確定要開立電子發票嗎？\n(將傳送資料至 AMEGO)")) return;
 
@@ -343,9 +340,47 @@ document.addEventListener("DOMContentLoaded", () => {
       count > 0 ? "inline-block" : "none";
   }
 
+  // [新增] 批量狀態變更 (支援發票自動開立)
   async function performBulkAction(status) {
-    if (!confirm(`確定將 ${selectedIds.size} 筆訂單改為 ${status}?`)) return;
-    alert("功能尚未連接後端");
+    if (!confirm(`確定將 ${selectedIds.size} 筆訂單改為「${status}」?`)) return;
+    if (
+      status === "PROCESSING" &&
+      !confirm(
+        "注意：轉為已收款 (PROCESSING) 狀態將自動檢查並開立電子發票。\n確定繼續？"
+      )
+    )
+      return;
+
+    try {
+      const btn = document.getElementById("btn-bulk-process");
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "處理中...";
+
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/shipments/bulk-status`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ ids: Array.from(selectedIds), status }),
+        }
+      );
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(data.message);
+        loadShipments();
+      } else {
+        alert(`失敗: ${data.message}`);
+      }
+      btn.disabled = false;
+      btn.textContent = originalText;
+    } catch (e) {
+      alert("錯誤");
+    }
   }
 
   async function performBulkDelete() {

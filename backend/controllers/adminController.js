@@ -1,5 +1,5 @@
 // backend/controllers/adminController.js
-// V11 - Native JSON Support
+// V12.0 - 補強自動發票開立邏輯 (單筆修正 + 批量支援)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -74,7 +74,6 @@ const getSystemSettings = async (req, res) => {
     const settingsList = await prisma.systemSetting.findMany();
     const settings = {};
     settingsList.forEach((item) => {
-      // [修改] 直接使用 Json 欄位
       settings[item.key] = item.value;
     });
     res.status(200).json({ success: true, settings });
@@ -91,7 +90,6 @@ const updateSystemSetting = async (req, res) => {
     if (value === undefined)
       return res.status(400).json({ success: false, message: "缺少設定值" });
 
-    // [修改] 直接存入 Json
     await prisma.systemSetting.upsert({
       where: { key },
       update: { value: value, ...(description && { description }) },
@@ -127,7 +125,6 @@ const getAllPackages = async (req, res) => {
         include: { user: { select: { name: true, email: true } } },
       }),
     ]);
-    // [修改] 直接映射
     const processedPackages = packages.map((pkg) => ({
       ...pkg,
       productImages: pkg.productImages || [],
@@ -201,7 +198,6 @@ const bulkDeletePackages = async (req, res) => {
     });
     const allFiles = [];
     packages.forEach((pkg) => {
-      // [修改] 直接讀取陣列
       if (Array.isArray(pkg.productImages)) allFiles.push(...pkg.productImages);
       if (Array.isArray(pkg.warehouseImages))
         allFiles.push(...pkg.warehouseImages);
@@ -230,7 +226,6 @@ const adminCreatePackage = async (req, res) => {
     if (req.files && req.files.length > 0)
       imagePaths = req.files.map((file) => `/uploads/${file.filename}`);
 
-    // [修改] 圖片存為陣列
     const newPackage = await prisma.package.create({
       data: {
         trackingNumber,
@@ -263,7 +258,6 @@ const adminDeletePackage = async (req, res) => {
     if (!pkg)
       return res.status(404).json({ success: false, message: "找不到包裹" });
 
-    // [修改] 直接讀取陣列
     let filesToDelete = [
       ...(pkg.productImages || []),
       ...(pkg.warehouseImages || []),
@@ -311,7 +305,6 @@ const updatePackageDetails = async (req, res) => {
     const pkg = await prisma.package.findUnique({ where: { id } });
     if (!pkg) return res.status(404).json({ message: "找不到包裹" });
 
-    // 讀取費率設定 (Json)
     const settings = await prisma.systemSetting.findUnique({
       where: { key: "rates_config" },
     });
@@ -327,7 +320,6 @@ const updatePackageDetails = async (req, res) => {
 
     if (boxesData) {
       try {
-        // [注意] boxesData 來自 FormData，為 String，需 Parse
         const boxes = JSON.parse(boxesData);
         let totalFee = 0;
         const processedBoxes = boxes.map((box) => {
@@ -356,7 +348,6 @@ const updatePackageDetails = async (req, res) => {
             fee,
           };
         });
-        // [修改] 直接存入物件
         updateData.arrivedBoxesJson = processedBoxes;
         updateData.totalCalculatedFee = totalFee;
       } catch (e) {
@@ -364,7 +355,6 @@ const updatePackageDetails = async (req, res) => {
       }
     }
 
-    // [修改] 圖片處理
     let currentImgs = pkg.warehouseImages || [];
     let keepImgs = [];
     try {
@@ -379,7 +369,6 @@ const updatePackageDetails = async (req, res) => {
       const newPaths = req.files.map((f) => `/uploads/${f.filename}`);
       finalImgs = [...finalImgs, ...newPaths];
     }
-    // [修改] 存入陣列
     updateData.warehouseImages = finalImgs.slice(0, 5);
 
     const updated = await prisma.package.update({
@@ -425,7 +414,6 @@ const getAllShipments = async (req, res) => {
         },
       }),
     ]);
-    // [修改] 直接讀取 Json
     const processed = shipments.map((s) => {
       return {
         ...s,
@@ -471,23 +459,87 @@ const exportShipments = async (req, res) => {
   }
 };
 
+/**
+ * [修改] 批量更新集運單狀態
+ * 修正: 當狀態轉為 PROCESSING (已收款) 時，若未開立發票則自動開立。
+ */
 const bulkUpdateShipmentStatus = async (req, res) => {
   try {
     const { ids, status } = req.body;
     if (!Array.isArray(ids) || ids.length === 0 || !status)
       return res.status(400).json({ success: false, message: "參數錯誤" });
-    await prisma.shipment.updateMany({
-      where: { id: { in: ids } },
-      data: { status },
-    });
-    await createLog(
-      req.user.id,
-      "BULK_UPDATE_SHIPMENT",
-      "BATCH",
-      `批量更新 ${ids.length} 筆訂單為 ${status}`
-    );
-    res.status(200).json({ success: true, message: "批量更新成功" });
+
+    // [New Logic] 如果是轉為「已收款 (PROCESSING)」，需要逐筆檢查並開立發票
+    if (status === "PROCESSING") {
+      const shipments = await prisma.shipment.findMany({
+        where: { id: { in: ids } },
+        include: { user: true },
+      });
+
+      let invoiceCount = 0;
+      let successCount = 0;
+
+      // 為了發票 API 的安全性與順序，這裡使用迴圈處理 (雖然較慢但較穩)
+      for (const ship of shipments) {
+        let updateData = { status: "PROCESSING" };
+
+        // 檢查是否需開立發票 (有金額、未開立、未作廢)
+        if (
+          !ship.invoiceNumber &&
+          ship.totalCost > 0 &&
+          ship.invoiceStatus !== "VOID"
+        ) {
+          const result = await invoiceHelper.createInvoice(ship, ship.user);
+          if (result.success) {
+            updateData.invoiceNumber = result.invoiceNumber;
+            updateData.invoiceStatus = "ISSUED";
+            updateData.invoiceDate = result.invoiceDate;
+            updateData.invoiceRandomCode = result.randomCode;
+            invoiceCount++;
+          } else {
+            // 失敗紀錄 Log，但不中斷流程
+            await createLog(
+              req.user.id,
+              "INVOICE_FAILED",
+              ship.id,
+              `批量開立失敗: ${result.message}`
+            );
+          }
+        }
+
+        await prisma.shipment.update({
+          where: { id: ship.id },
+          data: updateData,
+        });
+        successCount++;
+      }
+
+      await createLog(
+        req.user.id,
+        "BULK_UPDATE_SHIPMENT",
+        "BATCH",
+        `批量收款 ${successCount} 筆，自動開立發票 ${invoiceCount} 張`
+      );
+      return res.status(200).json({
+        success: true,
+        message: `批量更新成功 (含發票開立 ${invoiceCount} 張)`,
+      });
+    } else {
+      // 其他狀態直接批量更新
+      await prisma.shipment.updateMany({
+        where: { id: { in: ids } },
+        data: { status },
+      });
+      await createLog(
+        req.user.id,
+        "BULK_UPDATE_SHIPMENT",
+        "BATCH",
+        `批量更新 ${ids.length} 筆訂單為 ${status}`
+      );
+      return res.status(200).json({ success: true, message: "批量更新成功" });
+    }
   } catch (e) {
+    console.error(e);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };
@@ -504,7 +556,6 @@ const bulkDeleteShipments = async (req, res) => {
     const files = [];
     shipments.forEach((s) => {
       if (s.paymentProof) files.push(s.paymentProof);
-      // [修改] 直接讀取陣列
       if (Array.isArray(s.shipmentProductImages)) {
         files.push(...s.shipmentProductImages);
       }
@@ -571,6 +622,7 @@ const updateShipmentStatus = async (req, res) => {
       });
     }
 
+    // [Check] 單筆更新為 PROCESSING 時，自動開立發票
     if (
       status === "PROCESSING" &&
       !originalShipment.invoiceNumber &&
@@ -584,6 +636,9 @@ const updateShipmentStatus = async (req, res) => {
         dataToUpdate.invoiceNumber = result.invoiceNumber;
         dataToUpdate.invoiceStatus = "ISSUED";
         dataToUpdate.invoiceDate = result.invoiceDate;
+        // [修正] 補上 randomCode 儲存
+        dataToUpdate.invoiceRandomCode = result.randomCode;
+
         await createLog(
           req.user.id,
           "CREATE_INVOICE",
@@ -688,14 +743,9 @@ const getUsers = async (req, res) => {
         { phone: { contains: s, mode: "insensitive" } },
       ];
     }
-    // [注意] permissions 現在是 Json 陣列
-    // Prisma 的 Json 過濾功能視 DB 而定，Postgres 支援 array_contains
-    // 但簡單起見，這裡先查出來再過濾，或使用 path query
-    // 若要精確查詢 JSON 陣列內容，可使用 array_contains:
     if (role) {
       if (role === "ADMIN")
         where.permissions = { array_contains: "CAN_MANAGE_USERS" };
-      // 其他角色邏輯較複雜，可能需在 JS 層過濾，或依賴前端傳正確參數
     }
 
     if (filter === "new_today") {
@@ -768,7 +818,6 @@ const createStaffUser = async (req, res) => {
     });
     if (exists) return res.status(400).json({ message: "Email 已存在" });
     const hash = await bcrypt.hash(password, 10);
-    // [修改] permissions 存為陣列
     const user = await prisma.user.create({
       data: {
         email: email.toLowerCase(),
@@ -847,7 +896,6 @@ const impersonateUser = async (req, res) => {
     const { id } = req.params;
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) return res.status(404).json({ message: "找不到" });
-    // [注意] Token 生成會自動讀取 user.permissions (Array)
     const token = generateToken(user.id, { permissions: user.permissions });
     await createLog(req.user.id, "IMPERSONATE", id, `模擬 ${user.email}`);
     res.status(200).json({ success: true, token, user });
@@ -863,7 +911,6 @@ const updateUserPermissions = async (req, res) => {
     if (req.user.id === id)
       return res.status(400).json({ message: "不能改自己權限" });
 
-    // [修改] 直接存陣列
     await prisma.user.update({
       where: { id },
       data: { permissions: permissions || [] },
@@ -1013,9 +1060,9 @@ module.exports = {
   updatePackageDetails,
   getAllShipments,
   exportShipments,
-  bulkUpdateShipmentStatus,
+  bulkUpdateShipmentStatus, // 已修正
   bulkDeleteShipments,
-  updateShipmentStatus,
+  updateShipmentStatus, // 已修正
   rejectShipment,
   adminDeleteShipment,
   getUsers,
