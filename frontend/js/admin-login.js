@@ -1,4 +1,4 @@
-// frontend/js/admin-login.js (修復版)
+// frontend/js/admin-login.js (已修復 Password Trim 問題)
 
 document.addEventListener("DOMContentLoaded", () => {
   // 1. 如果已經登入，直接跳轉到儀表板
@@ -18,7 +18,10 @@ document.addEventListener("DOMContentLoaded", () => {
       showMessage("正在登入...", "info");
 
       const email = document.getElementById("admin-email").value.trim();
-      const password = document.getElementById("admin-password").value.trim();
+
+      // [關鍵修復] 移除 .trim()，避免密碼前後有空白時導致驗證失敗
+      // 原本: const password = document.getElementById("admin-password").value.trim();
+      const password = document.getElementById("admin-password").value;
 
       try {
         // 發送登入請求
@@ -37,10 +40,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // 4. 登入成功：儲存 Token 與權限資訊
-        // 注意：這裡的 key 必須與 admin-header.js / admin-dashboard.js 裡讀取的 key 一致
         localStorage.setItem("admin_token", data.token);
         localStorage.setItem("admin_name", data.user.name || data.user.email);
-        // 將權限陣列轉為字串儲存
         localStorage.setItem(
           "admin_permissions",
           JSON.stringify(data.user.permissions || [])
@@ -48,13 +49,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
         showMessage("登入成功！正在跳轉...", "success");
 
-        // 延遲跳轉，讓使用者看到成功訊息
+        // 延遲跳轉
         setTimeout(() => {
           window.location.href = "admin-dashboard.html";
         }, 1000);
       } catch (error) {
         console.error("登入錯誤:", error);
-        showMessage(error.message, "error");
+        // 在錯誤訊息中加入提示，幫助判斷是否為環境問題
+        const envHint = API_BASE_URL.includes("onrender")
+          ? " (正式機)"
+          : " (本機)";
+        showMessage(error.message + envHint, "error");
       }
     });
   }
@@ -64,7 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!messageBox) return;
     messageBox.textContent = msg;
     messageBox.style.display = "block";
-    messageBox.className = "alert"; // 重置 class
+    messageBox.className = "alert";
 
     if (type === "error") {
       messageBox.classList.add("alert-error");
