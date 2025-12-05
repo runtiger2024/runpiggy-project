@@ -1,5 +1,5 @@
 // backend/controllers/settingsController.js
-// V11 - Native JSON Support
+// V2025.Security - 支援設定結構驗證 (Schema Validation)
 
 const prisma = require("../config/db.js");
 const ratesManager = require("../utils/ratesManager.js");
@@ -16,7 +16,6 @@ const seedDefaultSettings = async () => {
     const currentRates = await ratesManager.getRates();
     configs.push({
       key: "rates_config",
-      // [修改] value 直接存物件
       value: currentRates,
       category: "SHIPPING",
       description: "運費費率與常數設定 (JSON)",
@@ -70,7 +69,6 @@ const seedDefaultSettings = async () => {
 
   // 寫入資料庫
   for (const config of configs) {
-    // 這裡我們不使用 upsert，避免覆蓋已修改的設定，只在 key 不存在時建立
     const exists = await prisma.systemSetting.findUnique({
       where: { key: config.key },
     });
@@ -100,10 +98,8 @@ const getAllSettings = async (req, res) => {
 
     const settingsList = await prisma.systemSetting.findMany();
 
-    // 轉成 Key-Value 物件回傳
     const result = {};
     settingsList.forEach((item) => {
-      // [修改] 直接使用 Json
       result[item.key] = item.value;
     });
 
@@ -115,15 +111,40 @@ const getAllSettings = async (req, res) => {
 };
 
 /**
- * @description 更新系統設定
+ * @description 更新系統設定 (含防呆驗證)
  * @route PUT /api/admin/settings
  */
 const updateSettings = async (req, res) => {
   try {
     const updates = req.body; // 預期格式: { key: value, key2: value2 }
 
+    // [Security] 結構驗證邏輯
+    for (const [key, value] of Object.entries(updates)) {
+      if (key === "rates_config") {
+        // 檢查必要欄位，防止前台計算機崩潰
+        if (
+          !value.categories ||
+          !value.constants ||
+          typeof value.constants.MINIMUM_CHARGE !== "number" ||
+          typeof value.constants.VOLUME_DIVISOR !== "number"
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "運費設定 (rates_config) 格式錯誤，缺少 categories 或 constants",
+          });
+        }
+      } else if (key === "bank_info") {
+        if (!value.bankName || !value.account) {
+          return res.status(400).json({
+            success: false,
+            message: "銀行設定 (bank_info) 格式錯誤，缺少 bankName 或 account",
+          });
+        }
+      }
+    }
+
     const operations = Object.entries(updates).map(([key, value]) => {
-      // [修改] 直接存入 value (物件)
       return prisma.systemSetting.update({
         where: { key },
         data: { value: value },

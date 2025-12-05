@@ -1,5 +1,5 @@
 // backend/controllers/adminController.js
-// V12.0 - 補強自動發票開立邏輯 (單筆修正 + 批量支援)
+// V2025.Security - 包含防呆機制 (會員防刪、財務鎖定、出貨檢核)
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -15,6 +15,7 @@ const {
   manualVoidInvoice,
 } = require("../controllers/shipmentController");
 
+// --- 輔助函式 ---
 const deleteFiles = (filePaths) => {
   if (!Array.isArray(filePaths) || filePaths.length === 0) return;
   const uploadDir = path.join(__dirname, "../public/uploads");
@@ -75,6 +76,7 @@ const buildShipmentWhereClause = (status, search) => {
   return where;
 };
 
+// --- 系統設定 (System Settings) ---
 const getSystemSettings = async (req, res) => {
   try {
     const settingsList = await prisma.systemSetting.findMany();
@@ -96,6 +98,11 @@ const updateSystemSetting = async (req, res) => {
     if (value === undefined)
       return res.status(400).json({ success: false, message: "缺少設定值" });
 
+    // [Security] 這裡的驗證邏輯已移至 settingsController 集中管理，
+    // 但若此路由仍被使用，建議保持基本的 update 邏輯。
+    // (註：前端 settings 頁面實際上是呼叫 settingsController 的 API，
+    //  這裡保留是為了相容性或 adminRoutes 的定義)
+
     await prisma.systemSetting.upsert({
       where: { key },
       update: { value: value, ...(description && { description }) },
@@ -114,6 +121,7 @@ const updateSystemSetting = async (req, res) => {
   }
 };
 
+// --- 包裹管理 (Packages) ---
 const getAllPackages = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -228,13 +236,27 @@ const adminCreatePackage = async (req, res) => {
     const { userId, trackingNumber, productName, quantity, note } = req.body;
     if (!userId || !trackingNumber || !productName)
       return res.status(400).json({ success: false, message: "資料不完整" });
+
+    // [Security] 單號唯一性檢查
+    const existingPkg = await prisma.package.findFirst({
+      where: { trackingNumber: trackingNumber.trim() },
+    });
+    if (existingPkg) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "此物流單號已存在系統中，請勿重複建立",
+        });
+    }
+
     let imagePaths = [];
     if (req.files && req.files.length > 0)
       imagePaths = req.files.map((file) => `/uploads/${file.filename}`);
 
     const newPackage = await prisma.package.create({
       data: {
-        trackingNumber,
+        trackingNumber: trackingNumber.trim(),
         productName,
         quantity: quantity ? parseInt(quantity) : 1,
         note,
@@ -288,7 +310,20 @@ const updatePackageStatus = async (req, res) => {
     const { status } = req.body;
     if (!status)
       return res.status(400).json({ success: false, message: "無狀態" });
-    const pkg = await prisma.package.update({
+
+    // [Security] 狀態流轉檢查
+    const pkg = await prisma.package.findUnique({ where: { id } });
+    if (!pkg) return res.status(404).json({ message: "包裹不存在" });
+
+    // 簡單的狀態機檢查：防止從 PENDING 直接跳到 COMPLETED (必須經過 ARRIVED)
+    if (pkg.status === "PENDING" && status === "COMPLETED") {
+      return res.status(400).json({
+        success: false,
+        message: "操作禁止：包裹必須先進行「入庫 (ARRIVED)」才能完成。",
+      });
+    }
+
+    const updatedPkg = await prisma.package.update({
       where: { id },
       data: { status },
     });
@@ -298,7 +333,7 @@ const updatePackageStatus = async (req, res) => {
       id,
       `狀態更新為 ${status}`
     );
-    res.status(200).json({ success: true, package: pkg });
+    res.status(200).json({ success: true, package: updatedPkg });
   } catch (e) {
     res.status(500).json({ success: false, message: "更新失敗" });
   }
@@ -400,6 +435,7 @@ const updatePackageDetails = async (req, res) => {
   }
 };
 
+// --- 集運單管理 (Shipments) ---
 const getAllShipments = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -465,14 +501,13 @@ const exportShipments = async (req, res) => {
   }
 };
 
-// [修改] 批量更新集運單狀態 (支援發票)
 const bulkUpdateShipmentStatus = async (req, res) => {
   try {
     const { ids, status } = req.body;
     if (!Array.isArray(ids) || ids.length === 0 || !status)
       return res.status(400).json({ success: false, message: "參數錯誤" });
 
-    // [New Logic] 如果是轉為「已收款 (PROCESSING)」，需要逐筆檢查並開立發票
+    // [Logic] 如果是轉為「已收款 (PROCESSING)」，需要逐筆檢查並開立發票
     if (status === "PROCESSING") {
       const shipments = await prisma.shipment.findMany({
         where: { id: { in: ids } },
@@ -482,11 +517,9 @@ const bulkUpdateShipmentStatus = async (req, res) => {
       let invoiceCount = 0;
       let successCount = 0;
 
-      // 為了發票 API 的安全性與順序，這裡使用迴圈處理
       for (const ship of shipments) {
         let updateData = { status: "PROCESSING" };
 
-        // 檢查是否需開立發票 (有金額、未開立、未作廢)
         if (
           !ship.invoiceNumber &&
           ship.totalCost > 0 &&
@@ -500,7 +533,6 @@ const bulkUpdateShipmentStatus = async (req, res) => {
             updateData.invoiceRandomCode = result.randomCode;
             invoiceCount++;
           } else {
-            // 失敗紀錄 Log，但不中斷流程
             await createLog(
               req.user.id,
               "INVOICE_FAILED",
@@ -528,7 +560,6 @@ const bulkUpdateShipmentStatus = async (req, res) => {
         message: `批量更新成功 (含發票開立 ${invoiceCount} 張)`,
       });
     } else {
-      // 其他狀態直接批量更新
       await prisma.shipment.updateMany({
         where: { id: { in: ids } },
         data: { status },
@@ -583,11 +614,9 @@ const bulkDeleteShipments = async (req, res) => {
   }
 };
 
-// [Fix] 單筆更新訂單狀態 (修復發票開立)
 const updateShipmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    // [修改] 允許接收 taxId 與 invoiceTitle
     const { status, totalCost, trackingNumberTW, taxId, invoiceTitle } =
       req.body;
 
@@ -598,13 +627,43 @@ const updateShipmentStatus = async (req, res) => {
     if (!originalShipment)
       return res.status(404).json({ success: false, message: "找不到訂單" });
 
+    // [Security] 財務鎖定 (Financial Lock)
+    // 如果發票已開立，禁止修改金額，必須先作廢發票。
+    if (
+      totalCost !== undefined &&
+      originalShipment.invoiceStatus === "ISSUED" &&
+      originalShipment.invoiceNumber &&
+      parseFloat(totalCost) !== originalShipment.totalCost
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "危險操作禁止：此訂單已開立發票，禁止直接修改金額！請先「作廢發票」後再行修改。",
+      });
+    }
+
+    // [Security] 出貨檢核
+    // 若要轉為 SHIPPED，必須確保已付款 (PROCESSING) 或有上傳憑證
+    if (
+      status === "SHIPPED" &&
+      originalShipment.status !== "PROCESSING" &&
+      !originalShipment.paymentProof
+    ) {
+      // 這裡做一個嚴格檢查：必須要是 PROCESSING 才能轉 SHIPPED，或者至少要有憑證
+      // 若原狀態是 PENDING_PAYMENT 且無憑證，則擋下
+      if (originalShipment.status === "PENDING_PAYMENT") {
+        return res.status(400).json({
+          success: false,
+          message: "出貨禁止：此訂單尚未付款或收款確認，無法發貨！",
+        });
+      }
+    }
+
     const dataToUpdate = {};
     if (status) dataToUpdate.status = status;
     if (totalCost !== undefined) dataToUpdate.totalCost = parseFloat(totalCost);
     if (trackingNumberTW !== undefined)
       dataToUpdate.trackingNumberTW = trackingNumberTW;
-
-    // [新增] 允許更新統編與抬頭
     if (taxId !== undefined) dataToUpdate.taxId = taxId;
     if (invoiceTitle !== undefined) dataToUpdate.invoiceTitle = invoiceTitle;
 
@@ -633,16 +692,13 @@ const updateShipmentStatus = async (req, res) => {
       });
     }
 
-    // [Check] 單筆更新為 PROCESSING 時，自動開立發票
+    // PROCESSING 自動開票邏輯
     if (
       status === "PROCESSING" &&
       !originalShipment.invoiceNumber &&
       originalShipment.totalCost > 0
     ) {
-      // 確保使用最新的資料進行開立 (可能剛剛更新了統編)
-      // 若 dataToUpdate 有統編，暫時合併進去傳給 helper
       const shipmentForInvoice = { ...originalShipment, ...dataToUpdate };
-
       const result = await invoiceHelper.createInvoice(
         shipmentForInvoice,
         originalShipment.user
@@ -652,7 +708,6 @@ const updateShipmentStatus = async (req, res) => {
         dataToUpdate.invoiceStatus = "ISSUED";
         dataToUpdate.invoiceDate = result.invoiceDate;
         dataToUpdate.invoiceRandomCode = result.randomCode;
-
         await createLog(
           req.user.id,
           "CREATE_INVOICE",
@@ -740,6 +795,7 @@ const adminDeleteShipment = async (req, res) => {
   }
 };
 
+// --- 會員管理 (Users) ---
 const getUsers = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -887,11 +943,34 @@ const resetUserPassword = async (req, res) => {
   }
 };
 
+// [Security] 刪除會員防呆機制 (Delete Protection)
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
     if (req.user.id === id)
       return res.status(400).json({ message: "不能刪除自己" });
+
+    // 檢查是否有未完成的訂單或包裹
+    const activeShipments = await prisma.shipment.count({
+      where: {
+        userId: id,
+        status: { notIn: ["COMPLETED", "CANCELLED"] },
+      },
+    });
+
+    const activePackages = await prisma.package.count({
+      where: {
+        userId: id,
+        status: { notIn: ["COMPLETED", "CANCELLED"] },
+      },
+    });
+
+    if (activeShipments > 0 || activePackages > 0) {
+      return res.status(400).json({
+        message: `無法刪除！此會員尚有 ${activePackages} 件未完成包裹及 ${activeShipments} 筆未完成訂單。請先結案後再試。`,
+      });
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.activityLog.deleteMany({ where: { userId: id } });
       await tx.package.deleteMany({ where: { userId: id } });
@@ -901,6 +980,7 @@ const deleteUser = async (req, res) => {
     await createLog(req.user.id, "DELETE_USER", id, "永久刪除");
     res.status(200).json({ success: true, message: "已刪除" });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ message: "刪除失敗" });
   }
 };
@@ -936,6 +1016,7 @@ const updateUserPermissions = async (req, res) => {
   }
 };
 
+// --- 儀表板與報表 ---
 const getDashboardStats = async (req, res) => {
   try {
     const today = new Date();
@@ -951,7 +1032,7 @@ const getDashboardStats = async (req, res) => {
       recentShip,
     ] = await Promise.all([
       prisma.shipment.aggregate({
-        where: { status: "CANCEL" },
+        where: { status: "COMPLETED" }, // 只統計已完成的營收較為準確，或是 PROCESSIND
         _sum: { totalCost: true },
       }),
       prisma.shipment.aggregate({
@@ -1040,7 +1121,7 @@ const getDailyReport = async (req, res) => {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
     const revenue =
-      await prisma.$queryRaw`SELECT DATE_TRUNC('day', "updatedAt")::DATE as date, SUM("totalCost") as revenue FROM "Shipment" WHERE "status" = 'CANCEL' AND "updatedAt" >= ${start} AND "updatedAt" <= ${end} GROUP BY date ORDER BY date ASC`;
+      await prisma.$queryRaw`SELECT DATE_TRUNC('day', "updatedAt")::DATE as date, SUM("totalCost") as revenue FROM "Shipment" WHERE "status" = 'COMPLETED' AND "updatedAt" >= ${start} AND "updatedAt" <= ${end} GROUP BY date ORDER BY date ASC`;
     const users =
       await prisma.$queryRaw`SELECT DATE_TRUNC('day', "createdAt")::DATE as date, COUNT(id) as newusers FROM "User" WHERE "createdAt" >= ${start} AND "createdAt" <= ${end} GROUP BY date ORDER BY date ASC`;
     const safeRevenue = revenue.map((r) => ({
@@ -1091,7 +1172,6 @@ module.exports = {
   getDashboardStats,
   getActivityLogs,
   getDailyReport,
-  // 記得匯出這兩項，Routes 才能使用
   manualIssueInvoice,
   manualVoidInvoice,
 };

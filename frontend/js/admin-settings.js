@@ -1,8 +1,9 @@
-// frontend/js/admin-settings.js (V2025 - 完整版)
+// frontend/js/admin-settings.js
+// V2025.Security - 包含結構預檢查 (Schema Validation)
 
 document.addEventListener("DOMContentLoaded", async () => {
   const token = localStorage.getItem("admin_token");
-  if (!token) return; // layout.js 會處理導向
+  if (!token) return;
 
   // 1. Tab 切換邏輯
   document.querySelectorAll(".tab-btn").forEach((btn) => {
@@ -198,6 +199,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.querySelectorAll(".category-block").forEach((block) => {
       const keyInput = block.querySelector(".cat-key");
       let key = keyInput.value.trim();
+      const wRate = parseFloat(block.querySelector(".cat-weight").value);
+      const vRate = parseFloat(block.querySelector(".cat-volume").value);
+
       if (!key) {
         alert("錯誤：有類別未填寫代碼 (Key)");
         hasError = true;
@@ -208,11 +212,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         hasError = true;
         return;
       }
+      // [Security] 數值驗證
+      if (isNaN(wRate) || isNaN(vRate) || wRate < 0 || vRate < 0) {
+        alert(`錯誤：類別 ${key} 的費率必須為正數`);
+        hasError = true;
+        return;
+      }
+
       categories[key] = {
         name: block.querySelector(".cat-name").value,
         description: block.querySelector(".cat-desc").value,
-        weightRate: parseFloat(block.querySelector(".cat-weight").value),
-        volumeRate: parseFloat(block.querySelector(".cat-volume").value),
+        weightRate: wRate,
+        volumeRate: vRate,
       };
     });
 
@@ -244,6 +255,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       account: document.getElementById("bank-account").value,
       holder: document.getElementById("bank-holder").value,
     };
+    if (!data.bankName || !data.account) {
+      alert("請填寫銀行名稱與帳號");
+      return;
+    }
     await sendUpdate("bank_info", data, "銀行資訊");
   }
 

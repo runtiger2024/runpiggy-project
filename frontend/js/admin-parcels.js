@@ -1,8 +1,9 @@
 // frontend/js/admin-parcels.js
+// V2025.Security - 包含單號重複檢核提示
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
-  if (!adminToken) return; // layout.js 會處理跳轉
+  if (!adminToken) return;
 
   // 變數
   let currentPage = 1;
@@ -38,7 +39,6 @@ document.addEventListener("DOMContentLoaded", () => {
       .getElementById("btn-show-create-modal")
       .addEventListener("click", openCreateModal);
 
-    // [新增] 匯出 CSV 事件綁定
     document
       .getElementById("btn-export")
       .addEventListener("click", exportPackages);
@@ -103,7 +103,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // [新增] 匯出功能
   async function exportPackages() {
     const btn = document.getElementById("btn-export");
     btn.disabled = true;
@@ -122,7 +121,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!json.success || !json.data) throw new Error("匯出失敗");
 
-      // 轉換 JSON to CSV
       const items = json.data;
       if (items.length === 0) {
         alert("無資料可匯出");
@@ -132,7 +130,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const replacer = (key, value) => (value === null ? "" : value);
       const header = Object.keys(items[0]);
       const csv = [
-        header.join(","), // 標題列
+        header.join(","),
         ...items.map((row) =>
           header
             .map((fieldName) => JSON.stringify(row[fieldName], replacer))
@@ -140,7 +138,6 @@ document.addEventListener("DOMContentLoaded", () => {
         ),
       ].join("\r\n");
 
-      // 下載觸發
       const blob = new Blob(["\uFEFF" + csv], {
         type: "text/csv;charset=utf-8;",
       });
@@ -185,7 +182,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const statusClass = statusClasses[pkg.status] || "status-secondary";
       const statusText = statusTextMap[pkg.status] || pkg.status;
 
-      // 尺寸重量顯示
       let weightInfo = "-";
       if (pkg.arrivedBoxesJson && pkg.arrivedBoxesJson.length > 0) {
         const totalW = pkg.arrivedBoxesJson.reduce(
@@ -273,7 +269,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-note").value = pkg.note || "";
     document.getElementById("modal-status").value = pkg.status;
 
-    // 分箱資料
     document.getElementById("boxes-section").style.display = "block";
     currentSubPackages = pkg.arrivedBoxesJson || [];
     if (currentSubPackages.length === 0) {
@@ -312,7 +307,6 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.style.display = "flex";
   }
 
-  // --- 分箱與公式顯示 ---
   function renderSubPackages() {
     const list = document.getElementById("sub-package-list");
     list.innerHTML = "";
@@ -373,7 +367,6 @@ document.addEventListener("DOMContentLoaded", () => {
     updateFeesOnInput();
   };
 
-  // --- 即時算式邏輯 ---
   function updateFeesOnInput() {
     const rows = document.querySelectorAll("#sub-package-list > div");
     const RATES = window.RATES || {};
@@ -386,7 +379,6 @@ document.addEventListener("DOMContentLoaded", () => {
     rows.forEach((row, idx) => {
       const typeSelect = row.querySelector(".sub-pkg-type");
       const type = typeSelect.value;
-      const typeName = typeSelect.options[typeSelect.selectedIndex].text;
 
       const w = parseFloat(row.querySelector(".sub-pkg-weight").value) || 0;
       const l = parseFloat(row.querySelector(".sub-pkg-l").value) || 0;
@@ -407,29 +399,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (w > 0 && l > 0 && wd > 0 && h > 0) {
         const rate = RATES[type] || { weightRate: 0, volumeRate: 0 };
-
-        // 材積公式：(L*W*H)/Divisor = 材 (進位)
         const rawCai = (l * wd * h) / CONSTANTS.VOLUME_DIVISOR;
         const cai = Math.ceil(rawCai);
-
-        // 費用
         const volFee = Math.round(cai * rate.volumeRate);
-        const wtFee = Math.round((Math.ceil(w * 10) / 10) * rate.weightRate); // 重量進位小數點後一位 (模擬後端)
-
+        const wtFee = Math.round((Math.ceil(w * 10) / 10) * rate.weightRate);
         const isVolWin = volFee >= wtFee;
         const fee = Math.max(volFee, wtFee);
         total += fee;
 
-        // 生成詳細 HTML
         let html = `
             <div class="calc-row ${!isVolWin ? "winner" : ""}">
                 <span>重量重 (${w}kg)</span>
                 <span>$${wtFee}</span>
             </div>
             <span class="calc-math">公式: ${w}kg x $${rate.weightRate}</span>
-            
             <div style="border-top:1px dashed #eee; margin:4px 0;"></div>
-
             <div class="calc-row ${isVolWin ? "winner" : ""}">
                 <span>材積重 (${cai}材)</span>
                 <span>$${volFee}</span>
@@ -445,7 +429,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // 總計
     const finalTotal = Math.max(total, CONSTANTS.MINIMUM_CHARGE || 0);
     const minChargeMsg =
       total > 0 && total < CONSTANTS.MINIMUM_CHARGE
@@ -524,10 +507,11 @@ document.addEventListener("DOMContentLoaded", () => {
         modal.style.display = "none";
         loadParcels();
       } else {
-        alert(d.message);
+        // [Security] 顯示單號重複或其他後端錯誤
+        alert("操作失敗: " + d.message);
       }
     } catch (e) {
-      alert("錯誤");
+      alert("錯誤: " + e.message);
     }
   }
 

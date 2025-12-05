@@ -1,5 +1,5 @@
 // backend/controllers/packageController.js
-// V11 優化版 - 使用 Native JSON 型別
+// V2025.Security - 支援單號唯一性檢核
 
 const prisma = require("../config/db.js");
 const fs = require("fs");
@@ -29,7 +29,7 @@ const deleteFiles = (filePaths) => {
 };
 
 /**
- * @description 包裹預報 (支援圖片上傳)
+ * @description 包裹預報 (支援圖片上傳 + 單號重複檢核)
  * @route POST /api/packages/forecast/images
  */
 const createPackageForecast = async (req, res) => {
@@ -43,6 +43,20 @@ const createPackageForecast = async (req, res) => {
         .json({ success: false, message: "請提供物流單號和商品名稱" });
     }
 
+    // [Security] 單號唯一性檢查 (Unique Check)
+    const existingPackage = await prisma.package.findFirst({
+      where: {
+        trackingNumber: trackingNumber.trim(),
+      },
+    });
+
+    if (existingPackage) {
+      return res.status(400).json({
+        success: false,
+        message: "此物流單號已存在系統中，請勿重複預報。",
+      });
+    }
+
     // 處理上傳的圖片
     let imagePaths = [];
     if (req.files && req.files.length > 0) {
@@ -51,7 +65,7 @@ const createPackageForecast = async (req, res) => {
 
     const newPackage = await prisma.package.create({
       data: {
-        trackingNumber: trackingNumber,
+        trackingNumber: trackingNumber.trim(),
         productName: productName,
         quantity: quantity ? parseInt(quantity) : 1,
         note: note,
@@ -93,7 +107,6 @@ const getMyPackages = async (req, res) => {
 
     // 2. 解析與增強數據
     const packagesWithParsedJson = myPackages.map((pkg) => {
-      // [修改] 直接讀取 DB 的 Json 欄位，無需 JSON.parse
       const productImages = pkg.productImages || [];
       const warehouseImages = pkg.warehouseImages || [];
       const arrivedBoxes = pkg.arrivedBoxesJson || [];
@@ -210,10 +223,19 @@ const updateMyPackage = async (req, res) => {
         .json({ success: false, message: "包裹已入庫或處理中，無法修改" });
     }
 
-    // [修改] 直接讀取 DB Json
-    let originalImagesList = pkg.productImages || [];
+    // [Security] 修改時也要檢查單號唯一性 (如果改了單號)
+    if (trackingNumber && trackingNumber.trim() !== pkg.trackingNumber) {
+      const duplicate = await prisma.package.findFirst({
+        where: { trackingNumber: trackingNumber.trim() },
+      });
+      if (duplicate) {
+        return res
+          .status(400)
+          .json({ success: false, message: "修改後的單號已存在系統中" });
+      }
+    }
 
-    // [注意] existingImages 來自 FormData，仍是字串，需 parse
+    let originalImagesList = pkg.productImages || [];
     let keepImagesList = [];
     try {
       keepImagesList = existingImages ? JSON.parse(existingImages) : [];
@@ -240,11 +262,10 @@ const updateMyPackage = async (req, res) => {
     const updatedPackage = await prisma.package.update({
       where: { id: id },
       data: {
-        trackingNumber,
+        trackingNumber: trackingNumber ? trackingNumber.trim() : undefined,
         productName,
         quantity: quantity ? parseInt(quantity) : undefined,
         note,
-        // [修改] 直接存入陣列
         productImages: keepImagesList,
       },
     });
@@ -284,7 +305,6 @@ const deleteMyPackage = async (req, res) => {
         .json({ success: false, message: "包裹已入庫或處理中，無法刪除" });
     }
 
-    // [修改] 直接讀取 DB Json
     const productImages = pkg.productImages || [];
     const warehouseImages = pkg.warehouseImages || [];
 

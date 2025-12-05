@@ -18,7 +18,7 @@ model User {
   phone               String?
   defaultAddress      String?
   
-  // [修改] 權限控制：改為 Json 型別
+  // 權限控制：Json 型別 (例如 ["PACKAGE_VIEW", "USER_MANAGE"])
   permissions         Json      @default("[]") 
   
   // 帳號狀態
@@ -41,19 +41,21 @@ model User {
 model Package {
   id                  String    @id @default(cuid())
   
-  trackingNumber      String    
+  // [Security] 新增 @unique 確保單號唯一
+  trackingNumber      String    @unique
+  
   productName         String    
   quantity            Int       @default(1)
   note                String?
 
-  // [修改] 圖片儲存：改為 Json 型別
+  // 圖片儲存：Json 型別 (存圖片路徑字串陣列)
   productImages       Json      @default("[]") 
   warehouseImages     Json      @default("[]") 
   warehouseThumbnails Json      @default("[]") // 縮圖路徑
 
   status              String    @default("PENDING") 
   
-  // [修改] 倉庫數據：改為 Json 型別
+  // 倉庫數據：Json 型別 (存分箱明細物件陣列)
   arrivedBoxesJson    Json      @default("[]") 
   
   totalCalculatedFee  Float?
@@ -87,7 +89,7 @@ model Shipment {
   
   note                  String?
 
-  // [修改] 附加服務：改為 Json 型別
+  // 附加服務：Json 型別 (存 { floor: { selected: true, ... } })
   additionalServices    Json?     @default("{}")
   
   deliveryLocationRate  Float?    // 偏遠地區費率
@@ -100,9 +102,9 @@ model Shipment {
   invoiceNumber         String?
   invoiceDate           DateTime?
   invoiceRandomCode     String?
-  invoiceStatus         String?
-
-  // [修改] 商品證明：改為 Json 型別
+  invoiceStatus         String?   // ISSUED, VOID
+  
+  // 商品證明：Json 型別 (存圖片路徑或連結)
   productUrl            String?
   shipmentProductImages Json      @default("[]")
 
@@ -121,7 +123,7 @@ model Shipment {
 model CalculationQuote {
   id                String    @id @default(cuid())
   createdAt         DateTime  @default(now())
-  // [修改] 試算結果：改為 Json 型別
+  // 試算結果：Json 型別
   calculationResult Json    
 }
 
@@ -145,7 +147,7 @@ model ActivityLog {
 // --- 6. 系統全域設定 (System Settings) ---
 model SystemSetting {
   key         String   @id  // e.g., "rates_config", "announcement"
-  // [修改] 設定值：改為 Json 型別，方便存取物件
+  // 設定值：Json 型別，方便存取物件結構
   value       Json        
   description String?
   updatedAt   DateTime @updatedAt

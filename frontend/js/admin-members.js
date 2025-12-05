@@ -1,8 +1,8 @@
-// frontend/js/admin-members.js (V2025.2 - 權限對齊版)
+// frontend/js/admin-members.js
+// V2025.Security - 包含刪除防呆 (雙重確認)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
-  // 讀取當前管理員的權限列表
   const myPermissions = JSON.parse(
     localStorage.getItem("admin_permissions") || "[]"
   );
@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const paginationDiv = document.getElementById("pagination");
   const modal = document.getElementById("member-modal");
   const form = document.getElementById("member-form");
-  const btnImpersonate = document.getElementById("btn-impersonate"); // 獲取按鈕參照
+  const btnImpersonate = document.getElementById("btn-impersonate");
 
   // 初始化
   init();
@@ -106,7 +106,6 @@ document.addEventListener("DOMContentLoaded", () => {
         perms = [];
       }
 
-      // 使用新版權限判斷角色
       if (perms.includes("USER_MANAGE") || perms.includes("CAN_MANAGE_USERS")) {
         roleBadge =
           '<span class="status-badge" style="background:#fff3cd; color:#856404;">管理員</span>';
@@ -145,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 </button>
                 <button class="btn btn-danger btn-sm" title="刪除" onclick="deleteUser('${
                   u.id
-                }')">
+                }', '${u.email}')">
                     <i class="fas fa-trash"></i>
                 </button>
             </td>
@@ -197,27 +196,19 @@ document.addEventListener("DOMContentLoaded", () => {
       ? u.permissions
       : JSON.parse(u.permissions || "[]");
 
-    // 勾選權限 Checkbox (確保 modal 中有對應 value 的 checkbox)
     document.querySelectorAll(".perm-check").forEach((checkbox) => {
       checkbox.checked = perms.includes(checkbox.value);
     });
 
-    // [權限控制] 根據權限決定是否顯示「模擬登入」按鈕
+    // 防止模擬自己
+    const isSelf = u.email === localStorage.getItem("admin_name");
+    const canImpersonate =
+      myPermissions.includes("USER_IMPERSONATE") ||
+      myPermissions.includes("CAN_MANAGE_USERS");
+
     if (btnImpersonate) {
-      // 檢查新版權限 (USER_IMPERSONATE) 或 舊版兼容 (CAN_...)
-      const canImpersonate =
-        myPermissions.includes("USER_IMPERSONATE") ||
-        myPermissions.includes("CAN_IMPERSONATE_USERS") ||
-        myPermissions.includes("CAN_MANAGE_USERS"); // 超級管理員
-
-      // 防止模擬自己
-      const isSelf = u.email === localStorage.getItem("admin_name"); // 注意: 這裡假設 admin_name 存的是 email 或 name，若能用 ID 比對更佳
-
-      if (canImpersonate && !isSelf) {
-        btnImpersonate.style.display = "inline-block";
-      } else {
-        btnImpersonate.style.display = "none";
-      }
+      btnImpersonate.style.display =
+        canImpersonate && !isSelf ? "inline-block" : "none";
     }
 
     modal.style.display = "flex";
@@ -246,7 +237,6 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify(profileBody),
       });
 
-      // 收集權限
       const selectedPerms = [];
       document
         .querySelectorAll(".perm-check:checked")
@@ -312,10 +302,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
 
       if (res.ok) {
-        // 在新視窗中打開前台
         const win = window.open("index.html", "_blank");
-
-        // 延遲寫入 Token 到新視窗的 localStorage
         setTimeout(() => {
           if (win) {
             try {
@@ -326,7 +313,7 @@ document.addEventListener("DOMContentLoaded", () => {
               );
               win.location.href = "dashboard.html";
             } catch (e) {
-              console.warn("無法自動寫入 localStorage (可能跨域阻擋)", e);
+              console.warn("無法自動寫入 localStorage", e);
             }
           }
         }, 800);
@@ -360,26 +347,33 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  window.deleteUser = async function (id) {
-    if (
-      !confirm(
-        "【危險操作】確定要永久刪除此會員及其所有包裹、訂單紀錄嗎？此動作無法復原！"
-      )
-    )
+  // [Security] 雙重確認刪除機制
+  window.deleteUser = async function (id, email) {
+    const confirmation = prompt(
+      `【危險操作】\n您確定要永久刪除會員 ${email} 嗎？\n此操作無法復原，且將連帶刪除該會員的所有紀錄。\n\n請輸入 "DELETE" (大寫) 以確認刪除：`
+    );
+
+    if (confirmation !== "DELETE") {
+      if (confirmation !== null) alert("輸入錯誤，取消刪除。");
       return;
+    }
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${adminToken}` },
       });
+      const data = await res.json();
+
       if (res.ok) {
-        alert("會員已刪除");
+        alert("會員已成功刪除");
         loadMembers();
       } else {
-        alert("刪除失敗");
+        // 顯示後端回傳的具體錯誤 (例如：尚有未完成訂單)
+        alert("刪除失敗：\n" + (data.message || "未知錯誤"));
       }
     } catch (err) {
-      alert("錯誤");
+      alert("網路錯誤，請稍後再試。");
     }
   };
 });

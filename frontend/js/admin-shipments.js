@@ -1,4 +1,5 @@
-// frontend/js/admin-shipments.js (V2025.Invoice - Final Fix)
+// frontend/js/admin-shipments.js
+// V2025.Security - 包含財務鎖定 (Financial Lock)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -170,7 +171,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("m-user").textContent =
       s.user?.name || s.user?.email;
 
-    // [新增] 回填發票資訊
     document.getElementById("m-tax-id").value = s.taxId || "";
     document.getElementById("m-invoice-title").value = s.invoiceTitle || "";
 
@@ -185,6 +185,22 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("m-cost").value = s.totalCost;
     document.getElementById("m-tracking-tw").value = s.trackingNumberTW || "";
 
+    // [Security] 財務鎖定：若發票已開立，禁用金額修改
+    const costInput = document.getElementById("m-cost");
+    if (
+      s.invoiceStatus === "ISSUED" &&
+      s.invoiceNumber &&
+      s.invoiceStatus !== "VOID"
+    ) {
+      costInput.disabled = true;
+      costInput.title = "發票已開立，禁止修改金額。請先作廢發票。";
+      costInput.style.backgroundColor = "#e9ecef";
+    } else {
+      costInput.disabled = false;
+      costInput.style.backgroundColor = "";
+      costInput.title = "";
+    }
+
     const proofDiv = document.getElementById("m-proof");
     if (s.paymentProof) {
       proofDiv.innerHTML = `<a href="${API_BASE_URL}${s.paymentProof}" target="_blank"><img src="${API_BASE_URL}${s.paymentProof}" style="height:100px; border:1px solid #ccc;"></a>`;
@@ -192,6 +208,7 @@ document.addEventListener("DOMContentLoaded", () => {
       proofDiv.innerHTML = "尚未上傳";
     }
 
+    // 發票管理區塊
     const invSection = document.getElementById("invoice-management-section");
     invSection.innerHTML = "";
     invSection.style.cssText =
@@ -284,7 +301,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
 
       if (res.ok) {
-        alert("發票已作廢");
+        alert("發票已作廢，現在可以修改金額了。");
         modal.style.display = "none";
         loadShipments();
       } else {
@@ -302,7 +319,6 @@ document.addEventListener("DOMContentLoaded", () => {
       status: document.getElementById("m-status").value,
       totalCost: document.getElementById("m-cost").value,
       trackingNumberTW: document.getElementById("m-tracking-tw").value,
-      // [新增] 收集發票資訊
       taxId: document.getElementById("m-tax-id").value.trim(),
       invoiceTitle: document.getElementById("m-invoice-title").value.trim(),
     };
@@ -322,15 +338,18 @@ document.addEventListener("DOMContentLoaded", () => {
         },
         body: JSON.stringify(data),
       });
+      const resData = await res.json();
+
       if (res.ok) {
         alert("更新成功");
         modal.style.display = "none";
         loadShipments();
       } else {
-        alert("失敗");
+        // [Security] 顯示後端回傳的錯誤 (例如：財務鎖定、出貨檢核)
+        alert("更新失敗：" + resData.message);
       }
     } catch (e) {
-      alert("錯誤");
+      alert("錯誤：" + e.message);
     }
   }
 
