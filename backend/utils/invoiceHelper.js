@@ -1,4 +1,4 @@
-// backend/utils/invoiceHelper.js (V2025.2 - AMEGO Fix)
+// backend/utils/invoiceHelper.js (V2025.3 - AMEGO Final Fix)
 
 const axios = require("axios");
 const crypto = require("crypto");
@@ -16,8 +16,8 @@ const getInvoiceConfig = async () => {
   let config = {
     enabled: false,
     mode: "TEST",
-    merchantId: process.env.AMEGO_MERCHANT_ID,
-    hashKey: process.env.AMEGO_HASH_KEY,
+    merchantId: process.env.AMEGO_MERCHANT_ID, // ⚠️ 注意：這裡必須是「賣方統編 (8碼)」
+    hashKey: process.env.AMEGO_HASH_KEY, // AMEGO 後台提供的 App Key
   };
 
   try {
@@ -52,6 +52,7 @@ const getInvoiceConfig = async () => {
  */
 const generateSign = (dataJson, time, hashKey) => {
   // AMEGO 規則: md5(dataJSON字串 + unixTime + HashKey)
+  // 注意：dataJson 必須是尚未 URL Encode 的原始 JSON 字串
   const rawString = dataJson + time + hashKey;
   return crypto.createHash("md5").update(rawString).digest("hex");
 };
@@ -60,20 +61,27 @@ const generateSign = (dataJson, time, hashKey) => {
  * 通用 API 請求發送器
  */
 const sendAmegoRequest = async (endpoint, dataObj, config) => {
+  // 1. 將資料物件轉為 JSON 字串
   const dataJson = JSON.stringify(dataObj);
-  const time = Math.floor(Date.now() / 1000); // Unix timestamp (秒)
+
+  // 2. 取得時間戳記 (秒)
+  const time = Math.floor(Date.now() / 1000);
+
+  // 3. 計算簽章 (針對原始 JSON 字串簽名)
   const sign = generateSign(dataJson, time, config.hashKey);
 
-  // [Fix 3] 移除多餘的 MerchantID 欄位，僅保留官方要求的 invoice, time, sign, data
+  // 4. 組建 POST 表單資料
+  // 注意：invoice 參數必須是「賣方統編」
   const formData = {
-    invoice: config.merchantId, // 商店代號/統編
+    invoice: config.merchantId,
     time: time,
     sign: sign,
-    data: dataJson,
+    data: dataJson, // axios/qs 會自動進行 URL Encode
   };
 
   try {
-    console.log(`[Invoice] 發送請求至 ${endpoint} (Mode: ${config.mode})`);
+    console.log(`[Invoice] 發送請求至 ${endpoint}`);
+    // console.log(`[Debug] Data Payload:`, dataJson); // 除錯用，正式環境可註解
 
     const response = await axios.post(
       `${BASE_URL}${endpoint}`,
@@ -85,45 +93,50 @@ const sendAmegoRequest = async (endpoint, dataObj, config) => {
     return response.data;
   } catch (error) {
     console.error(`[Invoice API Error] ${error.message}`);
+    // 若有回應內容，印出以供除錯
+    if (error.response && error.response.data) {
+      console.error(`[Invoice API Response]`, error.response.data);
+    }
     throw new Error("發票系統連線失敗");
   }
 };
 
 /**
- * 1. 開立發票 (Issue Invoice) - 對應 API f0401
+ * 1. 開立發票 (Issue Invoice) - 對應 API f0401 (2025新版)
  */
 const createInvoice = async (shipment, user) => {
   const config = await getInvoiceConfig();
   if (!config.enabled)
     return { success: false, message: "系統設定：發票功能已關閉" };
   if (!config.merchantId || !config.hashKey)
-    return { success: false, message: "API 金鑰未設定" };
+    return { success: false, message: "API 金鑰未設定 (請檢查統編與HashKey)" };
 
-  // --- [Fix 1 & 2] 金額與稅額計算修正 ---
+  // --- 金額計算邏輯 ---
   const total = Math.round(Number(shipment.totalCost));
-
   const rawTaxId = shipment.taxId ? shipment.taxId.trim() : "";
   const hasTaxId = rawTaxId.length === 8; // 有 8 碼統編視為 B2B
 
-  let salesAmount = 0; // 銷售額
+  let salesAmount = 0; // 銷售額 (未稅 or 含稅)
   let taxAmount = 0; // 稅額
   let unitPrice = 0; // 單價
-  let detailVat = 1; // 0:未稅, 1:含稅
+  let detailVat = 1; // 1:含稅(B2C預設), 0:未稅(B2B專用)
 
   if (hasTaxId) {
     // === B2B (有統編) ===
-    // 需拆分稅額，且建議使用未稅價申報以避免誤差
-    salesAmount = Math.round(total / 1.05); // 未稅金額
-    taxAmount = total - salesAmount; // 稅額
-    unitPrice = salesAmount; // 單價 = 未稅金額
-    detailVat = 0; // 設定明細為「未稅價」
+    // 設定為「未稅價模式 (DetailVat=0)」
+    // SalesAmount 填未稅總額
+    salesAmount = Math.round(total / 1.05);
+    taxAmount = total - salesAmount;
+    unitPrice = salesAmount;
+    detailVat = 0;
   } else {
     // === B2C (個人/無統編) ===
-    // AMEGO 規定：個人發票 TaxAmount 必須為 0，SalesAmount 等於總金額
-    salesAmount = total; // 含稅銷售額
-    taxAmount = 0; // 個人稅額填 0
-    unitPrice = total; // 單價 = 總金額
-    detailVat = 1; // 設定明細為「含稅價」
+    // 設定為「含稅價模式 (DetailVat=1)」
+    // AMEGO 強制規定：B2C 發票 TaxAmount 必須為 0
+    salesAmount = total;
+    taxAmount = 0;
+    unitPrice = total;
+    detailVat = 1;
   }
 
   // 買受人資訊
@@ -136,44 +149,53 @@ const createInvoice = async (shipment, user) => {
   const productItems = [
     {
       Description: "國際運費",
-      Quantity: 1,
+      Quantity: 1, // 必填 Number
       UnitPrice: unitPrice,
       Amount: unitPrice,
       TaxType: 1, // 1: 應稅
     },
   ];
 
+  // 載具邏輯
+  let carrierType = "";
+  let carrierId1 = "";
+
+  // 只有 B2C 且有設定載具時才傳送
+  if (!hasTaxId && shipment.carrierType && shipment.carrierId) {
+    carrierType = shipment.carrierType;
+    carrierId1 = shipment.carrierId;
+  }
+
   const dataObj = {
-    OrderId: shipment.id,
-    BuyerIdentifier: buyerId,
-    BuyerName: buyerName,
-    BuyerEmailAddress: user.email, // 寄送通知用
+    OrderId: shipment.id, // 必填
+    BuyerIdentifier: buyerId, // 必填 (0000000000 or 統編)
+    BuyerName: buyerName, // 必填
+    BuyerEmailAddress: user.email || "", // 選填
 
     // 金額資訊
-    SalesAmount: salesAmount,
+    SalesAmount: salesAmount, // 必填 Number
     FreeTaxSalesAmount: 0,
     ZeroTaxSalesAmount: 0,
-    TaxType: 1, // 應稅
-    TaxRate: "0.05", // [Fix 4] 改為字串格式
-    TaxAmount: taxAmount,
-    TotalAmount: total,
+    TaxType: 1, // 1: 應稅
+    TaxRate: "0.05", // 必填 String (注意是字串)
+    TaxAmount: taxAmount, // 必填 Number
+    TotalAmount: total, // 必填 Number
 
-    ProductItem: productItems,
+    ProductItem: productItems, // 必填 Array
 
-    // [Fix 2] 加入 DetailVat 參數，確保 B2B 金額計算正確
-    DetailVat: detailVat,
+    DetailVat: detailVat, // 選填 Number (0:未稅, 1:含稅)
 
-    Print: "N", // N: 不列印 (由 AMEGO 寄送 Email)
+    // [FIX] 移除了錯誤的 "Print" 參數
+    // 若不需要列印紙本，不傳送 PrinterType 即可
 
-    // 載具相關 (若資料庫無欄位，這些暫時會是空字串，符合邏輯)
-    CarrierType: !hasTaxId && shipment.carrierType ? shipment.carrierType : "",
-    CarrierId1: !hasTaxId && shipment.carrierId ? shipment.carrierId : "",
-    CarrierId2: "",
+    // 載具參數 (若無載具則留空字串或不傳，這裡傳空字串較安全)
+    CarrierType: carrierType,
+    CarrierId1: carrierId1,
+    // CarrierId2 通常用於特定載具，無特殊需求可省略
   };
 
   const resData = await sendAmegoRequest("/f0401", dataObj, config);
 
-  // AMEGO 回傳 code 0 代表成功
   if (resData.code === 0) {
     return {
       success: true,
@@ -183,7 +205,6 @@ const createInvoice = async (shipment, user) => {
       message: "開立成功",
     };
   } else {
-    // 回傳詳細錯誤訊息
     return {
       success: false,
       message: `開立失敗(${resData.code}): ${resData.msg}`,
@@ -192,43 +213,22 @@ const createInvoice = async (shipment, user) => {
 };
 
 /**
- * 2. 作廢發票 (Void Invoice) - 對應 API f0501 (文件更新為 f0501)
+ * 2. 作廢發票 (Void Invoice) - 對應 API f0501 (2025新版)
  */
-const voidInvoice = async (invoiceNumber, reason = "訂單取消/金額錯誤") => {
+const voidInvoice = async (invoiceNumber, reason = "訂單取消") => {
   const config = await getInvoiceConfig();
   if (!config.enabled) return { success: false, message: "發票功能已關閉" };
 
-  // 注意：AMEGO 2025 文件指出作廢 API 路徑為 /json/f0501
-  // 參數結構通常是陣列或單一物件，依文件 f0501 參數為:
-  // CancelInvoiceNumber: 發票號碼
-
-  // 這裡調整為符合 f0501 的單張作廢格式 (部分文件可能要求包在 array 裡，視實測而定)
-  // 若 f0501 要求 array，這裡包成陣列：
-  const dataObj = [{ CancelInvoiceNumber: invoiceNumber, Reason: reason }];
-  // 或是舊版 f0402 格式...
-  // 為了保險，若您目前是用 f0402 且能通，可維持。
-  // 但若依據新文件，建議改用 f0501。以下示範相容寫法 (若 API 是 f0402 則維持 dataObj 物件)
-
-  // 假設維持 f0402 (舊版)
-  // const endpoint = "/f0402";
-  // const payload = { InvoiceNumber: invoiceNumber, Reason: reason };
-
-  // 若要升級為 f0501 (2025新版)
-  const endpoint = "/f0501";
-  const payload = [
-    { CancelInvoiceNumber: invoiceNumber, InvalidReason: reason }, // 注意欄位名稱可能變更，請依您實際使用的版本微調
+  // [FIX] 2025 AMEGO 文件指定使用 /json/f0501
+  // 且資料結構必須為「物件陣列」
+  const dataObj = [
+    {
+      CancelInvoiceNumber: invoiceNumber, // 參數名稱改變：InvoiceNumber -> CancelInvoiceNumber
+      // InvalidReason: reason // 若文件未強制要求原因，可省略，或依文件加入
+    },
   ];
-  // *註：因為文件上 f0501 參數是 CancelInvoiceNumber，舊版 f0402 是 InvoiceNumber
-  // 為了讓您目前能快速修復「開立」問題，這裡先維持您原本的 f0402 邏輯 (若它之前能用)，
-  // 或是我幫您修正為最穩的 f0402 寫法：
 
-  const dataObjOld = {
-    InvoiceNumber: invoiceNumber,
-    Reason: reason,
-  };
-
-  // 嘗試使用舊版 endpoint (通常相容性較好)，若確定要用新版請改為 f0501
-  const resData = await sendAmegoRequest("/f0402", dataObjOld, config);
+  const resData = await sendAmegoRequest("/f0501", dataObj, config);
 
   if (resData.code === 0) {
     return { success: true, message: "作廢成功" };
