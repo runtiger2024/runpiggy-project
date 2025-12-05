@@ -33,7 +33,7 @@ const seedDefaultSettings = async () => {
       hashKey: process.env.AMEGO_HASH_KEY || "",
       apiUrl:
         process.env.AMEGO_API_URL || "https://invoice-api.amego.tw/json/f0401",
-      isEnabled: true,
+      enabled: true,
       notifyEmail: true,
     },
     category: "INVOICE",
