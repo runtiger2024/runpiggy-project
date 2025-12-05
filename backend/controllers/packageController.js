@@ -1,8 +1,10 @@
-// backend/controllers/packageController.js (V9 優化版 - 整合檔案管理)
+// backend/controllers/packageController.js
+// V10 優化版 - 整合檔案管理與後端計算邏輯 (Single Source of Truth)
 
 const prisma = require("../config/db.js");
 const fs = require("fs");
 const path = require("path");
+const ratesManager = require("../utils/ratesManager.js"); // [新增] 引入費率管理器
 
 // --- 輔助函式：安全刪除多個檔案 ---
 const deleteFiles = (filePaths) => {
@@ -12,13 +14,11 @@ const deleteFiles = (filePaths) => {
 
   filePaths.forEach((filePath) => {
     try {
-      // 確保只處理 uploads 目錄下的檔案，防止路徑遍歷
       const fileName = path.basename(filePath);
       if (!fileName) return;
 
       const absolutePath = path.join(uploadDir, fileName);
 
-      // 檢查檔案是否存在再刪除
       if (fs.existsSync(absolutePath)) {
         fs.unlinkSync(absolutePath);
       }
@@ -29,7 +29,7 @@ const deleteFiles = (filePaths) => {
 };
 
 /**
- * @description 包裹預報 (支援純 JSON 或 FormData 圖片上傳)
+ * @description 包裹預報 (支援圖片上傳)
  * @route POST /api/packages/forecast/images
  */
 const createPackageForecast = async (req, res) => {
@@ -55,8 +55,8 @@ const createPackageForecast = async (req, res) => {
         productName: productName,
         quantity: quantity ? parseInt(quantity) : 1,
         note: note,
-        productImages: JSON.stringify(imagePaths), // 儲存圖片路徑陣列
-        warehouseImages: "[]", // 倉庫圖片預設為空
+        productImages: JSON.stringify(imagePaths),
+        warehouseImages: "[]",
         userId: userId,
         status: "PENDING",
       },
@@ -74,7 +74,7 @@ const createPackageForecast = async (req, res) => {
 };
 
 /**
- * @description 取得 "我" 的所有包裹
+ * @description 取得 "我" 的所有包裹 (包含後端即時計算的費用與狀態)
  * @route GET /api/packages/my
  */
 const getMyPackages = async (req, res) => {
@@ -85,7 +85,12 @@ const getMyPackages = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    // 解析 JSON 欄位
+    // 1. 取得當前系統費率設定 (Single Source of Truth)
+    const systemRates = await ratesManager.getRates();
+    const CONSTANTS = systemRates.constants;
+    const RATES = systemRates.categories;
+
+    // 2. 解析與增強數據
     const packagesWithParsedJson = myPackages.map((pkg) => {
       let productImages = [];
       let warehouseImages = [];
@@ -101,12 +106,87 @@ const getMyPackages = async (req, res) => {
         arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
       } catch (e) {}
 
+      // --- [核心優化] 後端計算邏輯 ---
+      // 計算每個箱子的費用、材積，並判斷整包是否超規
+      let pkgIsOversized = false;
+      let pkgIsOverweight = false;
+      let calculatedTotalFee = 0;
+
+      const enrichedBoxes = arrivedBoxes.map((box) => {
+        const l = parseFloat(box.length) || 0;
+        const w = parseFloat(box.width) || 0;
+        const h = parseFloat(box.height) || 0;
+        const weight = parseFloat(box.weight) || 0;
+        const type = box.type || "general";
+
+        // 取得該類別費率
+        const rateInfo = RATES[type] || {
+          weightRate: 0,
+          volumeRate: 0,
+          name: "未知",
+        };
+
+        // 判斷超規 (>= 邏輯)
+        const isOversized =
+          l >= CONSTANTS.OVERSIZED_LIMIT ||
+          w >= CONSTANTS.OVERSIZED_LIMIT ||
+          h >= CONSTANTS.OVERSIZED_LIMIT;
+
+        const isOverweight = weight >= CONSTANTS.OVERWEIGHT_LIMIT;
+
+        if (isOversized) pkgIsOversized = true;
+        if (isOverweight) pkgIsOverweight = true;
+
+        // 計算費用細節
+        let cai = 0;
+        let volFee = 0;
+        let wtFee = 0;
+        let finalFee = 0;
+        let isVolWin = false;
+
+        if (l > 0 && w > 0 && h > 0) {
+          // 材積 = (L*W*H)/除數，無條件進位
+          cai = Math.ceil((l * w * h) / CONSTANTS.VOLUME_DIVISOR);
+          volFee = cai * rateInfo.volumeRate;
+          // 重量費 (小數點後一位進位)
+          wtFee = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
+          finalFee = Math.max(volFee, wtFee);
+          isVolWin = volFee >= wtFee;
+        }
+
+        calculatedTotalFee += finalFee;
+
+        // 回傳增強後的箱子物件 (前端直接使用這些欄位)
+        return {
+          ...box,
+          cai,
+          volFee,
+          wtFee,
+          calculatedFee: finalFee,
+          isVolWin,
+          isOversized,
+          isOverweight,
+          rateName: rateInfo.name, // 顯示名稱 e.g. "一般家具"
+        };
+      });
+
+      // 若 DB 內沒有儲存總費用 (舊資料)，使用即時計算值
+      const finalTotalFee =
+        pkg.totalCalculatedFee > 0
+          ? pkg.totalCalculatedFee
+          : calculatedTotalFee;
+
       return {
         ...pkg,
         productImages,
         warehouseImages,
-        arrivedBoxes,
-        arrivedBoxesJson: undefined, // 移除原始 JSON 字串，保持回應乾淨
+        arrivedBoxes: enrichedBoxes, // 使用增強版
+        arrivedBoxesJson: undefined, // 移除原始字串
+
+        // [新增] 注入後端計算的狀態旗標與總額
+        isOversized: pkgIsOversized,
+        isOverweight: pkgIsOverweight,
+        totalCalculatedFee: finalTotalFee,
       };
     });
 
@@ -122,7 +202,7 @@ const getMyPackages = async (req, res) => {
 };
 
 /**
- * @description 會員修改自己的包裹 (含圖片增刪邏輯)
+ * @description 會員修改自己的包裹 (含圖片增刪)
  * @route PUT /api/packages/:id
  */
 const updateMyPackage = async (req, res) => {
@@ -132,7 +212,6 @@ const updateMyPackage = async (req, res) => {
       req.body;
     const userId = req.user.id;
 
-    // 1. 檢查權限與狀態
     const pkg = await prisma.package.findFirst({
       where: { id: id, userId: userId },
     });
@@ -148,7 +227,6 @@ const updateMyPackage = async (req, res) => {
         .json({ success: false, message: "包裹已入庫或處理中，無法修改" });
     }
 
-    // 2. 處理圖片邏輯 (比對舊圖，物理刪除被移除的)
     let originalImagesList = [];
     try {
       originalImagesList = JSON.parse(pkg.productImages || "[]");
@@ -156,33 +234,27 @@ const updateMyPackage = async (req, res) => {
 
     let keepImagesList = [];
     try {
-      // existingImages 若為空字串或 undefined，parse 會報錯，需處理
       keepImagesList = existingImages ? JSON.parse(existingImages) : [];
       if (!Array.isArray(keepImagesList)) keepImagesList = [];
     } catch (e) {
       keepImagesList = [];
     }
 
-    // 找出「原本有」但「現在沒了」的圖片 -> 刪除檔案
     const imagesToDelete = originalImagesList.filter(
       (img) => !keepImagesList.includes(img)
     );
 
-    // 使用輔助函式刪除舊圖
     deleteFiles(imagesToDelete);
 
-    // 3. 加入新上傳的圖片
     if (req.files && req.files.length > 0) {
       const newPaths = req.files.map((file) => `/uploads/${file.filename}`);
       keepImagesList = [...keepImagesList, ...newPaths];
     }
 
-    // 限制最多 5 張
     if (keepImagesList.length > 5) {
       keepImagesList = keepImagesList.slice(0, 5);
     }
 
-    // 4. 更新資料庫
     const updatedPackage = await prisma.package.update({
       where: { id: id },
       data: {
@@ -229,13 +301,11 @@ const deleteMyPackage = async (req, res) => {
         .json({ success: false, message: "包裹已入庫或處理中，無法刪除" });
     }
 
-    // 1. 物理刪除圖片 (會員上傳的)
     let productImages = [];
     try {
       productImages = JSON.parse(pkg.productImages || "[]");
     } catch (e) {}
 
-    // 2. 物理刪除倉庫圖片 (理論上 PENDING 狀態不應有，但保險起見)
     let warehouseImages = [];
     try {
       warehouseImages = JSON.parse(pkg.warehouseImages || "[]");
@@ -243,7 +313,6 @@ const deleteMyPackage = async (req, res) => {
 
     deleteFiles([...productImages, ...warehouseImages]);
 
-    // 3. 刪除資料庫紀錄
     await prisma.package.delete({
       where: { id: id },
     });

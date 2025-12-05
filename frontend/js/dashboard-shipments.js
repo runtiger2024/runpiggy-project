@@ -1,5 +1,5 @@
-// frontend/js/dashboard-shipments.js (V24.0 - 新增付款憑證一鍵複製帳號功能)
-// 負責：集運單列表、建立訂單(結帳)、取消訂單、詳情、上傳憑證
+// frontend/js/dashboard-shipments.js
+// V24.1 (優化版) - 移除重複計算邏輯，完全依賴後端提供的數據
 
 // --- 1. 載入我的集運單 ---
 window.loadMyShipments = async function () {
@@ -87,7 +87,6 @@ window.updateCheckoutBar = function () {
 
 // --- [新增] 附加服務邏輯初始化 ---
 function setupServiceOptionsLogic() {
-  // 1. 上樓 -> 顯示電梯選項
   const floorCheck = document.getElementById("srv-floor");
   const floorOptions = document.getElementById("srv-floor-options");
   if (floorCheck && floorOptions) {
@@ -96,7 +95,6 @@ function setupServiceOptionsLogic() {
     });
   }
 
-  // 2. 通用：勾選 -> 顯示備註欄
   const toggleInput = (checkboxId, inputDivId) => {
     const cb = document.getElementById(checkboxId);
     const div = document.getElementById(inputDivId);
@@ -112,23 +110,19 @@ function setupServiceOptionsLogic() {
   toggleInput("srv-old", "srv-old-input");
 }
 
-// --- [新增] 重置附加服務表單 ---
 function resetServiceForm() {
-  // 1. 清空勾選
   const checkboxes = ["srv-floor", "srv-wood", "srv-assembly", "srv-old"];
   checkboxes.forEach((id) => {
     const el = document.getElementById(id);
     if (el) {
       el.checked = false;
-      el.dispatchEvent(new Event("change")); // 觸發隱藏邏輯
+      el.dispatchEvent(new Event("change"));
     }
   });
 
-  // 2. 重置電梯 radio
   const radios = document.querySelectorAll('input[name="srv-elevator"]');
   radios.forEach((r) => (r.checked = false));
 
-  // 3. 清空備註文字
   const inputs = [
     "srv-floor-note",
     "srv-wood-note",
@@ -141,86 +135,65 @@ function resetServiceForm() {
   });
 }
 
-// --- 4. 點擊合併打包 (生成詳細算式與檢視) ---
+// --- 4. 點擊合併打包 (生成詳細清單，但不重複計算) ---
 window.handleCreateShipmentClick = function () {
   const ids = Array.from(
     document.querySelectorAll(".package-checkbox:checked")
   ).map((c) => c.dataset.id);
   if (ids.length === 0) return;
 
-  // 初始化服務邏輯與重置表單
-  setupServiceOptionsLogic();
-  resetServiceForm();
-
-  // 準備費率常數
-  const CONSTANTS = window.CONSTANTS || {
-    VOLUME_DIVISOR: 28317,
-    OVERSIZED_LIMIT: 300,
-    OVERWEIGHT_LIMIT: 100,
-  };
-  const RATES = window.RATES || {};
+  if (window.setupServiceOptionsLogic) setupServiceOptionsLogic(); // 確保函式已定義
+  if (window.resetServiceForm) resetServiceForm();
 
   let html = "";
 
-  // [變數] 追蹤超重超長
+  // [變數] 追蹤超重超長 (使用後端提供的旗標)
   let shipmentHasOverweight = false;
   let shipmentHasOversized = false;
 
   ids.forEach((id) => {
+    // 取得緩存的包裹資料 (來自 getMyPackages)
     const p = window.allPackagesData.find((x) => x.id === id);
     if (!p) return;
 
+    // --- 優化：直接使用後端已計算好的數據 ---
     const boxes = Array.isArray(p.arrivedBoxes) ? p.arrivedBoxes : [];
-    let pkgTotalFee = 0;
-    let pkgTotalWeight = 0;
     let breakdownHtml = "";
     let badgesHtml = "";
-    let hasOversized = false;
-    let hasOverweight = false;
 
+    // 累加包裹總重 (僅作顯示用)
+    let pkgTotalWeight = 0;
+    if (boxes.length > 0) {
+      pkgTotalWeight = boxes.reduce(
+        (sum, b) => sum + (parseFloat(b.weight) || 0),
+        0
+      );
+    }
+
+    // 檢查旗標 (由後端提供)
+    if (p.isOversized) {
+      shipmentHasOversized = true;
+      badgesHtml += `<span class="badge-alert small" style="color:#c62828; border:1px solid #ef9a9a; background:#ffebee;">超長</span> `;
+    }
+    if (p.isOverweight) {
+      shipmentHasOverweight = true;
+      badgesHtml += `<span class="badge-alert small" style="color:#c62828; border:1px solid #ef9a9a; background:#ffebee;">超重</span>`;
+    }
+
+    // 生成箱子明細 (顯示後端計算結果)
     if (boxes.length > 0) {
       boxes.forEach((b, idx) => {
-        const w = parseFloat(b.weight) || 0;
-        const l = parseFloat(b.length) || 0;
-        const wd = parseFloat(b.width) || 0;
-        const h = parseFloat(b.height) || 0;
-        const typeKey = b.type || "general";
-        const rateInfo = RATES[typeKey] || {
-          name: "一般",
-          weightRate: 0,
-          volumeRate: 0,
-        };
-
-        pkgTotalWeight += w;
-
-        // 算式邏輯
-        const cai = Math.ceil((l * wd * h) / CONSTANTS.VOLUME_DIVISOR);
-        const volFee = cai * rateInfo.volumeRate;
-        const wtFee = (Math.ceil(w * 10) / 10) * rateInfo.weightRate;
-        const boxFee = Math.max(volFee, wtFee); // 取大者計費
-        const isVolWin = volFee >= wtFee;
-
-        pkgTotalFee += boxFee;
-
-        // [修正] 檢查超規 (改為 >=)
-        if (
-          l >= CONSTANTS.OVERSIZED_LIMIT ||
-          wd >= CONSTANTS.OVERSIZED_LIMIT ||
-          h >= CONSTANTS.OVERSIZED_LIMIT
-        ) {
-          hasOversized = true;
-          shipmentHasOversized = true;
-        }
-
-        if (w >= CONSTANTS.OVERWEIGHT_LIMIT) {
-          hasOverweight = true;
-          shipmentHasOverweight = true;
-        }
+        // 使用後端注入的 calculatedFee
+        const boxFee = b.calculatedFee || 0;
+        const isVolWin = b.isVolWin;
+        const cai = b.cai || 0; // 後端有算
 
         breakdownHtml += `
                 <div class="checkout-box-row">
                     <span class="box-idx">#${idx + 1}</span>
-                    <span class="box-dim">${l}x${wd}x${h}/${w}kg</span>
+                    <span class="box-dim">${b.length}x${b.width}x${b.height}/${
+          b.weight
+        }kg</span>
                     <span class="box-fee">
                         ${
                           isVolWin ? `材(${cai})` : `重`
@@ -230,14 +203,11 @@ window.handleCreateShipmentClick = function () {
             `;
       });
     } else {
-      pkgTotalFee = p.totalCalculatedFee || 0;
       breakdownHtml = `<div style="color:#999;font-size:12px;">(尚無詳細測量數據)</div>`;
     }
 
-    if (hasOversized)
-      badgesHtml += `<span class="badge-alert small" style="color:#c62828; border:1px solid #ef9a9a; background:#ffebee;">超長</span> `;
-    if (hasOverweight)
-      badgesHtml += `<span class="badge-alert small" style="color:#c62828; border:1px solid #ef9a9a; background:#ffebee;">超重</span>`;
+    // 使用後端存儲的總費用
+    const pkgTotalFee = p.totalCalculatedFee || 0;
 
     html += `
     <div class="shipment-package-item detailed-mode">
@@ -275,12 +245,11 @@ window.handleCreateShipmentClick = function () {
       window.currentUser.defaultAddress || "";
   }
 
+  // 重置 UI 狀態
   const locSelect = document.getElementById("ship-delivery-location");
   if (locSelect) locSelect.value = "";
-
   const remoteInfo = document.getElementById("ship-remote-area-info");
   if (remoteInfo) remoteInfo.style.display = "none";
-
   const feeContainer = document.getElementById("api-fee-breakdown");
   if (feeContainer)
     feeContainer.innerHTML = `<div style="text-align:center;color:#999; padding:10px;">請選擇配送地區以計算總運費</div>`;
@@ -293,7 +262,7 @@ window.handleCreateShipmentClick = function () {
   if (window.renderShipmentRemoteAreaOptions)
     window.renderShipmentRemoteAreaOptions();
 
-  // 顯示堆高機與超長警告
+  // 顯示堆高機與超長警告 (根據旗標)
   const warningEl = document.getElementById("forklift-warning");
   if (warningEl) {
     if (shipmentHasOverweight) {
@@ -331,6 +300,7 @@ window.renderShipmentRemoteAreaOptions = function () {
 };
 
 // --- 6. 重新計算總運費 (呼叫後端 API) ---
+// 注意：這裡本來就是呼叫 API，所以邏輯是正確的，無需變更
 window.recalculateShipmentTotal = async function () {
   const ids = JSON.parse(
     document.getElementById("create-shipment-form").dataset.ids || "[]"
@@ -357,15 +327,10 @@ window.recalculateShipmentTotal = async function () {
 
     if (data.success) {
       const p = data.preview;
-      const CONSTANTS = window.CONSTANTS || {};
-
-      // [核心更新] 顯示完整算式
-      // 總費用 = 基本運費 + 偏遠費 + 超規費 (低消已在基本運費中處理)
 
       let html = `<div class="fee-breakdown-row"><span>基本運費總計</span> <span>$${p.baseCost.toLocaleString()}</span></div>`;
 
       if (p.isMinimumChargeApplied) {
-        // 計算補了多少差額
         const gap = p.baseCost - p.originalBaseCost;
         html += `<div class="fee-breakdown-row highlight" style="background:#fff3cd; color:#856404; padding:5px; border-radius:4px;">
                     <span><i class="fas fa-info-circle"></i> 未達低消，補足差額</span>
@@ -423,7 +388,6 @@ window.handleCreateShipmentSubmit = async function (e) {
     .trim();
   const fullAddress = (areaName === "一般地區" ? "" : areaName + " ") + street;
 
-  // [新增] 收集附加服務資料
   const services = {
     floor: {
       selected: document.getElementById("srv-floor").checked,
@@ -457,7 +421,6 @@ window.handleCreateShipmentSubmit = async function (e) {
   fd.append("invoiceTitle", document.getElementById("ship-invoiceTitle").value);
   fd.append("note", document.getElementById("ship-note").value);
   fd.append("productUrl", document.getElementById("ship-product-url").value);
-  // 附加服務 (轉 JSON 字串)
   fd.append("additionalServices", JSON.stringify(services));
 
   const files = document.getElementById("ship-product-images").files;
@@ -555,12 +518,10 @@ window.openShipmentDetails = async function (id) {
 // --- 9. 其他輔助功能 ---
 window.openUploadProof = function (id) {
   document.getElementById("upload-proof-id").value = id;
-  // [新增] 渲染銀行資訊
   const bankContainer = document.getElementById("upload-proof-bank-info");
   if (bankContainer) {
     if (window.BANK_INFO_CACHE) {
       const b = window.BANK_INFO_CACHE;
-      // [修改] 新增複製按鈕
       bankContainer.innerHTML = `
             <div style="text-align:center; margin-bottom:10px; font-weight:bold; color:#1a73e8;">請匯款至以下帳戶</div>
             <div><strong>銀行：</strong> ${b.bankName} ${b.branch || ""}</div>
@@ -628,7 +589,6 @@ window.updateBankInfoDOM = function (info) {
     document.getElementById("bank-holder").textContent = info.holder;
 };
 
-// --- [NEW] 複製到剪貼簿輔助函式 ---
 window.copyToClipboard = function (text) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard
@@ -641,10 +601,9 @@ window.copyToClipboard = function (text) {
         prompt("您的瀏覽器不支援自動複製，請手動複製：", text);
       });
   } else {
-    // Fallback 方案
     const textArea = document.createElement("textarea");
     textArea.value = text;
-    textArea.style.position = "fixed"; // 避免頁面滾動
+    textArea.style.position = "fixed";
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
