@@ -18,8 +18,8 @@ model User {
   phone               String?
   defaultAddress      String?
   
-  // 權限控制 (JSON 陣列字串，如 ["CAN_MANAGE_USERS"])
-  permissions         String    @default("[]") 
+  // [修改] 權限控制：改為 Json 型別
+  permissions         Json      @default("[]") 
   
   // 帳號狀態
   isActive            Boolean   @default(true) 
@@ -46,15 +46,16 @@ model Package {
   quantity            Int       @default(1)
   note                String?
 
-  // 圖片儲存 (JSON 字串陣列)
-  productImages       String    @default("[]") 
-  warehouseImages     String    @default("[]") 
-  warehouseThumbnails String    @default("[]") // 縮圖路徑，優化前端載入
+  // [修改] 圖片儲存：改為 Json 型別
+  productImages       Json      @default("[]") 
+  warehouseImages     Json      @default("[]") 
+  warehouseThumbnails Json      @default("[]") // 縮圖路徑
 
   status              String    @default("PENDING") 
   
-  // 倉庫數據
-  arrivedBoxesJson    String?   @default("[]") // 分箱數據 JSON
+  // [修改] 倉庫數據：改為 Json 型別
+  arrivedBoxesJson    Json      @default("[]") 
+  
   totalCalculatedFee  Float?
   warehouseRemark     String?
 
@@ -85,7 +86,10 @@ model Shipment {
   invoiceTitle          String?   // 發票抬頭
   
   note                  String?
-  additionalServices    String?   // JSON (附加服務：上樓、打木架等)
+
+  // [修改] 附加服務：改為 Json 型別
+  additionalServices    Json?     @default("{}")
+  
   deliveryLocationRate  Float?    // 偏遠地區費率
   status                String    @default("PENDING_PAYMENT") 
   totalCost             Float?
@@ -98,9 +102,9 @@ model Shipment {
   invoiceRandomCode     String?
   invoiceStatus         String?
 
-  // 商品證明
+  // [修改] 商品證明：改為 Json 型別
   productUrl            String?
-  shipmentProductImages String?   @default("[]")
+  shipmentProductImages Json      @default("[]")
 
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @default(now()) @updatedAt
@@ -117,7 +121,8 @@ model Shipment {
 model CalculationQuote {
   id                String    @id @default(cuid())
   createdAt         DateTime  @default(now())
-  calculationResult String    // JSON (儲存試算結果)
+  // [修改] 試算結果：改為 Json 型別
+  calculationResult Json    
 }
 
 // --- 5. 操作日誌 (Audit Log) ---
@@ -140,7 +145,8 @@ model ActivityLog {
 // --- 6. 系統全域設定 (System Settings) ---
 model SystemSetting {
   key         String   @id  // e.g., "rates_config", "announcement"
-  value       String        // JSON string
+  // [修改] 設定值：改為 Json 型別，方便存取物件
+  value       Json        
   description String?
   updatedAt   DateTime @updatedAt
 }

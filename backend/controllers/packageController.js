@@ -1,10 +1,10 @@
 // backend/controllers/packageController.js
-// V10 優化版 - 整合檔案管理與後端計算邏輯 (Single Source of Truth)
+// V11 優化版 - 使用 Native JSON 型別
 
 const prisma = require("../config/db.js");
 const fs = require("fs");
 const path = require("path");
-const ratesManager = require("../utils/ratesManager.js"); // [新增] 引入費率管理器
+const ratesManager = require("../utils/ratesManager.js");
 
 // --- 輔助函式：安全刪除多個檔案 ---
 const deleteFiles = (filePaths) => {
@@ -55,8 +55,9 @@ const createPackageForecast = async (req, res) => {
         productName: productName,
         quantity: quantity ? parseInt(quantity) : 1,
         note: note,
-        productImages: JSON.stringify(imagePaths),
-        warehouseImages: "[]",
+        // [修改] 直接存入陣列，Prisma 會自動處理 Json
+        productImages: imagePaths,
+        warehouseImages: [],
         userId: userId,
         status: "PENDING",
       },
@@ -85,29 +86,19 @@ const getMyPackages = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    // 1. 取得當前系統費率設定 (Single Source of Truth)
+    // 1. 取得當前系統費率設定
     const systemRates = await ratesManager.getRates();
     const CONSTANTS = systemRates.constants;
     const RATES = systemRates.categories;
 
     // 2. 解析與增強數據
     const packagesWithParsedJson = myPackages.map((pkg) => {
-      let productImages = [];
-      let warehouseImages = [];
-      let arrivedBoxes = [];
+      // [修改] 直接讀取 DB 的 Json 欄位，無需 JSON.parse
+      const productImages = pkg.productImages || [];
+      const warehouseImages = pkg.warehouseImages || [];
+      const arrivedBoxes = pkg.arrivedBoxesJson || [];
 
-      try {
-        productImages = JSON.parse(pkg.productImages || "[]");
-      } catch (e) {}
-      try {
-        warehouseImages = JSON.parse(pkg.warehouseImages || "[]");
-      } catch (e) {}
-      try {
-        arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
-      } catch (e) {}
-
-      // --- [核心優化] 後端計算邏輯 ---
-      // 計算每個箱子的費用、材積，並判斷整包是否超規
+      // --- 後端計算邏輯 ---
       let pkgIsOversized = false;
       let pkgIsOverweight = false;
       let calculatedTotalFee = 0;
@@ -119,14 +110,12 @@ const getMyPackages = async (req, res) => {
         const weight = parseFloat(box.weight) || 0;
         const type = box.type || "general";
 
-        // 取得該類別費率
         const rateInfo = RATES[type] || {
           weightRate: 0,
           volumeRate: 0,
           name: "未知",
         };
 
-        // 判斷超規 (>= 邏輯)
         const isOversized =
           l >= CONSTANTS.OVERSIZED_LIMIT ||
           w >= CONSTANTS.OVERSIZED_LIMIT ||
@@ -137,7 +126,6 @@ const getMyPackages = async (req, res) => {
         if (isOversized) pkgIsOversized = true;
         if (isOverweight) pkgIsOverweight = true;
 
-        // 計算費用細節
         let cai = 0;
         let volFee = 0;
         let wtFee = 0;
@@ -145,10 +133,8 @@ const getMyPackages = async (req, res) => {
         let isVolWin = false;
 
         if (l > 0 && w > 0 && h > 0) {
-          // 材積 = (L*W*H)/除數，無條件進位
           cai = Math.ceil((l * w * h) / CONSTANTS.VOLUME_DIVISOR);
           volFee = cai * rateInfo.volumeRate;
-          // 重量費 (小數點後一位進位)
           wtFee = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
           finalFee = Math.max(volFee, wtFee);
           isVolWin = volFee >= wtFee;
@@ -156,7 +142,6 @@ const getMyPackages = async (req, res) => {
 
         calculatedTotalFee += finalFee;
 
-        // 回傳增強後的箱子物件 (前端直接使用這些欄位)
         return {
           ...box,
           cai,
@@ -166,11 +151,10 @@ const getMyPackages = async (req, res) => {
           isVolWin,
           isOversized,
           isOverweight,
-          rateName: rateInfo.name, // 顯示名稱 e.g. "一般家具"
+          rateName: rateInfo.name,
         };
       });
 
-      // 若 DB 內沒有儲存總費用 (舊資料)，使用即時計算值
       const finalTotalFee =
         pkg.totalCalculatedFee > 0
           ? pkg.totalCalculatedFee
@@ -181,9 +165,8 @@ const getMyPackages = async (req, res) => {
         productImages,
         warehouseImages,
         arrivedBoxes: enrichedBoxes, // 使用增強版
-        arrivedBoxesJson: undefined, // 移除原始字串
+        arrivedBoxesJson: undefined, // 隱藏原始欄位名(可選)
 
-        // [新增] 注入後端計算的狀態旗標與總額
         isOversized: pkgIsOversized,
         isOverweight: pkgIsOverweight,
         totalCalculatedFee: finalTotalFee,
@@ -227,11 +210,10 @@ const updateMyPackage = async (req, res) => {
         .json({ success: false, message: "包裹已入庫或處理中，無法修改" });
     }
 
-    let originalImagesList = [];
-    try {
-      originalImagesList = JSON.parse(pkg.productImages || "[]");
-    } catch (e) {}
+    // [修改] 直接讀取 DB Json
+    let originalImagesList = pkg.productImages || [];
 
+    // [注意] existingImages 來自 FormData，仍是字串，需 parse
     let keepImagesList = [];
     try {
       keepImagesList = existingImages ? JSON.parse(existingImages) : [];
@@ -262,7 +244,8 @@ const updateMyPackage = async (req, res) => {
         productName,
         quantity: quantity ? parseInt(quantity) : undefined,
         note,
-        productImages: JSON.stringify(keepImagesList),
+        // [修改] 直接存入陣列
+        productImages: keepImagesList,
       },
     });
 
@@ -301,15 +284,9 @@ const deleteMyPackage = async (req, res) => {
         .json({ success: false, message: "包裹已入庫或處理中，無法刪除" });
     }
 
-    let productImages = [];
-    try {
-      productImages = JSON.parse(pkg.productImages || "[]");
-    } catch (e) {}
-
-    let warehouseImages = [];
-    try {
-      warehouseImages = JSON.parse(pkg.warehouseImages || "[]");
-    } catch (e) {}
+    // [修改] 直接讀取 DB Json
+    const productImages = pkg.productImages || [];
+    const warehouseImages = pkg.warehouseImages || [];
 
     deleteFiles([...productImages, ...warehouseImages]);
 

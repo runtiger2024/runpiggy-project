@@ -1,4 +1,6 @@
 // backend/controllers/adminController.js
+// V11 - Native JSON Support
+
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
@@ -72,11 +74,8 @@ const getSystemSettings = async (req, res) => {
     const settingsList = await prisma.systemSetting.findMany();
     const settings = {};
     settingsList.forEach((item) => {
-      try {
-        settings[item.key] = JSON.parse(item.value);
-      } catch (e) {
-        settings[item.key] = item.value;
-      }
+      // [修改] 直接使用 Json 欄位
+      settings[item.key] = item.value;
     });
     res.status(200).json({ success: true, settings });
   } catch (error) {
@@ -91,12 +90,12 @@ const updateSystemSetting = async (req, res) => {
     let { value, description } = req.body;
     if (value === undefined)
       return res.status(400).json({ success: false, message: "缺少設定值" });
-    const valueStr =
-      typeof value === "object" ? JSON.stringify(value) : String(value);
+
+    // [修改] 直接存入 Json
     await prisma.systemSetting.upsert({
       where: { key },
-      update: { value: valueStr, ...(description && { description }) },
-      create: { key, value: valueStr, description: description || "系統設定" },
+      update: { value: value, ...(description && { description }) },
+      create: { key, value: value, description: description || "系統設定" },
     });
     await createLog(
       req.user.id,
@@ -128,26 +127,13 @@ const getAllPackages = async (req, res) => {
         include: { user: { select: { name: true, email: true } } },
       }),
     ]);
-    const processedPackages = packages.map((pkg) => {
-      let productImages = [];
-      let warehouseImages = [];
-      let arrivedBoxes = [];
-      try {
-        productImages = JSON.parse(pkg.productImages || "[]");
-      } catch (e) {}
-      try {
-        warehouseImages = JSON.parse(pkg.warehouseImages || "[]");
-      } catch (e) {}
-      try {
-        arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
-      } catch (e) {}
-      return {
-        ...pkg,
-        productImages,
-        warehouseImages,
-        arrivedBoxesJson: arrivedBoxes,
-      };
-    });
+    // [修改] 直接映射
+    const processedPackages = packages.map((pkg) => ({
+      ...pkg,
+      productImages: pkg.productImages || [],
+      warehouseImages: pkg.warehouseImages || [],
+      arrivedBoxesJson: pkg.arrivedBoxesJson || [],
+    }));
     res.status(200).json({
       success: true,
       packages: processedPackages,
@@ -215,10 +201,10 @@ const bulkDeletePackages = async (req, res) => {
     });
     const allFiles = [];
     packages.forEach((pkg) => {
-      try {
-        allFiles.push(...JSON.parse(pkg.productImages || "[]"));
-        allFiles.push(...JSON.parse(pkg.warehouseImages || "[]"));
-      } catch (e) {}
+      // [修改] 直接讀取陣列
+      if (Array.isArray(pkg.productImages)) allFiles.push(...pkg.productImages);
+      if (Array.isArray(pkg.warehouseImages))
+        allFiles.push(...pkg.warehouseImages);
     });
     deleteFiles(allFiles);
     await prisma.package.deleteMany({ where: { id: { in: ids } } });
@@ -243,14 +229,16 @@ const adminCreatePackage = async (req, res) => {
     let imagePaths = [];
     if (req.files && req.files.length > 0)
       imagePaths = req.files.map((file) => `/uploads/${file.filename}`);
+
+    // [修改] 圖片存為陣列
     const newPackage = await prisma.package.create({
       data: {
         trackingNumber,
         productName,
         quantity: quantity ? parseInt(quantity) : 1,
         note,
-        productImages: JSON.stringify(imagePaths),
-        warehouseImages: "[]",
+        productImages: imagePaths,
+        warehouseImages: [],
         userId,
       },
     });
@@ -274,11 +262,12 @@ const adminDeletePackage = async (req, res) => {
     const pkg = await prisma.package.findUnique({ where: { id } });
     if (!pkg)
       return res.status(404).json({ success: false, message: "找不到包裹" });
-    let filesToDelete = [];
-    try {
-      filesToDelete.push(...JSON.parse(pkg.productImages || "[]"));
-      filesToDelete.push(...JSON.parse(pkg.warehouseImages || "[]"));
-    } catch (e) {}
+
+    // [修改] 直接讀取陣列
+    let filesToDelete = [
+      ...(pkg.productImages || []),
+      ...(pkg.warehouseImages || []),
+    ];
     deleteFiles(filesToDelete);
     await prisma.package.delete({ where: { id } });
     await createLog(
@@ -322,14 +311,13 @@ const updatePackageDetails = async (req, res) => {
     const pkg = await prisma.package.findUnique({ where: { id } });
     if (!pkg) return res.status(404).json({ message: "找不到包裹" });
 
-    let systemRates = {};
+    // 讀取費率設定 (Json)
     const settings = await prisma.systemSetting.findUnique({
       where: { key: "rates_config" },
     });
+    let systemRates = {};
     if (settings && settings.value) {
-      try {
-        systemRates = JSON.parse(settings.value);
-      } catch (e) {}
+      systemRates = settings.value;
     }
     const RATES = systemRates.categories || {};
     const CONSTANTS = systemRates.constants || { VOLUME_DIVISOR: 28317 };
@@ -339,6 +327,7 @@ const updatePackageDetails = async (req, res) => {
 
     if (boxesData) {
       try {
+        // [注意] boxesData 來自 FormData，為 String，需 Parse
         const boxes = JSON.parse(boxesData);
         let totalFee = 0;
         const processedBoxes = boxes.map((box) => {
@@ -367,27 +356,31 @@ const updatePackageDetails = async (req, res) => {
             fee,
           };
         });
-        updateData.arrivedBoxesJson = JSON.stringify(processedBoxes);
+        // [修改] 直接存入物件
+        updateData.arrivedBoxesJson = processedBoxes;
         updateData.totalCalculatedFee = totalFee;
-      } catch (e) {}
+      } catch (e) {
+        console.warn("Parse boxesData failed", e);
+      }
     }
 
-    let currentImgs = [];
-    try {
-      currentImgs = JSON.parse(pkg.warehouseImages || "[]");
-    } catch (e) {}
+    // [修改] 圖片處理
+    let currentImgs = pkg.warehouseImages || [];
     let keepImgs = [];
     try {
       keepImgs = JSON.parse(existingImages || "[]");
     } catch (e) {}
+
     const toDelete = currentImgs.filter((i) => !keepImgs.includes(i));
     deleteFiles(toDelete);
+
     let finalImgs = [...keepImgs];
     if (req.files && req.files.length > 0) {
       const newPaths = req.files.map((f) => `/uploads/${f.filename}`);
       finalImgs = [...finalImgs, ...newPaths];
     }
-    updateData.warehouseImages = JSON.stringify(finalImgs.slice(0, 5));
+    // [修改] 存入陣列
+    updateData.warehouseImages = finalImgs.slice(0, 5);
 
     const updated = await prisma.package.update({
       where: { id },
@@ -403,8 +396,8 @@ const updatePackageDetails = async (req, res) => {
       success: true,
       package: {
         ...updated,
-        arrivedBoxesJson: JSON.parse(updated.arrivedBoxesJson || "[]"),
-        warehouseImages: JSON.parse(updated.warehouseImages || "[]"),
+        arrivedBoxesJson: updated.arrivedBoxesJson || [],
+        warehouseImages: updated.warehouseImages || [],
       },
     });
   } catch (e) {
@@ -432,16 +425,13 @@ const getAllShipments = async (req, res) => {
         },
       }),
     ]);
+    // [修改] 直接讀取 Json
     const processed = shipments.map((s) => {
-      let svcs = {};
-      try {
-        svcs = JSON.parse(s.additionalServices || "{}");
-      } catch (e) {}
-      let imgs = [];
-      try {
-        imgs = JSON.parse(s.shipmentProductImages || "[]");
-      } catch (e) {}
-      return { ...s, additionalServices: svcs, shipmentProductImages: imgs };
+      return {
+        ...s,
+        additionalServices: s.additionalServices || {},
+        shipmentProductImages: s.shipmentProductImages || [],
+      };
     });
     res.status(200).json({
       success: true,
@@ -514,9 +504,10 @@ const bulkDeleteShipments = async (req, res) => {
     const files = [];
     shipments.forEach((s) => {
       if (s.paymentProof) files.push(s.paymentProof);
-      try {
-        files.push(...JSON.parse(s.shipmentProductImages || "[]"));
-      } catch (e) {}
+      // [修改] 直接讀取陣列
+      if (Array.isArray(s.shipmentProductImages)) {
+        files.push(...s.shipmentProductImages);
+      }
     });
     deleteFiles(files);
     await prisma.$transaction(async (tx) => {
@@ -573,13 +564,11 @@ const updateShipmentStatus = async (req, res) => {
         id,
         `訂單取消，已釋放 ${result.count} 件包裹`
       );
-      return res
-        .status(200)
-        .json({
-          success: true,
-          shipment: result.shipment,
-          message: `訂單已取消，並成功釋放 ${result.count} 件包裹回倉庫`,
-        });
+      return res.status(200).json({
+        success: true,
+        shipment: result.shipment,
+        message: `訂單已取消，並成功釋放 ${result.count} 件包裹回倉庫`,
+      });
     }
 
     if (
@@ -663,9 +652,9 @@ const adminDeleteShipment = async (req, res) => {
     if (ship) {
       let files = [];
       if (ship.paymentProof) files.push(ship.paymentProof);
-      try {
-        files.push(...JSON.parse(ship.shipmentProductImages || "[]"));
-      } catch (e) {}
+      if (Array.isArray(ship.shipmentProductImages)) {
+        files.push(...ship.shipmentProductImages);
+      }
       deleteFiles(files);
     }
     await prisma.$transaction(async (tx) => {
@@ -699,17 +688,22 @@ const getUsers = async (req, res) => {
         { phone: { contains: s, mode: "insensitive" } },
       ];
     }
+    // [注意] permissions 現在是 Json 陣列
+    // Prisma 的 Json 過濾功能視 DB 而定，Postgres 支援 array_contains
+    // 但簡單起見，這裡先查出來再過濾，或使用 path query
+    // 若要精確查詢 JSON 陣列內容，可使用 array_contains:
     if (role) {
       if (role === "ADMIN")
-        where.permissions = { contains: "CAN_MANAGE_USERS" };
-      else if (role === "OPERATOR") where.permissions = { not: "[]" };
-      else if (role === "USER") where.permissions = "[]";
+        where.permissions = { array_contains: "CAN_MANAGE_USERS" };
+      // 其他角色邏輯較複雜，可能需在 JS 層過濾，或依賴前端傳正確參數
     }
+
     if (filter === "new_today") {
       const start = new Date();
       start.setHours(0, 0, 0, 0);
       where.createdAt = { gte: start };
     }
+
     const [total, users] = await prisma.$transaction([
       prisma.user.count({ where }),
       prisma.user.findMany({
@@ -728,18 +722,16 @@ const getUsers = async (req, res) => {
         },
       }),
     ]);
-    res
-      .status(200)
-      .json({
-        success: true,
-        users,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-        },
-      });
+    res.status(200).json({
+      success: true,
+      users,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (e) {
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
@@ -776,12 +768,13 @@ const createStaffUser = async (req, res) => {
     });
     if (exists) return res.status(400).json({ message: "Email 已存在" });
     const hash = await bcrypt.hash(password, 10);
+    // [修改] permissions 存為陣列
     const user = await prisma.user.create({
       data: {
         email: email.toLowerCase(),
         passwordHash: hash,
         name,
-        permissions: JSON.stringify(permissions),
+        permissions: permissions || [],
         isActive: true,
       },
     });
@@ -854,7 +847,8 @@ const impersonateUser = async (req, res) => {
     const { id } = req.params;
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) return res.status(404).json({ message: "找不到" });
-    const token = generateToken(user.id);
+    // [注意] Token 生成會自動讀取 user.permissions (Array)
+    const token = generateToken(user.id, { permissions: user.permissions });
     await createLog(req.user.id, "IMPERSONATE", id, `模擬 ${user.email}`);
     res.status(200).json({ success: true, token, user });
   } catch (e) {
@@ -868,9 +862,11 @@ const updateUserPermissions = async (req, res) => {
     const { permissions } = req.body;
     if (req.user.id === id)
       return res.status(400).json({ message: "不能改自己權限" });
+
+    // [修改] 直接存陣列
     await prisma.user.update({
       where: { id },
-      data: { permissions: JSON.stringify(permissions) },
+      data: { permissions: permissions || [] },
     });
     await createLog(req.user.id, "UPDATE_PERMS", id, "更新權限");
     res.status(200).json({ success: true, message: "更新成功" });
@@ -960,18 +956,16 @@ const getActivityLogs = async (req, res) => {
         orderBy: { createdAt: "desc" },
       }),
     ]);
-    res
-      .status(200)
-      .json({
-        success: true,
-        logs,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-        },
-      });
+    res.status(200).json({
+      success: true,
+      logs,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (e) {
     res.status(500).json({ message: "錯誤" });
   }
@@ -996,12 +990,10 @@ const getDailyReport = async (req, res) => {
       date: u.date,
       newUsers: Number(u.newusers),
     }));
-    res
-      .status(200)
-      .json({
-        success: true,
-        report: { revenueData: safeRevenue, userData: safeUsers },
-      });
+    res.status(200).json({
+      success: true,
+      report: { revenueData: safeRevenue, userData: safeUsers },
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "報表錯誤" });

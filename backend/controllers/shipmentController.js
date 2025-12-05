@@ -1,28 +1,24 @@
-// backend/controllers/shipmentController.js (V11.0 - 支援附加服務儲存)
+// backend/controllers/shipmentController.js
+// V11.0 - Native Json Support
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
 const ratesManager = require("../utils/ratesManager.js");
 
-/**
- * 核心輔助函式：計算整筆集運單的費用細節
- * 包含：重新計算基本運費、總材積(CBM)、偏遠費、超規費、低消補足
- * 規則：總費用 = 基本運費(含低消) + 偏遠費 + 超規費
- */
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   const CONSTANTS = rates.constants;
   const CATEGORIES = rates.categories;
 
-  let baseCost = 0; // 純基本運費 (不含低消補足、不含偏遠、不含附加費)
-  let totalVolumeDivisor = 0; // 總材積數累加 (sum of (LxWxH)/DIVISOR)
+  let baseCost = 0;
+  let totalVolumeDivisor = 0;
   let hasOversized = false;
   let hasOverweight = false;
 
   packages.forEach((pkg) => {
     try {
-      const boxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
+      // [修改] 直接讀取 DB Json 物件
+      const boxes = pkg.arrivedBoxesJson || [];
 
-      // 如果有分箱數據，依照分箱重新計算運費 (最準確)
       if (boxes.length > 0) {
         boxes.forEach((box) => {
           const l = parseFloat(box.length) || 0;
@@ -32,7 +28,6 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
           const type = box.type || "general";
           const rateInfo = CATEGORIES[type] || { weightRate: 0, volumeRate: 0 };
 
-          // [修正] 檢查超規 (改為 >=)
           if (
             l >= CONSTANTS.OVERSIZED_LIMIT ||
             w >= CONSTANTS.OVERSIZED_LIMIT ||
@@ -44,34 +39,25 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
             hasOverweight = true;
           }
 
-          // 計算單箱運費
           if (l > 0 && w > 0 && h > 0 && weight > 0) {
-            // 材積 = (長x寬x高)/除數 (無條件進位)
             const cai = Math.ceil((l * w * h) / CONSTANTS.VOLUME_DIVISOR);
-            totalVolumeDivisor += cai; // 累加總材積數，稍後換算 CBM 用於偏遠費
+            totalVolumeDivisor += cai;
 
-            // 材積費
             const volFee = cai * rateInfo.volumeRate;
-            // 重量費 (小數點後一位進位)
             const wtFee = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
 
-            // 取大者累加到基本運費
             baseCost += Math.max(volFee, wtFee);
           }
         });
       } else {
-        // 若無分箱數據 (舊資料)，回退使用資料庫儲存的費用
         baseCost += pkg.totalCalculatedFee || 0;
       }
     } catch (e) {
       console.error(`Error calculating package ${pkg.id}:`, e);
-      // 出錯時的回退機制
       baseCost += pkg.totalCalculatedFee || 0;
     }
   });
 
-  // 1. 低消判斷 (針對基本運費)
-  // 若基本運費 < 低消，則以低消計算
   let finalBaseCost = baseCost;
   const isMinimumChargeApplied =
     baseCost > 0 && baseCost < CONSTANTS.MINIMUM_CHARGE;
@@ -80,24 +66,20 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
     finalBaseCost = CONSTANTS.MINIMUM_CHARGE;
   }
 
-  // 2. 計算附加費 (整筆訂單一次性)
   const overweightFee = hasOverweight ? CONSTANTS.OVERWEIGHT_FEE : 0;
   const oversizedFee = hasOversized ? CONSTANTS.OVERSIZED_FEE : 0;
 
-  // 3. 計算偏遠費
-  // Total CBM = Total Cai / Factor (保留兩位小數)
   const totalCbm = parseFloat(
     (totalVolumeDivisor / CONSTANTS.CBM_TO_CAI_FACTOR).toFixed(2)
   );
   const remoteFee = Math.round(totalCbm * (parseFloat(deliveryRate) || 0));
 
-  // 4. 總費用公式
   const totalCost = finalBaseCost + remoteFee + overweightFee + oversizedFee;
 
   return {
     totalCost,
-    baseCost: finalBaseCost, // 最終基本運費 (含低消補足)
-    originalBaseCost: baseCost, // 原始運費 (用於前端顯示補了多少錢)
+    baseCost: finalBaseCost,
+    originalBaseCost: baseCost,
     remoteFee,
     totalCbm,
     overweightFee,
@@ -108,10 +90,6 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   };
 };
 
-/**
- * @description 預估集運單費用 (不建立訂單)
- * @route POST /api/shipments/preview
- */
 const previewShipmentCost = async (req, res) => {
   try {
     let { packageIds, deliveryLocationRate } = req.body;
@@ -138,7 +116,6 @@ const previewShipmentCost = async (req, res) => {
     }
 
     const systemRates = await ratesManager.getRates();
-    // 使用共用函式計算
     const result = calculateShipmentDetails(
       packagesToShip,
       systemRates,
@@ -155,10 +132,6 @@ const previewShipmentCost = async (req, res) => {
   }
 };
 
-/**
- * @description 建立新的集運單 (合併包裹)
- * @route POST /api/shipments/create
- */
 const createShipment = async (req, res) => {
   try {
     let {
@@ -172,12 +145,11 @@ const createShipment = async (req, res) => {
       note,
       deliveryLocationRate,
       productUrl,
-      additionalServices, // [新增] 接收附加服務 JSON 字串
+      additionalServices,
     } = req.body;
 
     const userId = req.user.id;
 
-    // 處理上傳檔案
     const files = req.files || [];
     if ((!productUrl || productUrl.trim() === "") && files.length === 0) {
       return res.status(400).json({
@@ -185,13 +157,12 @@ const createShipment = async (req, res) => {
         message: "請提供「商品購買連結」或上傳「商品照片」才能提交訂單",
       });
     }
-    let shipmentImagePaths = "[]";
+    // [修改] 路徑陣列
+    let shipmentImagePaths = [];
     if (files.length > 0) {
-      const paths = files.map((file) => `/uploads/${file.filename}`);
-      shipmentImagePaths = JSON.stringify(paths);
+      shipmentImagePaths = files.map((file) => `/uploads/${file.filename}`);
     }
 
-    // 解析 packageIds
     try {
       if (typeof packageIds === "string") {
         packageIds = JSON.parse(packageIds);
@@ -225,7 +196,6 @@ const createShipment = async (req, res) => {
       });
     }
 
-    // 使用共用函式計算最終費用 (確保與預覽一致)
     const systemRates = await ratesManager.getRates();
     const calcResult = calculateShipmentDetails(
       packagesToShip,
@@ -233,12 +203,17 @@ const createShipment = async (req, res) => {
       deliveryLocationRate
     );
 
-    // [新增] 簡單的 additionalServices 處理 (若為 undefined 則存 null)
-    // 建議保持為 JSON 字串存入 DB
-    let finalAdditionalServices = null;
+    // [修改] 解析 additionalServices 字串 (來自 FormData)
+    let finalAdditionalServices = {};
     if (additionalServices) {
-      // 嘗試解析驗證一下，或是直接存
-      finalAdditionalServices = additionalServices;
+      try {
+        finalAdditionalServices =
+          typeof additionalServices === "string"
+            ? JSON.parse(additionalServices)
+            : additionalServices;
+      } catch (e) {
+        console.warn("Parse additionalServices failed", e);
+      }
     }
 
     const newShipment = await prisma.$transaction(async (tx) => {
@@ -251,12 +226,14 @@ const createShipment = async (req, res) => {
           taxId: taxId || null,
           invoiceTitle: invoiceTitle || null,
           note: note || null,
-          additionalServices: finalAdditionalServices, // 儲存附加服務
-          totalCost: calcResult.totalCost, // 使用重新計算的總金額
+          // [修改] 存入物件
+          additionalServices: finalAdditionalServices,
+          totalCost: calcResult.totalCost,
           deliveryLocationRate: parseFloat(deliveryLocationRate) || 0,
           status: "PENDING_PAYMENT",
           userId: userId,
           productUrl: productUrl || null,
+          // [修改] 存入陣列
           shipmentProductImages: shipmentImagePaths,
         },
       });
@@ -309,13 +286,14 @@ const getMyShipments = async (req, res) => {
       },
     });
 
+    // [修改] 移除 JSON.parse，直接映射資料
     const processedShipments = shipments.map((ship) => ({
       ...ship,
-      additionalServices: JSON.parse(ship.additionalServices || "{}"),
+      additionalServices: ship.additionalServices || {},
       packages: ship.packages.map((pkg) => ({
         ...pkg,
-        warehouseImages: JSON.parse(pkg.warehouseImages || "[]"),
-        arrivedBoxes: JSON.parse(pkg.arrivedBoxesJson || "[]"),
+        warehouseImages: pkg.warehouseImages || [],
+        arrivedBoxes: pkg.arrivedBoxesJson || [],
       })),
     }));
 
@@ -393,47 +371,20 @@ const getShipmentById = async (req, res) => {
         .json({ success: false, message: "找不到此集運單或無權限查看" });
     }
 
-    const processedPackages = shipment.packages.map((pkg) => {
-      let productImages = [];
-      let warehouseImages = [];
-      let arrivedBoxes = [];
-      try {
-        productImages = JSON.parse(pkg.productImages || "[]");
-      } catch (e) {}
-      try {
-        warehouseImages = JSON.parse(pkg.warehouseImages || "[]");
-      } catch (e) {}
-      try {
-        arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson || "[]");
-      } catch (e) {}
-
-      return {
-        ...pkg,
-        productImages,
-        warehouseImages,
-        arrivedBoxes,
-        arrivedBoxesJson: undefined,
-      };
-    });
-
-    let shipmentProductImages = [];
-    try {
-      shipmentProductImages = JSON.parse(
-        shipment.shipmentProductImages || "[]"
-      );
-    } catch (e) {}
-
-    // 解析附加服務 JSON
-    let additionalServicesObj = {};
-    try {
-      additionalServicesObj = JSON.parse(shipment.additionalServices || "{}");
-    } catch (e) {}
+    // [修改] 直接讀取
+    const processedPackages = shipment.packages.map((pkg) => ({
+      ...pkg,
+      productImages: pkg.productImages || [],
+      warehouseImages: pkg.warehouseImages || [],
+      arrivedBoxes: pkg.arrivedBoxesJson || [],
+      arrivedBoxesJson: undefined,
+    }));
 
     const processedShipment = {
       ...shipment,
       packages: processedPackages,
-      additionalServices: additionalServicesObj,
-      shipmentProductImages: shipmentProductImages,
+      additionalServices: shipment.additionalServices || {},
+      shipmentProductImages: shipment.shipmentProductImages || [],
     };
 
     res.status(200).json({ success: true, shipment: processedShipment });

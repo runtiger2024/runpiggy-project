@@ -1,8 +1,8 @@
-// 這是 backend/routes/quoteRoutes.js (修正版)
-// (參考 RUNPIGGY-V2 的 'quoteRoutes.js')
+// backend/routes/quoteRoutes.js
+// V11 - Native JSON Support
 
 const express = require("express");
-const prisma = require("../config/db.js"); // <-- (重要) 改用我們共用的 db.js
+const prisma = require("../config/db.js");
 const router = express.Router();
 
 // POST /api/quotes - 建立一個新的估價單分享
@@ -15,10 +15,10 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "缺少計算結果" });
     }
 
-    // 將物件轉換為 JSON 字串存入資料庫
+    // [修改] 直接將物件存入資料庫 (Native Json)
     const quote = await prisma.calculationQuote.create({
       data: {
-        calculationResult: JSON.stringify(calculationResult),
+        calculationResult: calculationResult,
       },
     });
 
@@ -45,22 +45,15 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ error: "找不到此估價單" });
     }
 
-    try {
-      // 將 JSON 字串解析回物件
-      const parsedResult = JSON.parse(quote.calculationResult);
+    // [修改] 直接回傳物件，無需 JSON.parse
+    const result = {
+      id: quote.id,
+      createdAt: quote.createdAt,
+      calculationResult: quote.calculationResult,
+    };
 
-      const result = {
-        id: quote.id,
-        createdAt: quote.createdAt,
-        calculationResult: parsedResult,
-      };
-
-      console.log("成功取得估價單:", id);
-      res.json(result);
-    } catch (parseError) {
-      console.error("解析 JSON 失敗:", parseError);
-      res.json(quote);
-    }
+    console.log("成功取得估價單:", id);
+    res.json(result);
   } catch (error) {
     console.error("獲取估價單失敗:", error);
     res.status(500).json({ error: "伺服器內部錯誤" });

@@ -1,4 +1,6 @@
 // backend/controllers/authController.js
+// V11 - Native JSON Support (移除 permissions 的 parse/stringify)
+
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
@@ -21,12 +23,14 @@ const registerUser = async (req, res) => {
         .json({ success: false, message: "這個 Email 已經被註冊了" });
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
+
     const newUser = await prisma.user.create({
       data: {
         email: email.toLowerCase(),
         passwordHash: passwordHash,
         name: name,
-        permissions: "[]",
+        // [修改] 直接存入陣列，Prisma 處理 JSON
+        permissions: [],
       },
     });
     if (newUser) {
@@ -61,10 +65,9 @@ const loginUser = async (req, res) => {
       where: { email: email.toLowerCase() },
     });
     if (user && (await bcrypt.compare(password, user.passwordHash))) {
-      let permissions = [];
-      try {
-        permissions = JSON.parse(user.permissions || "[]");
-      } catch (e) {}
+      // [修改] 直接讀取 permissions 陣列
+      const permissions = user.permissions || [];
+
       res.status(200).json({
         success: true,
         message: "登入成功！",
@@ -74,7 +77,7 @@ const loginUser = async (req, res) => {
           name: user.name,
           permissions: permissions,
         },
-        token: generateToken(user.id),
+        token: generateToken(user.id, { permissions }), // 將權限放入 Token Payload
       });
     } else {
       return res
@@ -103,16 +106,13 @@ const getMe = async (req, res) => {
           createdAt: true,
         },
       });
-      let permissions = [];
-      try {
-        permissions = JSON.parse(userFromDb.permissions || "[]");
-      } catch (e) {}
-      res
-        .status(200)
-        .json({
-          success: true,
-          user: { ...userFromDb, permissions: permissions },
-        });
+      // [修改] 直接使用
+      const permissions = userFromDb.permissions || [];
+
+      res.status(200).json({
+        success: true,
+        user: { ...userFromDb, permissions: permissions },
+      });
     } else {
       return res.status(404).json({ success: false, message: "找不到使用者" });
     }
@@ -138,17 +138,14 @@ const updateMe = async (req, res) => {
         permissions: true,
       },
     });
-    let permissions = [];
-    try {
-      permissions = JSON.parse(updatedUser.permissions || "[]");
-    } catch (e) {}
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "個人資料更新成功",
-        user: { ...updatedUser, permissions: permissions },
-      });
+    // [修改] 直接使用
+    const permissions = updatedUser.permissions || [];
+
+    res.status(200).json({
+      success: true,
+      message: "個人資料更新成功",
+      user: { ...updatedUser, permissions: permissions },
+    });
   } catch (error) {
     console.error("更新個人資料錯誤:", error);
     res.status(500).json({ success: false, message: "伺服器發生錯誤" });
