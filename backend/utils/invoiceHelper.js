@@ -1,4 +1,4 @@
-// backend/utils/invoiceHelper.js (V2025.1 - AMEGO 完整實裝版)
+// backend/utils/invoiceHelper.js (V2025.2 - AMEGO 修正版)
 
 const axios = require("axios");
 const crypto = require("crypto");
@@ -6,8 +6,7 @@ const qs = require("qs");
 const prisma = require("../config/db.js");
 require("dotenv").config();
 
-// AMEGO API 基礎路徑 (正式與測試環境通常僅差在 MerchantID，網址相同或由文件指定)
-// 根據您的設定檔，這裡使用統一的 API 入口
+// AMEGO API 基礎路徑
 const BASE_URL = "https://invoice-api.amego.tw/json";
 
 /**
@@ -33,8 +32,13 @@ const getInvoiceConfig = async () => {
           ? JSON.parse(setting.value)
           : setting.value;
 
-      if (typeof dbConfig.enabled === "boolean")
+      // [FIX] 相容性檢查：同時檢查 enabled 與 isEnabled
+      if (typeof dbConfig.enabled === "boolean") {
         config.enabled = dbConfig.enabled;
+      } else if (typeof dbConfig.isEnabled === "boolean") {
+        config.enabled = dbConfig.isEnabled;
+      }
+
       if (dbConfig.mode) config.mode = dbConfig.mode;
       if (dbConfig.merchantId) config.merchantId = dbConfig.merchantId;
       if (dbConfig.hashKey) config.hashKey = dbConfig.hashKey;
@@ -71,6 +75,9 @@ const sendAmegoRequest = async (endpoint, dataObj, config) => {
 
   try {
     console.log(`[Invoice] 發送請求至 ${endpoint} (Mode: ${config.mode})`);
+    // Debug: 印出傳送的資料結構，方便除錯
+    // console.log("Request Payload:", JSON.stringify(dataObj, null, 2));
+
     const response = await axios.post(
       `${BASE_URL}${endpoint}`,
       qs.stringify(formData),
@@ -95,24 +102,18 @@ const createInvoice = async (shipment, user) => {
   if (!config.merchantId || !config.hashKey)
     return { success: false, message: "API 金鑰未設定" };
 
-  // --- 金額與稅額計算 ---
+  // --- 金額與稅額計算 [FIX: 修正金額計算邏輯] ---
+  // 無論 B2B 或 B2C，若 TaxType=1 (應稅)，API 通常要求正確拆分銷售額與稅額
+  // 公式：SalesAmount + TaxAmount = TotalAmount
   const total = Math.round(Number(shipment.totalCost));
+
+  // 反推未稅金額 (四捨五入)
+  const salesAmount = Math.round(total / 1.05);
+  // 計算稅額 (總額 - 未稅)
+  const taxAmount = total - salesAmount;
+
   const rawTaxId = shipment.taxId ? shipment.taxId.trim() : "";
   const hasTaxId = rawTaxId.length === 8; // 有 8 碼統編視為 B2B
-
-  let salesAmount = 0; // 未稅金額
-  let taxAmount = 0; // 稅額
-
-  if (hasTaxId) {
-    // B2B: 銷售額 = 總額 / 1.05 (四捨五入)
-    salesAmount = Math.round(total / 1.05);
-    taxAmount = total - salesAmount;
-  } else {
-    // B2C: 銷售額 = 總金額 (API 申報時，若含稅，通常 SalesAmount=Total, TaxAmount=0 或由系統內扣)
-    // 依據一般電子發票 API 慣例：
-    salesAmount = total;
-    taxAmount = 0;
-  }
 
   // 買受人資訊
   const buyerId = hasTaxId ? rawTaxId : "0000000000";
@@ -125,8 +126,9 @@ const createInvoice = async (shipment, user) => {
     {
       Description: "國際運費",
       Quantity: 1,
-      UnitPrice: total,
-      Amount: total,
+      // [FIX] 明細金額應使用「未稅金額 (SalesAmount)」，確保總和正確
+      UnitPrice: salesAmount,
+      Amount: salesAmount,
       TaxType: 1, // 1: 應稅
     },
   ];
@@ -136,13 +138,16 @@ const createInvoice = async (shipment, user) => {
     BuyerIdentifier: buyerId,
     BuyerName: buyerName,
     BuyerEmailAddress: user.email, // 寄送通知用
-    SalesAmount: salesAmount,
+
+    // 金額資訊
+    SalesAmount: salesAmount, // 未稅銷售額
     FreeTaxSalesAmount: 0,
     ZeroTaxSalesAmount: 0,
-    TaxType: 1,
-    TaxRate: 0.05,
-    TaxAmount: taxAmount,
-    TotalAmount: total,
+    TaxType: 1, // 應稅
+    TaxRate: 0.05, // 5%
+    TaxAmount: taxAmount, // 稅額
+    TotalAmount: total, // 含稅總額
+
     ProductItem: productItems,
     Print: "N", // N: 不列印 (由 AMEGO 寄送 Email 或會員自行查詢)
     CarrierType: !hasTaxId && shipment.carrierType ? shipment.carrierType : "", // 手機條碼等載具
@@ -162,6 +167,7 @@ const createInvoice = async (shipment, user) => {
       message: "開立成功",
     };
   } else {
+    // 回傳詳細錯誤訊息以便除錯
     return {
       success: false,
       message: `開立失敗(${resData.code}): ${resData.msg}`,
