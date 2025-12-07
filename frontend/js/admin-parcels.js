@@ -1,5 +1,5 @@
 // frontend/js/admin-parcels.js
-// V2025.AutoArrive - 自動切換入庫狀態
+// V2025.AutoArrive - 自動切換入庫狀態 & [Security] 雙重刪除確認
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -675,8 +675,23 @@ document.addEventListener("DOMContentLoaded", () => {
       btnBulkDelete.textContent = `批量刪除 (${selectedIds.size})`;
     }
   }
+
   async function performBulkDelete() {
-    if (!confirm(`確定刪除 ${selectedIds.size} 筆?`)) return;
+    const count = selectedIds.size;
+    if (count === 0) return alert("請先選擇要刪除的包裹");
+
+    // [Security] 雙重確認機制
+    const confirmation = prompt(
+      `【危險操作】\n您即將永久刪除 ${count} 筆包裹資料。\n此操作無法復原，且會一並刪除相關圖片。\n\n請輸入 "DELETE" (大寫) 以確認刪除：`
+    );
+
+    if (confirmation !== "DELETE") {
+      if (confirmation !== null) {
+        alert("輸入內容不正確，已取消刪除操作。");
+      }
+      return;
+    }
+
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/admin/packages/bulk-delete`,
@@ -690,11 +705,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       );
       if (res.ok) {
-        alert("刪除成功");
+        alert(`已成功刪除 ${count} 筆包裹。`);
         loadParcels();
+      } else {
+        const data = await res.json();
+        alert("刪除失敗: " + (data.message || "未知錯誤"));
       }
     } catch (e) {
-      alert("錯誤");
+      alert("網路錯誤");
     }
   }
 });

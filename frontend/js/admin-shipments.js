@@ -1,5 +1,5 @@
 // frontend/js/admin-shipments.js
-// V2025.Security (Mobile Optimized)
+// V2025.Security (Mobile Optimized) & [Security] 雙重刪除確認
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -437,7 +437,21 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function performBulkDelete() {
-    if (!confirm(`確定刪除 ${selectedIds.size} 筆?`)) return;
+    const count = selectedIds.size;
+    if (count === 0) return alert("請先選擇要刪除的訂單");
+
+    // [Security] 雙重確認機制
+    const confirmation = prompt(
+      `【危險操作】\n您即將永久刪除 ${count} 筆集運單。\n注意：這將連帶刪除付款憑證與關聯的包裹紀錄(釋放)，且無法復原！\n\n請輸入 "DELETE" (大寫) 以確認刪除：`
+    );
+
+    if (confirmation !== "DELETE") {
+      if (confirmation !== null) {
+        alert("輸入內容不正確，已取消刪除操作。");
+      }
+      return;
+    }
+
     try {
       const res = await fetch(
         `${API_BASE_URL}/api/admin/shipments/bulk-delete`,
@@ -451,8 +465,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       );
       if (res.ok) {
-        alert("刪除成功");
+        alert(`已成功刪除 ${count} 筆訂單。`);
         loadShipments();
+      } else {
+        const data = await res.json();
+        alert("刪除失敗: " + (data.message || "未知錯誤"));
       }
     } catch (e) {
       alert("錯誤");
