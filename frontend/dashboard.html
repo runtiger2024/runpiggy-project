@@ -283,30 +283,27 @@
       </div>
 
       <div id="packages-section" class="tab-content active">
-        <div id="component-section-packages"></div>
+        <div id="section-container-packages"></div>
       </div>
-
       <div id="shipments-section" class="tab-content" style="display: none">
-        <div id="component-section-shipments"></div>
+        <div id="section-container-shipments"></div>
       </div>
-
       <div id="recipient-section" class="tab-content" style="display: none">
-        <div id="component-section-recipients"></div>
+        <div id="section-container-recipients"></div>
       </div>
-
       <div id="wallet-section" class="tab-content" style="display: none">
-        <div id="component-section-wallet"></div>
+        <div id="section-container-wallet"></div>
       </div>
 
       <nav class="mobile-bottom-nav" id="mobile-bottom-nav"></nav>
     </div>
 
-    <div id="component-modal-profile-edit"></div>
-    <div id="component-modal-password-change"></div>
-    <div id="component-modal-shipment-create"></div>
-    <div id="component-modal-deposit"></div>
-    <div id="component-modal-bulk-forecast"></div>
-    <div id="component-modal-claim-package"></div>
+    <div id="modal-container-profile-edit"></div>
+    <div id="modal-container-password-change"></div>
+    <div id="modal-container-shipment-create"></div>
+    <div id="modal-container-deposit"></div>
+    <div id="modal-container-bulk-forecast"></div>
+    <div id="modal-container-claim-package"></div>
 
     <div id="edit-package-modal" class="modal-overlay" style="display: none">
       <div class="modal-content">
@@ -585,58 +582,71 @@
     </div>
 
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <script src="js/apiConfig.js"></script>
-    <script src="js/shippingData.js"></script>
-
     <script>
+      // Component Loader & Script Injector
       async function loadHtml(id, path) {
         try {
           const res = await fetch(path);
           if (res.ok) document.getElementById(id).innerHTML = await res.text();
+          else console.error(`Missing component: ${path}`);
         } catch (e) {
-          console.error(`Failed to load ${path}`, e);
+          console.error(`Error loading ${path}`, e);
         }
       }
 
-      // 載入所有組件
       Promise.all([
+        // Sections
         loadHtml(
-          "component-section-packages",
+          "section-container-packages",
           "components/sections/packages.html"
         ),
         loadHtml(
-          "component-section-shipments",
+          "section-container-shipments",
           "components/sections/shipments.html"
         ),
         loadHtml(
-          "component-section-recipients",
+          "section-container-recipients",
           "components/sections/recipients.html"
         ),
-        loadHtml("component-section-wallet", "components/sections/wallet.html"),
+        loadHtml("section-container-wallet", "components/sections/wallet.html"),
+        // Modals
         loadHtml(
-          "component-modal-profile-edit",
+          "modal-container-profile-edit",
           "components/modals/profile-edit.html"
         ),
         loadHtml(
-          "component-modal-password-change",
+          "modal-container-password-change",
           "components/modals/password-change.html"
         ),
         loadHtml(
-          "component-modal-shipment-create",
+          "modal-container-shipment-create",
           "components/modals/shipment-create.html"
         ),
-        loadHtml("component-modal-deposit", "components/modals/deposit.html"),
+        loadHtml("modal-container-deposit", "components/modals/deposit.html"),
         loadHtml(
-          "component-modal-bulk-forecast",
+          "modal-container-bulk-forecast",
           "components/modals/bulk-forecast.html"
         ),
         loadHtml(
-          "component-modal-claim-package",
+          "modal-container-claim-package",
           "components/modals/claim-package.html"
         ),
       ]).then(() => {
-        // HTML 載入完成後再執行邏輯腳本
+        // Override addEventListener to catch DOMContentLoaded from deferred scripts
+        const originalAddEventListener = document.addEventListener;
+        document.addEventListener = function (type, listener, options) {
+          if (type === "DOMContentLoaded") {
+            // Directly execute because DOM is already ready and components injected
+            listener();
+          } else {
+            originalAddEventListener.call(document, type, listener, options);
+          }
+        };
+
+        // Load Logic Scripts Sequentially
         const scripts = [
+          "js/apiConfig.js",
+          "js/shippingData.js",
           "js/navigation.js",
           "js/dashboard-core.js",
           "js/dashboard-packages.js",
@@ -646,11 +656,22 @@
           "js/dashboard-notifications.js",
           "js/dashboard-main.js",
         ];
-        scripts.forEach((src) => {
-          const script = document.createElement("script");
-          script.src = src;
-          document.body.appendChild(script);
-        });
+
+        const loadScript = (src) => {
+          return new Promise((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src = src;
+            s.onload = resolve;
+            s.onerror = reject;
+            document.body.appendChild(s);
+          });
+        };
+
+        (async () => {
+          for (const src of scripts) {
+            await loadScript(src);
+          }
+        })();
       });
     </script>
   </body>
