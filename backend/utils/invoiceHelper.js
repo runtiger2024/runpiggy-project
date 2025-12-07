@@ -1,5 +1,5 @@
 // backend/utils/invoiceHelper.js
-// V2025.Fix2 - 修正 OrderId 過長問題、強化除錯與電話欄位
+// V2025.Fix3 - 最終修正: 電話格式清理、稅率型別對齊、強化錯誤顯示
 
 const axios = require("axios");
 const crypto = require("crypto");
@@ -58,7 +58,7 @@ const generateSign = (dataString, time, hashKey) => {
 };
 
 /**
- * 字串清理
+ * 字串清理 (移除特殊符號)
  */
 const sanitizeString = (str) => {
   if (!str) return "";
@@ -66,13 +66,19 @@ const sanitizeString = (str) => {
 };
 
 /**
+ * 電話清理 (移除 - 與空白，只留數字)
+ */
+const sanitizePhone = (str) => {
+  if (!str) return "";
+  return str.replace(/[^0-9]/g, "");
+};
+
+/**
  * 通用 API 請求發送器
  */
 const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
   if (!config.merchantId || !config.hashKey) {
-    console.error(
-      "[Invoice Error] 缺少 MerchantID 或 HashKey，請檢查 Render 環境變數"
-    );
+    console.error("[Invoice Error] 缺少 MerchantID 或 HashKey");
     throw new Error("發票設定不完整：缺少 Merchant ID 或 Hash Key");
   }
 
@@ -89,18 +95,30 @@ const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
 
   try {
     console.log(
-      `[Invoice] 發送: ${merchantOrderNo} (長度:${merchantOrderNo.length}) -> ${endpoint}`
+      `[Invoice] 發送: ${merchantOrderNo} (len:${merchantOrderNo.length})`
     );
 
     const response = await axios.post(`${BASE_URL}${endpoint}`, params);
     const result = response.data;
     const respData = Array.isArray(result) ? result[0] : result;
 
+    // [Debug] 如果失敗，印出詳細原因
+    if (
+      respData.Status !== "SUCCESS" &&
+      respData.RtnCode !== "1" &&
+      respData.code !== 0
+    ) {
+      console.error(`[Invoice API Fail] Response:`, JSON.stringify(respData));
+    }
+
     return respData;
   } catch (error) {
     console.error(`[Invoice API Error] ${error.message}`);
     if (error.response && error.response.data) {
-      console.error(`[Invoice API Response]`, error.response.data);
+      console.error(
+        `[Invoice API Response Body]`,
+        JSON.stringify(error.response.data)
+      );
     }
     throw new Error("發票系統連線失敗: " + error.message);
   }
@@ -118,7 +136,7 @@ const createInvoice = async (shipment, user) => {
   const rawTaxId = shipment.taxId ? shipment.taxId.trim() : "";
   const hasTaxId = rawTaxId.length === 8;
 
-  // [修正] 縮短 OrderId：只取 ID 後 15 碼 + 時間，確保不超過 40 字
+  // OrderId: S + ID後15碼 + 時間
   const unixTime = Math.floor(Date.now() / 1000);
   const shortId = shipment.id.slice(-15);
   const merchantOrderNo = `S${shortId}_${unixTime}`;
@@ -157,13 +175,13 @@ const createInvoice = async (shipment, user) => {
     },
   ];
 
-  // 載具防呆
+  // 載具處理
   let carrierType = "";
   let carrierId1 = "";
-
   if (!hasTaxId && shipment.carrierType && shipment.carrierId) {
     const cType = shipment.carrierType;
     const cId = shipment.carrierId;
+    // 簡單驗證
     if (cType === "3J0002" && !cId.startsWith("/")) {
       console.warn(`[Invoice] 載具格式錯誤忽略: ${cId}`);
     } else {
@@ -177,11 +195,11 @@ const createInvoice = async (shipment, user) => {
     BuyerIdentifier: buyerId,
     BuyerName: buyerName,
     BuyerEmailAddress: user.email || "",
-    BuyerPhone: shipment.phone || "",
+    BuyerPhone: sanitizePhone(shipment.phone || ""), // [修正] 清理電話格式
     Print: printMark,
     Donation: "0",
     TaxType: "1",
-    TaxRate: "0.05",
+    TaxRate: 0.05, // [修正] 改回 Number (Buy1688 使用 Number)
     SalesAmount: salesAmount,
     TaxAmount: taxAmount,
     TotalAmount: total,
@@ -222,9 +240,7 @@ const createInvoice = async (shipment, user) => {
     } else {
       return {
         success: false,
-        message: `API回傳錯誤: ${
-          resData.Message || resData.msg || JSON.stringify(resData)
-        }`,
+        message: `API錯誤: ${resData.Message || resData.msg || "未知原因"}`,
       };
     }
   } catch (e) {
@@ -287,8 +303,7 @@ const createDepositInvoice = async (transaction, user) => {
   const taxId = user.defaultTaxId ? user.defaultTaxId.trim() : "";
   const hasTaxId = taxId.length === 8;
 
-  // [修正] 縮短 OrderId：只取 ID 後 15 碼 + 時間
-  // 範例: DEP + 15碼ID + _ + 10碼時間 = 約 29 字元 (安全)
+  // OrderId: DEP + ID後15碼 + 時間
   const unixTime = Math.floor(Date.now() / 1000);
   const shortId = transaction.id.slice(-15);
   const merchantOrderNo = `DEP${shortId}_${unixTime}`;
@@ -332,11 +347,11 @@ const createDepositInvoice = async (transaction, user) => {
     BuyerIdentifier: buyerId,
     BuyerName: buyerName,
     BuyerEmailAddress: user.email || "",
-    BuyerPhone: user.phone || "", // [修正] 嘗試帶入 User 電話
+    BuyerPhone: sanitizePhone(user.phone || ""), // [修正] 清理電話格式
     Print: printMark,
     Donation: "0",
     TaxType: "1",
-    TaxRate: "0.05",
+    TaxRate: 0.05, // [修正] 改回 Number
     SalesAmount: salesAmount,
     TaxAmount: taxAmount,
     TotalAmount: total,
