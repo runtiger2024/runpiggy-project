@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V25.3 - 整合錢包、收件人與通知中心
+// V25.9 - Auto Balance Sync
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -12,6 +12,11 @@ document.addEventListener("DOMContentLoaded", () => {
   window.loadUserProfile(); // 載入個資
   window.loadMyPackages(); // 載入包裹
   window.loadMyShipments(); // 載入訂單
+
+  // [NEW] 載入錢包餘額 (如果功能存在)
+  if (typeof window.updateGlobalWalletDisplay === "function") {
+    window.updateGlobalWalletDisplay();
+  }
 
   // 2. 啟動預報草稿檢查
   if (window.checkForecastDraftQueue) {

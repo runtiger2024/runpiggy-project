@@ -1218,3 +1218,92 @@
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   }
 }
+/* [NEW] 醒目的錢包餘額區塊 */
+.wallet-balance-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 10px 16px;
+  min-width: 140px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 5px;
+}
+.wallet-balance-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: var(--color-primary);
+}
+.wb-label {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 2px;
+}
+.wb-amount {
+  font-size: 20px;
+  font-weight: 800;
+  color: #28a745; /* 綠色代表金錢 */
+  font-family: var(--font-mono);
+  line-height: 1.2;
+}
+.wb-action {
+  font-size: 11px;
+  color: var(--color-primary);
+  margin-top: 4px;
+  font-weight: bold;
+}
+
+/* --- 手機版強制覆蓋區 --- */
+@media (max-width: 768px) {
+  /* 修正 Profile 卡片: 讓內容不要全部置中 */
+  .profile-content {
+    align-items: flex-start !important;
+    text-align: left !important;
+    flex-direction: column !important;
+  }
+
+  /* 頭像與文字區域 */
+  .profile-details {
+    padding-top: 10px !important;
+    width: 100% !important;
+    text-align: center !important;
+  }
+  .avatar-circle {
+    margin: 0 auto 10px auto !important;
+  }
+
+  /* 錢包卡片在手機版變為橫向長條，放在文字下方 */
+  .wallet-balance-card {
+    width: 100%;
+    margin-top: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: #f8fbff; /* 淺藍背景突出 */
+    border: 1px solid #cce5ff;
+  }
+  .wb-label {
+    margin-bottom: 0;
+    font-size: 14px;
+  }
+  .wb-amount {
+    font-size: 18px;
+  }
+  .wb-action {
+    display: none; /* 手機版空間有限，隱藏操作文字，讓整個卡片可點擊 */
+  }
+
+  /* 調整按鈕區 */
+  .profile-actions {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: center !important;
+    margin-top: 15px !important;
+    margin-left: 0 !important;
+    gap: 10px !important;
+  }
+}

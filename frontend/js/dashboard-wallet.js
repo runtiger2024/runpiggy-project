@@ -1,18 +1,11 @@
 // frontend/js/dashboard-wallet.js
 // 負責錢包餘額、交易紀錄與儲值功能
-// V25.6 - Fixed: Hoisting issues with custom loader
+// V25.8 - Added Global Balance Sync
 
-// --- 函式定義 (移至上方) ---
+// --- 函式定義 ---
 
-// 1. 載入錢包資料
-window.loadWalletData = async function () {
-  const balanceEl = document.getElementById("wallet-balance");
-  const listEl = document.getElementById("transaction-list");
-  const loadingEl = document.getElementById("wallet-loading");
-
-  if (loadingEl) loadingEl.style.display = "block";
-  if (listEl) listEl.innerHTML = "";
-
+// [NEW] 獨立更新全域餘額顯示 (Header / Profile)
+window.updateGlobalWalletDisplay = async function () {
   try {
     const res = await fetch(`${API_BASE_URL}/api/wallet/my`, {
       headers: { Authorization: `Bearer ${window.dashboardToken}` },
@@ -20,16 +13,51 @@ window.loadWalletData = async function () {
     const data = await res.json();
 
     if (data.success && data.wallet) {
-      if (balanceEl) {
-        balanceEl.textContent = `$${data.wallet.balance.toLocaleString()}`;
-        if (data.wallet.balance < 0) balanceEl.style.color = "#d32f2f";
-        else balanceEl.style.color = "#28a745";
+      const balance = data.wallet.balance;
+      const formatted = `$${balance.toLocaleString()}`;
+
+      // 更新 Profile Card 上的餘額
+      const headerEl = document.getElementById("header-wallet-balance");
+      if (headerEl) {
+        headerEl.textContent = formatted;
+        headerEl.style.color = balance < 0 ? "#d32f2f" : "#28a745";
       }
+
+      // 順便更新錢包分頁內的餘額 (如果存在)
+      const tabBalanceEl = document.getElementById("wallet-balance");
+      if (tabBalanceEl) {
+        tabBalanceEl.textContent = formatted;
+        tabBalanceEl.style.color = balance < 0 ? "#d32f2f" : "#28a745";
+      }
+    }
+  } catch (e) {
+    console.warn("餘額更新失敗", e);
+  }
+};
+
+// 1. 載入錢包資料 (含交易紀錄)
+window.loadWalletData = async function () {
+  const listEl = document.getElementById("transaction-list");
+  const loadingEl = document.getElementById("wallet-loading");
+
+  if (loadingEl) loadingEl.style.display = "block";
+  if (listEl) listEl.innerHTML = "";
+
+  // 同步更新上方餘額
+  await window.updateGlobalWalletDisplay();
+
+  try {
+    // 再次呼叫是為了拿交易紀錄 (其實可以用同一個 API，但分開比較單純)
+    const res = await fetch(`${API_BASE_URL}/api/wallet/my`, {
+      headers: { Authorization: `Bearer ${window.dashboardToken}` },
+    });
+    const data = await res.json();
+
+    if (data.success && data.wallet) {
       renderTransactions(data.wallet.transactions || []);
     }
   } catch (e) {
     console.error("錢包載入失敗", e);
-    if (balanceEl) balanceEl.textContent = "Error";
   } finally {
     if (loadingEl) loadingEl.style.display = "none";
   }
@@ -150,7 +178,6 @@ async function handleDepositSubmit(e) {
 
 // --- 初始化 (移至下方) ---
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. 綁定 Tab 切換 (錢包)
   const tabWallet = document.getElementById("tab-wallet");
   if (tabWallet) {
     tabWallet.addEventListener("click", () => {
@@ -164,24 +191,19 @@ document.addEventListener("DOMContentLoaded", () => {
       tabWallet.classList.add("active");
       document.getElementById("wallet-section").style.display = "block";
 
-      // 修正：使用 window.loadWalletData 確保函式已定義
       if (typeof window.loadWalletData === "function") {
         window.loadWalletData();
       }
     });
   }
 
-  // 2. 綁定「申請儲值」按鈕
   const btnDeposit = document.getElementById("btn-deposit");
   if (btnDeposit) {
-    // 修正：使用 Arrow function
     btnDeposit.addEventListener("click", () => window.openDepositModal());
   }
 
-  // 3. 綁定儲值表單提交
   const form = document.getElementById("deposit-form");
   if (form) {
-    // 注意：handleDepositSubmit 已在上方定義，但建議使用區域變數參考或 window 屬性
     form.addEventListener("submit", handleDepositSubmit);
   }
 });

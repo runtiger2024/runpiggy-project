@@ -1,3 +1,6 @@
+{ type: uploaded file fileName:
+runtiger2024/runpiggy-project/runpiggy-project-6e49411d044a97c32fb131d798013361eca5691a/frontend/dashboard.html
+fullContent:
 <!DOCTYPE html>
 <html lang="zh-Hant">
   <head>
@@ -115,6 +118,17 @@
               <span id="user-address">...</span>
             </div>
           </div>
+
+          <div
+            class="wallet-balance-card"
+            onclick="document.getElementById('tab-wallet').click()"
+            title="點擊查看錢包詳情"
+          >
+            <div class="wb-label"><i class="fas fa-coins"></i> 錢包餘額</div>
+            <div class="wb-amount" id="header-wallet-balance">...</div>
+            <div class="wb-action"><i class="fas fa-plus-circle"></i> 儲值</div>
+          </div>
+
           <div class="profile-actions">
             <button
               id="btn-edit-profile"
@@ -312,8 +326,8 @@
         <input type="hidden" id="edit-package-id" />
         <form id="edit-package-form">
           <div class="form-group">
-            <label class="required">物流單號</label
-            ><input
+            <label class="required">物流單號</label>
+            <input
               type="text"
               id="edit-trackingNumber"
               class="form-control"
@@ -321,8 +335,8 @@
             />
           </div>
           <div class="form-group">
-            <label class="required">商品名稱</label
-            ><input
+            <label class="required">商品名稱</label>
+            <input
               type="text"
               id="edit-productName"
               class="form-control"
@@ -330,8 +344,8 @@
             />
           </div>
           <div class="form-group">
-            <label>數量</label
-            ><input
+            <label>數量</label>
+            <input
               type="number"
               id="edit-quantity"
               class="form-control"
@@ -339,8 +353,8 @@
             />
           </div>
           <div class="form-group">
-            <label>備註</label
-            ><input type="text" id="edit-note" class="form-control" />
+            <label>備註</label>
+            <input type="text" id="edit-note" class="form-control" />
           </div>
           <div class="form-group">
             <label>現有照片:</label>
@@ -583,7 +597,7 @@
 
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script>
-      // Component Loader & Script Injector
+      // Component Loader & Script Injector (保持原樣)
       async function loadHtml(id, path) {
         try {
           const res = await fetch(path);
@@ -632,18 +646,15 @@
           "components/modals/claim-package.html"
         ),
       ]).then(() => {
-        // Override addEventListener to catch DOMContentLoaded from deferred scripts
         const originalAddEventListener = document.addEventListener;
         document.addEventListener = function (type, listener, options) {
           if (type === "DOMContentLoaded") {
-            // Directly execute because DOM is already ready and components injected
             listener();
           } else {
             originalAddEventListener.call(document, type, listener, options);
           }
         };
 
-        // Load Logic Scripts Sequentially
         const scripts = [
           "js/apiConfig.js",
           "js/shippingData.js",
@@ -676,3 +687,4 @@
     </script>
   </body>
 </html>
+}
