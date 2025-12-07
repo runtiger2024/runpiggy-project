@@ -1,8 +1,9 @@
 // backend/utils/invoiceHelper.js
-// V2025.Fix - 參照 buy1688 成功模式修正 (移除 AES 加密，修正參數名稱)
+// V2025.Fix - 修正 AMEGO API 串接規格 (移除加密，修正參數)
 
 const axios = require("axios");
 const crypto = require("crypto");
+const qs = require("qs");
 const prisma = require("../config/db.js");
 require("dotenv").config();
 
@@ -67,36 +68,36 @@ const sanitizeString = (str) => {
 };
 
 /**
- * 通用 API 請求發送器 (修正版)
+ * 通用 API 請求發送器 (修正版：不加密)
  */
 const sendAmegoRequest = async (endpoint, dataObj, config) => {
   if (!config.merchantId || !config.hashKey) {
     throw new Error("發票設定不完整：缺少 Merchant ID 或 Hash Key");
   }
 
-  // [修正 1] 不進行 AES 加密，直接轉 JSON 字串
+  // 1. 直接將資料物件轉為 JSON 字串 (不加密)
   const dataString = JSON.stringify(dataObj);
   const time = Math.floor(Date.now() / 1000);
 
-  // [修正 2] 計算簽章使用原始 JSON 字串
+  // 2. 計算簽章
   const sign = generateSign(dataString, time, config.hashKey);
 
-  // [修正 3] 參數名稱需完全對應 buy1688 成功模式
-  // 使用 URLSearchParams 確保格式正確 (application/x-www-form-urlencoded)
+  // 3. 組建 POST 表單資料
+  // [修正] 參數名稱對應 buy1688 成功案例：MerchantID, invoice, data, time, sign
   const params = new URLSearchParams();
-  params.append("MerchantID", config.merchantId); // 注意大小寫
-  params.append("invoice", config.merchantId); // buy1688 有多傳這個參數
-  params.append("data", dataString); // 傳送明文 JSON
+  params.append("MerchantID", config.merchantId);
+  params.append("invoice", config.merchantId);
+  params.append("data", dataString);
   params.append("time", time);
   params.append("sign", sign);
 
   try {
     console.log(`[Invoice] 發送請求至 ${BASE_URL}${endpoint}`);
-    // console.log(`[Invoice Payload]`, dataString); // Debug 用
+    // console.log(`[Invoice Payload]`, dataString); // 除錯用
 
     const response = await axios.post(`${BASE_URL}${endpoint}`, params);
 
-    // AMEGO 有時回傳陣列，有時回傳物件，統一處理
+    // AMEGO 回傳格式有時是陣列，有時是物件
     const result = response.data;
     const respData = Array.isArray(result) ? result[0] : result;
 
@@ -131,11 +132,11 @@ const createInvoice = async (shipment, user) => {
   let salesAmount = 0;
   let taxAmount = 0;
   let unitPrice = 0;
-  let printMark = "0"; // [修正 4] 新增 Print 欄位
+  let printMark = "0"; // [修正] 新增 Print 欄位
 
   if (hasTaxId) {
     // B2B (有統編)
-    printMark = "1"; // 強制列印
+    printMark = "1";
     salesAmount = Math.round(total / 1.05);
     taxAmount = total - salesAmount;
     unitPrice = salesAmount;
@@ -164,6 +165,7 @@ const createInvoice = async (shipment, user) => {
     },
   ];
 
+  // 載具邏輯
   let carrierType = "";
   let carrierId1 = "";
   // 只有 B2C 且無統編時才處理載具
@@ -187,7 +189,7 @@ const createInvoice = async (shipment, user) => {
     TotalAmount: total,
     FreeTaxSalesAmount: 0,
     ZeroTaxSalesAmount: 0,
-    ItemName: "國際運費", // 為了相容性補上
+    ItemName: "國際運費", // 相容性欄位
     ItemCount: "1",
     ItemUnit: "式",
     ItemPrice: unitPrice,
@@ -240,8 +242,8 @@ const voidInvoice = async (invoiceNumber, reason = "訂單取消") => {
     {
       CancelInvoiceNumber: invoiceNumber,
       InvalidReason: sanitizeString(reason),
-      InvoiceDate: invoiceDateStr, // 部分 API 需要日期
-      BuyerIdentifier: "0000000000", // 預設
+      InvoiceDate: invoiceDateStr,
+      BuyerIdentifier: "0000000000",
       SellerIdentifier: config.merchantId,
     },
   ];
@@ -319,7 +321,7 @@ const createDepositInvoice = async (transaction, user) => {
     BuyerIdentifier: buyerId,
     BuyerName: buyerName,
     BuyerEmailAddress: user.email || "",
-    BuyerPhone: "", // 儲值可能沒電話，留空
+    BuyerPhone: "",
     Print: printMark,
     Donation: "0",
     TaxType: "1",
@@ -342,7 +344,6 @@ const createDepositInvoice = async (transaction, user) => {
 
   try {
     const resData = await sendAmegoRequest("/f0401", dataObj, config);
-
     if (
       (resData.Status && resData.Status === "SUCCESS") ||
       resData.RtnCode === "1" ||

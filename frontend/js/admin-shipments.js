@@ -1,5 +1,5 @@
 // frontend/js/admin-shipments.js
-// V2025.Security (Mobile Optimized) & [Security] 雙重刪除確認
+// V2025.Fix - 修復錢包支付圖片載入錯誤 & 發票開立邏輯
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -214,8 +214,13 @@ document.addEventListener("DOMContentLoaded", () => {
       costInput.title = "";
     }
 
+    // [Fix] 修復 paymentProof 為 "WALLET_PAY" 時的圖片載入錯誤
     const proofDiv = document.getElementById("m-proof");
-    if (s.paymentProof) {
+    if (s.paymentProof === "WALLET_PAY") {
+      proofDiv.innerHTML = `<span class="badge" style="background:#cce5ff; color:#004085; font-size:14px; padding:10px; display:inline-block; border:1px solid #b8daff;">
+        <i class="fas fa-wallet"></i> 使用錢包餘額扣款
+      </span>`;
+    } else if (s.paymentProof) {
       proofDiv.innerHTML = `<a href="${API_BASE_URL}${s.paymentProof}" target="_blank"><img src="${API_BASE_URL}${s.paymentProof}" style="height:100px; border:1px solid #ccc;"></a>`;
     } else {
       proofDiv.innerHTML = "尚未上傳";
