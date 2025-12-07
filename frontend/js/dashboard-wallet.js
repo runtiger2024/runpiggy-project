@@ -1,41 +1,10 @@
 // frontend/js/dashboard-wallet.js
 // 負責錢包餘額、交易紀錄與儲值功能
+// V25.6 - Fixed: Hoisting issues with custom loader
 
-document.addEventListener("DOMContentLoaded", () => {
-  // 1. 綁定 Tab 切換 (錢包)
-  const tabWallet = document.getElementById("tab-wallet");
-  if (tabWallet) {
-    tabWallet.addEventListener("click", () => {
-      // 切換 UI (呼叫 main.js 的通用切換或自行處理)
-      document
-        .querySelectorAll(".tab-btn")
-        .forEach((b) => b.classList.remove("active"));
-      document
-        .querySelectorAll(".tab-content")
-        .forEach((c) => (c.style.display = "none"));
+// --- 函式定義 (移至上方) ---
 
-      tabWallet.classList.add("active");
-      document.getElementById("wallet-section").style.display = "block";
-
-      // 載入資料
-      loadWalletData();
-    });
-  }
-
-  // 2. 綁定「申請儲值」按鈕
-  const btnDeposit = document.getElementById("btn-deposit");
-  if (btnDeposit) {
-    btnDeposit.addEventListener("click", openDepositModal);
-  }
-
-  // 3. 綁定儲值表單提交
-  const form = document.getElementById("deposit-form");
-  if (form) {
-    form.addEventListener("submit", handleDepositSubmit);
-  }
-});
-
-// --- 載入錢包資料 ---
+// 1. 載入錢包資料
 window.loadWalletData = async function () {
   const balanceEl = document.getElementById("wallet-balance");
   const listEl = document.getElementById("transaction-list");
@@ -51,17 +20,11 @@ window.loadWalletData = async function () {
     const data = await res.json();
 
     if (data.success && data.wallet) {
-      // 更新餘額
       if (balanceEl) {
-        // 加上千分位與動畫效果 (簡易版)
         balanceEl.textContent = `$${data.wallet.balance.toLocaleString()}`;
-
-        // 根據餘額變色
         if (data.wallet.balance < 0) balanceEl.style.color = "#d32f2f";
         else balanceEl.style.color = "#28a745";
       }
-
-      // 渲染交易紀錄
       renderTransactions(data.wallet.transactions || []);
     }
   } catch (e) {
@@ -81,7 +44,6 @@ function renderTransactions(txs) {
     return;
   }
 
-  // 狀態對照表
   const statusMap = {
     PENDING: { text: "審核中", class: "status-PENDING" },
     COMPLETED: { text: "成功", class: "status-COMPLETED" },
@@ -89,7 +51,6 @@ function renderTransactions(txs) {
     REJECTED: { text: "已駁回", class: "status-CANCELLED" },
   };
 
-  // 類型對照
   const typeMap = {
     DEPOSIT: "儲值",
     PAYMENT: "支付運費",
@@ -103,7 +64,7 @@ function renderTransactions(txs) {
     const typeText = typeMap[tx.type] || tx.type;
     const isNegative = tx.amount < 0;
     const amountClass = isNegative ? "text-danger" : "text-success";
-    const amountSign = isNegative ? "" : "+"; // 負數自帶負號
+    const amountSign = isNegative ? "" : "+";
 
     html += `
             <tr>
@@ -127,12 +88,11 @@ function renderTransactions(txs) {
   listEl.innerHTML = html;
 }
 
-// --- 儲值功能 ---
+// 2. 儲值 Modal
 window.openDepositModal = function () {
   const modal = document.getElementById("deposit-modal");
   const form = document.getElementById("deposit-form");
 
-  // 載入銀行資訊 (從全域快取或重新抓取)
   const bankInfoEl = document.getElementById("deposit-bank-info");
   if (bankInfoEl && window.BANK_INFO_CACHE) {
     bankInfoEl.innerHTML = `
@@ -149,6 +109,7 @@ window.openDepositModal = function () {
   if (modal) modal.style.display = "flex";
 };
 
+// 3. 處理儲值提交
 async function handleDepositSubmit(e) {
   e.preventDefault();
   const btn = e.target.querySelector("button[type='submit']");
@@ -175,7 +136,7 @@ async function handleDepositSubmit(e) {
     if (res.ok) {
       alert("儲值申請已提交，請等待管理員審核。");
       document.getElementById("deposit-modal").style.display = "none";
-      loadWalletData(); // 重整列表
+      window.loadWalletData();
     } else {
       alert(data.message || "提交失敗");
     }
@@ -186,3 +147,41 @@ async function handleDepositSubmit(e) {
     btn.textContent = "提交申請";
   }
 }
+
+// --- 初始化 (移至下方) ---
+document.addEventListener("DOMContentLoaded", () => {
+  // 1. 綁定 Tab 切換 (錢包)
+  const tabWallet = document.getElementById("tab-wallet");
+  if (tabWallet) {
+    tabWallet.addEventListener("click", () => {
+      document
+        .querySelectorAll(".tab-btn")
+        .forEach((b) => b.classList.remove("active"));
+      document
+        .querySelectorAll(".tab-content")
+        .forEach((c) => (c.style.display = "none"));
+
+      tabWallet.classList.add("active");
+      document.getElementById("wallet-section").style.display = "block";
+
+      // 修正：使用 window.loadWalletData 確保函式已定義
+      if (typeof window.loadWalletData === "function") {
+        window.loadWalletData();
+      }
+    });
+  }
+
+  // 2. 綁定「申請儲值」按鈕
+  const btnDeposit = document.getElementById("btn-deposit");
+  if (btnDeposit) {
+    // 修正：使用 Arrow function
+    btnDeposit.addEventListener("click", () => window.openDepositModal());
+  }
+
+  // 3. 綁定儲值表單提交
+  const form = document.getElementById("deposit-form");
+  if (form) {
+    // 注意：handleDepositSubmit 已在上方定義，但建議使用區域變數參考或 window 屬性
+    form.addEventListener("submit", handleDepositSubmit);
+  }
+});

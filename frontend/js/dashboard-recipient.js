@@ -1,49 +1,11 @@
 // frontend/js/dashboard-recipient.js
 // 負責常用收件人管理與選擇邏輯
+// V25.6 - Fixed: Hoisting issues with custom loader
 
-document.addEventListener("DOMContentLoaded", () => {
-  // 1. 綁定 Tab 切換
-  const tabRecipients = document.getElementById("tab-recipients");
-  if (tabRecipients) {
-    tabRecipients.addEventListener("click", () => {
-      // 切換 Tab UI
-      document
-        .querySelectorAll(".tab-btn")
-        .forEach((b) => b.classList.remove("active"));
-      document
-        .querySelectorAll(".tab-content")
-        .forEach((c) => (c.style.display = "none"));
+// --- 函式定義 (移至上方確保初始化時可讀取) ---
 
-      tabRecipients.classList.add("active");
-      const section = document.getElementById("recipient-section");
-      section.style.display = "block";
-
-      // 載入資料
-      loadRecipients();
-    });
-  }
-
-  // 2. 綁定「新增收件人」按鈕
-  const btnAdd = document.getElementById("btn-add-recipient");
-  if (btnAdd) {
-    btnAdd.addEventListener("click", () => openRecipientModal("create"));
-  }
-
-  // 3. 綁定表單提交
-  const form = document.getElementById("recipient-form");
-  if (form) {
-    form.addEventListener("submit", handleRecipientSubmit);
-  }
-
-  // 4. 綁定集運單中的「從常用選取」按鈕
-  const btnSelect = document.getElementById("btn-select-recipient");
-  if (btnSelect) {
-    btnSelect.addEventListener("click", openRecipientSelector);
-  }
-});
-
-// --- 載入與渲染 ---
-async function loadRecipients() {
+// 1. 載入與渲染
+window.loadRecipients = async function () {
   const container = document.getElementById("recipient-list-container");
   if (!container) return;
 
@@ -70,7 +32,7 @@ async function loadRecipients() {
   } catch (e) {
     container.innerHTML = `<p class="text-center" style="color:red;">載入失敗</p>`;
   }
-}
+};
 
 function renderRecipients(list) {
   const container = document.getElementById("recipient-list-container");
@@ -108,13 +70,13 @@ function renderRecipients(list) {
             <div class="recipient-actions">
                 ${
                   !r.isDefault
-                    ? `<button class="btn btn-sm btn-outline-primary" onclick="setDefaultRecipient('${r.id}')">設為預設</button>`
+                    ? `<button class="btn btn-sm btn-outline-primary" onclick="window.setDefaultRecipient('${r.id}')">設為預設</button>`
                     : ""
                 }
-                <button class="btn btn-sm btn-secondary" onclick="openRecipientModal('edit', '${
+                <button class="btn btn-sm btn-secondary" onclick="window.openRecipientModal('edit', '${
                   r.id
                 }')">編輯</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteRecipient('${
+                <button class="btn btn-sm btn-danger" onclick="window.deleteRecipient('${
                   r.id
                 }')">刪除</button>
             </div>
@@ -123,17 +85,18 @@ function renderRecipients(list) {
   });
 }
 
-// --- 新增/編輯 Modal ---
+// 2. 新增/編輯 Modal
 window.openRecipientModal = function (mode, id = null) {
   const modal = document.getElementById("recipient-modal");
   const form = document.getElementById("recipient-form");
   const title = document.getElementById("recipient-modal-title");
 
-  form.reset();
-  document.getElementById("recipient-id").value = "";
+  if (form) form.reset();
+  const idInput = document.getElementById("recipient-id");
+  if (idInput) idInput.value = "";
 
   if (mode === "edit") {
-    title.textContent = "編輯收件人";
+    if (title) title.textContent = "編輯收件人";
     const target = window.myRecipients.find((r) => r.id === id);
     if (target) {
       document.getElementById("recipient-id").value = target.id;
@@ -144,12 +107,13 @@ window.openRecipientModal = function (mode, id = null) {
       document.getElementById("rec-isDefault").checked = target.isDefault;
     }
   } else {
-    title.textContent = "新增常用收件人";
+    if (title) title.textContent = "新增常用收件人";
   }
 
-  modal.style.display = "flex";
+  if (modal) modal.style.display = "flex";
 };
 
+// 處理表單提交
 async function handleRecipientSubmit(e) {
   e.preventDefault();
   const id = document.getElementById("recipient-id").value;
@@ -180,8 +144,9 @@ async function handleRecipientSubmit(e) {
 
     if (res.ok) {
       window.showMessage(isEdit ? "更新成功" : "新增成功", "success");
-      document.getElementById("recipient-modal").style.display = "none";
-      loadRecipients(); // 重整列表
+      const modal = document.getElementById("recipient-modal");
+      if (modal) modal.style.display = "none";
+      window.loadRecipients(); // 重整列表
     } else {
       alert("操作失敗");
     }
@@ -190,7 +155,7 @@ async function handleRecipientSubmit(e) {
   }
 }
 
-// --- 刪除與設為預設 ---
+// 3. 刪除與設為預設
 window.deleteRecipient = async function (id) {
   if (!confirm("確定刪除此收件人？")) return;
   try {
@@ -198,7 +163,7 @@ window.deleteRecipient = async function (id) {
       method: "DELETE",
       headers: { Authorization: `Bearer ${window.dashboardToken}` },
     });
-    loadRecipients();
+    window.loadRecipients();
   } catch (e) {
     alert("刪除失敗");
   }
@@ -206,11 +171,9 @@ window.deleteRecipient = async function (id) {
 
 window.setDefaultRecipient = async function (id) {
   try {
-    // 先取得原資料
     const target = window.myRecipients.find((r) => r.id === id);
     if (!target) return;
 
-    // 僅更新 isDefault
     await fetch(`${API_BASE_URL}/api/recipients/${id}`, {
       method: "PUT",
       headers: {
@@ -219,21 +182,19 @@ window.setDefaultRecipient = async function (id) {
       },
       body: JSON.stringify({ ...target, isDefault: true }),
     });
-    loadRecipients();
+    window.loadRecipients();
     window.showMessage("已設為預設", "success");
   } catch (e) {
     alert("設定失敗");
   }
 };
 
-// --- 選擇器邏輯 (在集運單 Modal 中使用) ---
+// 4. 選擇器邏輯 (在集運單 Modal 中使用)
 window.openRecipientSelector = async function () {
   const modal = document.getElementById("recipient-selector-modal");
   const list = document.getElementById("recipient-selector-list");
 
-  // 確保有資料
   if (!window.myRecipients || window.myRecipients.length === 0) {
-    // 嘗試重新載入
     try {
       const res = await fetch(`${API_BASE_URL}/api/recipients`, {
         headers: { Authorization: `Bearer ${window.dashboardToken}` },
@@ -256,7 +217,6 @@ window.openRecipientSelector = async function () {
                 <div style="font-size:12px; color:#555;">${r.address}</div>
             `;
       div.onclick = () => {
-        // 填入集運單表單
         document.getElementById("ship-name").value = r.name;
         document.getElementById("ship-phone").value = r.phone;
         document.getElementById("ship-street-address").value = r.address;
@@ -271,3 +231,44 @@ window.openRecipientSelector = async function () {
 
   modal.style.display = "flex";
 };
+
+// --- 初始化事件綁定 (移至下方) ---
+document.addEventListener("DOMContentLoaded", () => {
+  // 1. 綁定 Tab 切換
+  const tabRecipients = document.getElementById("tab-recipients");
+  if (tabRecipients) {
+    tabRecipients.addEventListener("click", () => {
+      document
+        .querySelectorAll(".tab-btn")
+        .forEach((b) => b.classList.remove("active"));
+      document
+        .querySelectorAll(".tab-content")
+        .forEach((c) => (c.style.display = "none"));
+
+      tabRecipients.classList.add("active");
+      document.getElementById("recipient-section").style.display = "block";
+
+      window.loadRecipients();
+    });
+  }
+
+  // 2. 綁定「新增收件人」按鈕
+  const btnAdd = document.getElementById("btn-add-recipient");
+  if (btnAdd) {
+    // 使用 Arrow function 確保 window.openRecipientModal 存在
+    btnAdd.addEventListener("click", () => window.openRecipientModal("create"));
+  }
+
+  // 3. 綁定表單提交
+  const form = document.getElementById("recipient-form");
+  if (form) {
+    form.addEventListener("submit", handleRecipientSubmit);
+  }
+
+  // 4. 綁定集運單中的「從常用選取」按鈕
+  const btnSelect = document.getElementById("btn-select-recipient");
+  if (btnSelect) {
+    // 這裡修復了 ReferenceError
+    btnSelect.addEventListener("click", () => window.openRecipientSelector());
+  }
+});
