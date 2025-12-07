@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// 負責：程式入口、事件綁定、圖片上傳初始化
+// V25.1 - 佇列自動帶入 & 預報警示
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -13,30 +13,8 @@ document.addEventListener("DOMContentLoaded", () => {
   window.loadMyPackages();
   window.loadMyShipments();
 
-  // 2. 預報草稿檢查
-  const draftQueue = JSON.parse(
-    localStorage.getItem("forecast_draft_list") || "[]"
-  );
-  const queueContainer = document.getElementById("draft-queue-container");
-  const queueList = document.getElementById("draft-queue-list");
-  if (draftQueue.length > 0) {
-    queueContainer.style.display = "flex";
-    queueList.innerHTML = "";
-    draftQueue.forEach(
-      (item) =>
-        (queueList.innerHTML += `<li>${item.name} (x${item.quantity})</li>`)
-    );
-
-    // 自動填入第一筆
-    const next = draftQueue.shift();
-    document.getElementById("productName").value = next.name || "";
-    document.getElementById("quantity").value = next.quantity || 1;
-    document.getElementById("note").value = "來自試算";
-    localStorage.setItem("forecast_draft_list", JSON.stringify(draftQueue));
-    window.showMessage(`已自動填入: ${next.name}`, "info");
-  } else {
-    queueContainer.style.display = "none";
-  }
+  // 2. [Modified] 啟動預報草稿檢查 (不會立即刪除，等待提交)
+  window.checkForecastDraftQueue(false);
 
   // 3. 事件綁定
   // 頁籤
@@ -189,16 +167,17 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
-  // [New] 監聽預報表單的 Reset 事件 (當 handleForecastSubmit 成功呼叫 form.reset() 時觸發)
-  // 這會確保圖片預覽區和內部 DataTransfer 被清空
+  // [New] 監聽預報表單的 Reset 事件
   const forecastForm = document.getElementById("forecast-form");
   if (forecastForm) {
     forecastForm.addEventListener("reset", () => {
       const input = document.getElementById("images");
       if (input && input.resetUploader) {
-        // 延遲一下確保 reset 事件完成後再執行 UI 重繪
         setTimeout(() => input.resetUploader(), 0);
       }
+      // 重置時同時隱藏警示
+      const warningEl = document.getElementById("forecast-warning-box");
+      if (warningEl) warningEl.style.display = "none";
     });
   }
 
@@ -224,7 +203,6 @@ document.addEventListener("DOMContentLoaded", () => {
             alert("複製失敗，請手動選取文字複製。");
           });
       } else {
-        // 備用方案 (針對舊版瀏覽器)
         alert("您的瀏覽器不支援自動複製，請手動截圖或複製。");
       }
     });
@@ -243,3 +221,78 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   });
 });
+
+/**
+ * [NEW] 預報草稿佇列檢查與自動帶入
+ * @param {boolean} isAfterSubmit - 是否為提交成功後 (如果是，移除第一筆並載入下一筆)
+ */
+window.checkForecastDraftQueue = function (isAfterSubmit = false) {
+  let queue = [];
+  try {
+    queue = JSON.parse(localStorage.getItem("forecast_draft_list") || "[]");
+  } catch (e) {
+    queue = [];
+  }
+
+  if (isAfterSubmit) {
+    // 移除剛處理完的第一筆
+    queue.shift();
+    localStorage.setItem("forecast_draft_list", JSON.stringify(queue));
+  }
+
+  const container = document.getElementById("draft-queue-container");
+  const listEl = document.getElementById("draft-queue-list");
+  const warningEl = document.getElementById("forecast-warning-box");
+
+  // 若佇列空了，隱藏相關 UI
+  if (queue.length === 0) {
+    if (container) container.style.display = "none";
+    if (warningEl) warningEl.style.display = "none";
+    return;
+  }
+
+  // 顯示佇列清單
+  if (container && listEl) {
+    container.style.display = "flex";
+    listEl.innerHTML = "";
+    queue.forEach((item, idx) => {
+      const isNext = idx === 0;
+      const style = isNext ? "font-weight:bold; color:#d35400;" : "";
+      const icon = isNext ? ' <i class="fas fa-arrow-left"></i> 準備預報' : "";
+      listEl.innerHTML += `<li style="${style}">${item.name} (x${item.quantity}) ${icon}</li>`;
+    });
+  }
+
+  // 自動帶入第一筆資料到表單 (僅當表單是空的時候，或者剛提交完)
+  const current = queue[0];
+  const nameInput = document.getElementById("productName");
+  const qtyInput = document.getElementById("quantity");
+  const noteInput = document.getElementById("note");
+
+  if (nameInput && (isAfterSubmit || nameInput.value === "")) {
+    nameInput.value = current.name || "";
+    qtyInput.value = current.quantity || 1;
+    noteInput.value = "來自試算帶入";
+
+    // [Point 1] 顯示警示：檢查超長或超重
+    // 這些屬性 (hasOversizedItem, isOverweight) 來自 calculatorController 回傳的結果
+    let warnings = [];
+    if (current.hasOversizedItem)
+      warnings.push("⚠️ 此商品尺寸超長 (需加收超長費)");
+    if (current.isOverweight) warnings.push("⚠️ 此商品單件超重 (需加收超重費)");
+
+    if (warningEl) {
+      if (warnings.length > 0) {
+        warningEl.innerHTML = warnings.join("<br>");
+        warningEl.style.display = "block";
+        // 加入震動動畫提醒
+        warningEl.classList.add("alert-error");
+      } else {
+        warningEl.style.display = "none";
+      }
+    }
+
+    // 提示用戶
+    window.showMessage(`已自動帶入：${current.name}`, "info");
+  }
+};

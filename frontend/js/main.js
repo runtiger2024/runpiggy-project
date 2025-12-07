@@ -163,7 +163,7 @@ function renderRateTable() {
       <li>海運低消 <span class="highlight">$${window.CONSTANTS.MINIMUM_CHARGE}</span></li>
       <li>長度超過 ${window.CONSTANTS.OVERSIZED_LIMIT}cm (超長費 $${window.CONSTANTS.OVERSIZED_FEE}/整筆訂單)</li>
       <li>重量超過 ${window.CONSTANTS.OVERWEIGHT_LIMIT}kg (超重費 $${window.CONSTANTS.OVERWEIGHT_FEE}/整筆訂單)</li>
-      <li style="color: #d32f2f; font-weight: bold;">⚠️ 若貨物超重(單件>${window.CONSTANTS.OVERWEIGHT_LIMIT}kg)，請客戶於台灣端自行安排堆高機。</li>
+      <li style="color: #d32f2f; font-weight: bold;">⚠️ 若貨物超重(單件>=${window.CONSTANTS.OVERWEIGHT_LIMIT}kg)，請客戶於台灣端自行安排堆高機。</li>
     `;
   }
 }

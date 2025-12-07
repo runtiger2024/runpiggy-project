@@ -1,5 +1,5 @@
 // frontend/js/admin-parcels.js
-// V2025.Security (Mobile Optimized) - Enhanced Alerts
+// V2025.AutoArrive - 自動切換入庫狀態
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -181,7 +181,6 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     const statusTextMap = window.PACKAGE_STATUS_MAP || {};
 
-    // 讀取全域設定 (若無則使用預設值)
     const LIMITS = {
       OVERSIZED: window.CONSTANTS?.OVERSIZED_LIMIT || 300,
       OVERWEIGHT: window.CONSTANTS?.OVERWEIGHT_LIMIT || 100,
@@ -192,7 +191,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const statusClass = statusClasses[pkg.status] || "status-secondary";
       const statusText = statusTextMap[pkg.status] || pkg.status;
 
-      // --- 超規檢查邏輯 ---
       let weightInfo = "-";
       let alertBadges = "";
 
@@ -201,7 +199,6 @@ document.addEventListener("DOMContentLoaded", () => {
         let isOverweight = false;
 
         const totalW = pkg.arrivedBoxesJson.reduce((sum, b) => {
-          // 檢查單箱是否超規
           const l = parseFloat(b.length) || 0;
           const w = parseFloat(b.width) || 0;
           const h = parseFloat(b.height) || 0;
@@ -424,6 +421,7 @@ document.addEventListener("DOMContentLoaded", () => {
       OVERWEIGHT_LIMIT: 100,
     };
     let total = 0;
+    let hasValidBox = false;
 
     rows.forEach((row, idx) => {
       const typeSelect = row.querySelector(".sub-pkg-type");
@@ -446,12 +444,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const displayDiv = row.querySelector(".sub-pkg-fee-display");
 
-      // --- 即時警示檢查 ---
       let warningHtml = "";
       let hasOversized = false;
       let hasOverweight = false;
 
-      // 檢查超長
       if (
         l >= CONSTANTS.OVERSIZED_LIMIT ||
         wd >= CONSTANTS.OVERSIZED_LIMIT ||
@@ -461,13 +457,11 @@ document.addEventListener("DOMContentLoaded", () => {
         warningHtml += `<div style="color:red; font-weight:bold; font-size:12px; margin-bottom:4px;">⚠️ 偵測到超長 (>=${CONSTANTS.OVERSIZED_LIMIT}cm)</div>`;
       }
 
-      // 檢查超重
       if (w >= CONSTANTS.OVERWEIGHT_LIMIT) {
         hasOverweight = true;
         warningHtml += `<div style="color:red; font-weight:bold; font-size:12px; margin-bottom:4px;">⚠️ 偵測到超重 (>=${CONSTANTS.OVERWEIGHT_LIMIT}kg)</div>`;
       }
 
-      // 更新輸入框樣式
       const inputL = row.querySelector(".sub-pkg-l");
       const inputW = row.querySelector(".sub-pkg-w");
       const inputH = row.querySelector(".sub-pkg-h");
@@ -482,7 +476,6 @@ document.addEventListener("DOMContentLoaded", () => {
       inputWt.style.borderColor =
         w >= CONSTANTS.OVERWEIGHT_LIMIT ? "red" : "#ccc";
 
-      // 標示背景色以增強視覺
       if (hasOversized || hasOverweight) {
         displayDiv.style.backgroundColor = "#fff0f0";
         displayDiv.style.border = "1px dashed red";
@@ -492,6 +485,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       if (w > 0 && l > 0 && wd > 0 && h > 0) {
+        hasValidBox = true; // 標記為有有效數據
         const rate = RATES[type] || { weightRate: 0, volumeRate: 0 };
         const rawCai = (l * wd * h) / CONSTANTS.VOLUME_DIVISOR;
         const cai = Math.ceil(rawCai);
@@ -524,6 +518,22 @@ document.addEventListener("DOMContentLoaded", () => {
           warningHtml + `<span style="color:#ccc;">等待完整輸入...</span>`;
       }
     });
+
+    // [New] 自動切換狀態為 ARRIVED (Point 3)
+    // 只有當原本是 PENDING 且現在輸入了有效數據時才切換
+    const statusSelect = document.getElementById("modal-status");
+    if (hasValidBox && statusSelect && statusSelect.value === "PENDING") {
+      statusSelect.value = "ARRIVED";
+      // 視覺提示
+      statusSelect.style.backgroundColor = "#d4edda";
+      statusSelect.style.color = "#155724";
+      statusSelect.style.fontWeight = "bold";
+      setTimeout(() => {
+        statusSelect.style.backgroundColor = "";
+        statusSelect.style.color = "";
+        statusSelect.style.fontWeight = "";
+      }, 1000);
+    }
 
     const finalTotal = Math.max(total, CONSTANTS.MINIMUM_CHARGE || 0);
     const minChargeMsg =

@@ -116,7 +116,7 @@
           <h4 style="margin-top: 0; color: #856404">
             <i class="fas fa-clock"></i> 待處理的試算包裹
           </h4>
-          <p style="margin: 5px 0">您有從試算表帶入的商品，請補上物流單號：</p>
+          <p style="margin: 5px 0">您有從試算表帶入的商品，將依序自動填入：</p>
           <ul id="draft-queue-list" style="margin: 0; padding-left: 20px"></ul>
         </div>
       </div>
@@ -126,6 +126,12 @@
           <h3><i class="fas fa-box-open"></i> 預報新包裹</h3>
         </div>
         <div class="card-body">
+          <div
+            id="forecast-warning-box"
+            class="alert alert-error"
+            style="display: none; margin-bottom: 15px; font-weight: bold"
+          ></div>
+
           <div
             class="alert alert-warning"
             style="
