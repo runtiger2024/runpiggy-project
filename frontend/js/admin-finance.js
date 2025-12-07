@@ -96,7 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadTransactions() {
     const tbody = document.getElementById("transaction-list");
     tbody.innerHTML =
-      '<tr><td colspan="7" class="text-center p-3">載入中...</td></tr>';
+      '<tr><td colspan="8" class="text-center p-3">載入中...</td></tr>';
 
     const status = document.getElementById("status-filter").value;
     const type = document.getElementById("type-filter").value;
@@ -117,10 +117,10 @@ document.addEventListener("DOMContentLoaded", () => {
         renderTable(data.transactions || []);
         renderPagination(data.pagination);
       } else {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">錯誤: ${data.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">錯誤: ${data.message}</td></tr>`;
       }
     } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">連線錯誤</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">連線錯誤</td></tr>`;
     }
   }
 
@@ -130,7 +130,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (list.length === 0) {
       tbody.innerHTML =
-        '<tr><td colspan="7" class="text-center p-3 text-secondary">無資料</td></tr>';
+        '<tr><td colspan="8" class="text-center p-3 text-secondary">無資料</td></tr>';
       return;
     }
 
@@ -141,7 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const amtClass = tx.amount > 0 ? "text-success" : "text-danger";
       const amtSign = tx.amount > 0 ? "+" : "";
 
-      // 狀態標籤
+      // 交易狀態標籤
       let statusBadge = `<span class="badge" style="background:#e0e0e0;">${tx.status}</span>`;
       if (tx.status === "PENDING")
         statusBadge = `<span class="badge bg-warning text-dark">待審核</span>`;
@@ -149,6 +149,24 @@ document.addEventListener("DOMContentLoaded", () => {
         statusBadge = `<span class="badge bg-success text-white">已完成</span>`;
       if (tx.status === "REJECTED")
         statusBadge = `<span class="badge bg-danger text-white">已駁回</span>`;
+
+      // [新增] 發票狀態顯示邏輯
+      let invoiceHtml = '<span style="color:#ccc;">-</span>';
+      if (tx.type === "DEPOSIT" && tx.status === "COMPLETED") {
+        if (tx.invoiceStatus === "ISSUED" && tx.invoiceNumber) {
+          invoiceHtml = `<span class="text-success" style="font-size:12px; font-weight:bold;">
+                          <i class="fas fa-check-circle"></i> ${tx.invoiceNumber}
+                         </span>`;
+        } else {
+          // 如果失敗或未開立，顯示補開按鈕
+          invoiceHtml = `<button class="btn btn-sm btn-outline-secondary" style="font-size:11px; padding:2px 6px;" onclick="issueInvoice('${tx.id}')">
+                          <i class="fas fa-plus"></i> 補開
+                         </button>`;
+          if (tx.invoiceStatus === "FAILED") {
+            invoiceHtml += `<br><span style="color:red; font-size:10px;">(上次失敗)</span>`;
+          }
+        }
+      }
 
       // 憑證按鈕
       let proofHtml = tx.description || "-";
@@ -176,6 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 </td>
                 <td>${tx.type}</td>
                 <td class="${amtClass}" style="font-weight:bold; font-family:monospace; font-size:1.1em;">${amtSign}${tx.amount.toLocaleString()}</td>
+                <td>${invoiceHtml}</td>
                 <td>${proofHtml}</td>
                 <td>${statusBadge}</td>
                 <td>${actionHtml}</td>
@@ -246,6 +265,47 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // [新增] 手動補開功能
+  window.issueInvoice = async function (id) {
+    if (
+      !confirm("確定要手動補開這筆儲值的電子發票嗎？\n(系統將發送資料至 AMEGO)")
+    )
+      return;
+
+    try {
+      // 顯示 Loading
+      const btn = event.target; // 簡單抓取當前按鈕
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/finance/transactions/${id}/invoice`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("admin_token")}`,
+          },
+        }
+      );
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(`成功！發票號碼：${data.invoiceNumber}`);
+        // 重新載入列表
+        const searchBtn = document.getElementById("btn-search");
+        if (searchBtn) searchBtn.click();
+      } else {
+        alert(`失敗：${data.message}`);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    } catch (e) {
+      alert("連線錯誤");
+      console.error(e);
+    }
+  };
+
   async function handleManualAdjust(e) {
     e.preventDefault();
     const userId = document.getElementById("adjust-user-id").value;
@@ -285,12 +345,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderPagination(pg) {
-    // ... (分頁邏輯同其他頁面) ...
     const div = document.getElementById("pagination");
     div.innerHTML = "";
     if (pg.totalPages <= 1) return;
 
-    // 簡易實作
     const prev = document.createElement("button");
     prev.className = "btn btn-sm btn-light";
     prev.innerText = "上一頁";

@@ -22,7 +22,7 @@ model User {
   defaultTaxId        String?   // 預設統編
   defaultInvoiceTitle String?   // 預設抬頭
 
-  // 權限控制：Json 型別 (例如 ["PACKAGE_VIEW", "USER_MANAGE"])
+  // 權限控制
   permissions         Json      @default("[]")
 
   // 帳號狀態
@@ -35,52 +35,38 @@ model User {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  // 既有關聯
+  // 關聯
   packages            Package[]
   shipments           Shipment[]
   activityLogs        ActivityLog[]
-
-  // 新功能關聯
-  recipients          Recipient[]    // 常用收件人
-  wallet              Wallet?        // 電子錢包 (一對一)
-  notifications       Notification[] // 通知中心
+  recipients          Recipient[]
+  wallet              Wallet?
+  notifications       Notification[]
 }
 
 // --- 2. 包裹 (預報) 資料模型 ---
 model Package {
   id                  String    @id @default(cuid())
-
-  // [Security] 確保單號唯一
   trackingNumber      String    @unique
-
   productName         String
   quantity            Int       @default(1)
   note                String?
-  // 圖片儲存：Json 型別 (存圖片路徑字串陣列)
   productImages       Json      @default("[]")
   warehouseImages     Json      @default("[]")
-  warehouseThumbnails Json      @default("[]") // 縮圖路徑
-
+  warehouseThumbnails Json      @default("[]")
   status              String    @default("PENDING")
-
-  // 倉庫數據：Json 型別 (存分箱明細物件陣列)
   arrivedBoxesJson    Json      @default("[]")
-
   totalCalculatedFee  Float?
   warehouseRemark     String?
-
-  // 認領與異常回報欄位
-  claimProof          String?   // 認領憑證圖片 (無主件認領用)
-  exceptionStatus     String?   // 異常狀態 (例如: DAMAGED-破損, PROHIBITED-違禁品)
-  exceptionNote       String?   // 異常備註/處理說明
+  claimProof          String?
+  exceptionStatus     String?
+  exceptionNote       String?
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @default(now()) @updatedAt
 
-  // 關聯
   userId              String
   user                User      @relation(fields: [userId], references: [id])
-
   shipmentId          String?
   shipment            Shipment? @relation(fields: [shipmentId], references: [id])
 
@@ -91,43 +77,35 @@ model Package {
 // --- 3. 集運單資料模型 ---
 model Shipment {
   id                    String    @id @default(cuid())
-
-  // 收件資訊
   recipientName         String
   phone                 String
   shippingAddress       String
   idNumber              String
-  
-  taxId                 String?   // 統編
-  invoiceTitle          String?   // 發票抬頭
-
+  taxId                 String?
+  invoiceTitle          String?
   note                  String?
-  // 附加服務：Json 型別 (存 { floor: { selected: true, ... } })
   additionalServices    Json?     @default("{}")
-
-  deliveryLocationRate  Float?    // 偏遠地區費率
+  deliveryLocationRate  Float?
   status                String    @default("PENDING_PAYMENT")
   totalCost             Float?
   trackingNumberTW      String?
   paymentProof          String?
+  
   // 發票相關
   invoiceNumber         String?
   invoiceDate           DateTime?
   invoiceRandomCode     String?
-  invoiceStatus         String?   // ISSUED, VOID
+  invoiceStatus         String?
 
-  // 商品證明：Json 型別 (存圖片路徑或連結)
   productUrl            String?
   shipmentProductImages Json      @default("[]")
 
-  // 錢包交易關聯 (若使用餘額扣款，紀錄對應的 Transaction ID)
   transactionId         String?   @unique
   transaction           Transaction? @relation(fields: [transactionId], references: [id])
 
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @default(now()) @updatedAt
 
-  // 關聯
   userId                String
   user                  User      @relation(fields: [userId], references: [id])
   packages              Package[]
@@ -135,23 +113,20 @@ model Shipment {
   @@index([userId])
 }
 
-// --- 4. 估價單 (分享連結用) ---
+// --- 4. 估價單 ---
 model CalculationQuote {
   id                String    @id @default(cuid())
   createdAt         DateTime  @default(now())
-  // 試算結果：Json 型別
   calculationResult Json
 }
 
-// --- 5. 操作日誌 (Audit Log) ---
+// --- 5. 操作日誌 ---
 model ActivityLog {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
-
   action    String
   targetId  String?
   details   String?
-
   userId    String
   userEmail String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -160,85 +135,74 @@ model ActivityLog {
   @@index([action])
 }
 
-// --- 6. 系統全域設定 (System Settings) ---
+// --- 6. 系統設定 ---
 model SystemSetting {
-  key         String   @id  // e.g., "rates_config", "announcement"
-  // 設定值：Json 型別，方便存取物件結構
+  key         String   @id
   value       Json
   description String?
   updatedAt   DateTime @updatedAt
 }
 
-// --- 7. 常用收件人 (Address Book) ---
+// --- 7. 常用收件人 ---
 model Recipient {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   name        String
   phone       String
-  address     String   // 完整地址
-  idNumber    String?  // 身分證字號 (報關用)
+  address     String
+  idNumber    String?
   isDefault   Boolean  @default(false)
-
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([userId])
 }
 
-// --- 8. 通知中心 (Notification) ---
+// --- 8. 通知中心 ---
 model Notification {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   title       String
   message     String
-  type        String   // SYSTEM, SHIPMENT, PACKAGE, WALLET
+  type        String
   isRead      Boolean  @default(false)
-  link        String?  // 點擊後跳轉的連結 (例如訂單ID或頁面URL)
-
+  link        String?
   createdAt   DateTime @default(now())
 
   @@index([userId])
 }
 
-// --- 9. 電子錢包 (Wallet) ---
+// --- 9. 電子錢包 ---
 model Wallet {
   id          String   @id @default(cuid())
-  userId      String   @unique // 一個用戶只能有一個錢包
+  userId      String   @unique
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  balance     Float    @default(0) // 當前餘額
-
+  balance     Float    @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   transactions Transaction[]
 }
 
-// --- 10. 交易紀錄 (Transaction) ---
+// --- 10. 交易紀錄 ---
 model Transaction {
   id          String   @id @default(cuid())
   walletId    String
   wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-
-  amount      Float    // 金額 (正數為儲值/退款，負數為扣款)
-  type        String   // DEPOSIT(儲值), PAYMENT(扣款), REFUND(退款), ADJUST(調整)
+  amount      Float
+  type        String   // DEPOSIT, PAYMENT, REFUND, ADJUST
   status      String   // PENDING, COMPLETED, FAILED, REJECTED
-  description String?  // 交易說明 (例如：支付運費-單號XXX)
-  proofImage  String?  // 儲值憑證圖片 (僅 DEPOSIT 類型使用)
+  description String?
+  proofImage  String?
 
-  // [新增] 發票資訊 (紀錄儲值產生的發票)
+  // [新增] 交易發票資訊
   invoiceNumber     String?
   invoiceDate       DateTime?
   invoiceRandomCode String?
   invoiceStatus     String?   // ISSUED, VOID, FAILED
 
-  // 反向關聯到集運單 (若是扣款交易)
   shipment    Shipment?
-
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -1,5 +1,5 @@
 // backend/controllers/admin/walletController.js
-// V1.1 - 整合自動發票開立功能
+// V1.2 - 整合自動發票開立功能與手動補開機制
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
@@ -245,8 +245,81 @@ const manualAdjust = async (req, res) => {
   }
 };
 
+/**
+ * [新增] 手動補開儲值發票 (針對已完成但發票失敗的交易)
+ * @route POST /api/admin/finance/transactions/:id/invoice
+ */
+const manualIssueDepositInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 1. 查詢交易
+    const tx = await prisma.transaction.findUnique({
+      where: { id },
+      include: {
+        wallet: { include: { user: true } },
+      },
+    });
+
+    // 2. 驗證狀態
+    if (!tx) return res.status(404).json({ message: "找不到交易" });
+    if (tx.type !== "DEPOSIT")
+      return res.status(400).json({ message: "僅限儲值交易可開立發票" });
+    if (tx.status !== "COMPLETED")
+      return res.status(400).json({ message: "交易尚未完成，無法開立" });
+    if (tx.invoiceStatus === "ISSUED" && tx.invoiceNumber)
+      return res.status(400).json({ message: "此交易已開立過發票" });
+
+    // 3. 呼叫 Helper 開立
+    const invoiceResult = await invoiceHelper.createDepositInvoice(
+      tx,
+      tx.wallet.user
+    );
+
+    if (invoiceResult.success) {
+      // 4. 更新 DB
+      await prisma.transaction.update({
+        where: { id },
+        data: {
+          invoiceNumber: invoiceResult.invoiceNumber,
+          invoiceDate: invoiceResult.invoiceDate,
+          invoiceRandomCode: invoiceResult.randomCode,
+          invoiceStatus: "ISSUED",
+        },
+      });
+
+      await createLog(
+        req.user.id,
+        "MANUAL_INVOICE_DEPOSIT",
+        id,
+        `補開儲值發票: ${invoiceResult.invoiceNumber}`
+      );
+
+      return res.json({
+        success: true,
+        message: "發票補開成功",
+        invoiceNumber: invoiceResult.invoiceNumber,
+      });
+    } else {
+      // 記錄失敗狀態
+      await prisma.transaction.update({
+        where: { id },
+        data: { invoiceStatus: "FAILED" },
+      });
+      return res.status(400).json({
+        success: false,
+        message: `開立失敗: ${invoiceResult.message}`,
+      });
+    }
+  } catch (error) {
+    console.error("Manual issue deposit invoice error:", error);
+    res.status(500).json({ success: false, message: "系統錯誤" });
+  }
+};
+
 module.exports = {
   getTransactions,
   reviewTransaction,
   manualAdjust,
+  manualIssueDepositInvoice,
 };

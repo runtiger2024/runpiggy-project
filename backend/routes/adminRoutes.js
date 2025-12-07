@@ -1,5 +1,5 @@
 // backend/routes/adminRoutes.js
-// V14.0 - Added Finance/Wallet Management Routes
+// V14.1 - Added Invoice Manual Issue Route
 
 const express = require("express");
 const router = express.Router();
@@ -279,6 +279,15 @@ router
     protect,
     checkPermission("FINANCE_AUDIT"),
     walletController.reviewTransaction
+  );
+
+// [新增] 手動補開儲值發票路由
+router
+  .route("/finance/transactions/:id/invoice")
+  .post(
+    protect,
+    checkPermission("FINANCE_AUDIT"),
+    walletController.manualIssueDepositInvoice
   );
 
 router
