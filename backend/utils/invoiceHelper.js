@@ -1,5 +1,5 @@
 // backend/utils/invoiceHelper.js
-// V2025.Fix - 修正 AMEGO API 串接規格 (修正 OrderId 重複、型別與載具問題)
+// V2025.Fix2 - 修正 OrderId 過長問題、強化除錯與電話欄位
 
 const axios = require("axios");
 const crypto = require("crypto");
@@ -53,14 +53,12 @@ const getInvoiceConfig = async () => {
  * 簽章產生器 (MD5: data + time + hashKey)
  */
 const generateSign = (dataString, time, hashKey) => {
-  // AMEGO 規則: md5(dataJSON字串 + unixTime + HashKey)
-  // 確保 time 與 hashKey 轉為字串連接 [Fix: 明確轉型]
   const rawString = dataString + String(time) + String(hashKey);
   return crypto.createHash("md5").update(rawString).digest("hex");
 };
 
 /**
- * 字串清理 (避免特殊符號導致 API 錯誤)
+ * 字串清理
  */
 const sanitizeString = (str) => {
   if (!str) return "";
@@ -72,17 +70,16 @@ const sanitizeString = (str) => {
  */
 const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
   if (!config.merchantId || !config.hashKey) {
+    console.error(
+      "[Invoice Error] 缺少 MerchantID 或 HashKey，請檢查 Render 環境變數"
+    );
     throw new Error("發票設定不完整：缺少 Merchant ID 或 Hash Key");
   }
 
-  // 1. 直接將資料物件轉為 JSON 字串
   const dataString = JSON.stringify(dataObj);
   const time = Math.floor(Date.now() / 1000);
-
-  // 2. 計算簽章
   const sign = generateSign(dataString, time, config.hashKey);
 
-  // 3. 組建 POST 表單資料
   const params = new URLSearchParams();
   params.append("MerchantID", config.merchantId);
   params.append("invoice", config.merchantId);
@@ -92,12 +89,10 @@ const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
 
   try {
     console.log(
-      `[Invoice] Request: ${merchantOrderNo} -> ${BASE_URL}${endpoint}`
+      `[Invoice] 發送: ${merchantOrderNo} (長度:${merchantOrderNo.length}) -> ${endpoint}`
     );
 
     const response = await axios.post(`${BASE_URL}${endpoint}`, params);
-
-    // AMEGO 回傳格式有時是陣列，有時是物件
     const result = response.data;
     const respData = Array.isArray(result) ? result[0] : result;
 
@@ -119,20 +114,14 @@ const createInvoice = async (shipment, user) => {
   if (!config.enabled)
     return { success: false, message: "系統設定：發票功能已關閉" };
 
-  if (!config.merchantId || !config.hashKey)
-    return {
-      success: false,
-      message: "API 金鑰未設定 (請檢查後台設定或環境變數)",
-    };
-
   const total = Math.round(Number(shipment.totalCost));
   const rawTaxId = shipment.taxId ? shipment.taxId.trim() : "";
   const hasTaxId = rawTaxId.length === 8;
 
-  // [修正1] OrderId 必須唯一，加入時間戳記防止重複錯誤
-  // 這是解決 400 Bad Request (Duplicate Order) 的關鍵
+  // [修正] 縮短 OrderId：只取 ID 後 15 碼 + 時間，確保不超過 40 字
   const unixTime = Math.floor(Date.now() / 1000);
-  const merchantOrderNo = `${shipment.id}_${unixTime}`;
+  const shortId = shipment.id.slice(-15);
+  const merchantOrderNo = `S${shortId}_${unixTime}`;
 
   let salesAmount = 0;
   let taxAmount = 0;
@@ -140,13 +129,11 @@ const createInvoice = async (shipment, user) => {
   let printMark = "0";
 
   if (hasTaxId) {
-    // B2B (有統編)
     printMark = "1";
     salesAmount = Math.round(total / 1.05);
     taxAmount = total - salesAmount;
     unitPrice = salesAmount;
   } else {
-    // B2C
     printMark = "0";
     salesAmount = total;
     taxAmount = 0;
@@ -170,21 +157,15 @@ const createInvoice = async (shipment, user) => {
     },
   ];
 
-  // [修正3] 載具邏輯防呆
-  // 避免傳送錯誤格式導致整張發票失敗 (400 Bad Request)
+  // 載具防呆
   let carrierType = "";
   let carrierId1 = "";
 
   if (!hasTaxId && shipment.carrierType && shipment.carrierId) {
     const cType = shipment.carrierType;
     const cId = shipment.carrierId;
-
-    // 簡單驗證：手機條碼 (3J0002) 必須是 / 開頭
     if (cType === "3J0002" && !cId.startsWith("/")) {
-      console.warn(
-        `[Invoice] 訂單 ${shipment.id} 載具格式錯誤 (${cId})，已自動忽略載具設定`
-      );
-      // 忽略載具，改為開立一般個人發票，避免失敗
+      console.warn(`[Invoice] 載具格式錯誤忽略: ${cId}`);
     } else {
       carrierType = cType;
       carrierId1 = cId;
@@ -192,15 +173,15 @@ const createInvoice = async (shipment, user) => {
   }
 
   const dataObj = {
-    OrderId: merchantOrderNo, // [修正] 使用唯一編號
+    OrderId: merchantOrderNo,
     BuyerIdentifier: buyerId,
     BuyerName: buyerName,
     BuyerEmailAddress: user.email || "",
     BuyerPhone: shipment.phone || "",
     Print: printMark,
     Donation: "0",
-    TaxType: "1", // 文件範例為字串
-    TaxRate: "0.05", // [修正2] 強制轉為字串，避免 API 驗證失敗
+    TaxType: "1",
+    TaxRate: "0.05",
     SalesAmount: salesAmount,
     TaxAmount: taxAmount,
     TotalAmount: total,
@@ -225,7 +206,6 @@ const createInvoice = async (shipment, user) => {
       merchantOrderNo
     );
 
-    // 判斷成功: Status=SUCCESS 或 RtnCode=1 或 code=0
     if (
       (resData.Status && resData.Status === "SUCCESS") ||
       resData.RtnCode === "1" ||
@@ -242,7 +222,9 @@ const createInvoice = async (shipment, user) => {
     } else {
       return {
         success: false,
-        message: `開立失敗: ${resData.Message || resData.msg || "未知錯誤"}`,
+        message: `API回傳錯誤: ${
+          resData.Message || resData.msg || JSON.stringify(resData)
+        }`,
       };
     }
   } catch (e) {
@@ -257,7 +239,7 @@ const voidInvoice = async (invoiceNumber, reason = "訂單取消") => {
   const config = await getInvoiceConfig();
   if (!config.enabled) return { success: false, message: "發票功能已關閉" };
 
-  const invoiceDateStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const invoiceDateStr = new Date().toISOString().split("T")[0];
 
   const dataObj = [
     {
@@ -270,7 +252,6 @@ const voidInvoice = async (invoiceNumber, reason = "訂單取消") => {
   ];
 
   try {
-    // 作廢不需要 Unique ID (因為是對發票號碼操作)，但為了 log 方便帶入
     const resData = await sendAmegoRequest(
       "/f0501",
       dataObj,
@@ -296,22 +277,21 @@ const voidInvoice = async (invoiceNumber, reason = "訂單取消") => {
 };
 
 /**
- * 3. 儲值發票
+ * 3. 儲值發票 (修正版)
  */
 const createDepositInvoice = async (transaction, user) => {
   const config = await getInvoiceConfig();
   if (!config.enabled) return { success: false, message: "發票功能未啟用" };
 
-  if (!config.merchantId || !config.hashKey)
-    return { success: false, message: "API 金鑰未設定" };
-
   const total = Math.round(transaction.amount);
   const taxId = user.defaultTaxId ? user.defaultTaxId.trim() : "";
   const hasTaxId = taxId.length === 8;
 
-  // [修正] 儲值發票也要修正 OrderId 唯一性
+  // [修正] 縮短 OrderId：只取 ID 後 15 碼 + 時間
+  // 範例: DEP + 15碼ID + _ + 10碼時間 = 約 29 字元 (安全)
   const unixTime = Math.floor(Date.now() / 1000);
-  const merchantOrderNo = `DEP${transaction.id}_${unixTime}`;
+  const shortId = transaction.id.slice(-15);
+  const merchantOrderNo = `DEP${shortId}_${unixTime}`;
 
   let salesAmount = 0;
   let taxAmount = 0;
@@ -348,15 +328,15 @@ const createDepositInvoice = async (transaction, user) => {
   ];
 
   const dataObj = {
-    OrderId: merchantOrderNo, // [修正] 唯一編號
+    OrderId: merchantOrderNo,
     BuyerIdentifier: buyerId,
     BuyerName: buyerName,
     BuyerEmailAddress: user.email || "",
-    BuyerPhone: "",
+    BuyerPhone: user.phone || "", // [修正] 嘗試帶入 User 電話
     Print: printMark,
     Donation: "0",
     TaxType: "1",
-    TaxRate: "0.05", // [修正] 字串
+    TaxRate: "0.05",
     SalesAmount: salesAmount,
     TaxAmount: taxAmount,
     TotalAmount: total,
