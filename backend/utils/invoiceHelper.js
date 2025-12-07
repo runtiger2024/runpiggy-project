@@ -1,9 +1,8 @@
 // backend/utils/invoiceHelper.js
-// V2025.Security - 修正金鑰硬編碼漏洞 (最終版) + 支援儲值發票
+// V2025.Fix - 參照 buy1688 成功模式修正 (移除 AES 加密，修正參數名稱)
 
 const axios = require("axios");
 const crypto = require("crypto");
-const qs = require("qs");
 const prisma = require("../config/db.js");
 require("dotenv").config();
 
@@ -11,7 +10,7 @@ require("dotenv").config();
 const BASE_URL =
   process.env.AMEGO_API_URL || "https://invoice-api.amego.tw/json";
 
-// 從環境變數讀取 (若無設定則為 undefined，絕不使用硬編碼字串)
+// 從環境變數讀取
 const ENV_MERCHANT_ID = process.env.AMEGO_MERCHANT_ID;
 const ENV_HASH_KEY = process.env.AMEGO_HASH_KEY;
 
@@ -41,7 +40,6 @@ const getInvoiceConfig = async () => {
         config.enabled = dbConfig.enabled;
       if (dbConfig.mode) config.mode = dbConfig.mode;
 
-      // 若 DB 有值則覆蓋環境變數
       if (dbConfig.merchantId) config.merchantId = dbConfig.merchantId;
       if (dbConfig.hashKey) config.hashKey = dbConfig.hashKey;
     }
@@ -54,79 +52,66 @@ const getInvoiceConfig = async () => {
 /**
  * 簽章產生器 (MD5: data + time + hashKey)
  */
-const generateSign = (dataJson, time, hashKey) => {
+const generateSign = (dataString, time, hashKey) => {
   // AMEGO 規則: md5(dataJSON字串 + unixTime + HashKey)
-  const rawString = dataJson + time + hashKey;
+  const rawString = dataString + time + hashKey;
   return crypto.createHash("md5").update(rawString).digest("hex");
 };
 
 /**
- * AES 加密 (使用 AES-128-CBC)
+ * 字串清理 (避免特殊符號導致 API 錯誤)
  */
-const encrypt = (data, key, iv) => {
-  if (!key) throw new Error("缺少 HashKey，無法進行加密");
-  const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
-  let encrypted = cipher.update(data, "utf8", "base64");
-  encrypted += cipher.final("base64");
-  return encrypted;
+const sanitizeString = (str) => {
+  if (!str) return "";
+  return str.replace(/[|'\"%<>\\]/g, "").trim();
 };
 
 /**
- * 通用 API 請求發送器
+ * 通用 API 請求發送器 (修正版)
  */
 const sendAmegoRequest = async (endpoint, dataObj, config) => {
-  // [Security] 安全檢查：絕對禁止在程式碼中硬編碼金鑰
   if (!config.merchantId || !config.hashKey) {
     throw new Error("發票設定不完整：缺少 Merchant ID 或 Hash Key");
   }
 
-  // 1. 將資料物件轉為 JSON 字串
-  const dataJson = JSON.stringify(dataObj);
-
-  // 2. 取得時間戳記 (秒)
+  // [修正 1] 不進行 AES 加密，直接轉 JSON 字串
+  const dataString = JSON.stringify(dataObj);
   const time = Math.floor(Date.now() / 1000);
 
-  // 3. 準備加密資料
-  // AMEGO 使用 HashKey 的前 16 碼作為 IV
-  const iv = config.hashKey.substring(0, 16);
+  // [修正 2] 計算簽章使用原始 JSON 字串
+  const sign = generateSign(dataString, time, config.hashKey);
 
-  // 4. 加密 Data
-  const encryptedData = encrypt(dataJson, config.hashKey, iv);
-
-  // 5. 計算簽章 (針對原始 JSON 字串簽名)
-  const sign = generateSign(dataJson, time, config.hashKey);
-
-  // 6. 組建 POST 表單資料
-  // 注意：invoice 參數名稱需依照 AMEGO 文件，通常是 merchant 或 invoice
-  const formData = {
-    merchant: config.merchantId,
-    time: time,
-    sign: sign,
-    data: encryptedData,
-  };
+  // [修正 3] 參數名稱需完全對應 buy1688 成功模式
+  // 使用 URLSearchParams 確保格式正確 (application/x-www-form-urlencoded)
+  const params = new URLSearchParams();
+  params.append("MerchantID", config.merchantId); // 注意大小寫
+  params.append("invoice", config.merchantId); // buy1688 有多傳這個參數
+  params.append("data", dataString); // 傳送明文 JSON
+  params.append("time", time);
+  params.append("sign", sign);
 
   try {
     console.log(`[Invoice] 發送請求至 ${BASE_URL}${endpoint}`);
+    // console.log(`[Invoice Payload]`, dataString); // Debug 用
 
-    const response = await axios.post(
-      `${BASE_URL}${endpoint}`,
-      qs.stringify(formData),
-      {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      }
-    );
-    return response.data;
+    const response = await axios.post(`${BASE_URL}${endpoint}`, params);
+
+    // AMEGO 有時回傳陣列，有時回傳物件，統一處理
+    const result = response.data;
+    const respData = Array.isArray(result) ? result[0] : result;
+
+    return respData;
   } catch (error) {
     console.error(`[Invoice API Error] ${error.message}`);
     if (error.response && error.response.data) {
       console.error(`[Invoice API Response]`, error.response.data);
     }
-    throw new Error("發票系統連線失敗");
+    throw new Error("發票系統連線失敗: " + error.message);
   }
 };
 
 /**
- * 1. 開立發票 (Issue Invoice) - 用於集運單
+ * 1. 開立發票 (集運單)
  */
 const createInvoice = async (shipment, user) => {
   const config = await getInvoiceConfig();
@@ -139,51 +124,49 @@ const createInvoice = async (shipment, user) => {
       message: "API 金鑰未設定 (請檢查後台設定或環境變數)",
     };
 
-  // --- 金額計算邏輯 ---
   const total = Math.round(Number(shipment.totalCost));
   const rawTaxId = shipment.taxId ? shipment.taxId.trim() : "";
-  const hasTaxId = rawTaxId.length === 8; // 有 8 碼統編視為 B2B
+  const hasTaxId = rawTaxId.length === 8;
 
   let salesAmount = 0;
   let taxAmount = 0;
   let unitPrice = 0;
-  let detailVat = 1; // 1:含稅(B2C預設), 0:未稅(B2B專用)
+  let printMark = "0"; // [修正 4] 新增 Print 欄位
 
   if (hasTaxId) {
-    // === B2B (有統編) ===
+    // B2B (有統編)
+    printMark = "1"; // 強制列印
     salesAmount = Math.round(total / 1.05);
     taxAmount = total - salesAmount;
     unitPrice = salesAmount;
-    detailVat = 0;
   } else {
-    // === B2C (個人/無統編) ===
+    // B2C
+    printMark = "0";
     salesAmount = total;
     taxAmount = 0;
     unitPrice = total;
-    detailVat = 1;
   }
 
-  // 買受人資訊
   const buyerId = hasTaxId ? rawTaxId : "0000000000";
-  const buyerName = hasTaxId
+  let buyerName = hasTaxId
     ? shipment.invoiceTitle || shipment.recipientName
     : shipment.recipientName || "個人";
+  buyerName = sanitizeString(buyerName);
 
-  // 商品明細
   const productItems = [
     {
       Description: "國際運費",
       Quantity: 1,
+      Unit: "式",
       UnitPrice: unitPrice,
       Amount: unitPrice,
       TaxType: 1,
     },
   ];
 
-  // 載具邏輯
   let carrierType = "";
   let carrierId1 = "";
-
+  // 只有 B2C 且無統編時才處理載具
   if (!hasTaxId && shipment.carrierType && shipment.carrierId) {
     carrierType = shipment.carrierType;
     carrierId1 = shipment.carrierId;
@@ -194,34 +177,48 @@ const createInvoice = async (shipment, user) => {
     BuyerIdentifier: buyerId,
     BuyerName: buyerName,
     BuyerEmailAddress: user.email || "",
+    BuyerPhone: shipment.phone || "",
+    Print: printMark, // 必填
+    Donation: "0",
+    TaxType: "1",
+    TaxRate: 0.05,
     SalesAmount: salesAmount,
-    FreeTaxSalesAmount: 0,
-    ZeroTaxSalesAmount: 0,
-    TaxType: 1,
-    TaxRate: "0.05",
     TaxAmount: taxAmount,
     TotalAmount: total,
+    FreeTaxSalesAmount: 0,
+    ZeroTaxSalesAmount: 0,
+    ItemName: "國際運費", // 為了相容性補上
+    ItemCount: "1",
+    ItemUnit: "式",
+    ItemPrice: unitPrice,
+    ItemAmount: unitPrice,
     ProductItem: productItems,
-    DetailVat: detailVat,
     CarrierType: carrierType,
     CarrierId1: carrierId1,
+    LoveCode: "",
   };
 
   try {
     const resData = await sendAmegoRequest("/f0401", dataObj, config);
 
-    if (resData.code === 0 || resData.TransCode === "0000") {
+    // 判斷成功: Status=SUCCESS 或 RtnCode=1 或 code=0
+    if (
+      (resData.Status && resData.Status === "SUCCESS") ||
+      resData.RtnCode === "1" ||
+      resData.code === 0 ||
+      (resData.InvoiceNumber && resData.InvoiceNumber.length > 0)
+    ) {
       return {
         success: true,
-        invoiceNumber: resData.invoice_number || resData.InvoiceNumber,
+        invoiceNumber: resData.InvoiceNumber || resData.invoice_number,
         invoiceDate: new Date(),
-        randomCode: resData.random_number || resData.RandomNumber,
+        randomCode: resData.RandomCode || resData.random_number || "",
         message: "開立成功",
       };
     } else {
       return {
         success: false,
-        message: `開立失敗: ${resData.msg || resData.Message || "未知錯誤"}`,
+        message: `開立失敗: ${resData.Message || resData.msg || "未知錯誤"}`,
       };
     }
   } catch (e) {
@@ -230,29 +227,38 @@ const createInvoice = async (shipment, user) => {
 };
 
 /**
- * 2. 作廢發票 (Void Invoice)
+ * 2. 作廢發票
  */
 const voidInvoice = async (invoiceNumber, reason = "訂單取消") => {
   const config = await getInvoiceConfig();
   if (!config.enabled) return { success: false, message: "發票功能已關閉" };
 
-  // f0501 格式通常為陣列
+  const invoiceDateStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+
+  // f0501 格式為陣列
   const dataObj = [
     {
       CancelInvoiceNumber: invoiceNumber,
-      InvalidReason: reason,
+      InvalidReason: sanitizeString(reason),
+      InvoiceDate: invoiceDateStr, // 部分 API 需要日期
+      BuyerIdentifier: "0000000000", // 預設
+      SellerIdentifier: config.merchantId,
     },
   ];
 
   try {
     const resData = await sendAmegoRequest("/f0501", dataObj, config);
 
-    if (resData.code === 0 || resData.TransCode === "0000") {
+    if (
+      resData.Status === "SUCCESS" ||
+      resData.RtnCode === "1" ||
+      resData.code === 0
+    ) {
       return { success: true, message: "作廢成功" };
     } else {
       return {
         success: false,
-        message: `作廢失敗: ${resData.msg || resData.Message}`,
+        message: `作廢失敗: ${resData.Message || resData.msg}`,
       };
     }
   } catch (e) {
@@ -261,90 +267,100 @@ const voidInvoice = async (invoiceNumber, reason = "訂單取消") => {
 };
 
 /**
- * 3. [NEW] 針對「儲值交易」開立發票
- * @param {Object} transaction - 交易物件 (需包含 id, amount)
- * @param {Object} user - 使用者物件 (需包含 email, defaultTaxId 等)
+ * 3. 儲值發票
  */
 const createDepositInvoice = async (transaction, user) => {
   const config = await getInvoiceConfig();
   if (!config.enabled) return { success: false, message: "發票功能未啟用" };
 
   if (!config.merchantId || !config.hashKey)
-    return {
-      success: false,
-      message: "API 金鑰未設定",
-    };
+    return { success: false, message: "API 金鑰未設定" };
 
-  // 1. 計算金額
-  const total = Math.round(transaction.amount); // 儲值金額
-  // 優先使用 User 設定的統編，若無則視為個人
+  const total = Math.round(transaction.amount);
   const taxId = user.defaultTaxId ? user.defaultTaxId.trim() : "";
   const hasTaxId = taxId.length === 8;
 
   let salesAmount = 0;
   let taxAmount = 0;
   let unitPrice = 0;
-  let detailVat = 1; // 1:含稅(預設), 0:未稅
+  let printMark = "0";
 
   if (hasTaxId) {
-    // B2B
+    printMark = "1";
     salesAmount = Math.round(total / 1.05);
     taxAmount = total - salesAmount;
     unitPrice = salesAmount;
-    detailVat = 0;
   } else {
-    // B2C
+    printMark = "0";
     salesAmount = total;
     taxAmount = 0;
     unitPrice = total;
-    detailVat = 1;
   }
 
-  // 2. 買受人
   const buyerId = hasTaxId ? taxId : "0000000000";
-  const buyerName = hasTaxId
+  let buyerName = hasTaxId
     ? user.defaultInvoiceTitle || user.name
     : user.name || "會員儲值";
+  buyerName = sanitizeString(buyerName);
 
-  // 3. 建立 Payload
+  const productItems = [
+    {
+      Description: "運費儲值金",
+      Quantity: 1,
+      Unit: "式",
+      UnitPrice: unitPrice,
+      Amount: unitPrice,
+      TaxType: 1,
+    },
+  ];
+
   const dataObj = {
-    OrderId: transaction.id, // 使用交易 ID 當作訂單編號
+    OrderId: transaction.id,
     BuyerIdentifier: buyerId,
     BuyerName: buyerName,
     BuyerEmailAddress: user.email || "",
+    BuyerPhone: "", // 儲值可能沒電話，留空
+    Print: printMark,
+    Donation: "0",
+    TaxType: "1",
+    TaxRate: 0.05,
     SalesAmount: salesAmount,
-    FreeTaxSalesAmount: 0,
-    ZeroTaxSalesAmount: 0,
-    TaxType: 1,
-    TaxRate: "0.05",
     TaxAmount: taxAmount,
     TotalAmount: total,
-    ProductItem: [
-      {
-        Description: "運費儲值金", // 品名
-        Quantity: 1,
-        UnitPrice: unitPrice,
-        Amount: unitPrice,
-        TaxType: 1,
-      },
-    ],
-    DetailVat: detailVat,
-    CarrierType: "", // 儲值通常預設無載具或發送 Email
+    FreeTaxSalesAmount: 0,
+    ZeroTaxSalesAmount: 0,
+    ItemName: "運費儲值金",
+    ItemCount: "1",
+    ItemUnit: "式",
+    ItemPrice: unitPrice,
+    ItemAmount: unitPrice,
+    ProductItem: productItems,
+    CarrierType: "",
     CarrierId1: "",
+    LoveCode: "",
   };
 
   try {
     const resData = await sendAmegoRequest("/f0401", dataObj, config);
-    if (resData.code === 0 || resData.TransCode === "0000") {
+
+    if (
+      (resData.Status && resData.Status === "SUCCESS") ||
+      resData.RtnCode === "1" ||
+      resData.code === 0 ||
+      (resData.InvoiceNumber && resData.InvoiceNumber.length > 0)
+    ) {
       return {
         success: true,
-        invoiceNumber: resData.invoice_number || resData.InvoiceNumber,
+        invoiceNumber: resData.InvoiceNumber || resData.invoice_number,
         invoiceDate: new Date(),
-        randomCode: resData.random_number || resData.RandomNumber,
+        randomCode: resData.RandomCode || resData.random_number || "",
         message: "儲值發票開立成功",
       };
     } else {
-      return { success: false, message: `API錯誤: ${resData.msg || "未知"}` };
+      return {
+        success: false,
+        message: `API錯誤: ${resData.Message || resData.msg || "未知"}`,
+      };
     }
   } catch (e) {
     return { success: false, message: e.message };
