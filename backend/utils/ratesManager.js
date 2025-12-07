@@ -1,23 +1,26 @@
-// backend/utils/ratesManager.js (V10.1 修正版 - 修復 JSON 解析錯誤)
+// backend/utils/ratesManager.js
+// V2025.Security - 移除硬編碼費率
 
 const prisma = require("../config/db.js");
 
-// 預設費率 (當資料庫尚未設定或連線失敗時的備案)
-const DEFAULT_RATES = {
+// 預設的空結構 (不包含具體金額，強制依賴資料庫)
+const DEFAULT_RATES_STRUCTURE = {
   categories: {
-    general: { name: "一般家具", weightRate: 22, volumeRate: 125 },
-    special_a: { name: "特殊家具A", weightRate: 32, volumeRate: 184 },
-    special_b: { name: "特殊家具B", weightRate: 40, volumeRate: 224 },
-    special_c: { name: "特殊家具C", weightRate: 50, volumeRate: 274 },
+    general: {
+      name: "一般家具",
+      description: "請至後台設定說明",
+      weightRate: 0,
+      volumeRate: 0,
+    },
   },
   constants: {
-    VOLUME_DIVISOR: 28317,
+    VOLUME_DIVISOR: 28317, // 國際標準，可保留
     CBM_TO_CAI_FACTOR: 35.3,
-    MINIMUM_CHARGE: 2000,
+    MINIMUM_CHARGE: 0,
     OVERSIZED_LIMIT: 300,
-    OVERSIZED_FEE: 800,
+    OVERSIZED_FEE: 0,
     OVERWEIGHT_LIMIT: 100,
-    OVERWEIGHT_FEE: 800,
+    OVERWEIGHT_FEE: 0,
   },
 };
 
@@ -33,17 +36,35 @@ const getRates = async () => {
     });
 
     if (setting && setting.value) {
-      // [修正] Prisma 的 Json 欄位通常直接回傳物件，無需再 Parse
-      // 為了保險，判斷一下是否為字串，如果是字串才 parse，否則直接使用
+      // Prisma 的 Json 欄位通常直接回傳物件
       return typeof setting.value === "string"
         ? JSON.parse(setting.value)
         : setting.value;
     }
+
+    console.warn("⚠️ 警告：資料庫中找不到 rates_config，將使用空白預設值");
+    return DEFAULT_RATES_STRUCTURE;
   } catch (error) {
-    console.error("讀取運費設定失敗 (將使用預設值):", error.message);
+    console.error("讀取運費設定失敗 (將使用空白預設值):", error.message);
+    // 發生錯誤時回傳空結構，避免計算出錯誤費用
+    return DEFAULT_RATES_STRUCTURE;
   }
-  // 若無設定或發生錯誤，回傳預設值
-  return DEFAULT_RATES;
 };
 
-module.exports = { getRates, DEFAULT_RATES };
+/**
+ * 驗證費率結構是否合法 (用於更新設定時)
+ * @param {Object} rates
+ */
+const validateRates = (rates) => {
+  if (!rates || !rates.categories || !rates.constants) {
+    return false;
+  }
+  if (typeof rates.constants.MINIMUM_CHARGE === "undefined") return false;
+  return true;
+};
+
+module.exports = {
+  getRates,
+  validateRates,
+  DEFAULT_RATES: DEFAULT_RATES_STRUCTURE,
+};
