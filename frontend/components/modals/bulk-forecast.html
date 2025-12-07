@@ -1,0 +1,33 @@
+<div id="bulk-forecast-modal" class="modal-overlay" style="display: none">
+  <div class="modal-content">
+    <button class="modal-close">&times;</button>
+    <h3>📂 Excel 批量預報</h3>
+    <p style="font-size: 13px; color: #666">
+      請上傳 .xlsx 檔案，欄位順序：<br />
+      <strong>物流單號 | 商品名稱 | 數量 | 備註</strong><br />
+      (第一列為標題，不讀取)
+    </p>
+    <input
+      type="file"
+      id="bulk-excel-file"
+      accept=".xlsx, .xls"
+      class="form-control"
+      style="margin: 15px 0"
+    />
+    <div
+      id="bulk-preview-area"
+      style="
+        background: #f9f9f9;
+        padding: 10px;
+        border: 1px solid #eee;
+        display: none;
+        max-height: 200px;
+        overflow-y: auto;
+        margin-bottom: 15px;
+      "
+    ></div>
+    <button id="btn-confirm-bulk" class="btn btn-primary" disabled>
+      確認匯入
+    </button>
+  </div>
+</div>

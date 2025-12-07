@@ -1,0 +1,53 @@
+<div class="section-card">
+  <div
+    class="card-header"
+    style="display: flex; justify-content: space-between; align-items: center"
+  >
+    <h3><i class="fas fa-coins"></i> 錢包餘額</h3>
+    <button id="btn-deposit" class="btn btn-success btn-sm" style="width: auto">
+      <i class="fas fa-plus-circle"></i> 申請儲值
+    </button>
+  </div>
+  <div class="card-body">
+    <div style="text-align: center; padding: 20px">
+      <div style="font-size: 14px; color: #666">當前餘額 (NT$)</div>
+      <div
+        id="wallet-balance"
+        style="
+          font-size: 36px;
+          font-weight: 800;
+          color: #28a745;
+          margin: 10px 0;
+        "
+      >
+        0
+      </div>
+      <div id="wallet-loading" style="display: none; color: #999">
+        <i class="fas fa-spinner fa-spin"></i> 更新中...
+      </div>
+    </div>
+    <hr />
+    <h4>交易紀錄</h4>
+    <div class="table-responsive">
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px">
+        <thead style="background: #f8f9fa">
+          <tr>
+            <th style="padding: 10px; text-align: left">時間</th>
+            <th style="padding: 10px; text-align: left">類型</th>
+            <th style="padding: 10px; text-align: left">說明</th>
+            <th style="padding: 10px; text-align: right">金額</th>
+            <th style="padding: 10px; text-align: center">狀態</th>
+          </tr>
+        </thead>
+        <tbody id="transaction-list">
+          <tr>
+            <td colspan="5" class="text-center" style="padding: 20px">
+              載入中...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div style="height: 80px"></div>
