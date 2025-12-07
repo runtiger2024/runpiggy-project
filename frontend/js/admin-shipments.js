@@ -1,5 +1,5 @@
 // frontend/js/admin-shipments.js
-// V2025.Fix - 修復錢包支付圖片載入錯誤 & 發票開立邏輯
+// V2025.Fix - 修復錢包支付圖片載入錯誤 & 發票開立邏輯 & UI 優化
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -112,7 +112,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // --- 發票狀態欄位 ---
       let invHtml = `<span class="badge" style="background:#e0e0e0; color:#888; padding:2px 6px; font-size:12px; border-radius:4px;">未開立</span>`;
-      if (s.invoiceStatus === "ISSUED" && s.invoiceNumber) {
+
+      // [Fix] 錢包支付顯示優化，避免誤導
+      if (s.paymentProof === "WALLET_PAY") {
+        invHtml = `<span class="badge" style="background:#cce5ff; color:#004085; padding:2px 6px; font-size:12px; border-radius:4px;">
+                     <i class="fas fa-wallet"></i> 儲值已開
+                   </span>`;
+      } else if (s.invoiceStatus === "ISSUED" && s.invoiceNumber) {
         invHtml = `<span class="badge" style="background:#d4edda; color:#155724; padding:2px 6px; font-size:12px; border-radius:4px;">
                      <i class="fas fa-check"></i> 已開立<br>${s.invoiceNumber}
                    </span>`;
@@ -254,14 +260,24 @@ document.addEventListener("DOMContentLoaded", () => {
           <i class="fas fa-times-circle"></i> 此發票已作廢 (${s.invoiceNumber})
         </div>`;
     } else {
-      invContent += `
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span class="text-muted">尚未開立發票</span>
-          <button type="button" class="btn btn-success btn-sm" onclick="handleIssueInvoice('${s.id}')">
-              <i class="fas fa-paper-plane"></i> 立即開立
-          </button>
-        </div>
-        <small class="text-muted" style="display:block; margin-top:5px;">* 點擊後將立即串接 AMEGO 開立並更新狀態。</small>`;
+      // [關鍵修復] 判斷付款方式
+      if (s.paymentProof === "WALLET_PAY") {
+        invContent += `
+            <div style="background:#fff3cd; color:#856404; padding:10px; border-radius:5px; border:1px solid #ffeeba;">
+                <i class="fas fa-wallet"></i> <strong>錢包支付訂單</strong><br>
+                <span style="font-size:13px;">此訂單使用餘額扣款，發票已於會員儲值時開立。<br>無需在此重複開立。</span>
+            </div>`;
+      } else {
+        // 一般轉帳訂單，顯示開立按鈕
+        invContent += `
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span class="text-muted">尚未開立發票</span>
+              <button type="button" class="btn btn-success btn-sm" onclick="handleIssueInvoice('${s.id}')">
+                  <i class="fas fa-paper-plane"></i> 立即開立
+              </button>
+            </div>
+            <small class="text-muted" style="display:block; margin-top:5px;">* 點擊後將立即串接 AMEGO 開立並更新狀態。</small>`;
+      }
     }
     invSection.innerHTML = invContent;
 

@@ -1,5 +1,5 @@
 // backend/controllers/admin/shipmentController.js
-// V13.2 - 防止錢包支付訂單重複開立發票
+// V13.4 - Fix Invoice Duplication on Wallet Pay
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
@@ -96,7 +96,6 @@ const bulkUpdateShipmentStatus = async (req, res) => {
         // 條件 1: 尚未開立
         // 條件 2: 金額 > 0
         // 條件 3: 付款方式不是 'WALLET_PAY' (錢包支付)
-        // 注意: 建立訂單時，若是錢包扣款，已將 paymentProof 設為 'WALLET_PAY'
         const isWalletPay = ship.paymentProof === "WALLET_PAY";
 
         if (
@@ -121,9 +120,6 @@ const bulkUpdateShipmentStatus = async (req, res) => {
               `批量開立失敗: ${result.message}`
             );
           }
-        } else if (isWalletPay) {
-          // 如果是錢包支付，已於儲值時開立，跳過
-          // 可選擇寫入 Log 或忽略
         }
 
         await prisma.shipment.update({
@@ -270,7 +266,7 @@ const updateShipmentStatus = async (req, res) => {
       });
     }
 
-    // [New] 單筆操作時也要檢查是否為錢包支付
+    // 單筆操作時也要檢查是否為錢包支付
     const isWalletPay = originalShipment.paymentProof === "WALLET_PAY";
 
     if (
@@ -378,6 +374,7 @@ const adminDeleteShipment = async (req, res) => {
 
 /**
  * 手動開立發票
+ * [Fix] 增加檢查：若是錢包支付 (WALLET_PAY) 則禁止開立，避免與儲值發票重複
  */
 const manualIssueInvoice = async (req, res) => {
   try {
@@ -388,10 +385,21 @@ const manualIssueInvoice = async (req, res) => {
     });
 
     if (!shipment) return res.status(404).json({ message: "找不到訂單" });
+
+    // 1. 檢查是否已開立
     if (shipment.invoiceNumber && shipment.invoiceStatus !== "VOID") {
       return res
         .status(400)
         .json({ message: "此訂單已開立發票，不可重複開立" });
+    }
+
+    // 2. [關鍵修復] 檢查是否為錢包支付
+    // 錢包支付的發票已在「儲值階段」開立，此處集運單不應再開立，否則重複報稅
+    if (shipment.paymentProof === "WALLET_PAY") {
+      return res.status(400).json({
+        message:
+          "禁止開立：此訂單使用錢包餘額支付，發票已於儲值時開立，請勿重複作業。",
+      });
     }
 
     const result = await invoiceHelper.createInvoice(shipment, shipment.user);
