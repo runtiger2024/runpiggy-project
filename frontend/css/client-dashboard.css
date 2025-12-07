@@ -1049,3 +1049,172 @@
 .is-winner .calc-label::before {
   content: "✅ ";
 }
+/* frontend/css/client-dashboard.css (追加樣式) */
+
+/* --- 11. 通知鈴鐺樣式 --- */
+.notification-wrapper {
+  position: relative;
+  margin-right: 10px;
+}
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: var(--color-danger);
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 5px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+  border: 1px solid #fff;
+}
+.notification-dropdown {
+  position: absolute;
+  top: 35px;
+  right: -10px;
+  width: 300px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  overflow: hidden;
+  animation: fadeIn 0.2s;
+}
+.dropdown-header {
+  background: #f8f9fa;
+  padding: 10px 15px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  font-size: 14px;
+}
+.dropdown-body {
+  max-height: 300px;
+  overflow-y: auto;
+}
+.notification-item {
+  padding: 12px 15px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.notification-item:hover {
+  background: #f0f7ff;
+}
+.notification-item.unread {
+  background: #e6f7ff;
+  font-weight: 500;
+}
+.notification-item:last-child {
+  border-bottom: none;
+}
+.notif-title {
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 4px;
+}
+.notif-time {
+  font-size: 11px;
+  color: #999;
+}
+.btn-text {
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* --- 12. 常用收件人卡片 (Recipient Cards) --- */
+.recipient-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+.recipient-card {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 15px;
+  position: relative;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border-left: 4px solid #ddd;
+}
+.recipient-card.default-card {
+  border-left-color: var(--color-primary);
+  background-color: #f8fbff;
+}
+.recipient-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.recipient-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.recipient-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+}
+.recipient-phone {
+  color: #666;
+  font-size: 14px;
+}
+.recipient-info-row {
+  margin-bottom: 5px;
+  font-size: 13px;
+  color: #555;
+}
+.recipient-actions {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #eee;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.badge-default {
+  background: var(--color-primary);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* 選擇器列表樣式 (Selector Modal) */
+.recipient-selector-item {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.recipient-selector-item:hover {
+  background: #f0f7ff;
+}
+.recipient-selector-item strong {
+  color: var(--color-primary);
+}
+
+@media (max-width: 768px) {
+  .recipient-grid {
+    grid-template-columns: 1fr;
+  }
+  .notification-dropdown {
+    position: fixed;
+    top: var(--header-height-mobile);
+    left: 0;
+    width: 100%;
+    border-radius: 0;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+}

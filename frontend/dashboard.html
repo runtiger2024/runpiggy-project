@@ -29,13 +29,13 @@
         border: 1px solid #ddd;
       }
 
-      /* [新增] 用戶資料卡的小按鈕專用樣式 (修正太大的問題) */
+      /* 用戶資料卡的小按鈕專用樣式 */
       .btn-mini {
         padding: 4px 12px;
         font-size: 12px;
-        height: 32px; /* 固定高度，更精緻 */
-        line-height: 1; /* 讓文字垂直居中 */
-        width: auto !important; /* 強制取消手機版 100% 寬度 */
+        height: 32px;
+        line-height: 1;
+        width: auto !important;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -50,7 +50,51 @@
           <img src="assets/logo.png" alt="Logo" class="header-logo-sm" />
           <h1>會員中心</h1>
         </div>
-        <nav class="main-nav header-nav-right"></nav>
+
+        <div
+          class="header-right-actions"
+          style="display: flex; align-items: center; gap: 15px"
+        >
+          <div class="notification-wrapper" style="position: relative">
+            <div
+              id="btn-notification"
+              style="
+                cursor: pointer;
+                font-size: 20px;
+                color: #555;
+                padding: 5px;
+              "
+            >
+              <i class="fas fa-bell"></i>
+              <span
+                id="notification-badge"
+                class="notification-badge"
+                style="display: none"
+                >0</span
+              >
+            </div>
+            <div
+              id="notification-dropdown"
+              class="notification-dropdown"
+              style="display: none"
+            >
+              <div class="dropdown-header">
+                <span>通知中心</span>
+                <button id="btn-read-all" class="btn-text">全部已讀</button>
+              </div>
+              <div id="notification-list" class="dropdown-body">
+                <div
+                  class="empty-state"
+                  style="padding: 20px; text-align: center; color: #999"
+                >
+                  載入中...
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <nav class="main-nav header-nav-right"></nav>
+        </div>
       </header>
 
       <div id="message-box" class="alert" style="display: none"></div>
@@ -78,9 +122,7 @@
               <span id="user-address">...</span>
             </div>
           </div>
-          <div
-            style="display: flex; gap: 8px; margin-left: auto; flex-shrink: 0"
-          >
+          <div class="profile-actions">
             <button
               id="btn-edit-profile"
               class="btn btn-secondary btn-mini btn-edit-profile"
@@ -219,6 +261,9 @@
         <button id="tab-shipments" class="tab-btn">
           <i class="fas fa-shipping-fast"></i> 我的集運單
         </button>
+        <button id="tab-recipients" class="tab-btn">
+          <i class="fas fa-address-book"></i> 常用收件人
+        </button>
       </div>
 
       <div id="packages-section" class="tab-content active">
@@ -278,6 +323,29 @@
               </tr>
             </tbody>
           </table>
+        </div>
+        <div style="height: 80px"></div>
+      </div>
+
+      <div id="recipient-section" class="tab-content" style="display: none">
+        <div
+          style="display: flex; justify-content: flex-end; margin-bottom: 15px"
+        >
+          <button
+            id="btn-add-recipient"
+            class="btn btn-primary btn-sm"
+            style="width: auto"
+          >
+            <i class="fas fa-plus"></i> 新增收件人
+          </button>
+        </div>
+        <div id="recipient-list-container" class="recipient-grid">
+          <p
+            class="text-center"
+            style="width: 100%; color: #999; padding: 20px"
+          >
+            載入中...
+          </p>
         </div>
         <div style="height: 80px"></div>
       </div>
@@ -463,7 +531,24 @@
                 請確認台灣收件地址可<strong>自行安排堆高機</strong>下貨，否則司機可能無法派送。
               </div>
 
-              <h4>📝 收件資訊</h4>
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                "
+              >
+                <h4>📝 收件資訊</h4>
+                <button
+                  type="button"
+                  id="btn-select-recipient"
+                  class="btn btn-sm btn-outline-primary"
+                  style="width: auto; padding: 4px 10px"
+                >
+                  <i class="fas fa-address-book"></i> 從常用選取
+                </button>
+              </div>
+
               <div class="form-group">
                 <label class="required">收件人</label
                 ><input
@@ -564,10 +649,7 @@
                   padding-top: 15px;
                 "
               >
-                <h4 style="margin-bottom: 15px; color: #2c3e50">
-                  🛠️ 附加服務 (協助搬運/組裝/回收)
-                </h4>
-
+                <h4 style="margin-bottom: 15px; color: #2c3e50">🛠️ 附加服務</h4>
                 <div class="service-item" style="margin-bottom: 10px">
                   <div style="display: flex; align-items: center; gap: 10px">
                     <input
@@ -623,7 +705,6 @@
                     />
                   </div>
                 </div>
-
                 <div class="service-item" style="margin-bottom: 10px">
                   <div style="display: flex; align-items: center; gap: 10px">
                     <input
@@ -648,7 +729,6 @@
                     />
                   </div>
                 </div>
-
                 <div class="service-item" style="margin-bottom: 10px">
                   <div style="display: flex; align-items: center; gap: 10px">
                     <input
@@ -675,7 +755,6 @@
                     />
                   </div>
                 </div>
-
                 <div class="service-item" style="margin-bottom: 10px">
                   <div style="display: flex; align-items: center; gap: 10px">
                     <input
@@ -700,7 +779,6 @@
                     />
                   </div>
                 </div>
-
                 <div
                   class="alert alert-warning"
                   style="
@@ -738,17 +816,15 @@
                   >🛒 商品證明 (必填其一)</label
                 >
                 <p style="font-size: 12px; color: #666; margin: 5px 0">
-                  若有多個商品，請將購買連結貼在下方
-                  (一行一個)，或上傳多張對應的訂單截圖。
+                  購買連結或上傳截圖。
                 </p>
                 <textarea
                   id="ship-product-url"
                   class="form-control"
-                  rows="3"
-                  placeholder="請在此貼上購買連結 (多個連結請換行)"
+                  rows="2"
+                  placeholder="連結..."
                   style="margin-bottom: 10px"
                 ></textarea>
-
                 <div
                   style="
                     text-align: center;
@@ -758,9 +834,6 @@
                   "
                 >
                   —— 或 ——
-                </div>
-                <div style="font-size: 13px; color: #666; margin-bottom: 5px">
-                  上傳訂單截圖 (可多選)
                 </div>
                 <input
                   type="file"
@@ -790,6 +863,59 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div id="recipient-modal" class="modal-overlay" style="display: none">
+      <div class="modal-content">
+        <button class="modal-close">&times;</button>
+        <h3 id="recipient-modal-title">新增常用收件人</h3>
+        <form id="recipient-form">
+          <input type="hidden" id="recipient-id" />
+          <div class="form-group">
+            <label class="required">姓名</label>
+            <input type="text" id="rec-name" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label class="required">電話</label>
+            <input type="tel" id="rec-phone" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label class="required">身分證字號 (報關用)</label>
+            <input
+              type="text"
+              id="rec-idNumber"
+              class="form-control"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label class="required">詳細地址</label>
+            <input type="text" id="rec-address" class="form-control" required />
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="rec-isDefault" /> 設為預設收件人
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary">儲存</button>
+        </form>
+      </div>
+    </div>
+
+    <div
+      id="recipient-selector-modal"
+      class="modal-overlay"
+      style="display: none; z-index: 1100"
+    >
+      <div class="modal-content">
+        <button class="modal-close">&times;</button>
+        <h3>選擇常用收件人</h3>
+        <div
+          id="recipient-selector-list"
+          class="recipient-selector-list"
+          style="max-height: 300px; overflow-y: auto"
+        ></div>
       </div>
     </div>
 
@@ -941,7 +1067,6 @@
               ></span>
             </div>
           </div>
-
           <div class="modal-section-title">👤 收件人</div>
           <div style="background: #f9f9f9; padding: 10px; border-radius: 5px">
             <p style="margin: 5px 0">
@@ -954,7 +1079,6 @@
               <strong>地址:</strong> <span id="sd-address"></span>
             </p>
           </div>
-
           <div class="modal-section-title">💰 費用明細</div>
           <div
             id="sd-fee-breakdown"
@@ -965,11 +1089,9 @@
               color: #e65100;
             "
           ></div>
-
           <div class="modal-section-title">🛒 購買證明</div>
           <div id="sd-proof-images" class="gallery-grid"></div>
         </div>
-
         <div class="modal-footer sticky-footer-actions">
           <button class="btn btn-primary modal-close-btn">關閉</button>
         </div>
@@ -991,12 +1113,14 @@
       </div>
     </div>
 
+    <script src="js/libs/xlsx.full.min.js"></script>
     <script src="js/apiConfig.js"></script>
     <script src="js/shippingData.js"></script>
     <script src="js/navigation.js"></script>
     <script src="js/dashboard-core.js"></script>
     <script src="js/dashboard-packages.js"></script>
     <script src="js/dashboard-shipments.js"></script>
+    <script src="js/dashboard-recipient.js"></script>
     <script src="js/dashboard-main.js"></script>
   </body>
 </html>

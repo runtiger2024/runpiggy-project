@@ -15,6 +15,11 @@ const shipmentRoutes = require("./routes/shipmentRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const quoteRoutes = require("./routes/quoteRoutes");
 
+// [新增] 新功能的路由
+const recipientRoutes = require("./routes/recipientRoutes");
+const walletRoutes = require("./routes/walletRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -32,8 +37,13 @@ app.use("/api/shipments", shipmentRoutes);
 app.use("/api/admin", adminRoutes); // 管理員專用
 app.use("/api/quotes", quoteRoutes); // 估價單分享
 
+// [新增] 註冊新功能路由
+app.use("/api/recipients", recipientRoutes);
+app.use("/api/wallet", walletRoutes);
+app.use("/api/notifications", notificationRoutes);
+
 app.get("/", (req, res) => {
-  res.json({ message: "小跑豬後端伺服器 (System V12 Ready)!" });
+  res.json({ message: "小跑豬後端伺服器 (System V13 - Full Feature Ready)!" });
 });
 
 app.listen(PORT, () => {

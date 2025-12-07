@@ -1,10 +1,10 @@
 // backend/controllers/shipmentController.js
-// V12.0 - 包含手動發票操作接口
+// V13.0 - 支援錢包扣款 (Wallet Payment) 與自動轉單
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
 const ratesManager = require("../utils/ratesManager.js");
-const invoiceHelper = require("../utils/invoiceHelper.js"); // 引入新的 Helper
+const invoiceHelper = require("../utils/invoiceHelper.js");
 const createLog = require("../utils/createLog.js");
 
 // --- 運費計算邏輯 (保持原樣) ---
@@ -128,14 +128,22 @@ const createShipment = async (req, res) => {
       deliveryLocationRate,
       productUrl,
       additionalServices,
+      paymentMethod, // [New] 付款方式: 'TRANSFER' (預設) 或 'WALLET'
     } = req.body;
     const userId = req.user.id;
     const files = req.files || [];
 
-    if ((!productUrl || productUrl.trim() === "") && files.length === 0) {
+    // 若選擇錢包支付，商品證明是選填；若轉帳，則需上傳圖片或連結
+    const isWalletPay = paymentMethod === "WALLET";
+
+    if (
+      !isWalletPay &&
+      (!productUrl || productUrl.trim() === "") &&
+      files.length === 0
+    ) {
       return res
         .status(400)
-        .json({ success: false, message: "請提供商品證明" });
+        .json({ success: false, message: "請提供商品證明(連結或截圖)" });
     }
 
     let shipmentImagePaths = [];
@@ -178,7 +186,48 @@ const createShipment = async (req, res) => {
       } catch (e) {}
     }
 
+    // ----------------------------------------------------
+    // [New] 錢包扣款邏輯
+    // ----------------------------------------------------
+    let shipmentStatus = "PENDING_PAYMENT";
+
+    if (isWalletPay) {
+      // 1. 檢查餘額是否足夠
+      const wallet = await prisma.wallet.findUnique({ where: { userId } });
+      if (!wallet || wallet.balance < calcResult.totalCost) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "錢包餘額不足，請先儲值或選擇轉帳付款。",
+          });
+      }
+      // 2. 設定初始狀態為處理中 (已付款)
+      shipmentStatus = "PROCESSING";
+    }
+
+    // 使用 Transaction 確保扣款與訂單建立的一致性
     const newShipment = await prisma.$transaction(async (tx) => {
+      let txRecord = null;
+
+      // 若為錢包支付，執行扣款與建立交易紀錄
+      if (isWalletPay) {
+        await tx.wallet.update({
+          where: { userId },
+          data: { balance: { decrement: calcResult.totalCost } },
+        });
+
+        txRecord = await tx.transaction.create({
+          data: {
+            wallet: { connect: { userId } },
+            amount: -calcResult.totalCost, // 負數代表扣款
+            type: "PAYMENT",
+            status: "COMPLETED",
+            description: "支付運費",
+          },
+        });
+      }
+
       const createdShipment = await tx.shipment.create({
         data: {
           recipientName,
@@ -191,16 +240,22 @@ const createShipment = async (req, res) => {
           additionalServices: finalAdditionalServices,
           totalCost: calcResult.totalCost,
           deliveryLocationRate: parseFloat(deliveryLocationRate) || 0,
-          status: "PENDING_PAYMENT",
+          status: shipmentStatus,
           userId: userId,
           productUrl: productUrl || null,
           shipmentProductImages: shipmentImagePaths,
+          // 關聯交易紀錄 (若有)
+          transactionId: txRecord ? txRecord.id : null,
+          // 標記付款憑證欄位 (錢包支付則填寫標記，避免前端顯示未上傳)
+          paymentProof: isWalletPay ? "WALLET_PAY" : null,
         },
       });
+
       await tx.package.updateMany({
         where: { id: { in: packageIds } },
         data: { status: "IN_SHIPMENT", shipmentId: createdShipment.id },
       });
+
       return createdShipment;
     });
 
@@ -208,14 +263,15 @@ const createShipment = async (req, res) => {
       await sendNewShipmentNotification(newShipment, req.user);
     } catch (e) {}
 
-    res
-      .status(201)
-      .json({
-        success: true,
-        message: "集運單建立成功！",
-        shipment: newShipment,
-      });
+    res.status(201).json({
+      success: true,
+      message: isWalletPay
+        ? "扣款成功！訂單已成立並開始處理。"
+        : "集運單建立成功！請儘速完成轉帳。",
+      shipment: newShipment,
+    });
   } catch (error) {
+    console.error("建立訂單錯誤:", error);
     res.status(500).json({ success: false, message: "伺服器發生錯誤" });
   }
 };
@@ -248,13 +304,11 @@ const getMyShipments = async (req, res) => {
         arrivedBoxes: pkg.arrivedBoxesJson || [],
       })),
     }));
-    res
-      .status(200)
-      .json({
-        success: true,
-        count: processedShipments.length,
-        shipments: processedShipments,
-      });
+    res.status(200).json({
+      success: true,
+      count: processedShipments.length,
+      shipments: processedShipments,
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: "伺服器發生錯誤" });
   }
@@ -449,6 +503,6 @@ module.exports = {
   uploadPaymentProof,
   deleteMyShipment,
   previewShipmentCost,
-  manualIssueInvoice, // Exported
-  manualVoidInvoice, // Exported
+  manualIssueInvoice,
+  manualVoidInvoice,
 };

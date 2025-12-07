@@ -1,11 +1,56 @@
 // frontend/js/dashboard-packages.js
-// V25.0 (透明化版) - 在詳情中顯示運費計算公式 + 強化警示
+// V25.5 - 整合認領、批量預報與異常處理
 
 let currentEditPackageImages = [];
+
+document.addEventListener("DOMContentLoaded", () => {
+  // 綁定「認領包裹」按鈕
+  const btnClaim = document.getElementById("btn-claim-package");
+  if (btnClaim) {
+    btnClaim.addEventListener("click", () => {
+      const modal = document.getElementById("claim-package-modal");
+      const form = document.getElementById("claim-package-form");
+      if (form) form.reset();
+      if (modal) modal.style.display = "flex";
+    });
+  }
+
+  // 綁定「批量預報」按鈕
+  const btnBulk = document.getElementById("btn-bulk-forecast");
+  if (btnBulk) {
+    btnBulk.addEventListener("click", () => {
+      const modal = document.getElementById("bulk-forecast-modal");
+      if (modal) modal.style.display = "flex";
+    });
+  }
+
+  // 綁定認領表單提交
+  const claimForm = document.getElementById("claim-package-form");
+  if (claimForm) {
+    claimForm.addEventListener("submit", handleClaimSubmit);
+  }
+
+  // 綁定 Excel 檔案選擇 (批量預報)
+  const excelInput = document.getElementById("bulk-excel-file");
+  if (excelInput) {
+    excelInput.addEventListener("change", handleExcelUpload);
+  }
+
+  // 綁定批量預報確認按鈕
+  const btnConfirmBulk = document.getElementById("btn-confirm-bulk");
+  if (btnConfirmBulk) {
+    btnConfirmBulk.addEventListener("click", submitBulkForecast);
+  }
+});
 
 // --- 1. 載入包裹列表 ---
 window.loadMyPackages = async function () {
   const tableBody = document.getElementById("packages-table-body");
+  if (!tableBody) return;
+
+  tableBody.innerHTML =
+    '<tr><td colspan="5" class="text-center" style="padding:20px;">載入中...</td></tr>';
+
   try {
     const res = await fetch(`${API_BASE_URL}/api/packages/my`, {
       headers: { Authorization: `Bearer ${window.dashboardToken}` },
@@ -14,9 +59,7 @@ window.loadMyPackages = async function () {
     window.allPackagesData = data.packages || [];
     renderPackagesTable();
   } catch (e) {
-    if (tableBody) {
-      tableBody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:red;">載入失敗: ${e.message}</td></tr>`;
-    }
+    tableBody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:red;">載入失敗: ${e.message}</td></tr>`;
   }
 };
 
@@ -40,12 +83,19 @@ function renderPackagesTable() {
   window.allPackagesData.forEach((pkg) => {
     const statusText = statusMap[pkg.status] || pkg.status;
     const statusClass = statusClasses[pkg.status] || "";
-    const isArrived = pkg.status === "ARRIVED";
+    // 只有已入庫 (ARRIVED) 且無異常的包裹才能打包
+    const isReady = pkg.status === "ARRIVED" && !pkg.exceptionStatus;
 
     let infoHtml = "<span>-</span>";
     let badgesHtml = "";
 
     const boxes = Array.isArray(pkg.arrivedBoxes) ? pkg.arrivedBoxes : [];
+
+    // --- 異常狀態處理 ---
+    if (pkg.exceptionStatus) {
+      const exText = pkg.exceptionStatus === "DAMAGED" ? "破損" : "違禁品/異常";
+      badgesHtml += `<span class="badge-alert" style="background:#ffebee; color:#d32f2f; border:1px solid red; cursor:pointer;" onclick="resolveException('${pkg.id}')">⚠️ ${exText} (點擊處理)</span> `;
+    }
 
     if (boxes.length > 0) {
       const totalW = boxes.reduce(
@@ -54,23 +104,25 @@ function renderPackagesTable() {
       );
       const displayFee = pkg.totalCalculatedFee || 0;
 
-      // [強化] 警示標籤樣式
       if (pkg.isOversized)
-        badgesHtml += `<span class="badge-alert small" style="background:#ffebee; color:#d32f2f; border:1px solid #d32f2f; font-weight:800; padding:2px 5px; border-radius:4px; margin-right:4px;">⚠️ 超長</span> `;
+        badgesHtml += `<span class="badge-alert small" style="background:#fff3e0; color:#e65100; border:1px solid #ff9800;">📏 超長</span> `;
       if (pkg.isOverweight)
-        badgesHtml += `<span class="badge-alert small" style="background:#ffebee; color:#d32f2f; border:1px solid #d32f2f; font-weight:800; padding:2px 5px; border-radius:4px;">⚠️ 超重</span>`;
+        badgesHtml += `<span class="badge-alert small" style="background:#fff3e0; color:#e65100; border:1px solid #ff9800;">⚖️ 超重</span>`;
 
       infoHtml = `
         <div class="pkg-meta-info">
           <span>${boxes.length}箱 / ${totalW.toFixed(1)}kg</span>
           ${
             displayFee > 0
-              ? `<span class="fee-highlight">基本運費 $${displayFee.toLocaleString()}</span>`
+              ? `<span class="fee-highlight">估運費 $${displayFee.toLocaleString()}</span>`
               : ""
           }
         </div>
         <div class="pkg-badges" style="margin-top:4px;">${badgesHtml}</div>
       `;
+    } else {
+      // 如果有異常但沒箱子數據
+      if (badgesHtml) infoHtml = `<div class="pkg-badges">${badgesHtml}</div>`;
     }
 
     const pkgStr = encodeURIComponent(JSON.stringify(pkg));
@@ -78,7 +130,7 @@ function renderPackagesTable() {
 
     tr.innerHTML = `
       <td><input type="checkbox" class="package-checkbox" data-id="${pkg.id}" ${
-      !isArrived ? "disabled" : ""
+      !isReady ? "disabled" : ""
     }></td>
       <td><span class="status-badge ${statusClass}">${statusText}</span></td>
       <td>
@@ -92,7 +144,7 @@ function renderPackagesTable() {
         <button class="btn btn-sm btn-primary" onclick='window.openPackageDetails("${pkgStr}")'>詳情</button>
         ${
           pkg.status === "PENDING"
-            ? `<button class="btn btn-sm btn-secondary btn-edit">修改</button><button class="btn btn-sm btn-danger btn-delete">刪除</button>`
+            ? `<button class="btn btn-sm btn-secondary btn-edit" style="margin-left:5px;">修改</button><button class="btn btn-sm btn-danger btn-delete" style="margin-left:5px;">刪除</button>`
             : ""
         }
       </td>
@@ -116,7 +168,161 @@ function renderPackagesTable() {
     window.updateCheckoutBar();
 }
 
-// --- 2. 包裹詳情彈窗 (顯示透明化算式) ---
+// --- 2. 認領包裹邏輯 ---
+async function handleClaimSubmit(e) {
+  e.preventDefault();
+  const btn = e.target.querySelector("button[type='submit']");
+  btn.disabled = true;
+  btn.textContent = "提交中...";
+
+  const trackingNumber = document.getElementById("claim-tracking").value.trim();
+  const file = document.getElementById("claim-proof").files[0];
+
+  const fd = new FormData();
+  fd.append("trackingNumber", trackingNumber);
+  if (file) fd.append("proof", file);
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/packages/claim`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${window.dashboardToken}` },
+      body: fd,
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      alert("認領成功！包裹已歸戶。");
+      document.getElementById("claim-package-modal").style.display = "none";
+      window.loadMyPackages();
+    } else {
+      alert(data.message || "認領失敗");
+    }
+  } catch (err) {
+    alert("網路錯誤");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "確認認領";
+  }
+}
+
+// --- 3. 批量預報邏輯 (Excel) ---
+let bulkData = [];
+
+function handleExcelUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (typeof XLSX === "undefined") {
+    alert("Excel 解析元件尚未載入，請重新整理頁面或聯繫管理員。");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: "array" });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    // 假設 Excel 欄位: 單號, 商品名稱, 數量, 備註
+    const jsonData = XLSX.utils.sheet_to_json(firstSheet, {
+      header: ["trackingNumber", "productName", "quantity", "note"],
+      range: 1,
+    }); // range:1 跳過標題列
+
+    bulkData = jsonData.filter((row) => row.trackingNumber && row.productName);
+
+    // 預覽
+    const previewEl = document.getElementById("bulk-preview-area");
+    if (previewEl) {
+      previewEl.innerHTML = `
+                <p>已讀取 <strong>${bulkData.length}</strong> 筆資料：</p>
+                <ul style="max-height:150px; overflow-y:auto; font-size:12px; padding-left:20px;">
+                    ${bulkData
+                      .map(
+                        (d) => `<li>${d.trackingNumber} - ${d.productName}</li>`
+                      )
+                      .join("")}
+                </ul>
+            `;
+      previewEl.style.display = "block";
+    }
+
+    document.getElementById("btn-confirm-bulk").disabled =
+      bulkData.length === 0;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function submitBulkForecast() {
+  if (bulkData.length === 0) return;
+  const btn = document.getElementById("btn-confirm-bulk");
+  btn.disabled = true;
+  btn.textContent = "匯入中...";
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/packages/bulk-forecast`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${window.dashboardToken}`,
+      },
+      body: JSON.stringify({ packages: bulkData }),
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      alert(data.message); // 成功幾筆失敗幾筆
+      document.getElementById("bulk-forecast-modal").style.display = "none";
+      window.loadMyPackages();
+
+      // 如果有失敗的，可以顯示
+      if (data.errors && data.errors.length > 0) {
+        alert("部分失敗：\n" + data.errors.join("\n"));
+      }
+    } else {
+      alert(data.message || "匯入失敗");
+    }
+  } catch (err) {
+    alert("網路錯誤");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "確認匯入";
+    bulkData = [];
+    document.getElementById("bulk-excel-file").value = "";
+    document.getElementById("bulk-preview-area").style.display = "none";
+  }
+}
+
+// --- 4. 異常處理 (Exception) ---
+window.resolveException = function (pkgId) {
+  const action = prompt(
+    "請輸入處理方式代碼：\n1. 棄置 (DISCARD)\n2. 退回賣家 (RETURN)\n3. 確認無誤請發貨 (SHIP_ANYWAY)\n\n請輸入 1, 2 或 3："
+  );
+
+  let actionCode = "";
+  if (action === "1") actionCode = "DISCARD";
+  else if (action === "2") actionCode = "RETURN";
+  else if (action === "3") actionCode = "SHIP_ANYWAY";
+  else return;
+
+  const note = prompt("備註說明 (例如：退回地址、或確認內容物)：");
+
+  fetch(`${API_BASE_URL}/api/packages/${pkgId}/exception`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${window.dashboardToken}`,
+    },
+    body: JSON.stringify({ action: actionCode, note: note }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      alert(data.message);
+      window.loadMyPackages();
+    })
+    .catch(() => alert("操作失敗"));
+};
+
+// --- 5. 既有詳情、編輯、刪除邏輯 (保持相容) ---
 window.openPackageDetails = function (pkgDataStr) {
   try {
     const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
@@ -128,24 +334,19 @@ window.openPackageDetails = function (pkgDataStr) {
       ? pkg.arrivedBoxes
       : [];
     let boxesHtml = "";
-
-    // 取得系統常數 (若無則使用預設)
     const DIVISOR =
       (window.CONSTANTS && window.CONSTANTS.VOLUME_DIVISOR) || 28317;
 
     if (arrivedBoxes.length > 0) {
       boxesHtml = `<div class="detail-scroll-container">`;
-
       arrivedBoxes.forEach((box, idx) => {
         const fee = box.calculatedFee || 0;
         const isVolWin = box.isVolWin;
         const rateName = box.rateName || "一般";
-
-        // [New] 構建透明化算式
         const volFee = box.volFee || 0;
         const wtFee = box.wtFee || 0;
         const cai =
-          box.cai || Math.ceil((box.length * box.width * box.height) / DIVISOR); // 簡單補算
+          box.cai || Math.ceil((box.length * box.width * box.height) / DIVISOR);
 
         boxesHtml += `
           <div class="detail-box-card">
@@ -161,7 +362,6 @@ window.openPackageDetails = function (pkgDataStr) {
                 box.weight
               } kg</span></div>
             </div>
-            
             <div class="detail-calc-box">
                 <div class="calc-comparison-row ${
                   !isVolWin ? "is-winner" : ""
@@ -177,45 +377,18 @@ window.openPackageDetails = function (pkgDataStr) {
         })/${DIVISOR} = ${cai}材</span>
                     <span class="calc-amount">$${volFee.toLocaleString()}</span>
                 </div>
-                <div style="text-align:right; margin-top:8px; color:#999; font-size:12px;">
-                    * 取兩者較高者為準
-                </div>
             </div>
-
-            ${
-              box.isOversized
-                ? '<div style="color:red; font-weight:bold; font-size:13px; margin-top:5px; background:#ffebee; padding:2px 5px; display:inline-block; border-radius:4px;">⚠️ 此箱超長</div>'
-                : ""
-            }
-            ${
-              box.isOverweight
-                ? '<div style="color:red; font-weight:bold; font-size:13px; margin-top:5px; background:#ffebee; padding:2px 5px; display:inline-block; border-radius:4px; margin-left:5px;">⚠️ 此箱超重</div>'
-                : ""
-            }
           </div>`;
       });
       boxesHtml += `</div>`;
 
       const totalBaseFee = pkg.totalCalculatedFee || 0;
-
-      boxesHtml += `
-        <div style="background:#f0f8ff; padding:15px; border-radius:8px; border:1px solid #b3d8ff; margin-top:15px;">
-            <div style="display:flex; justify-content:space-between;">
-                <strong>基本運費總計：</strong>
-                <strong style="color:#d32f2f; font-size:1.2em;">$${totalBaseFee.toLocaleString()}</strong>
-            </div>
-            <small style="display:block; margin-top:5px; color:#666;">* 此金額僅包含該包裹的基本海運費，尚未包含可能產生的低消補足、偏遠費或特殊附加費 (將在合併訂單時計算)。</small>
-        </div>
-      `;
+      boxesHtml += `<div style="background:#f0f8ff; padding:15px; border-radius:8px; margin-top:15px; text-align:right;"><strong>基本運費總計：$${totalBaseFee.toLocaleString()}</strong></div>`;
 
       boxesListContainer.innerHTML = boxesHtml;
     } else {
-      const baseFee = pkg.totalCalculatedFee || 0;
       boxesListContainer.innerHTML =
-        '<p style="text-align: center; color: #888; padding:20px; background:#f9f9f9; border-radius:8px;">📦 倉庫尚未測量數據</p>';
-      document.getElementById(
-        "details-total-fee"
-      ).textContent = `NT$ ${baseFee.toLocaleString()} (概估)`;
+        '<p style="text-align: center; color: #888; padding:20px;">📦 倉庫尚未測量數據</p>';
     }
 
     const totalWeight = arrivedBoxes.reduce(
@@ -224,12 +397,9 @@ window.openPackageDetails = function (pkgDataStr) {
     );
     document.getElementById("details-total-weight").textContent =
       totalWeight.toFixed(1);
-
-    if (arrivedBoxes.length > 0) {
-      document.getElementById("details-total-fee").textContent = `NT$ ${(
-        pkg.totalCalculatedFee || 0
-      ).toLocaleString()} (基本)`;
-    }
+    document.getElementById("details-total-fee").textContent = `NT$ ${(
+      pkg.totalCalculatedFee || 0
+    ).toLocaleString()} (基本)`;
 
     const warehouseImages = Array.isArray(pkg.warehouseImages)
       ? pkg.warehouseImages
@@ -247,52 +417,19 @@ window.openPackageDetails = function (pkgDataStr) {
       imagesGallery.innerHTML =
         "<p style='grid-column:1/-1; text-align:center; color:#999; font-size:13px;'>尚無照片</p>";
     }
+
+    // 顯示認領憑證 (如果有的話)
+    if (pkg.claimProof) {
+      imagesGallery.innerHTML += `<div style="grid-column:1/-1; margin-top:10px; border-top:1px dashed #ccc; padding-top:10px;">
+            <p style="font-size:12px; color:#666;">認領憑證：</p>
+            <img src="${API_BASE_URL}${pkg.claimProof}" style="max-height:100px; cursor:pointer;" onclick="window.open(this.src)">
+        </div>`;
+    }
+
     modal.style.display = "flex";
   } catch (e) {
-    console.error("詳情解析失敗", e);
-    if (window.showMessage) window.showMessage("無法載入詳情", "error");
-  }
-};
-
-// --- 3. 預報與編輯功能 ---
-window.handleForecastSubmit = async function (e) {
-  e.preventDefault();
-  const form = e.target;
-  const btn = form.querySelector("button[type='submit']");
-  btn.disabled = true;
-  btn.textContent = "提交中...";
-
-  const fd = new FormData();
-  fd.append("trackingNumber", document.getElementById("trackingNumber").value);
-  fd.append("productName", document.getElementById("productName").value);
-  fd.append("quantity", document.getElementById("quantity").value || 1);
-  fd.append("note", document.getElementById("note").value);
-  const files = document.getElementById("images").files;
-  for (let f of files) fd.append("images", f);
-
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/packages/forecast/images`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${window.dashboardToken}` },
-      body: fd,
-    });
-    if (res.ok) {
-      if (window.showMessage) window.showMessage("預報成功", "success");
-      form.reset();
-      const input = document.getElementById("images");
-      if (input && input.resetUploader) input.resetUploader();
-
-      window.loadMyPackages();
-      if (window.checkForecastDraftQueue) window.checkForecastDraftQueue(true);
-    } else {
-      const d = await res.json();
-      alert(d.message);
-    }
-  } catch (e) {
-    alert("錯誤");
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-plus-circle"></i> 提交預報';
+    console.error(e);
+    alert("無法載入詳情");
   }
 };
 
@@ -304,7 +441,7 @@ async function handleDeletePackage(pkg) {
       headers: { Authorization: `Bearer ${window.dashboardToken}` },
     });
     window.loadMyPackages();
-    if (window.showMessage) window.showMessage("已刪除", "success");
+    window.showMessage("已刪除", "success");
   } catch (e) {
     alert("刪除失敗");
   }
@@ -317,7 +454,6 @@ window.openEditPackageModal = function (pkg) {
   document.getElementById("edit-quantity").value = pkg.quantity;
   document.getElementById("edit-note").value = pkg.note || "";
   currentEditPackageImages = pkg.productImages || [];
-
   renderEditImages();
   document.getElementById("edit-package-modal").style.display = "flex";
 };
@@ -358,5 +494,5 @@ window.handleEditPackageSubmit = async function (e) {
   });
   document.getElementById("edit-package-modal").style.display = "none";
   window.loadMyPackages();
-  if (window.showMessage) window.showMessage("更新成功", "success");
+  window.showMessage("更新成功", "success");
 };

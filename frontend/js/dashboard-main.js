@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V25.1 - 佇列自動帶入 & 預報警示
+// V25.3 - 整合錢包、收件人與通知中心
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -7,94 +7,138 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  // 1. 初始載入
-  window.loadSystemSettings();
-  window.loadUserProfile();
-  window.loadMyPackages();
-  window.loadMyShipments();
+  // 1. 初始載入核心數據
+  window.loadSystemSettings(); // 載入匯率、銀行等
+  window.loadUserProfile(); // 載入個資
+  window.loadMyPackages(); // 載入包裹
+  window.loadMyShipments(); // 載入訂單
 
-  // 2. [Modified] 啟動預報草稿檢查 (不會立即刪除，等待提交)
-  window.checkForecastDraftQueue(false);
+  // 2. 啟動預報草稿檢查
+  if (window.checkForecastDraftQueue) {
+    window.checkForecastDraftQueue(false);
+  }
 
-  // 3. 事件綁定
-  // 頁籤
-  const tabPackages = document.getElementById("tab-packages");
-  const tabShipments = document.getElementById("tab-shipments");
-  const pkgSec = document.getElementById("packages-section");
-  const shipSec = document.getElementById("shipments-section");
+  // 3. Tab 切換邏輯 (統一管理)
+  setupTabs();
 
-  tabPackages.addEventListener("click", () => {
-    tabPackages.classList.add("active");
-    tabShipments.classList.remove("active");
-    pkgSec.style.display = "block";
-    shipSec.style.display = "none";
+  // 4. 表單提交事件綁定
+  bindForms();
+
+  // 5. 初始化圖片上傳器
+  initUploaders();
+
+  // 6. 其他全域按鈕綁定 (個人資料、密碼修改)
+  bindGlobalButtons();
+});
+
+// --- Tab 管理 ---
+function setupTabs() {
+  const tabs = [
+    { id: "tab-packages", section: "packages-section" },
+    { id: "tab-shipments", section: "shipments-section" },
+    {
+      id: "tab-recipients",
+      section: "recipient-section",
+      loadFn: window.loadRecipients,
+    }, // 需要 dashboard-recipient.js
+    {
+      id: "tab-wallet",
+      section: "wallet-section",
+      loadFn: window.loadWalletData,
+    }, // 需要 dashboard-wallet.js
+  ];
+
+  tabs.forEach((tab) => {
+    const btn = document.getElementById(tab.id);
+    if (!btn) return;
+
+    btn.addEventListener("click", () => {
+      // 1. UI 狀態切換
+      document
+        .querySelectorAll(".tab-btn")
+        .forEach((b) => b.classList.remove("active"));
+      document
+        .querySelectorAll(".tab-content")
+        .forEach((c) => (c.style.display = "none"));
+
+      btn.classList.add("active");
+      const section = document.getElementById(tab.section);
+      if (section) section.style.display = "block";
+
+      // 2. 觸發該頁面的資料載入 (Lazy Load)
+      if (tab.loadFn && typeof tab.loadFn === "function") {
+        tab.loadFn();
+      }
+    });
   });
-  tabShipments.addEventListener("click", () => {
-    tabPackages.classList.remove("active");
-    tabShipments.classList.add("active");
-    pkgSec.style.display = "none";
-    shipSec.style.display = "block";
-  });
+}
 
-  // 表單提交事件
-  document
-    .getElementById("forecast-form")
-    .addEventListener("submit", window.handleForecastSubmit);
-  document
-    .getElementById("edit-package-form")
-    .addEventListener("submit", window.handleEditPackageSubmit);
-  document
-    .getElementById("create-shipment-form")
-    .addEventListener("submit", window.handleCreateShipmentSubmit);
-  document
-    .getElementById("upload-proof-form")
-    .addEventListener("submit", window.handleUploadProofSubmit);
+// --- 表單綁定 ---
+function bindForms() {
+  // 預報
+  const forecastForm = document.getElementById("forecast-form");
+  if (forecastForm) {
+    forecastForm.addEventListener("submit", window.handleForecastSubmit);
+    // Reset 時重置圖片元件
+    forecastForm.addEventListener("reset", () => {
+      const input = document.getElementById("images");
+      if (input && input.resetUploader)
+        setTimeout(() => input.resetUploader(), 0);
+      const warningEl = document.getElementById("forecast-warning-box");
+      if (warningEl) warningEl.style.display = "none";
+    });
+  }
 
-  // 個人資料編輯
-  document.getElementById("btn-edit-profile").addEventListener("click", () => {
-    document.getElementById("edit-name").value = window.currentUser.name || "";
-    document.getElementById("edit-phone").value =
-      window.currentUser.phone || "";
-    document.getElementById("edit-address").value =
-      window.currentUser.defaultAddress || "";
-    document.getElementById("edit-profile-modal").style.display = "flex";
-  });
-  document
-    .getElementById("edit-profile-form")
-    .addEventListener("submit", async (e) => {
+  // 編輯包裹
+  const editPkgForm = document.getElementById("edit-package-form");
+  if (editPkgForm)
+    editPkgForm.addEventListener("submit", window.handleEditPackageSubmit);
+
+  // 建立訂單
+  const createShipForm = document.getElementById("create-shipment-form");
+  if (createShipForm)
+    createShipForm.addEventListener(
+      "submit",
+      window.handleCreateShipmentSubmit
+    );
+
+  // 上傳憑證
+  const proofForm = document.getElementById("upload-proof-form");
+  if (proofForm)
+    proofForm.addEventListener("submit", window.handleUploadProofSubmit);
+
+  // 個人資料
+  const profileForm = document.getElementById("edit-profile-form");
+  if (profileForm) {
+    profileForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const data = {
         name: document.getElementById("edit-name").value,
         phone: document.getElementById("edit-phone").value,
         defaultAddress: document.getElementById("edit-address").value,
       };
-      await fetch(`${API_BASE_URL}/api/auth/me`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${window.dashboardToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-      document.getElementById("edit-profile-modal").style.display = "none";
-      window.loadUserProfile();
-      window.showMessage("已更新", "success");
-    });
-
-  // --- [新增] 修改密碼功能 ---
-  const btnChangePwd = document.getElementById("btn-change-password");
-  const modalChangePwd = document.getElementById("change-password-modal");
-  const formChangePwd = document.getElementById("change-password-form");
-
-  if (btnChangePwd && modalChangePwd) {
-    btnChangePwd.addEventListener("click", () => {
-      if (formChangePwd) formChangePwd.reset();
-      modalChangePwd.style.display = "flex";
+      try {
+        await fetch(`${API_BASE_URL}/api/auth/me`, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${window.dashboardToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        });
+        document.getElementById("edit-profile-modal").style.display = "none";
+        window.loadUserProfile();
+        window.showMessage("已更新", "success");
+      } catch (err) {
+        alert("更新失敗");
+      }
     });
   }
 
-  if (formChangePwd) {
-    formChangePwd.addEventListener("submit", async (e) => {
+  // 修改密碼
+  const pwdForm = document.getElementById("change-password-form");
+  if (pwdForm) {
+    pwdForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const currentPassword = document.getElementById("cp-current").value;
       const newPassword = document.getElementById("cp-new").value;
@@ -105,7 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      const btn = formChangePwd.querySelector("button[type='submit']");
+      const btn = pwdForm.querySelector("button[type='submit']");
       btn.disabled = true;
       btn.textContent = "更新中...";
 
@@ -119,10 +163,11 @@ document.addEventListener("DOMContentLoaded", () => {
           body: JSON.stringify({ currentPassword, newPassword }),
         });
         const data = await res.json();
-
         if (res.ok) {
           alert(data.message);
-          modalChangePwd.style.display = "none";
+          document.getElementById("change-password-modal").style.display =
+            "none";
+          pwdForm.reset();
         } else {
           alert(data.message || "修改失敗");
         }
@@ -134,115 +179,112 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+}
 
-  // 建立訂單按鈕
-  document
-    .getElementById("btn-create-shipment")
-    .addEventListener("click", window.handleCreateShipmentClick);
-
-  // 地區變更觸發試算
-  const locSelect = document.getElementById("ship-delivery-location");
-  locSelect.addEventListener("change", () => {
-    const text = locSelect.options[locSelect.selectedIndex].text;
-    document.getElementById("ship-remote-area-info").style.display = "block";
-    document.getElementById("ship-selected-area-name").textContent = text;
-    window.recalculateShipmentTotal();
-  });
-
-  // --- [Updated] 初始化動態圖片上傳器 ---
+// --- 初始化上傳器 ---
+function initUploaders() {
   if (window.initImageUploader) {
-    // 1. 預報包裹
+    // 1. 預報包裹 (5張)
     window.initImageUploader("images", "forecast-uploader", 5);
-    // 2. 建立集運單
+    // 2. 建立集運單 (20張)
     window.initImageUploader(
       "ship-product-images",
       "ship-shipment-uploader",
       20
     );
-    // 3. 編輯包裹
+    // 3. 編輯包裹 (5張)
     window.initImageUploader(
       "edit-package-new-images",
       "edit-package-uploader",
       5
     );
+    // 4. [New] 錢包儲值憑證 (1張)
+    const depProof = document.getElementById("dep-proof");
+    if (depProof) {
+      // 這裡可以選擇是否套用預覽器，或保持原生 input file
+      // 為了保持一致性，暫不套用複雜預覽，保持簡單
+    }
   }
+}
 
-  // [New] 監聽預報表單的 Reset 事件
-  const forecastForm = document.getElementById("forecast-form");
-  if (forecastForm) {
-    forecastForm.addEventListener("reset", () => {
-      const input = document.getElementById("images");
-      if (input && input.resetUploader) {
-        setTimeout(() => input.resetUploader(), 0);
+// --- 按鈕事件綁定 ---
+function bindGlobalButtons() {
+  // 編輯個人資料按鈕
+  const btnEditProfile = document.getElementById("btn-edit-profile");
+  if (btnEditProfile) {
+    btnEditProfile.addEventListener("click", () => {
+      if (window.currentUser) {
+        document.getElementById("edit-name").value =
+          window.currentUser.name || "";
+        document.getElementById("edit-phone").value =
+          window.currentUser.phone || "";
+        document.getElementById("edit-address").value =
+          window.currentUser.defaultAddress || "";
+        document.getElementById("edit-profile-modal").style.display = "flex";
       }
-      // 重置時同時隱藏警示
-      const warningEl = document.getElementById("forecast-warning-box");
-      if (warningEl) warningEl.style.display = "none";
     });
   }
 
-  // --- [Fix] 訂單成功彈窗的「複製資訊」按鈕邏輯 ---
+  // 修改密碼按鈕
+  const btnChangePwd = document.getElementById("btn-change-password");
+  if (btnChangePwd) {
+    btnChangePwd.addEventListener("click", () => {
+      const form = document.getElementById("change-password-form");
+      if (form) form.reset();
+      document.getElementById("change-password-modal").style.display = "flex";
+    });
+  }
+
+  // 建立訂單 (合併打包) 按鈕
+  const btnCreateShip = document.getElementById("btn-create-shipment");
+  if (btnCreateShip) {
+    btnCreateShip.addEventListener("click", window.handleCreateShipmentClick);
+  }
+
+  // 訂單詳情中的複製按鈕
   const btnCopyBank = document.getElementById("btn-copy-bank-info");
   if (btnCopyBank) {
     btnCopyBank.addEventListener("click", () => {
       const bName = document.getElementById("bank-name").innerText.trim();
       const bAcc = document.getElementById("bank-account").innerText.trim();
       const bHolder = document.getElementById("bank-holder").innerText.trim();
+      const text = `【匯款資訊】\n銀行：${bName}\n帳號：${bAcc}\n戶名：${bHolder}`;
 
-      // 組合複製文字
-      const textToCopy = `【匯款資訊】\n銀行：${bName}\n帳號：${bAcc}\n戶名：${bHolder}`;
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard
-          .writeText(textToCopy)
-          .then(() => {
-            alert("✅ 匯款資訊已複製到剪貼簿！");
-          })
-          .catch((err) => {
-            console.error("Clipboard Error:", err);
-            alert("複製失敗，請手動選取文字複製。");
-          });
-      } else {
-        alert("您的瀏覽器不支援自動複製，請手動截圖或複製。");
-      }
+      navigator.clipboard
+        .writeText(text)
+        .then(() => alert("✅ 匯款資訊已複製！"))
+        .catch(() => alert("複製失敗，請手動複製"));
     });
   }
 
-  // [新增] 綁定「立即上傳憑證」按鈕事件
+  // 立即上傳憑證 (從成功彈窗跳轉)
   const btnUploadNow = document.getElementById("btn-upload-now");
   if (btnUploadNow) {
     btnUploadNow.addEventListener("click", () => {
-      // 1. 關閉成功彈窗
       document.getElementById("bank-info-modal").style.display = "none";
-
-      // 2. 檢查是否有剛建立的訂單 ID
       if (window.lastCreatedShipmentId) {
-        // 3. 直接呼叫開啟上傳憑證視窗的函式 (位於 dashboard-shipments.js)
         window.openUploadProof(window.lastCreatedShipmentId);
       } else {
-        // 防呆：如果沒有 ID (理論上不應發生)，則重新整理列表讓用戶自己選
         window.loadMyShipments();
       }
     });
   }
 
-  // 關閉彈窗通用
+  // 關閉彈窗 (通用)
   document.querySelectorAll(".modal-overlay").forEach((m) => {
     m.addEventListener("click", (e) => {
       if (e.target === m) m.style.display = "none";
     });
   });
   document.querySelectorAll(".modal-close, .modal-close-btn").forEach((b) => {
-    b.addEventListener(
-      "click",
-      () => (b.closest(".modal-overlay").style.display = "none")
-    );
+    b.addEventListener("click", () => {
+      b.closest(".modal-overlay").style.display = "none";
+    });
   });
-});
+}
 
 /**
- * [NEW] 預報草稿佇列檢查與自動帶入
- * @param {boolean} isAfterSubmit - 是否為提交成功後 (如果是，移除第一筆並載入下一筆)
+ * 預報草稿佇列檢查 (保留原功能)
  */
 window.checkForecastDraftQueue = function (isAfterSubmit = false) {
   let queue = [];
@@ -253,7 +295,6 @@ window.checkForecastDraftQueue = function (isAfterSubmit = false) {
   }
 
   if (isAfterSubmit) {
-    // 移除剛處理完的第一筆
     queue.shift();
     localStorage.setItem("forecast_draft_list", JSON.stringify(queue));
   }
@@ -262,14 +303,12 @@ window.checkForecastDraftQueue = function (isAfterSubmit = false) {
   const listEl = document.getElementById("draft-queue-list");
   const warningEl = document.getElementById("forecast-warning-box");
 
-  // 若佇列空了，隱藏相關 UI
   if (queue.length === 0) {
     if (container) container.style.display = "none";
     if (warningEl) warningEl.style.display = "none";
     return;
   }
 
-  // 顯示佇列清單
   if (container && listEl) {
     container.style.display = "flex";
     listEl.innerHTML = "";
@@ -281,7 +320,6 @@ window.checkForecastDraftQueue = function (isAfterSubmit = false) {
     });
   }
 
-  // 自動帶入第一筆資料到表單 (僅當表單是空的時候，或者剛提交完)
   const current = queue[0];
   const nameInput = document.getElementById("productName");
   const qtyInput = document.getElementById("quantity");
@@ -292,8 +330,6 @@ window.checkForecastDraftQueue = function (isAfterSubmit = false) {
     qtyInput.value = current.quantity || 1;
     noteInput.value = "來自試算帶入";
 
-    // [Point 1] 顯示警示：檢查超長或超重
-    // 這些屬性 (hasOversizedItem, isOverweight) 來自 calculatorController 回傳的結果
     let warnings = [];
     if (current.hasOversizedItem)
       warnings.push("⚠️ 此商品尺寸超長 (需加收超長費)");
@@ -303,14 +339,11 @@ window.checkForecastDraftQueue = function (isAfterSubmit = false) {
       if (warnings.length > 0) {
         warningEl.innerHTML = warnings.join("<br>");
         warningEl.style.display = "block";
-        // 加入震動動畫提醒
         warningEl.classList.add("alert-error");
       } else {
         warningEl.style.display = "none";
       }
     }
-
-    // 提示用戶
     window.showMessage(`已自動帶入：${current.name}`, "info");
   }
 };
