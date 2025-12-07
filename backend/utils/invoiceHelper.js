@@ -91,9 +91,7 @@ const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
   params.append("sign", sign);
 
   try {
-    console.log(
-      `[Invoice] 發送請求至 ${BASE_URL}${endpoint} | OrderNo: ${merchantOrderNo}`
-    );
+    // console.log(`[Invoice] Request: ${merchantOrderNo} -> ${BASE_URL}${endpoint}`);
 
     const response = await axios.post(`${BASE_URL}${endpoint}`, params);
 
@@ -174,15 +172,16 @@ const createInvoice = async (shipment, user) => {
   let carrierId1 = "";
 
   if (!hasTaxId && shipment.carrierType && shipment.carrierId) {
-    // 簡單防呆：手機條碼通常為 / 開頭，長度 8 碼
-    if (
-      shipment.carrierType === "3J0002" &&
-      !shipment.carrierId.startsWith("/")
-    ) {
+    // 簡單防呆：手機條碼通常為 / 開頭，長度 8 碼 (3J0002)
+    // 這裡只做簡單過濾，若格式明顯不對則忽略載具，避免整張發票失敗
+    const cType = shipment.carrierType;
+    const cId = shipment.carrierId;
+
+    if (cType === "3J0002" && !cId.startsWith("/")) {
       console.warn("[Invoice] 載具格式可能有誤，忽略載具設定");
     } else {
-      carrierType = shipment.carrierType;
-      carrierId1 = shipment.carrierId;
+      carrierType = cType;
+      carrierId1 = cId;
     }
   }
 
@@ -220,13 +219,13 @@ const createInvoice = async (shipment, user) => {
       merchantOrderNo
     );
 
+    // 判斷成功: Status=SUCCESS 或 RtnCode=1 或 code=0
     if (
       (resData.Status && resData.Status === "SUCCESS") ||
       resData.RtnCode === "1" ||
       resData.code === 0 ||
       (resData.InvoiceNumber && resData.InvoiceNumber.length > 0)
     ) {
-      // 成功後，我們可以只存發票號碼，不需要存 timestamp 尾綴的 orderId
       return {
         success: true,
         invoiceNumber: resData.InvoiceNumber || resData.invoice_number,
@@ -342,7 +341,7 @@ const createDepositInvoice = async (transaction, user) => {
   ];
 
   const dataObj = {
-    OrderId: merchantOrderNo,
+    OrderId: merchantOrderNo, // [修正] 唯一編號
     BuyerIdentifier: buyerId,
     BuyerName: buyerName,
     BuyerEmailAddress: user.email || "",
