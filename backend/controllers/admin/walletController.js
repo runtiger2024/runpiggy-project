@@ -1,8 +1,9 @@
 // backend/controllers/admin/walletController.js
-// V1.0 - 管理員財務管理功能：交易列表、審核儲值、人工調整
+// V1.1 - 整合自動發票開立功能
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
+const invoiceHelper = require("../../utils/invoiceHelper.js");
 
 /**
  * 取得交易紀錄列表 (支援篩選與分頁)
@@ -59,6 +60,9 @@ const getTransactions = async (req, res) => {
       status: tx.status,
       description: tx.description,
       proofImage: tx.proofImage,
+      // [新增] 回傳發票資訊
+      invoiceNumber: tx.invoiceNumber,
+      invoiceStatus: tx.invoiceStatus,
       createdAt: tx.createdAt,
       updatedAt: tx.updatedAt,
       user: tx.wallet.user,
@@ -89,7 +93,11 @@ const reviewTransaction = async (req, res) => {
 
     const tx = await prisma.transaction.findUnique({
       where: { id },
-      include: { wallet: true },
+      include: {
+        wallet: {
+          include: { user: true }, // 需要 User 資料來開立發票
+        },
+      },
     });
 
     if (!tx) return res.status(404).json({ message: "找不到交易紀錄" });
@@ -97,12 +105,48 @@ const reviewTransaction = async (req, res) => {
       return res.status(400).json({ message: "此交易已處理過，無法再次審核" });
 
     if (action === "APPROVE") {
+      let invoiceResult = null;
+      let invoiceMsg = "";
+
+      // [核心優化] 自動開立發票邏輯
+      // 只有 "DEPOSIT" (儲值) 且金額 > 0 才開立
+      if (tx.type === "DEPOSIT" && tx.amount > 0) {
+        try {
+          invoiceResult = await invoiceHelper.createDepositInvoice(
+            tx,
+            tx.wallet.user
+          );
+          if (invoiceResult.success) {
+            invoiceMsg = ` (發票已開立: ${invoiceResult.invoiceNumber})`;
+          } else {
+            console.warn(
+              `[Invoice Warning] 儲值發票開立失敗 Tx:${id}`,
+              invoiceResult.message
+            );
+            invoiceMsg = ` (發票失敗: ${invoiceResult.message})`;
+          }
+        } catch (e) {
+          console.error("Invoice error:", e);
+        }
+      }
+
       // 使用 Transaction 確保餘額與狀態同步更新
       await prisma.$transaction(async (prismaTx) => {
-        // 1. 更新交易狀態為完成
+        // 1. 更新交易狀態為完成，並寫入發票資訊
         await prismaTx.transaction.update({
           where: { id },
-          data: { status: "COMPLETED" },
+          data: {
+            status: "COMPLETED",
+            // 若有發票資訊則寫入
+            invoiceNumber: invoiceResult?.invoiceNumber,
+            invoiceDate: invoiceResult?.invoiceDate,
+            invoiceRandomCode: invoiceResult?.randomCode,
+            invoiceStatus: invoiceResult?.success
+              ? "ISSUED"
+              : invoiceResult
+              ? "FAILED"
+              : null,
+          },
         });
 
         // 2. 增加錢包餘額
@@ -116,11 +160,11 @@ const reviewTransaction = async (req, res) => {
         req.user.id,
         "APPROVE_DEPOSIT",
         id,
-        `審核通過儲值 $${tx.amount}`
+        `審核通過儲值 $${tx.amount}${invoiceMsg}`
       );
       res
         .status(200)
-        .json({ success: true, message: "儲值已核准，餘額已更新" });
+        .json({ success: true, message: `儲值已核准${invoiceMsg}` });
     } else if (action === "REJECT") {
       // 駁回僅更新狀態，不更動餘額
       await prisma.transaction.update({

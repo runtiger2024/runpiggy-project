@@ -1,5 +1,5 @@
 // backend/utils/invoiceHelper.js
-// V2025.Security - 修正金鑰硬編碼漏洞 (最終版)
+// V2025.Security - 修正金鑰硬編碼漏洞 (最終版) + 支援儲值發票
 
 const axios = require("axios");
 const crypto = require("crypto");
@@ -126,7 +126,7 @@ const sendAmegoRequest = async (endpoint, dataObj, config) => {
 };
 
 /**
- * 1. 開立發票 (Issue Invoice)
+ * 1. 開立發票 (Issue Invoice) - 用於集運單
  */
 const createInvoice = async (shipment, user) => {
   const config = await getInvoiceConfig();
@@ -260,4 +260,95 @@ const voidInvoice = async (invoiceNumber, reason = "訂單取消") => {
   }
 };
 
-module.exports = { createInvoice, voidInvoice };
+/**
+ * 3. [NEW] 針對「儲值交易」開立發票
+ * @param {Object} transaction - 交易物件 (需包含 id, amount)
+ * @param {Object} user - 使用者物件 (需包含 email, defaultTaxId 等)
+ */
+const createDepositInvoice = async (transaction, user) => {
+  const config = await getInvoiceConfig();
+  if (!config.enabled) return { success: false, message: "發票功能未啟用" };
+
+  if (!config.merchantId || !config.hashKey)
+    return {
+      success: false,
+      message: "API 金鑰未設定",
+    };
+
+  // 1. 計算金額
+  const total = Math.round(transaction.amount); // 儲值金額
+  // 優先使用 User 設定的統編，若無則視為個人
+  const taxId = user.defaultTaxId ? user.defaultTaxId.trim() : "";
+  const hasTaxId = taxId.length === 8;
+
+  let salesAmount = 0;
+  let taxAmount = 0;
+  let unitPrice = 0;
+  let detailVat = 1; // 1:含稅(預設), 0:未稅
+
+  if (hasTaxId) {
+    // B2B
+    salesAmount = Math.round(total / 1.05);
+    taxAmount = total - salesAmount;
+    unitPrice = salesAmount;
+    detailVat = 0;
+  } else {
+    // B2C
+    salesAmount = total;
+    taxAmount = 0;
+    unitPrice = total;
+    detailVat = 1;
+  }
+
+  // 2. 買受人
+  const buyerId = hasTaxId ? taxId : "0000000000";
+  const buyerName = hasTaxId
+    ? user.defaultInvoiceTitle || user.name
+    : user.name || "會員儲值";
+
+  // 3. 建立 Payload
+  const dataObj = {
+    OrderId: transaction.id, // 使用交易 ID 當作訂單編號
+    BuyerIdentifier: buyerId,
+    BuyerName: buyerName,
+    BuyerEmailAddress: user.email || "",
+    SalesAmount: salesAmount,
+    FreeTaxSalesAmount: 0,
+    ZeroTaxSalesAmount: 0,
+    TaxType: 1,
+    TaxRate: "0.05",
+    TaxAmount: taxAmount,
+    TotalAmount: total,
+    ProductItem: [
+      {
+        Description: "運費儲值金", // 品名
+        Quantity: 1,
+        UnitPrice: unitPrice,
+        Amount: unitPrice,
+        TaxType: 1,
+      },
+    ],
+    DetailVat: detailVat,
+    CarrierType: "", // 儲值通常預設無載具或發送 Email
+    CarrierId1: "",
+  };
+
+  try {
+    const resData = await sendAmegoRequest("/f0401", dataObj, config);
+    if (resData.code === 0 || resData.TransCode === "0000") {
+      return {
+        success: true,
+        invoiceNumber: resData.invoice_number || resData.InvoiceNumber,
+        invoiceDate: new Date(),
+        randomCode: resData.random_number || resData.RandomNumber,
+        message: "儲值發票開立成功",
+      };
+    } else {
+      return { success: false, message: `API錯誤: ${resData.msg || "未知"}` };
+    }
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+};
+
+module.exports = { createInvoice, voidInvoice, createDepositInvoice };

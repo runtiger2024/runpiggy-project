@@ -1,5 +1,5 @@
 // backend/controllers/admin/shipmentController.js
-// V13.1 - Added Manual Invoice Actions
+// V13.2 - 防止錢包支付訂單重複開立發票
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
@@ -92,11 +92,20 @@ const bulkUpdateShipmentStatus = async (req, res) => {
       for (const ship of shipments) {
         let updateData = { status: "PROCESSING" };
 
+        // [核心判斷] 是否需要開立發票？
+        // 條件 1: 尚未開立
+        // 條件 2: 金額 > 0
+        // 條件 3: 付款方式不是 'WALLET_PAY' (錢包支付)
+        // 注意: 建立訂單時，若是錢包扣款，已將 paymentProof 設為 'WALLET_PAY'
+        const isWalletPay = ship.paymentProof === "WALLET_PAY";
+
         if (
           !ship.invoiceNumber &&
           ship.totalCost > 0 &&
-          ship.invoiceStatus !== "VOID"
+          ship.invoiceStatus !== "VOID" &&
+          !isWalletPay
         ) {
+          // 這是轉帳付款，需要開立發票
           const result = await invoiceHelper.createInvoice(ship, ship.user);
           if (result.success) {
             updateData.invoiceNumber = result.invoiceNumber;
@@ -112,6 +121,9 @@ const bulkUpdateShipmentStatus = async (req, res) => {
               `批量開立失敗: ${result.message}`
             );
           }
+        } else if (isWalletPay) {
+          // 如果是錢包支付，已於儲值時開立，跳過
+          // 可選擇寫入 Log 或忽略
         }
 
         await prisma.shipment.update({
@@ -258,10 +270,14 @@ const updateShipmentStatus = async (req, res) => {
       });
     }
 
+    // [New] 單筆操作時也要檢查是否為錢包支付
+    const isWalletPay = originalShipment.paymentProof === "WALLET_PAY";
+
     if (
       status === "PROCESSING" &&
       !originalShipment.invoiceNumber &&
-      originalShipment.totalCost > 0
+      originalShipment.totalCost > 0 &&
+      !isWalletPay
     ) {
       const shipmentForInvoice = { ...originalShipment, ...dataToUpdate };
       const result = await invoiceHelper.createInvoice(
@@ -361,7 +377,7 @@ const adminDeleteShipment = async (req, res) => {
 };
 
 /**
- * [NEW] 手動開立發票 (Moved from client controller)
+ * 手動開立發票
  */
 const manualIssueInvoice = async (req, res) => {
   try {
@@ -411,7 +427,7 @@ const manualIssueInvoice = async (req, res) => {
 };
 
 /**
- * [NEW] 手動作廢發票 (Moved from client controller)
+ * 手動作廢發票
  */
 const manualVoidInvoice = async (req, res) => {
   try {

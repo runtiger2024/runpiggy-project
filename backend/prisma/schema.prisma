@@ -18,6 +18,10 @@ model User {
   phone               String?
   defaultAddress      String?
 
+  // [新增] 發票預設資料 (讓儲值時可以自動帶入 B2B 資訊)
+  defaultTaxId        String?   // 預設統編
+  defaultInvoiceTitle String?   // 預設抬頭
+
   // 權限控制：Json 型別 (例如 ["PACKAGE_VIEW", "USER_MANAGE"])
   permissions         Json      @default("[]")
 
@@ -36,7 +40,7 @@ model User {
   shipments           Shipment[]
   activityLogs        ActivityLog[]
 
-  // [新增] 新功能關聯
+  // 新功能關聯
   recipients          Recipient[]    // 常用收件人
   wallet              Wallet?        // 電子錢包 (一對一)
   notifications       Notification[] // 通知中心
@@ -65,7 +69,7 @@ model Package {
   totalCalculatedFee  Float?
   warehouseRemark     String?
 
-  // [新增] 認領與異常回報欄位
+  // 認領與異常回報欄位
   claimProof          String?   // 認領憑證圖片 (無主件認領用)
   exceptionStatus     String?   // 異常狀態 (例如: DAMAGED-破損, PROHIBITED-違禁品)
   exceptionNote       String?   // 異常備註/處理說明
@@ -93,6 +97,7 @@ model Shipment {
   phone                 String
   shippingAddress       String
   idNumber              String
+  
   taxId                 String?   // 統編
   invoiceTitle          String?   // 發票抬頭
 
@@ -105,7 +110,6 @@ model Shipment {
   totalCost             Float?
   trackingNumberTW      String?
   paymentProof          String?
-
   // 發票相關
   invoiceNumber         String?
   invoiceDate           DateTime?
@@ -116,7 +120,7 @@ model Shipment {
   productUrl            String?
   shipmentProductImages Json      @default("[]")
 
-  // [新增] 錢包交易關聯 (若使用餘額扣款，紀錄對應的 Transaction ID)
+  // 錢包交易關聯 (若使用餘額扣款，紀錄對應的 Transaction ID)
   transactionId         String?   @unique
   transaction           Transaction? @relation(fields: [transactionId], references: [id])
 
@@ -165,9 +169,7 @@ model SystemSetting {
   updatedAt   DateTime @updatedAt
 }
 
-// ==========================================
-// [新增] 7. 常用收件人 (Address Book)
-// ==========================================
+// --- 7. 常用收件人 (Address Book) ---
 model Recipient {
   id          String   @id @default(cuid())
   userId      String
@@ -185,9 +187,7 @@ model Recipient {
   @@index([userId])
 }
 
-// ==========================================
-// [新增] 8. 通知中心 (Notification)
-// ==========================================
+// --- 8. 通知中心 (Notification) ---
 model Notification {
   id          String   @id @default(cuid())
   userId      String
@@ -204,9 +204,7 @@ model Notification {
   @@index([userId])
 }
 
-// ==========================================
-// [新增] 9. 電子錢包 (Wallet)
-// ==========================================
+// --- 9. 電子錢包 (Wallet) ---
 model Wallet {
   id          String   @id @default(cuid())
   userId      String   @unique // 一個用戶只能有一個錢包
@@ -220,19 +218,23 @@ model Wallet {
   transactions Transaction[]
 }
 
-// ==========================================
-// [新增] 10. 交易紀錄 (Transaction)
-// ==========================================
+// --- 10. 交易紀錄 (Transaction) ---
 model Transaction {
   id          String   @id @default(cuid())
   walletId    String
   wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   amount      Float    // 金額 (正數為儲值/退款，負數為扣款)
-  type        String   // DEPOSIT(儲值), PAYMENT(扣款), REFUND(退款)
+  type        String   // DEPOSIT(儲值), PAYMENT(扣款), REFUND(退款), ADJUST(調整)
   status      String   // PENDING, COMPLETED, FAILED, REJECTED
   description String?  // 交易說明 (例如：支付運費-單號XXX)
   proofImage  String?  // 儲值憑證圖片 (僅 DEPOSIT 類型使用)
+
+  // [新增] 發票資訊 (紀錄儲值產生的發票)
+  invoiceNumber     String?
+  invoiceDate       DateTime?
+  invoiceRandomCode String?
+  invoiceStatus     String?   // ISSUED, VOID, FAILED
 
   // 反向關聯到集運單 (若是扣款交易)
   shipment    Shipment?
