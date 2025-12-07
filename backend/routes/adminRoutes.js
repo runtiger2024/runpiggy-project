@@ -1,53 +1,22 @@
-// backend/routes/adminRoutes.js (V12.0 - 統一匯入優化版)
+// backend/routes/adminRoutes.js (V13.0 - Refactored)
 
 const express = require("express");
 const router = express.Router();
 const upload = require("../utils/upload.js");
 
+// 引入拆分後的控制器
+const settingsController = require("../controllers/admin/settingsController");
+const packageController = require("../controllers/admin/packageController");
+const shipmentController = require("../controllers/admin/shipmentController");
+const userController = require("../controllers/admin/userController");
+const reportController = require("../controllers/admin/reportController");
+
+// 保留原有的手動發票控制器引用 (如果它們還在 shipmentController 裡)
+// 這裡我們直接從 shipmentController 引入，因為邏輯相同
 const {
-  // --- 儀表板 & 報表 ---
-  getDashboardStats,
-  getActivityLogs,
-  getDailyReport,
-
-  // --- 系統設定 ---
-  getSystemSettings,
-  updateSystemSetting,
-
-  // --- 包裹管理 ---
-  getAllPackages,
-  exportPackages,
-  bulkUpdatePackageStatus,
-  bulkDeletePackages,
-  adminCreatePackage,
-  adminDeletePackage,
-  updatePackageStatus,
-  updatePackageDetails,
-
-  // --- 集運單管理 ---
-  getAllShipments,
-  exportShipments,
-  bulkUpdateShipmentStatus,
-  bulkDeleteShipments,
-  updateShipmentStatus,
-  rejectShipment,
-  adminDeleteShipment,
-
-  // [優化] 發票相關功能 (統一從 adminController 匯入)
   manualIssueInvoice,
   manualVoidInvoice,
-
-  // --- 會員管理 ---
-  getUsers,
-  getUsersList,
-  createStaffUser,
-  toggleUserStatus,
-  adminUpdateUserProfile,
-  resetUserPassword,
-  deleteUser,
-  impersonateUser,
-  updateUserPermissions,
-} = require("../controllers/adminController");
+} = require("../controllers/shipmentController");
 
 const { protect, checkPermission } = require("../middleware/authMiddleware.js");
 
@@ -56,45 +25,77 @@ const { protect, checkPermission } = require("../middleware/authMiddleware.js");
 // ==========================================
 router
   .route("/stats")
-  .get(protect, checkPermission("DASHBOARD_VIEW"), getDashboardStats);
+  .get(
+    protect,
+    checkPermission("DASHBOARD_VIEW"),
+    reportController.getDashboardStats
+  );
 
 router
   .route("/logs")
-  .get(protect, checkPermission("LOGS_VIEW"), getActivityLogs);
+  .get(protect, checkPermission("LOGS_VIEW"), reportController.getActivityLogs);
 
 router
   .route("/reports")
-  .get(protect, checkPermission("DASHBOARD_VIEW"), getDailyReport);
+  .get(
+    protect,
+    checkPermission("DASHBOARD_VIEW"),
+    reportController.getDailyReport
+  );
 
 // ==========================================
 // 2. 系統全域設定 (System Settings)
 // ==========================================
 router
   .route("/settings")
-  .get(protect, checkPermission("SYSTEM_CONFIG"), getSystemSettings);
+  .get(
+    protect,
+    checkPermission("SYSTEM_CONFIG"),
+    settingsController.getSystemSettings
+  );
 
 router
   .route("/settings/:key")
-  .put(protect, checkPermission("SYSTEM_CONFIG"), updateSystemSetting);
+  .put(
+    protect,
+    checkPermission("SYSTEM_CONFIG"),
+    settingsController.updateSystemSetting
+  );
 
 // ==========================================
 // 3. 包裹管理 (Packages)
 // ==========================================
 router
   .route("/packages/export")
-  .get(protect, checkPermission("PACKAGE_VIEW"), exportPackages);
+  .get(
+    protect,
+    checkPermission("PACKAGE_VIEW"),
+    packageController.exportPackages
+  );
 
 router
   .route("/packages/bulk-status")
-  .put(protect, checkPermission("PACKAGE_EDIT"), bulkUpdatePackageStatus);
+  .put(
+    protect,
+    checkPermission("PACKAGE_EDIT"),
+    packageController.bulkUpdatePackageStatus
+  );
 
 router
   .route("/packages/bulk-delete")
-  .delete(protect, checkPermission("PACKAGE_DELETE"), bulkDeletePackages);
+  .delete(
+    protect,
+    checkPermission("PACKAGE_DELETE"),
+    packageController.bulkDeletePackages
+  );
 
 router
   .route("/packages/all")
-  .get(protect, checkPermission("PACKAGE_VIEW"), getAllPackages);
+  .get(
+    protect,
+    checkPermission("PACKAGE_VIEW"),
+    packageController.getAllPackages
+  );
 
 router
   .route("/packages/create")
@@ -102,12 +103,16 @@ router
     protect,
     checkPermission("PACKAGE_EDIT"),
     upload.array("images", 5),
-    adminCreatePackage
+    packageController.adminCreatePackage
   );
 
 router
   .route("/packages/:id/status")
-  .put(protect, checkPermission("PACKAGE_EDIT"), updatePackageStatus);
+  .put(
+    protect,
+    checkPermission("PACKAGE_EDIT"),
+    packageController.updatePackageStatus
+  );
 
 router
   .route("/packages/:id/details")
@@ -115,33 +120,53 @@ router
     protect,
     checkPermission("PACKAGE_EDIT"),
     upload.array("warehouseImages", 5),
-    updatePackageDetails
+    packageController.updatePackageDetails
   );
 
 router
   .route("/packages/:id")
-  .delete(protect, checkPermission("PACKAGE_DELETE"), adminDeletePackage);
+  .delete(
+    protect,
+    checkPermission("PACKAGE_DELETE"),
+    packageController.adminDeletePackage
+  );
 
 // ==========================================
 // 4. 集運單管理 (Shipments)
 // ==========================================
 router
   .route("/shipments/export")
-  .get(protect, checkPermission("SHIPMENT_VIEW"), exportShipments);
+  .get(
+    protect,
+    checkPermission("SHIPMENT_VIEW"),
+    shipmentController.exportShipments
+  );
 
 router
   .route("/shipments/bulk-status")
-  .put(protect, checkPermission("SHIPMENT_PROCESS"), bulkUpdateShipmentStatus);
+  .put(
+    protect,
+    checkPermission("SHIPMENT_PROCESS"),
+    shipmentController.bulkUpdateShipmentStatus
+  );
 
 router
   .route("/shipments/bulk-delete")
-  .delete(protect, checkPermission("SHIPMENT_PROCESS"), bulkDeleteShipments);
+  .delete(
+    protect,
+    checkPermission("SHIPMENT_PROCESS"),
+    shipmentController.bulkDeleteShipments
+  );
 
 router
   .route("/shipments/all")
-  .get(protect, checkPermission("SHIPMENT_VIEW"), getAllShipments);
+  .get(
+    protect,
+    checkPermission("SHIPMENT_VIEW"),
+    shipmentController.getAllShipments
+  );
 
-// 發票管理路由
+// 發票管理路由 (這部分使用原有的 shipmentController 邏輯)
 router
   .route("/shipments/:id/invoice/issue")
   .post(protect, checkPermission("SHIPMENT_PROCESS"), manualIssueInvoice);
@@ -153,48 +178,86 @@ router
 // 單一訂單操作
 router
   .route("/shipments/:id")
-  .put(protect, checkPermission("SHIPMENT_PROCESS"), updateShipmentStatus)
-  .delete(protect, checkPermission("SHIPMENT_PROCESS"), adminDeleteShipment);
+  .put(
+    protect,
+    checkPermission("SHIPMENT_PROCESS"),
+    shipmentController.updateShipmentStatus
+  )
+  .delete(
+    protect,
+    checkPermission("SHIPMENT_PROCESS"),
+    shipmentController.adminDeleteShipment
+  );
 
 router
   .route("/shipments/:id/reject")
-  .put(protect, checkPermission("SHIPMENT_PROCESS"), rejectShipment);
+  .put(
+    protect,
+    checkPermission("SHIPMENT_PROCESS"),
+    shipmentController.rejectShipment
+  );
 
 // ==========================================
 // 5. 會員管理 (Users)
 // ==========================================
-router.route("/users").get(protect, checkPermission("USER_VIEW"), getUsers);
+router
+  .route("/users")
+  .get(protect, checkPermission("USER_VIEW"), userController.getUsers);
 
 router
   .route("/users/list")
-  .get(protect, checkPermission("PACKAGE_VIEW"), getUsersList);
+  .get(protect, checkPermission("PACKAGE_VIEW"), userController.getUsersList);
 
 router
   .route("/users/create")
-  .post(protect, checkPermission("USER_MANAGE"), createStaffUser);
+  .post(
+    protect,
+    checkPermission("USER_MANAGE"),
+    userController.createStaffUser
+  );
 
 router
   .route("/users/:id/status")
-  .put(protect, checkPermission("USER_MANAGE"), toggleUserStatus);
+  .put(
+    protect,
+    checkPermission("USER_MANAGE"),
+    userController.toggleUserStatus
+  );
 
 router
   .route("/users/:id/profile")
-  .put(protect, checkPermission("USER_MANAGE"), adminUpdateUserProfile);
+  .put(
+    protect,
+    checkPermission("USER_MANAGE"),
+    userController.adminUpdateUserProfile
+  );
 
 router
   .route("/users/:id/permissions")
-  .put(protect, checkPermission("USER_MANAGE"), updateUserPermissions);
+  .put(
+    protect,
+    checkPermission("USER_MANAGE"),
+    userController.updateUserPermissions
+  );
 
 router
   .route("/users/:id/reset-password")
-  .put(protect, checkPermission("USER_MANAGE"), resetUserPassword);
+  .put(
+    protect,
+    checkPermission("USER_MANAGE"),
+    userController.resetUserPassword
+  );
 
 router
   .route("/users/:id")
-  .delete(protect, checkPermission("USER_MANAGE"), deleteUser);
+  .delete(protect, checkPermission("USER_MANAGE"), userController.deleteUser);
 
 router
   .route("/users/:id/impersonate")
-  .post(protect, checkPermission("USER_IMPERSONATE"), impersonateUser);
+  .post(
+    protect,
+    checkPermission("USER_IMPERSONATE"),
+    userController.impersonateUser
+  );
 
 module.exports = router;
