@@ -1,4 +1,4 @@
-// frontend/js/quote.js (V19.1 - 修復超規判斷 >= 版)
+// frontend/js/quote.js (V21.0 - Fix undefined issue)
 
 document.addEventListener("DOMContentLoaded", () => {
   const params = new URLSearchParams(window.location.search);
@@ -12,7 +12,9 @@ document.addEventListener("DOMContentLoaded", () => {
     VOLUME_DIVISOR: 28317,
     CBM_TO_CAI_FACTOR: 35.3,
     MINIMUM_CHARGE: 2000,
+    OVERSIZED_LIMIT: 300,
     OVERSIZED_FEE: 800,
+    OVERWEIGHT_LIMIT: 100,
     OVERWEIGHT_FEE: 800,
   };
 
@@ -42,8 +44,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function renderQuoteView(result, defaultRules, date) {
   const container = document.getElementById("results-container");
-  // 若後端有回傳 rulesApplied 則使用，否則用預設
-  const rules = result.rulesApplied || defaultRules;
+
+  // [Fix] 讀取規則邏輯：優先使用 JSON 內的 rulesApplied，若無則回退到 defaultRules
+  // 這樣能修復舊資料或保存不全導致的 undefined
+  let rules = result.rulesApplied || defaultRules;
+
+  // 再次檢查 rules 內是否有必要常數，若無則補齊
+  if (!rules.OVERSIZED_LIMIT)
+    rules.OVERSIZED_LIMIT = defaultRules.OVERSIZED_LIMIT;
+  if (!rules.OVERWEIGHT_LIMIT)
+    rules.OVERWEIGHT_LIMIT = defaultRules.OVERWEIGHT_LIMIT;
+  if (!rules.VOLUME_DIVISOR) rules.VOLUME_DIVISOR = defaultRules.VOLUME_DIVISOR;
+  if (!rules.CBM_TO_CAI_FACTOR)
+    rules.CBM_TO_CAI_FACTOR = defaultRules.CBM_TO_CAI_FACTOR;
 
   let html = `
     <div style="text-align:center; margin-bottom:20px; padding:15px; background:#e3f2fd; border-radius:8px;">
@@ -132,12 +145,12 @@ function renderQuoteView(result, defaultRules, date) {
 
             ${
               item.hasOversizedItem
-                ? `<div style="color:#d32f2f; font-size:12px; margin-top:5px;">⚠️ 此商品超長 (>= ${rules.OVERSIZED_LIMIT}cm)</div>`
+                ? `<div class="alert alert-error" style="margin:10px; font-size:12px; font-weight:bold;">⚠️ 此商品超長 (>= ${rules.OVERSIZED_LIMIT}cm)</div>`
                 : ""
             }
             ${
               item.isOverweight
-                ? `<div style="color:#d32f2f; font-size:12px; margin-top:2px;">⚠️ 此商品超重 (>= ${rules.OVERWEIGHT_LIMIT}kg)</div>`
+                ? `<div class="alert alert-error" style="margin:10px; font-size:12px; font-weight:bold;">⚠️ 此商品超重 (>= ${rules.OVERWEIGHT_LIMIT}kg)</div>`
                 : ""
             }
         </div>

@@ -1,4 +1,4 @@
-// frontend/js/main.js (V20 - 安全優化版)
+// frontend/js/main.js (V21 - Fix Save Logic & Alerts)
 
 // --- 前端備案設定 (僅含公開費率結構，不含個資) ---
 // 當後端 API (/api/calculator/config) 無法連線時，前端會使用此設定顯示介面
@@ -200,7 +200,6 @@ function updateItemTypeSelects() {
   });
 }
 
-// ... (其餘 createItemElement, handleCalculate 等邏輯保持不變)
 function createItemElement(id) {
   const div = document.createElement("div");
   div.className = "item-group card-item";
@@ -318,8 +317,12 @@ async function handleCalculate() {
     });
     const data = await res.json();
     if (data.success) {
-      currentCalculationResult = data.calculationResult;
-      renderDetailedResults(data.calculationResult, data.rulesApplied);
+      // [關鍵修改] 將後端回傳的 rulesApplied 合併進去，確保保存時有規則
+      currentCalculationResult = {
+        ...data.calculationResult,
+        rulesApplied: data.rulesApplied,
+      };
+      renderDetailedResults(currentCalculationResult, data.rulesApplied);
     } else {
       errorMsg.textContent = data.message;
       errorMsg.style.display = "block";
@@ -432,6 +435,7 @@ window.selectRemoteArea = function (name, fee) {
   }
 };
 
+// [核心修改] 渲染明細，並將 undefined 修復為具體數值
 function renderDetailedResults(result, rules) {
   const container = document.getElementById("results-container");
   const stickyTotal = document.getElementById("sticky-total-price");
@@ -445,6 +449,10 @@ function renderDetailedResults(result, rules) {
       item.calcMethod === "dimensions"
         ? `<span class="formula-box">(${item.length}x${item.width}x${item.height})÷${rules.VOLUME_DIVISOR}</span>`
         : `<span class="formula-box">${item.cbm} x ${rules.CBM_TO_CAI_FACTOR}</span>`;
+
+    // [New] 構建動態警示訊息 (不再顯示 static text，而是顯示 >= 數值)
+    const oversizedLimit = rules.OVERSIZED_LIMIT || 300;
+    const overweightLimit = rules.OVERWEIGHT_LIMIT || 100;
 
     html += `
       <div class="result-detail-card">
@@ -489,14 +497,15 @@ function renderDetailedResults(result, rules) {
           </div>
           <div style="text-align:right; margin-top:10px; font-weight:bold; color:#0056b3;">本項小計：$${item.itemFinalCost.toLocaleString()}</div>
         </div>
+        
         ${
           item.hasOversizedItem
-            ? '<div class="alert alert-error" style="margin:10px; font-size:12px;">⚠️ 此商品尺寸超長，整單將加收超長費。</div>'
+            ? `<div class="alert alert-error" style="margin:10px; font-size:13px; font-weight:bold;">⚠️ 此商品尺寸超長 (>= ${oversizedLimit}cm)，整單將加收超長費。</div>`
             : ""
         }
         ${
           item.isOverweight
-            ? '<div class="alert alert-error" style="margin:10px; font-size:12px;">⚠️ 此商品單件超重，整單將加收超重費。</div>'
+            ? `<div class="alert alert-error" style="margin:10px; font-size:13px; font-weight:bold;">⚠️ 此商品單件超重 (>= ${overweightLimit}kg)，整單將加收超重費。</div>`
             : ""
         }
       </div>
