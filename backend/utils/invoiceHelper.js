@@ -1,9 +1,8 @@
 // backend/utils/invoiceHelper.js
-// V2025.Fix - 修正 AMEGO API 串接規格 (移除加密，修正參數)
+// V2025.Fix - 修正 AMEGO API 串接規格 (修正 OrderId 重複、型別與載具問題)
 
 const axios = require("axios");
 const crypto = require("crypto");
-const qs = require("qs");
 const prisma = require("../config/db.js");
 require("dotenv").config();
 
@@ -55,7 +54,8 @@ const getInvoiceConfig = async () => {
  */
 const generateSign = (dataString, time, hashKey) => {
   // AMEGO 規則: md5(dataJSON字串 + unixTime + HashKey)
-  const rawString = dataString + time + hashKey;
+  // 確保 time 與 hashKey 轉為字串連接
+  const rawString = dataString + String(time) + String(hashKey);
   return crypto.createHash("md5").update(rawString).digest("hex");
 };
 
@@ -68,14 +68,14 @@ const sanitizeString = (str) => {
 };
 
 /**
- * 通用 API 請求發送器 (修正版：不加密)
+ * 通用 API 請求發送器
  */
-const sendAmegoRequest = async (endpoint, dataObj, config) => {
+const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
   if (!config.merchantId || !config.hashKey) {
     throw new Error("發票設定不完整：缺少 Merchant ID 或 Hash Key");
   }
 
-  // 1. 直接將資料物件轉為 JSON 字串 (不加密)
+  // 1. 直接將資料物件轉為 JSON 字串
   const dataString = JSON.stringify(dataObj);
   const time = Math.floor(Date.now() / 1000);
 
@@ -83,7 +83,6 @@ const sendAmegoRequest = async (endpoint, dataObj, config) => {
   const sign = generateSign(dataString, time, config.hashKey);
 
   // 3. 組建 POST 表單資料
-  // [修正] 參數名稱對應 buy1688 成功案例：MerchantID, invoice, data, time, sign
   const params = new URLSearchParams();
   params.append("MerchantID", config.merchantId);
   params.append("invoice", config.merchantId);
@@ -92,8 +91,9 @@ const sendAmegoRequest = async (endpoint, dataObj, config) => {
   params.append("sign", sign);
 
   try {
-    console.log(`[Invoice] 發送請求至 ${BASE_URL}${endpoint}`);
-    // console.log(`[Invoice Payload]`, dataString); // 除錯用
+    console.log(
+      `[Invoice] 發送請求至 ${BASE_URL}${endpoint} | OrderNo: ${merchantOrderNo}`
+    );
 
     const response = await axios.post(`${BASE_URL}${endpoint}`, params);
 
@@ -129,10 +129,14 @@ const createInvoice = async (shipment, user) => {
   const rawTaxId = shipment.taxId ? shipment.taxId.trim() : "";
   const hasTaxId = rawTaxId.length === 8;
 
+  // [修正1] OrderId 必須唯一，加入時間戳記防止重複錯誤
+  const unixTime = Math.floor(Date.now() / 1000);
+  const merchantOrderNo = `${shipment.id}_${unixTime}`;
+
   let salesAmount = 0;
   let taxAmount = 0;
   let unitPrice = 0;
-  let printMark = "0"; // [修正] 新增 Print 欄位
+  let printMark = "0";
 
   if (hasTaxId) {
     // B2B (有統編)
@@ -165,31 +169,39 @@ const createInvoice = async (shipment, user) => {
     },
   ];
 
-  // 載具邏輯
+  // 載具邏輯 [修正] 增加簡單驗證，避免格式錯誤導致開立失敗
   let carrierType = "";
   let carrierId1 = "";
-  // 只有 B2C 且無統編時才處理載具
+
   if (!hasTaxId && shipment.carrierType && shipment.carrierId) {
-    carrierType = shipment.carrierType;
-    carrierId1 = shipment.carrierId;
+    // 簡單防呆：手機條碼通常為 / 開頭，長度 8 碼
+    if (
+      shipment.carrierType === "3J0002" &&
+      !shipment.carrierId.startsWith("/")
+    ) {
+      console.warn("[Invoice] 載具格式可能有誤，忽略載具設定");
+    } else {
+      carrierType = shipment.carrierType;
+      carrierId1 = shipment.carrierId;
+    }
   }
 
   const dataObj = {
-    OrderId: shipment.id,
+    OrderId: merchantOrderNo, // [修正] 使用唯一編號
     BuyerIdentifier: buyerId,
     BuyerName: buyerName,
     BuyerEmailAddress: user.email || "",
     BuyerPhone: shipment.phone || "",
-    Print: printMark, // 必填
+    Print: printMark,
     Donation: "0",
-    TaxType: "1",
-    TaxRate: 0.05,
+    TaxType: "1", // 文件範例為字串
+    TaxRate: "0.05", // [修正2] 強制轉為字串，避免 API 不接受 Number
     SalesAmount: salesAmount,
     TaxAmount: taxAmount,
     TotalAmount: total,
     FreeTaxSalesAmount: 0,
     ZeroTaxSalesAmount: 0,
-    ItemName: "國際運費", // 相容性欄位
+    ItemName: "國際運費",
     ItemCount: "1",
     ItemUnit: "式",
     ItemPrice: unitPrice,
@@ -201,15 +213,20 @@ const createInvoice = async (shipment, user) => {
   };
 
   try {
-    const resData = await sendAmegoRequest("/f0401", dataObj, config);
+    const resData = await sendAmegoRequest(
+      "/f0401",
+      dataObj,
+      config,
+      merchantOrderNo
+    );
 
-    // 判斷成功: Status=SUCCESS 或 RtnCode=1 或 code=0
     if (
       (resData.Status && resData.Status === "SUCCESS") ||
       resData.RtnCode === "1" ||
       resData.code === 0 ||
       (resData.InvoiceNumber && resData.InvoiceNumber.length > 0)
     ) {
+      // 成功後，我們可以只存發票號碼，不需要存 timestamp 尾綴的 orderId
       return {
         success: true,
         invoiceNumber: resData.InvoiceNumber || resData.invoice_number,
@@ -237,7 +254,6 @@ const voidInvoice = async (invoiceNumber, reason = "訂單取消") => {
 
   const invoiceDateStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
 
-  // f0501 格式為陣列
   const dataObj = [
     {
       CancelInvoiceNumber: invoiceNumber,
@@ -249,7 +265,12 @@ const voidInvoice = async (invoiceNumber, reason = "訂單取消") => {
   ];
 
   try {
-    const resData = await sendAmegoRequest("/f0501", dataObj, config);
+    const resData = await sendAmegoRequest(
+      "/f0501",
+      dataObj,
+      config,
+      "VOID-" + invoiceNumber
+    );
 
     if (
       resData.Status === "SUCCESS" ||
@@ -281,6 +302,10 @@ const createDepositInvoice = async (transaction, user) => {
   const total = Math.round(transaction.amount);
   const taxId = user.defaultTaxId ? user.defaultTaxId.trim() : "";
   const hasTaxId = taxId.length === 8;
+
+  // [修正] 儲值發票也要修正 OrderId 唯一性
+  const unixTime = Math.floor(Date.now() / 1000);
+  const merchantOrderNo = `DEP${transaction.id}_${unixTime}`;
 
   let salesAmount = 0;
   let taxAmount = 0;
@@ -317,7 +342,7 @@ const createDepositInvoice = async (transaction, user) => {
   ];
 
   const dataObj = {
-    OrderId: transaction.id,
+    OrderId: merchantOrderNo,
     BuyerIdentifier: buyerId,
     BuyerName: buyerName,
     BuyerEmailAddress: user.email || "",
@@ -325,7 +350,7 @@ const createDepositInvoice = async (transaction, user) => {
     Print: printMark,
     Donation: "0",
     TaxType: "1",
-    TaxRate: 0.05,
+    TaxRate: "0.05", // [修正] 字串
     SalesAmount: salesAmount,
     TaxAmount: taxAmount,
     TotalAmount: total,
@@ -343,7 +368,12 @@ const createDepositInvoice = async (transaction, user) => {
   };
 
   try {
-    const resData = await sendAmegoRequest("/f0401", dataObj, config);
+    const resData = await sendAmegoRequest(
+      "/f0401",
+      dataObj,
+      config,
+      merchantOrderNo
+    );
     if (
       (resData.Status && resData.Status === "SUCCESS") ||
       resData.RtnCode === "1" ||
