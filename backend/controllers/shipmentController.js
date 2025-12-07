@@ -1,12 +1,12 @@
 // backend/controllers/shipmentController.js
-// V13.1 - Fixed: Wallet Race Condition & Removed Admin Functions
+// V13.3 - Added carrier info support for Invoice
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
 const ratesManager = require("../utils/ratesManager.js");
-// invoiceHelper 在此檔案已不再需要，因為手動開立功能已移至 admin
-// const invoiceHelper = require("../utils/invoiceHelper.js");
+const invoiceHelper = require("../utils/invoiceHelper.js"); // 確保引入 invoiceHelper
 const createLog = require("../utils/createLog.js");
+const { deleteFiles } = require("../utils/adminHelpers.js"); // 補上 deleteFiles 引用
 
 // --- 運費計算邏輯 (保持原樣) ---
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
@@ -125,6 +125,9 @@ const createShipment = async (req, res) => {
       idNumber,
       taxId,
       invoiceTitle,
+      // [新增] 接收載具參數
+      carrierType,
+      carrierId,
       note,
       deliveryLocationRate,
       productUrl,
@@ -199,7 +202,6 @@ const createShipment = async (req, res) => {
       if (isWalletPay) {
         // [Security Fix] 關鍵修正：
         // 利用 update 的 where 條件確保餘額足夠 (Optimistic Locking)
-        // 若餘額不足，update 會拋出錯誤 (因為找不到符合條件的紀錄)
         try {
           await tx.wallet.update({
             where: {
@@ -211,7 +213,6 @@ const createShipment = async (req, res) => {
             },
           });
         } catch (err) {
-          // 捕捉 update 失敗 (通常是 RecordNotFound 即餘額不足)
           throw new Error("錢包餘額不足，扣款失敗");
         }
 
@@ -236,6 +237,10 @@ const createShipment = async (req, res) => {
           idNumber,
           taxId: taxId || null,
           invoiceTitle: invoiceTitle || null,
+          // [新增] 寫入載具資料
+          carrierType: carrierType || null,
+          carrierId: carrierId || null,
+
           note: note || null,
           additionalServices: finalAdditionalServices,
           totalCost: calcResult.totalCost,
@@ -263,6 +268,8 @@ const createShipment = async (req, res) => {
       await sendNewShipmentNotification(newShipment, req.user);
     } catch (e) {}
 
+    // 如果是錢包支付，這裡可以考慮自動觸發開立發票 (目前邏輯是批次處理或後台手動)
+
     res.status(201).json({
       success: true,
       message: isWalletPay
@@ -272,7 +279,6 @@ const createShipment = async (req, res) => {
     });
   } catch (error) {
     console.error("建立訂單錯誤:", error.message);
-    // 回傳具體錯誤訊息 (如餘額不足)
     res
       .status(400)
       .json({ success: false, message: error.message || "建立失敗" });
@@ -346,7 +352,7 @@ const getShipmentById = async (req, res) => {
   try {
     const { id } = req.params;
     const user = req.user;
-    // 簡單權限檢查：是否為管理員 (此邏輯也可移至 Middleware，這裡做雙重保險)
+    // 簡單權限檢查：是否為管理員
     const isAdmin =
       user.permissions &&
       (user.permissions.includes("CAN_MANAGE_SHIPMENTS") ||

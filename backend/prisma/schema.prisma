@@ -19,7 +19,7 @@ model User {
   defaultAddress      String?
 
   // [新增] 發票預設資料 (讓儲值時可以自動帶入 B2B 資訊)
-  defaultTaxId        String?   // 預設統編
+  defaultTaxId        String?
   defaultInvoiceTitle String?   // 預設抬頭
 
   // 權限控制
@@ -61,7 +61,6 @@ model Package {
   claimProof          String?
   exceptionStatus     String?
   exceptionNote       String?
-
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @default(now()) @updatedAt
 
@@ -91,12 +90,15 @@ model Shipment {
   trackingNumberTW      String?
   paymentProof          String?
   
+  // [新增] 載具資訊 (重要：補上這兩個欄位)
+  carrierType           String?   // 例如: "3J0002" (手機條碼)
+  carrierId             String?   // 例如: "/ABC1234"
+
   // 發票相關
   invoiceNumber         String?
   invoiceDate           DateTime?
   invoiceRandomCode     String?
   invoiceStatus         String?
-
   productUrl            String?
   shipmentProductImages Json      @default("[]")
 
@@ -187,20 +189,20 @@ model Wallet {
 
 // --- 10. 交易紀錄 ---
 model Transaction {
-  id          String   @id @default(cuid())
-  walletId    String
-  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  amount      Float
-  type        String   // DEPOSIT, PAYMENT, REFUND, ADJUST
-  status      String   // PENDING, COMPLETED, FAILED, REJECTED
-  description String?
-  proofImage  String?
+  id                String   @id @default(cuid())
+  walletId          String
+  wallet            Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amount            Float
+  type              String   // DEPOSIT, PAYMENT, REFUND, ADJUST
+  status            String   // PENDING, COMPLETED, FAILED, REJECTED
+  description       String?
+  proofImage        String?
 
   // [新增] 交易發票資訊
   invoiceNumber     String?
   invoiceDate       DateTime?
   invoiceRandomCode String?
-  invoiceStatus     String?   // ISSUED, VOID, FAILED
+  invoiceStatus     String?  // ISSUED, VOID, FAILED
 
   shipment    Shipment?
   createdAt   DateTime @default(now())

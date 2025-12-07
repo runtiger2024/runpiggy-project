@@ -54,7 +54,7 @@ const getInvoiceConfig = async () => {
  */
 const generateSign = (dataString, time, hashKey) => {
   // AMEGO 規則: md5(dataJSON字串 + unixTime + HashKey)
-  // 確保 time 與 hashKey 轉為字串連接
+  // 確保 time 與 hashKey 轉為字串連接 [Fix: 明確轉型]
   const rawString = dataString + String(time) + String(hashKey);
   return crypto.createHash("md5").update(rawString).digest("hex");
 };
@@ -91,7 +91,9 @@ const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
   params.append("sign", sign);
 
   try {
-    // console.log(`[Invoice] Request: ${merchantOrderNo} -> ${BASE_URL}${endpoint}`);
+    console.log(
+      `[Invoice] Request: ${merchantOrderNo} -> ${BASE_URL}${endpoint}`
+    );
 
     const response = await axios.post(`${BASE_URL}${endpoint}`, params);
 
@@ -128,6 +130,7 @@ const createInvoice = async (shipment, user) => {
   const hasTaxId = rawTaxId.length === 8;
 
   // [修正1] OrderId 必須唯一，加入時間戳記防止重複錯誤
+  // 這是解決 400 Bad Request (Duplicate Order) 的關鍵
   const unixTime = Math.floor(Date.now() / 1000);
   const merchantOrderNo = `${shipment.id}_${unixTime}`;
 
@@ -167,18 +170,21 @@ const createInvoice = async (shipment, user) => {
     },
   ];
 
-  // 載具邏輯 [修正] 增加簡單驗證，避免格式錯誤導致開立失敗
+  // [修正3] 載具邏輯防呆
+  // 避免傳送錯誤格式導致整張發票失敗 (400 Bad Request)
   let carrierType = "";
   let carrierId1 = "";
 
   if (!hasTaxId && shipment.carrierType && shipment.carrierId) {
-    // 簡單防呆：手機條碼通常為 / 開頭，長度 8 碼 (3J0002)
-    // 這裡只做簡單過濾，若格式明顯不對則忽略載具，避免整張發票失敗
     const cType = shipment.carrierType;
     const cId = shipment.carrierId;
 
+    // 簡單驗證：手機條碼 (3J0002) 必須是 / 開頭
     if (cType === "3J0002" && !cId.startsWith("/")) {
-      console.warn("[Invoice] 載具格式可能有誤，忽略載具設定");
+      console.warn(
+        `[Invoice] 訂單 ${shipment.id} 載具格式錯誤 (${cId})，已自動忽略載具設定`
+      );
+      // 忽略載具，改為開立一般個人發票，避免失敗
     } else {
       carrierType = cType;
       carrierId1 = cId;
@@ -194,7 +200,7 @@ const createInvoice = async (shipment, user) => {
     Print: printMark,
     Donation: "0",
     TaxType: "1", // 文件範例為字串
-    TaxRate: "0.05", // [修正2] 強制轉為字串，避免 API 不接受 Number
+    TaxRate: "0.05", // [修正2] 強制轉為字串，避免 API 驗證失敗
     SalesAmount: salesAmount,
     TaxAmount: taxAmount,
     TotalAmount: total,
@@ -264,6 +270,7 @@ const voidInvoice = async (invoiceNumber, reason = "訂單取消") => {
   ];
 
   try {
+    // 作廢不需要 Unique ID (因為是對發票號碼操作)，但為了 log 方便帶入
     const resData = await sendAmegoRequest(
       "/f0501",
       dataObj,
