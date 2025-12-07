@@ -1,5 +1,5 @@
 // frontend/js/admin-parcels.js
-// V2025.Security (Mobile Optimized)
+// V2025.Security (Mobile Optimized) - Enhanced Alerts
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -181,25 +181,60 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     const statusTextMap = window.PACKAGE_STATUS_MAP || {};
 
+    // 讀取全域設定 (若無則使用預設值)
+    const LIMITS = {
+      OVERSIZED: window.CONSTANTS?.OVERSIZED_LIMIT || 300,
+      OVERWEIGHT: window.CONSTANTS?.OVERWEIGHT_LIMIT || 100,
+    };
+
     packages.forEach((pkg) => {
       const tr = document.createElement("tr");
       const statusClass = statusClasses[pkg.status] || "status-secondary";
       const statusText = statusTextMap[pkg.status] || pkg.status;
 
+      // --- 超規檢查邏輯 ---
       let weightInfo = "-";
+      let alertBadges = "";
+
       if (pkg.arrivedBoxesJson && pkg.arrivedBoxesJson.length > 0) {
-        const totalW = pkg.arrivedBoxesJson.reduce(
-          (sum, b) => sum + (parseFloat(b.weight) || 0),
-          0
-        );
+        let isOversized = false;
+        let isOverweight = false;
+
+        const totalW = pkg.arrivedBoxesJson.reduce((sum, b) => {
+          // 檢查單箱是否超規
+          const l = parseFloat(b.length) || 0;
+          const w = parseFloat(b.width) || 0;
+          const h = parseFloat(b.height) || 0;
+          const weight = parseFloat(b.weight) || 0;
+
+          if (
+            l >= LIMITS.OVERSIZED ||
+            w >= LIMITS.OVERSIZED ||
+            h >= LIMITS.OVERSIZED
+          ) {
+            isOversized = true;
+          }
+          if (weight >= LIMITS.OVERWEIGHT) {
+            isOverweight = true;
+          }
+
+          return sum + weight;
+        }, 0);
+
         weightInfo = `${totalW.toFixed(1)} kg / ${
           pkg.arrivedBoxesJson.length
         }箱`;
+
+        if (isOversized) {
+          alertBadges += `<span class="badge" style="background-color:#dc3545; color:white; font-size:11px; padding:2px 6px; margin-left:2px; border-radius:4px;">⚠️ 超長</span> `;
+        }
+        if (isOverweight) {
+          alertBadges += `<span class="badge" style="background-color:#dc3545; color:white; font-size:11px; padding:2px 6px; margin-left:2px; border-radius:4px;">⚠️ 超重</span>`;
+        }
       }
 
       const pkgStr = encodeURIComponent(JSON.stringify(pkg));
 
-      // [Mobile Opt] 加入 data-label
       tr.innerHTML = `
         <td><input type="checkbox" class="pkg-checkbox" value="${pkg.id}"></td>
         <td data-label="預報時間">${new Date(
@@ -214,7 +249,10 @@ document.addEventListener("DOMContentLoaded", () => {
           pkg.trackingNumber
         }</span></td>
         <td data-label="商品名稱">${pkg.productName}</td>
-        <td data-label="重量/尺寸">${weightInfo}</td>
+        <td data-label="重量/尺寸">
+            ${weightInfo}
+            <div style="margin-top:2px;">${alertBadges}</div>
+        </td>
         <td data-label="狀態"><span class="status-badge ${statusClass}">${statusText}</span></td>
         <td data-label="操作">
           <button class="btn btn-primary btn-sm" onclick="openEditModal('${pkgStr}')"><i class="fas fa-edit"></i> 編輯</button>
@@ -257,7 +295,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- Modal 操作 ---
-  // [修正] 改為函式宣告，使其可被提升 (Hoisting)，解決 ReferenceError
   function openEditModal(pkgStr) {
     isCreateMode = false;
     const pkg = JSON.parse(decodeURIComponent(pkgStr));
@@ -297,10 +334,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     modal.style.display = "flex";
   }
-  // [修正] 將函式掛載回 window，供 HTML onclick 使用
   window.openEditModal = openEditModal;
 
-  // [修正] 改為函式宣告，使其可被提升
   function openCreateModal() {
     isCreateMode = true;
     document.getElementById("modal-title").textContent = "代客預報 (新增包裹)";
@@ -317,7 +352,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     modal.style.display = "flex";
   }
-  // [修正] 將函式掛載回 window
   window.openCreateModal = openCreateModal;
 
   function renderSubPackages() {
@@ -386,6 +420,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const CONSTANTS = window.CONSTANTS || {
       VOLUME_DIVISOR: 28317,
       MINIMUM_CHARGE: 2000,
+      OVERSIZED_LIMIT: 300,
+      OVERWEIGHT_LIMIT: 100,
     };
     let total = 0;
 
@@ -410,6 +446,51 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const displayDiv = row.querySelector(".sub-pkg-fee-display");
 
+      // --- 即時警示檢查 ---
+      let warningHtml = "";
+      let hasOversized = false;
+      let hasOverweight = false;
+
+      // 檢查超長
+      if (
+        l >= CONSTANTS.OVERSIZED_LIMIT ||
+        wd >= CONSTANTS.OVERSIZED_LIMIT ||
+        h >= CONSTANTS.OVERSIZED_LIMIT
+      ) {
+        hasOversized = true;
+        warningHtml += `<div style="color:red; font-weight:bold; font-size:12px; margin-bottom:4px;">⚠️ 偵測到超長 (>=${CONSTANTS.OVERSIZED_LIMIT}cm)</div>`;
+      }
+
+      // 檢查超重
+      if (w >= CONSTANTS.OVERWEIGHT_LIMIT) {
+        hasOverweight = true;
+        warningHtml += `<div style="color:red; font-weight:bold; font-size:12px; margin-bottom:4px;">⚠️ 偵測到超重 (>=${CONSTANTS.OVERWEIGHT_LIMIT}kg)</div>`;
+      }
+
+      // 更新輸入框樣式
+      const inputL = row.querySelector(".sub-pkg-l");
+      const inputW = row.querySelector(".sub-pkg-w");
+      const inputH = row.querySelector(".sub-pkg-h");
+      const inputWt = row.querySelector(".sub-pkg-weight");
+
+      inputL.style.borderColor =
+        l >= CONSTANTS.OVERSIZED_LIMIT ? "red" : "#ccc";
+      inputW.style.borderColor =
+        wd >= CONSTANTS.OVERSIZED_LIMIT ? "red" : "#ccc";
+      inputH.style.borderColor =
+        h >= CONSTANTS.OVERSIZED_LIMIT ? "red" : "#ccc";
+      inputWt.style.borderColor =
+        w >= CONSTANTS.OVERWEIGHT_LIMIT ? "red" : "#ccc";
+
+      // 標示背景色以增強視覺
+      if (hasOversized || hasOverweight) {
+        displayDiv.style.backgroundColor = "#fff0f0";
+        displayDiv.style.border = "1px dashed red";
+      } else {
+        displayDiv.style.backgroundColor = "";
+        displayDiv.style.border = "";
+      }
+
       if (w > 0 && l > 0 && wd > 0 && h > 0) {
         const rate = RATES[type] || { weightRate: 0, volumeRate: 0 };
         const rawCai = (l * wd * h) / CONSTANTS.VOLUME_DIVISOR;
@@ -420,7 +501,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const fee = Math.max(volFee, wtFee);
         total += fee;
 
-        let html = `
+        let html = warningHtml;
+        html += `
             <div class="calc-row ${!isVolWin ? "winner" : ""}">
                 <span>重量重 (${w}kg)</span>
                 <span>$${wtFee}</span>
@@ -438,7 +520,8 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
         displayDiv.innerHTML = html;
       } else {
-        displayDiv.innerHTML = `<span style="color:#ccc;">等待完整輸入...</span>`;
+        displayDiv.innerHTML =
+          warningHtml + `<span style="color:#ccc;">等待完整輸入...</span>`;
       }
     });
 
@@ -520,7 +603,6 @@ document.addEventListener("DOMContentLoaded", () => {
         modal.style.display = "none";
         loadParcels();
       } else {
-        // [Security] 顯示單號重複或其他後端錯誤
         alert("操作失敗: " + d.message);
       }
     } catch (e) {

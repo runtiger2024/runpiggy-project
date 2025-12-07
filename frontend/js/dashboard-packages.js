@@ -1,5 +1,5 @@
 // frontend/js/dashboard-packages.js
-// V25.0 (透明化版) - 在詳情中顯示運費計算公式
+// V25.0 (透明化版) - 在詳情中顯示運費計算公式 + 強化警示
 
 let currentEditPackageImages = [];
 
@@ -54,10 +54,11 @@ function renderPackagesTable() {
       );
       const displayFee = pkg.totalCalculatedFee || 0;
 
+      // [強化] 警示標籤樣式
       if (pkg.isOversized)
-        badgesHtml += `<span class="badge-alert small" style="background:#ffebee; color:#c62828; border:1px solid #ef9a9a;">⚠️ 超長</span> `;
+        badgesHtml += `<span class="badge-alert small" style="background:#ffebee; color:#d32f2f; border:1px solid #d32f2f; font-weight:800; padding:2px 5px; border-radius:4px; margin-right:4px;">⚠️ 超長</span> `;
       if (pkg.isOverweight)
-        badgesHtml += `<span class="badge-alert small" style="background:#ffebee; color:#c62828; border:1px solid #ef9a9a;">⚠️ 超重</span>`;
+        badgesHtml += `<span class="badge-alert small" style="background:#ffebee; color:#d32f2f; border:1px solid #d32f2f; font-weight:800; padding:2px 5px; border-radius:4px;">⚠️ 超重</span>`;
 
       infoHtml = `
         <div class="pkg-meta-info">
@@ -68,7 +69,7 @@ function renderPackagesTable() {
               : ""
           }
         </div>
-        <div class="pkg-badges">${badgesHtml}</div>
+        <div class="pkg-badges" style="margin-top:4px;">${badgesHtml}</div>
       `;
     }
 
@@ -183,12 +184,12 @@ window.openPackageDetails = function (pkgDataStr) {
 
             ${
               box.isOversized
-                ? '<div style="color:red; font-size:12px; margin-top:5px;">⚠️ 此箱超長</div>'
+                ? '<div style="color:red; font-weight:bold; font-size:13px; margin-top:5px; background:#ffebee; padding:2px 5px; display:inline-block; border-radius:4px;">⚠️ 此箱超長</div>'
                 : ""
             }
             ${
               box.isOverweight
-                ? '<div style="color:red; font-size:12px; margin-top:5px;">⚠️ 此箱超重</div>'
+                ? '<div style="color:red; font-weight:bold; font-size:13px; margin-top:5px; background:#ffebee; padding:2px 5px; display:inline-block; border-radius:4px; margin-left:5px;">⚠️ 此箱超重</div>'
                 : ""
             }
           </div>`;

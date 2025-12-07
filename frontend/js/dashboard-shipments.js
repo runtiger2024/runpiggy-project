@@ -1,4 +1,4 @@
-// frontend/js/dashboard-shipments.js (V25.0 Fix - Client Side)
+// frontend/js/dashboard-shipments.js (V25.0 Fix - Client Side) - Enhanced Alerts
 
 // --- 1. 更新底部結帳條 (被 dashboard-packages.js 呼叫) ---
 window.updateCheckoutBar = function () {
@@ -57,10 +57,21 @@ window.handleCreateShipmentClick = async function () {
       weightStr = w.toFixed(1) + "kg";
     }
 
+    // --- [新增] 單項警示標籤 ---
+    let alerts = "";
+    if (pkg.isOverweight) {
+      alerts += `<span style="color:red; background:#ffebee; border:1px solid red; font-size:10px; padding:1px 4px; border-radius:4px; margin-left:5px; font-weight:bold;">[超重]</span>`;
+    }
+    if (pkg.isOversized) {
+      alerts += `<span style="color:red; background:#ffebee; border:1px solid red; font-size:10px; padding:1px 4px; border-radius:4px; margin-left:5px; font-weight:bold;">[超長]</span>`;
+    }
+
     listContainer.innerHTML += `
       <div class="shipment-package-item">
         <div class="info">
-          <div style="font-weight:bold;">${idx + 1}. ${pkg.productName}</div>
+          <div style="font-weight:bold;">${idx + 1}. ${
+      pkg.productName
+    } ${alerts}</div>
           <div style="font-size:12px; color:#666;">${pkg.trackingNumber}</div>
         </div>
         <div class="cost">${weightStr}</div>
