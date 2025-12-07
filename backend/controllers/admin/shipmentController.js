@@ -1,5 +1,5 @@
 // backend/controllers/admin/shipmentController.js
-// V13.5 - Fix: Auto refund for Cancelled/Rejected Wallet Orders
+// V13.6 - Fix: Full coverage for Wallet Refund (Delete/Bulk/Cancel)
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
@@ -8,6 +8,29 @@ const {
   deleteFiles,
   buildShipmentWhereClause,
 } = require("../../utils/adminHelpers.js");
+
+// [Helper] 內部使用的退款處理函數
+const processRefund = async (tx, shipment, description) => {
+  // 只有 "錢包支付" 且 "金額大於0" 且 "目前狀態非已取消" 才執行退款
+  // 注意：呼叫此函數前，外層邏輯需確保 shipment.status !== 'CANCELLED' (避免重複退款)
+  if (shipment.paymentProof === "WALLET_PAY" && shipment.totalCost > 0) {
+    await tx.transaction.create({
+      data: {
+        wallet: { connect: { userId: shipment.userId } },
+        amount: shipment.totalCost,
+        type: "REFUND",
+        status: "COMPLETED",
+        description: description,
+      },
+    });
+    await tx.wallet.update({
+      where: { userId: shipment.userId },
+      data: { balance: { increment: shipment.totalCost } },
+    });
+    return true; // 表示有執行退款
+  }
+  return false;
+};
 
 const getAllShipments = async (req, res) => {
   try {
@@ -80,6 +103,7 @@ const bulkUpdateShipmentStatus = async (req, res) => {
     if (!Array.isArray(ids) || ids.length === 0 || !status)
       return res.status(400).json({ success: false, message: "參數錯誤" });
 
+    // 處理轉為 PROCESSING (自動開立發票)
     if (status === "PROCESSING") {
       const shipments = await prisma.shipment.findMany({
         where: { id: { in: ids } },
@@ -91,7 +115,6 @@ const bulkUpdateShipmentStatus = async (req, res) => {
 
       for (const ship of shipments) {
         let updateData = { status: "PROCESSING" };
-
         const isWalletPay = ship.paymentProof === "WALLET_PAY";
 
         if (
@@ -134,7 +157,51 @@ const bulkUpdateShipmentStatus = async (req, res) => {
         success: true,
         message: `批量更新成功 (含發票開立 ${invoiceCount} 張)`,
       });
-    } else {
+    }
+    // [Fix] 處理轉為 CANCELLED (包含退款邏輯)
+    else if (status === "CANCELLED") {
+      const shipments = await prisma.shipment.findMany({
+        where: { id: { in: ids } },
+      });
+
+      let refundCount = 0;
+      await prisma.$transaction(async (tx) => {
+        for (const ship of shipments) {
+          if (ship.status === "CANCELLED") continue; // 跳過已取消
+
+          // 執行退款
+          const refunded = await processRefund(
+            tx,
+            ship,
+            `批量取消退款 (${ship.id})`
+          );
+          if (refunded) refundCount++;
+
+          // 更新狀態與釋放包裹
+          await tx.shipment.update({
+            where: { id: ship.id },
+            data: { status: "CANCELLED" },
+          });
+          await tx.package.updateMany({
+            where: { shipmentId: ship.id },
+            data: { status: "ARRIVED", shipmentId: null },
+          });
+        }
+      });
+
+      const msg = refundCount > 0 ? ` (含退雪 ${refundCount} 筆)` : "";
+      await createLog(
+        req.user.id,
+        "BULK_UPDATE_SHIPMENT",
+        "BATCH",
+        `批量取消 ${ids.length} 筆訂單${msg}`
+      );
+      return res
+        .status(200)
+        .json({ success: true, message: `批量取消成功${msg}` });
+    }
+    // 其他狀態直接更新
+    else {
       await prisma.shipment.updateMany({
         where: { id: { in: ids } },
         data: { status },
@@ -158,33 +225,65 @@ const bulkDeleteShipments = async (req, res) => {
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0)
       return res.status(400).json({ success: false, message: "未選擇訂單" });
+
+    // [Fix] 查詢完整資訊以進行退款判斷
     const shipments = await prisma.shipment.findMany({
       where: { id: { in: ids } },
-      select: { paymentProof: true, shipmentProductImages: true },
+      select: {
+        id: true,
+        userId: true,
+        paymentProof: true,
+        totalCost: true,
+        status: true,
+        shipmentProductImages: true,
+      },
     });
+
     const files = [];
     shipments.forEach((s) => {
-      if (s.paymentProof) files.push(s.paymentProof);
+      if (s.paymentProof && s.paymentProof !== "WALLET_PAY")
+        files.push(s.paymentProof);
       if (Array.isArray(s.shipmentProductImages)) {
         files.push(...s.shipmentProductImages);
       }
     });
     deleteFiles(files);
+
+    let refundCount = 0;
+
     await prisma.$transaction(async (tx) => {
-      await tx.package.updateMany({
-        where: { shipmentId: { in: ids } },
-        data: { status: "ARRIVED", shipmentId: null },
-      });
+      for (const ship of shipments) {
+        // [New] 刪除前檢查退款 (若尚未取消且為錢包支付)
+        if (ship.status !== "CANCELLED") {
+          const refunded = await processRefund(
+            tx,
+            ship,
+            `訂單刪除退款 (${ship.id})`
+          );
+          if (refunded) refundCount++;
+        }
+
+        // 釋放包裹
+        await tx.package.updateMany({
+          where: { shipmentId: ship.id },
+          data: { status: "ARRIVED", shipmentId: null },
+        });
+      }
+
+      // 刪除訂單
       await tx.shipment.deleteMany({ where: { id: { in: ids } } });
     });
+
+    const msg = refundCount > 0 ? ` (含退款 ${refundCount} 筆)` : "";
     await createLog(
       req.user.id,
       "BULK_DELETE_SHIPMENT",
       "BATCH",
-      `批量刪除 ${ids.length} 筆訂單`
+      `批量刪除 ${ids.length} 筆訂單${msg}`
     );
-    res.status(200).json({ success: true, message: "批量刪除成功" });
+    res.status(200).json({ success: true, message: `批量刪除成功${msg}` });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };
@@ -201,6 +300,13 @@ const updateShipmentStatus = async (req, res) => {
     });
     if (!originalShipment)
       return res.status(404).json({ success: false, message: "找不到訂單" });
+
+    // 安全檢查：若要變更狀態為 CANCELLED，需確保目前不是 CANCELLED
+    if (status === "CANCELLED" && originalShipment.status === "CANCELLED") {
+      return res
+        .status(400)
+        .json({ success: false, message: "訂單已取消，請勿重複操作" });
+    }
 
     if (
       totalCost !== undefined &&
@@ -238,27 +344,12 @@ const updateShipmentStatus = async (req, res) => {
 
     if (status === "CANCELLED") {
       const result = await prisma.$transaction(async (tx) => {
-        // [New] 自動退款邏輯 (若為錢包支付)
-        if (
-          originalShipment.paymentProof === "WALLET_PAY" &&
-          originalShipment.totalCost > 0
-        ) {
-          // 建立退款交易
-          await tx.transaction.create({
-            data: {
-              wallet: { connect: { userId: originalShipment.userId } },
-              amount: originalShipment.totalCost,
-              type: "REFUND",
-              status: "COMPLETED",
-              description: `訂單取消退款 (${originalShipment.id})`,
-            },
-          });
-          // 返還餘額
-          await tx.wallet.update({
-            where: { userId: originalShipment.userId },
-            data: { balance: { increment: originalShipment.totalCost } },
-          });
-        }
+        // [New] 自動退款邏輯 (使用 helper, 確保原狀態非 CANCELLED 已在上方檢查)
+        const refunded = await processRefund(
+          tx,
+          originalShipment,
+          `訂單取消退款 (${originalShipment.id})`
+        );
 
         const released = await tx.package.updateMany({
           where: { shipmentId: id },
@@ -268,11 +359,10 @@ const updateShipmentStatus = async (req, res) => {
           where: { id },
           data: dataToUpdate,
         });
-        return { shipment: updatedShipment, count: released.count };
+        return { shipment: updatedShipment, count: released.count, refunded };
       });
 
-      const refundMsg =
-        originalShipment.paymentProof === "WALLET_PAY" ? " (已退款)" : "";
+      const refundMsg = result.refunded ? " (已退款)" : "";
       await createLog(
         req.user.id,
         "UPDATE_SHIPMENT",
@@ -340,7 +430,7 @@ const rejectShipment = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // [Fix] 先查詢訂單以判斷付款方式
+    // [Fix] 先查詢訂單以判斷付款方式與狀態
     const shipment = await prisma.shipment.findUnique({
       where: { id },
       select: {
@@ -354,28 +444,20 @@ const rejectShipment = async (req, res) => {
 
     if (!shipment)
       return res.status(404).json({ success: false, message: "找不到訂單" });
+
+    // 防止重複操作
     if (shipment.status === "CANCELLED")
       return res
         .status(400)
         .json({ success: false, message: "訂單已取消，請勿重複操作" });
 
     const result = await prisma.$transaction(async (tx) => {
-      // [New] 自動退款邏輯 (若為錢包支付)
-      if (shipment.paymentProof === "WALLET_PAY" && shipment.totalCost > 0) {
-        await tx.transaction.create({
-          data: {
-            wallet: { connect: { userId: shipment.userId } },
-            amount: shipment.totalCost,
-            type: "REFUND",
-            status: "COMPLETED",
-            description: `訂單駁回退款 (${shipment.id})`,
-          },
-        });
-        await tx.wallet.update({
-          where: { userId: shipment.userId },
-          data: { balance: { increment: shipment.totalCost } },
-        });
-      }
+      // [New] 自動退款邏輯
+      const refunded = await processRefund(
+        tx,
+        shipment,
+        `訂單駁回退款 (${shipment.id})`
+      );
 
       const updated = await tx.shipment.update({
         where: { id },
@@ -385,11 +467,10 @@ const rejectShipment = async (req, res) => {
         where: { shipmentId: id },
         data: { status: "ARRIVED", shipmentId: null },
       });
-      return { count: released.count };
+      return { count: released.count, refunded };
     });
 
-    const refundMsg =
-      shipment.paymentProof === "WALLET_PAY" ? " (已退款至錢包)" : "";
+    const refundMsg = result.refunded ? " (已退款至錢包)" : "";
     await createLog(
       req.user.id,
       "REJECT_SHIPMENT",
@@ -409,25 +490,43 @@ const adminDeleteShipment = async (req, res) => {
     const { id } = req.params;
     const ship = await prisma.shipment.findUnique({
       where: { id },
-      select: { paymentProof: true, shipmentProductImages: true },
+      select: {
+        id: true,
+        userId: true,
+        paymentProof: true,
+        totalCost: true,
+        status: true,
+        shipmentProductImages: true,
+      },
     });
+
     if (ship) {
       let files = [];
-      if (ship.paymentProof) files.push(ship.paymentProof);
+      if (ship.paymentProof && ship.paymentProof !== "WALLET_PAY")
+        files.push(ship.paymentProof);
       if (Array.isArray(ship.shipmentProductImages)) {
         files.push(...ship.shipmentProductImages);
       }
       deleteFiles(files);
     }
+
+    let refunded = false;
     await prisma.$transaction(async (tx) => {
+      // [New] 刪除前檢查退款 (若尚未取消且為錢包支付)
+      if (ship && ship.status !== "CANCELLED") {
+        refunded = await processRefund(tx, ship, `訂單刪除退款 (${ship.id})`);
+      }
+
       await tx.package.updateMany({
         where: { shipmentId: id },
         data: { status: "ARRIVED", shipmentId: null },
       });
       await tx.shipment.delete({ where: { id } });
     });
-    await createLog(req.user.id, "ADMIN_DELETE_SHIPMENT", id, "永久刪除");
-    res.status(200).json({ success: true, message: "已刪除" });
+
+    const msg = refunded ? " (含退款)" : "";
+    await createLog(req.user.id, "ADMIN_DELETE_SHIPMENT", id, `永久刪除${msg}`);
+    res.status(200).json({ success: true, message: `已刪除${msg}` });
   } catch (e) {
     res.status(500).json({ success: false, message: "刪除失敗" });
   }
