@@ -208,6 +208,24 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // [新增] 綁定「立即上傳憑證」按鈕事件
+  const btnUploadNow = document.getElementById("btn-upload-now");
+  if (btnUploadNow) {
+    btnUploadNow.addEventListener("click", () => {
+      // 1. 關閉成功彈窗
+      document.getElementById("bank-info-modal").style.display = "none";
+
+      // 2. 檢查是否有剛建立的訂單 ID
+      if (window.lastCreatedShipmentId) {
+        // 3. 直接呼叫開啟上傳憑證視窗的函式 (位於 dashboard-shipments.js)
+        window.openUploadProof(window.lastCreatedShipmentId);
+      } else {
+        // 防呆：如果沒有 ID (理論上不應發生)，則重新整理列表讓用戶自己選
+        window.loadMyShipments();
+      }
+    });
+  }
+
   // 關閉彈窗通用
   document.querySelectorAll(".modal-overlay").forEach((m) => {
     m.addEventListener("click", (e) => {

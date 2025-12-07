@@ -266,6 +266,9 @@ window.handleCreateShipmentSubmit = async function (e) {
       // 成功
       document.getElementById("create-shipment-modal").style.display = "none";
 
+      // [新增] 暫存新建立的訂單 ID
+      window.lastCreatedShipmentId = data.shipment.id;
+
       // 更新銀行資訊並顯示成功彈窗
       if (window.BANK_INFO_CACHE) {
         const bName = document.getElementById("bank-name");
