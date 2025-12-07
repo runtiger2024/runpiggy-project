@@ -1,16 +1,18 @@
 // backend/routes/adminRoutes.js
-// V13.1 - Corrected: Imports point to Admin Controllers
+// V14.0 - Added Finance/Wallet Management Routes
 
 const express = require("express");
 const router = express.Router();
 const upload = require("../utils/upload.js");
 
-// 引入拆分後的控制器
+// 引入控制器
 const settingsController = require("../controllers/admin/settingsController");
 const packageController = require("../controllers/admin/packageController");
 const shipmentController = require("../controllers/admin/shipmentController");
 const userController = require("../controllers/admin/userController");
 const reportController = require("../controllers/admin/reportController");
+// [新增] 錢包控制器
+const walletController = require("../controllers/admin/walletController");
 
 const { protect, checkPermission } = require("../middleware/authMiddleware.js");
 
@@ -160,7 +162,6 @@ router
     shipmentController.getAllShipments
   );
 
-// 發票管理路由 - [Fix] 改為引用 admin/shipmentController
 router
   .route("/shipments/:id/invoice/issue")
   .post(
@@ -177,7 +178,6 @@ router
     shipmentController.manualVoidInvoice
   );
 
-// 單一訂單操作
 router
   .route("/shipments/:id")
   .put(
@@ -260,6 +260,33 @@ router
     protect,
     checkPermission("USER_IMPERSONATE"),
     userController.impersonateUser
+  );
+
+// ==========================================
+// 6. 財務管理 (Finance & Wallet) - [NEW]
+// ==========================================
+router
+  .route("/finance/transactions")
+  .get(
+    protect,
+    checkPermission("FINANCE_AUDIT"),
+    walletController.getTransactions
+  );
+
+router
+  .route("/finance/transactions/:id/review")
+  .put(
+    protect,
+    checkPermission("FINANCE_AUDIT"),
+    walletController.reviewTransaction
+  );
+
+router
+  .route("/finance/adjust")
+  .post(
+    protect,
+    checkPermission("FINANCE_AUDIT"),
+    walletController.manualAdjust
   );
 
 module.exports = router;

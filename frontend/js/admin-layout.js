@@ -41,6 +41,13 @@ document.addEventListener("DOMContentLoaded", () => {
       href: "admin-members.html",
       perm: "USER_VIEW",
     },
+    // [新增] 財務管理
+    {
+      label: "財務審核",
+      icon: "fas fa-hand-holding-usd",
+      href: "admin-finance.html",
+      perm: "FINANCE_AUDIT",
+    },
     {
       label: "新增員工",
       icon: "fas fa-user-plus",
