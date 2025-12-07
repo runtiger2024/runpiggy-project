@@ -1,3 +1,6 @@
+// backend/controllers/admin/shipmentController.js
+// V13.1 - Added Manual Invoice Actions
+
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
 const invoiceHelper = require("../../utils/invoiceHelper.js");
@@ -358,7 +361,7 @@ const adminDeleteShipment = async (req, res) => {
 };
 
 /**
- * [NEW] 手動開立發票 (已移入 admin 控制器)
+ * [NEW] 手動開立發票 (Moved from client controller)
  */
 const manualIssueInvoice = async (req, res) => {
   try {
@@ -408,7 +411,7 @@ const manualIssueInvoice = async (req, res) => {
 };
 
 /**
- * [NEW] 手動作廢發票 (已移入 admin 控制器)
+ * [NEW] 手動作廢發票 (Moved from client controller)
  */
 const manualVoidInvoice = async (req, res) => {
   try {

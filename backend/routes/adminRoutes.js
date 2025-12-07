@@ -1,4 +1,5 @@
-// backend/routes/adminRoutes.js (V13.0 - Refactored)
+// backend/routes/adminRoutes.js
+// V13.1 - Corrected: Imports point to Admin Controllers
 
 const express = require("express");
 const router = express.Router();
@@ -159,7 +160,7 @@ router
     shipmentController.getAllShipments
   );
 
-// 發票管理路由 (改為使用 admin/shipmentController)
+// 發票管理路由 - [Fix] 改為引用 admin/shipmentController
 router
   .route("/shipments/:id/invoice/issue")
   .post(

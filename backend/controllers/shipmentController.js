@@ -1,10 +1,11 @@
 // backend/controllers/shipmentController.js
-// V13.0 - 支援錢包扣款 (Wallet Payment) 與自動轉單
+// V13.1 - Fixed: Wallet Race Condition & Removed Admin Functions
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
 const ratesManager = require("../utils/ratesManager.js");
-const invoiceHelper = require("../utils/invoiceHelper.js");
+// invoiceHelper 在此檔案已不再需要，因為手動開立功能已移至 admin
+// const invoiceHelper = require("../utils/invoiceHelper.js");
 const createLog = require("../utils/createLog.js");
 
 // --- 運費計算邏輯 (保持原樣) ---
@@ -128,12 +129,11 @@ const createShipment = async (req, res) => {
       deliveryLocationRate,
       productUrl,
       additionalServices,
-      paymentMethod, // [New] 付款方式: 'TRANSFER' (預設) 或 'WALLET'
+      paymentMethod, // 'TRANSFER' or 'WALLET'
     } = req.body;
     const userId = req.user.id;
     const files = req.files || [];
 
-    // 若選擇錢包支付，商品證明是選填；若轉帳，則需上傳圖片或連結
     const isWalletPay = paymentMethod === "WALLET";
 
     if (
@@ -186,48 +186,48 @@ const createShipment = async (req, res) => {
       } catch (e) {}
     }
 
-    // ----------------------------------------------------
-    // [New] 錢包扣款邏輯
-    // ----------------------------------------------------
+    // 初始狀態
     let shipmentStatus = "PENDING_PAYMENT";
-
     if (isWalletPay) {
-      // 1. 檢查餘額是否足夠
-      const wallet = await prisma.wallet.findUnique({ where: { userId } });
-      if (!wallet || wallet.balance < calcResult.totalCost) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "錢包餘額不足，請先儲值或選擇轉帳付款。",
-          });
-      }
-      // 2. 設定初始狀態為處理中 (已付款)
-      shipmentStatus = "PROCESSING";
+      shipmentStatus = "PROCESSING"; // 錢包扣款成功直接轉處理中
     }
 
-    // 使用 Transaction 確保扣款與訂單建立的一致性
+    // [Fix] 使用 Transaction 確保扣款原子性
     const newShipment = await prisma.$transaction(async (tx) => {
       let txRecord = null;
 
-      // 若為錢包支付，執行扣款與建立交易紀錄
       if (isWalletPay) {
-        await tx.wallet.update({
-          where: { userId },
-          data: { balance: { decrement: calcResult.totalCost } },
-        });
+        // [Security Fix] 關鍵修正：
+        // 利用 update 的 where 條件確保餘額足夠 (Optimistic Locking)
+        // 若餘額不足，update 會拋出錯誤 (因為找不到符合條件的紀錄)
+        try {
+          await tx.wallet.update({
+            where: {
+              userId: userId,
+              balance: { gte: calcResult.totalCost }, // 確保餘額 >= 扣款金額
+            },
+            data: {
+              balance: { decrement: calcResult.totalCost },
+            },
+          });
+        } catch (err) {
+          // 捕捉 update 失敗 (通常是 RecordNotFound 即餘額不足)
+          throw new Error("錢包餘額不足，扣款失敗");
+        }
 
+        // 建立交易紀錄
         txRecord = await tx.transaction.create({
           data: {
             wallet: { connect: { userId } },
-            amount: -calcResult.totalCost, // 負數代表扣款
+            amount: -calcResult.totalCost,
             type: "PAYMENT",
             status: "COMPLETED",
-            description: "支付運費",
+            description: "支付運費 (訂單建立)",
           },
         });
       }
 
+      // 建立訂單
       const createdShipment = await tx.shipment.create({
         data: {
           recipientName,
@@ -244,13 +244,12 @@ const createShipment = async (req, res) => {
           userId: userId,
           productUrl: productUrl || null,
           shipmentProductImages: shipmentImagePaths,
-          // 關聯交易紀錄 (若有)
           transactionId: txRecord ? txRecord.id : null,
-          // 標記付款憑證欄位 (錢包支付則填寫標記，避免前端顯示未上傳)
           paymentProof: isWalletPay ? "WALLET_PAY" : null,
         },
       });
 
+      // 更新包裹狀態
       await tx.package.updateMany({
         where: { id: { in: packageIds } },
         data: { status: "IN_SHIPMENT", shipmentId: createdShipment.id },
@@ -259,6 +258,7 @@ const createShipment = async (req, res) => {
       return createdShipment;
     });
 
+    // 寄信通知 (非關鍵路徑，放在 tx 外)
     try {
       await sendNewShipmentNotification(newShipment, req.user);
     } catch (e) {}
@@ -271,8 +271,11 @@ const createShipment = async (req, res) => {
       shipment: newShipment,
     });
   } catch (error) {
-    console.error("建立訂單錯誤:", error);
-    res.status(500).json({ success: false, message: "伺服器發生錯誤" });
+    console.error("建立訂單錯誤:", error.message);
+    // 回傳具體錯誤訊息 (如餘額不足)
+    res
+      .status(400)
+      .json({ success: false, message: error.message || "建立失敗" });
   }
 };
 
@@ -343,8 +346,12 @@ const getShipmentById = async (req, res) => {
   try {
     const { id } = req.params;
     const user = req.user;
+    // 簡單權限檢查：是否為管理員 (此邏輯也可移至 Middleware，這裡做雙重保險)
     const isAdmin =
-      user.permissions && user.permissions.includes("CAN_MANAGE_SHIPMENTS");
+      user.permissions &&
+      (user.permissions.includes("CAN_MANAGE_SHIPMENTS") ||
+        user.permissions.includes("SHIPMENT_VIEW"));
+
     const whereCondition = { id: id };
     if (!isAdmin) whereCondition.userId = user.id;
 
@@ -406,96 +413,6 @@ const deleteMyShipment = async (req, res) => {
   }
 };
 
-/**
- * [NEW] 手動開立發票
- */
-const manualIssueInvoice = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const shipment = await prisma.shipment.findUnique({
-      where: { id },
-      include: { user: true },
-    });
-
-    if (!shipment) return res.status(404).json({ message: "找不到訂單" });
-    if (shipment.invoiceNumber && shipment.invoiceStatus !== "VOID") {
-      return res
-        .status(400)
-        .json({ message: "此訂單已開立發票，不可重複開立" });
-    }
-
-    const result = await invoiceHelper.createInvoice(shipment, shipment.user);
-
-    if (result.success) {
-      await prisma.shipment.update({
-        where: { id },
-        data: {
-          invoiceNumber: result.invoiceNumber,
-          invoiceDate: result.invoiceDate,
-          invoiceRandomCode: result.randomCode,
-          invoiceStatus: "ISSUED",
-        },
-      });
-      await createLog(
-        req.user.id,
-        "INVOICE_ISSUE",
-        id,
-        `手動開立發票: ${result.invoiceNumber}`
-      );
-      res.json({
-        success: true,
-        message: "發票開立成功",
-        invoiceNumber: result.invoiceNumber,
-      });
-    } else {
-      res.status(400).json({ success: false, message: result.message });
-    }
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "系統錯誤" });
-  }
-};
-
-/**
- * [NEW] 手動作廢發票
- */
-const manualVoidInvoice = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { reason } = req.body;
-    const shipment = await prisma.shipment.findUnique({ where: { id } });
-
-    if (!shipment || !shipment.invoiceNumber)
-      return res.status(400).json({ message: "此訂單尚未開立發票" });
-    if (shipment.invoiceStatus === "VOID")
-      return res.status(400).json({ message: "發票已作廢" });
-
-    const result = await invoiceHelper.voidInvoice(
-      shipment.invoiceNumber,
-      reason
-    );
-
-    if (result.success) {
-      await prisma.shipment.update({
-        where: { id },
-        data: { invoiceStatus: "VOID" },
-      });
-      await createLog(
-        req.user.id,
-        "INVOICE_VOID",
-        id,
-        `作廢發票: ${shipment.invoiceNumber}`
-      );
-      res.json({ success: true, message: "發票已成功作廢" });
-    } else {
-      res.status(400).json({ success: false, message: result.message });
-    }
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "系統錯誤" });
-  }
-};
-
 module.exports = {
   createShipment,
   getMyShipments,
@@ -503,6 +420,4 @@ module.exports = {
   uploadPaymentProof,
   deleteMyShipment,
   previewShipmentCost,
-  manualIssueInvoice,
-  manualVoidInvoice,
 };
