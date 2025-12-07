@@ -1,7 +1,7 @@
 // frontend/js/dashboard-shipments.js
-// V26.0 - 整合錢包支付與物流軌跡 (基於 V25.0 Fix)
+// V26.1 - 完整整合版 (保留 UI 細節 + 錢包支付 + 物流軌跡)
 
-// --- 1. 更新底部結帳條 (被 dashboard-packages.js 呼叫) ---
+// --- 1. 更新底部結帳條 ---
 window.updateCheckoutBar = function () {
   const checkboxes = document.querySelectorAll(".package-checkbox:checked");
   const count = checkboxes.length;
@@ -38,7 +38,7 @@ window.handleCreateShipmentClick = async function () {
     selectedIds.includes(pkg.id)
   );
 
-  // 檢查是否有超重包裹 (單件 > 100kg)，顯示堆高機警示
+  // [UI 保留] 檢查是否有超重包裹 (單件 > 100kg)，顯示堆高機警示
   const hasHeavyItem = selectedPackages.some((pkg) => pkg.isOverweight);
   const warningBox = document.getElementById("forklift-warning");
   if (warningBox) warningBox.style.display = hasHeavyItem ? "block" : "none";
@@ -58,7 +58,7 @@ window.handleCreateShipmentClick = async function () {
       weightStr = w.toFixed(1) + "kg";
     }
 
-    // --- [新增] 單項警示標籤 ---
+    // [UI 保留] 單項警示標籤
     let alerts = "";
     if (pkg.isOverweight) {
       alerts += `<span style="color:red; background:#ffebee; border:1px solid red; font-size:10px; padding:1px 4px; border-radius:4px; margin-left:5px; font-weight:bold;">[超重]</span>`;
@@ -96,7 +96,7 @@ window.handleCreateShipmentClick = async function () {
   // [New] 重置付款方式為預設 (轉帳) 並觸發 UI 更新
   const radioTransfer = document.getElementById("pay-transfer");
   if (radioTransfer) radioTransfer.checked = true;
-  togglePaymentMethod("TRANSFER");
+  togglePaymentMethod("TRANSFER"); // 確保初始化正確
 
   // 載入偏遠地區選單 (若尚未載入)
   if (typeof renderDeliveryLocations === "function") {
@@ -143,10 +143,10 @@ window.recalculateShipmentTotal = async function () {
     if (data.success && data.preview) {
       const p = data.preview;
 
-      // [New] 暫存總金額供錢包檢查使用
+      // [New] 暫存總金額供錢包檢查使用 (關鍵！)
       window.currentShipmentTotal = p.totalCost;
 
-      // 渲染費用明細
+      // [UI 保留] 渲染費用明細
       let html = `
         <div class="fee-breakdown-row">
             <span>基本海運費</span>
@@ -191,7 +191,7 @@ window.recalculateShipmentTotal = async function () {
 
       breakdownDiv.innerHTML = html;
 
-      // [New] 如果當前選擇錢包支付，重新檢查餘額是否足夠
+      // [New] 如果當前選擇錢包支付，重新檢查餘額是否足夠 (因為金額可能變了)
       const walletRadio = document.getElementById("pay-wallet");
       if (walletRadio && walletRadio.checked) togglePaymentMethod("WALLET");
     } else {
@@ -243,7 +243,7 @@ window.handleCreateShipmentSubmit = async function (e) {
   fd.append("productUrl", document.getElementById("ship-product-url").value);
   fd.append("paymentMethod", paymentMethod); // [New] 傳送付款方式
 
-  // 附加服務 (JSON)
+  // [UI 保留] 附加服務 (JSON)
   const services = {
     floor: {
       selected: document.getElementById("srv-floor").checked,
@@ -292,9 +292,12 @@ window.handleCreateShipmentSubmit = async function (e) {
         // [New] 錢包支付成功，直接顯示成功訊息，不需上傳憑證
         alert("訂單建立成功！費用已從錢包扣除，系統將自動安排出貨。");
         window.loadMyShipments();
-        window.loadMyPackages();
-        if (typeof window.loadWalletData === "function")
-          window.loadWalletData(); // 更新錢包頁面
+        window.loadMyPackages(); // 更新包裹狀態
+
+        // 如果有 dashboard-wallet.js，重新載入餘額
+        if (typeof window.loadWalletData === "function") {
+          window.loadWalletData();
+        }
       } else {
         // [Original] 轉帳支付，顯示匯款資訊
         if (window.BANK_INFO_CACHE) {
@@ -329,7 +332,7 @@ window.handleCreateShipmentSubmit = async function (e) {
   }
 };
 
-// --- [New] 付款方式切換邏輯 ---
+// --- [New] 付款方式切換邏輯 (控制 UI 顯示) ---
 window.togglePaymentMethod = function (method) {
   const proofSection = document.querySelector(".proof-section");
   const walletBalanceInfo = document.getElementById("wallet-pay-info");
@@ -344,7 +347,7 @@ window.togglePaymentMethod = function (method) {
       walletBalanceInfo.style.display = "block";
       const currentTotal = window.currentShipmentTotal || 0;
 
-      // 查詢錢包餘額 (這裡假設 dashboard-wallet.js 已經載入，或直接發請求)
+      // 查詢錢包餘額 (使用 API 確保是最新的)
       fetch(`${API_BASE_URL}/api/wallet/my`, {
         headers: { Authorization: `Bearer ${window.dashboardToken}` },
       })
@@ -405,28 +408,26 @@ window.loadMyShipments = async function () {
         }
 
         tbody.innerHTML += `
-                    <tr>
-                        <td>
-                            <span style="font-weight:bold; color:#1a73e8;">${s.id
-                              .slice(-8)
-                              .toUpperCase()}</span><br>
-                            <small>${new Date(
-                              s.createdAt
-                            ).toLocaleDateString()}</small>
-                        </td>
-                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                        <td>
-                            <div>${s.recipientName}</div>
-                            <small style="color:#666;">${
-                              s.packages.length
-                            } 件包裹</small>
-                        </td>
-                        <td style="color:#d32f2f; font-weight:bold;">$${(
-                          s.totalCost || 0
-                        ).toLocaleString()}</td>
-                        <td>${actionsHtml}</td>
-                    </tr>
-                `;
+            <tr>
+                <td>
+                    <span style="font-weight:bold; color:#1a73e8;">${s.id
+                      .slice(-8)
+                      .toUpperCase()}</span><br>
+                    <small>${new Date(s.createdAt).toLocaleDateString()}</small>
+                </td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                <td>
+                    <div>${s.recipientName}</div>
+                    <small style="color:#666;">${
+                      s.packages.length
+                    } 件包裹</small>
+                </td>
+                <td style="color:#d32f2f; font-weight:bold;">$${(
+                  s.totalCost || 0
+                ).toLocaleString()}</td>
+                <td>${actionsHtml}</td>
+            </tr>
+        `;
       });
     } else {
       tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:#999;">尚無集運單</td></tr>`;
@@ -505,8 +506,9 @@ window.openShipmentDetails = async function (id) {
     if (timelineContainer) {
       renderTimeline(timelineContainer, s.status);
     } else {
-      // Fallback for older HTML without timeline container
-      document.getElementById("sd-status").textContent = s.status;
+      // Fallback (若 HTML 尚未更新)
+      const statusEl = document.getElementById("sd-status");
+      if (statusEl) statusEl.textContent = s.status;
     }
 
     document.getElementById("sd-date").textContent = new Date(
@@ -519,20 +521,20 @@ window.openShipmentDetails = async function (id) {
     document.getElementById("sd-phone").textContent = s.phone;
     document.getElementById("sd-address").textContent = s.shippingAddress;
 
-    // 費用明細
+    // [UI 保留] 費用明細
     const breakdown = document.getElementById("sd-fee-breakdown");
     breakdown.innerHTML = `
-            <div>運費總計: <strong>$${(
-              s.totalCost || 0
-            ).toLocaleString()}</strong></div>
-            ${
-              s.invoiceNumber
-                ? `<div style="margin-top:5px; color:#28a745;">發票已開立: ${s.invoiceNumber}</div>`
-                : ""
-            }
-        `;
+        <div>運費總計: <strong>$${(
+          s.totalCost || 0
+        ).toLocaleString()}</strong></div>
+        ${
+          s.invoiceNumber
+            ? `<div style="margin-top:5px; color:#28a745;">發票已開立: ${s.invoiceNumber}</div>`
+            : ""
+        }
+    `;
 
-    // 圖片
+    // 圖片顯示邏輯
     const gallery = document.getElementById("sd-proof-images");
     gallery.innerHTML = "";
 
@@ -544,6 +546,7 @@ window.openShipmentDetails = async function (id) {
                 <i class="fas fa-wallet"></i> 使用錢包餘額支付
             </div>`;
       } else {
+        // 一般轉帳憑證
         gallery.innerHTML += `<div style="text-align:center;"><p>付款憑證</p><img src="${API_BASE_URL}${s.paymentProof}" onclick="window.open(this.src)" style="max-width:100px; cursor:pointer;"></div>`;
       }
     }
@@ -569,7 +572,7 @@ function renderTimeline(container, currentStatus) {
     container.innerHTML = `<div class="alert alert-error text-center" style="margin:10px 0;">此訂單已取消</div>`;
     return;
   }
-  if (currentStatus === "PENDING_REVIEW") currentStatus = "PENDING_PAYMENT"; // 視為第一步完成(或進行中)
+  if (currentStatus === "PENDING_REVIEW") currentStatus = "PENDING_PAYMENT";
 
   let currentIndex = steps.findIndex((s) => s.code === currentStatus);
   if (currentIndex === -1) currentIndex = 0; // Default
@@ -626,7 +629,7 @@ function renderDeliveryLocations() {
   select.innerHTML = html;
 }
 
-// 附加服務 UI 連動邏輯
+// [UI 保留] 附加服務 UI 連動邏輯
 document.addEventListener("DOMContentLoaded", () => {
   const toggles = {
     "srv-floor": "srv-floor-options",
