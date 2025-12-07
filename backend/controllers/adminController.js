@@ -1,5 +1,5 @@
 // backend/controllers/adminController.js
-// V2025.Security - 包含防呆機制 (會員防刪、財務鎖定、出貨檢核)
+// V2025.Security - 已修復系統設定金鑰遮罩與還原邏輯
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -77,13 +77,28 @@ const buildShipmentWhereClause = (status, search) => {
 };
 
 // --- 系統設定 (System Settings) ---
+
+/**
+ * [Security Fix] 取得系統設定 (含金鑰遮罩)
+ */
 const getSystemSettings = async (req, res) => {
   try {
     const settingsList = await prisma.systemSetting.findMany();
     const settings = {};
+
     settingsList.forEach((item) => {
-      settings[item.key] = item.value;
+      let val = item.value;
+
+      // [Security Fix] 針對電子發票 HashKey 進行遮罩處理
+      // 避免金鑰明碼傳輸到前端
+      if (item.key === "invoice_config" && val && val.hashKey) {
+        // 使用淺拷貝，避免汙染原始物件，並將金鑰替換為遮罩
+        val = { ...val, hashKey: "********" };
+      }
+
+      settings[item.key] = val;
     });
+
     res.status(200).json({ success: true, settings });
   } catch (error) {
     console.error("取得系統設定失敗:", error);
@@ -91,29 +106,46 @@ const getSystemSettings = async (req, res) => {
   }
 };
 
+/**
+ * [Security Fix] 更新系統設定 (含金鑰還原)
+ */
 const updateSystemSetting = async (req, res) => {
   try {
     const { key } = req.params;
     let { value, description } = req.body;
+
     if (value === undefined)
       return res.status(400).json({ success: false, message: "缺少設定值" });
 
-    // [Security] 這裡的驗證邏輯已移至 settingsController 集中管理，
-    // 但若此路由仍被使用，建議保持基本的 update 邏輯。
-    // (註：前端 settings 頁面實際上是呼叫 settingsController 的 API，
-    //  這裡保留是為了相容性或 adminRoutes 的定義)
+    // [Security Fix] 檢查是否為發票設定，並判斷是否需要還原遮罩
+    if (key === "invoice_config" && value && value.hashKey === "********") {
+      // 若前端傳來的是遮罩字串，代表使用者沒有修改金鑰
+      // 需從資料庫讀取舊的金鑰並填回，避免將 "********" 寫入資料庫
+      const oldSetting = await prisma.systemSetting.findUnique({
+        where: { key: "invoice_config" },
+      });
+
+      if (oldSetting && oldSetting.value && oldSetting.value.hashKey) {
+        value.hashKey = oldSetting.value.hashKey;
+      } else {
+        // 若原本沒金鑰，則設為空字串
+        value.hashKey = "";
+      }
+    }
 
     await prisma.systemSetting.upsert({
       where: { key },
       update: { value: value, ...(description && { description }) },
       create: { key, value: value, description: description || "系統設定" },
     });
+
     await createLog(
       req.user.id,
       "UPDATE_SYSTEM_SETTING",
       "SYSTEM",
       `更新設定: ${key}`
     );
+
     res.status(200).json({ success: true, message: `設定 ${key} 已更新` });
   } catch (error) {
     console.error(`更新設定 ${req.params.key} 失敗:`, error);
@@ -242,12 +274,10 @@ const adminCreatePackage = async (req, res) => {
       where: { trackingNumber: trackingNumber.trim() },
     });
     if (existingPkg) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "此物流單號已存在系統中，請勿重複建立",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "此物流單號已存在系統中，請勿重複建立",
+      });
     }
 
     let imagePaths = [];
