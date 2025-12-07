@@ -1,5 +1,5 @@
 // backend/controllers/settingsController.js
-// V2025.Security - 支援設定結構驗證 (Schema Validation)
+// V2025.Security - 支援設定結構驗證與敏感資料遮罩
 
 const prisma = require("../config/db.js");
 const ratesManager = require("../utils/ratesManager.js");
@@ -86,7 +86,7 @@ const seedDefaultSettings = async () => {
 };
 
 /**
- * @description 取得所有系統設定
+ * @description 取得所有系統設定 (前端管理後台用)
  * @route GET /api/admin/settings
  */
 const getAllSettings = async (req, res) => {
@@ -100,7 +100,16 @@ const getAllSettings = async (req, res) => {
 
     const result = {};
     settingsList.forEach((item) => {
-      result[item.key] = item.value;
+      // 複製一份 value 以便修改
+      let val = item.value;
+
+      // [Security] 對敏感欄位進行遮罩，防止前端直接讀取明文
+      if (item.key === "invoice_config" && val && val.hashKey) {
+        // 使用展開運算符淺拷貝，避免修改到 Prisma 原始物件
+        val = { ...val, hashKey: "********" };
+      }
+
+      result[item.key] = val;
     });
 
     res.status(200).json({ success: true, settings: result });
@@ -111,7 +120,7 @@ const getAllSettings = async (req, res) => {
 };
 
 /**
- * @description 更新系統設定 (含防呆驗證)
+ * @description 更新系統設定 (含防呆驗證與遮罩還原)
  * @route PUT /api/admin/settings
  */
 const updateSettings = async (req, res) => {
@@ -121,7 +130,6 @@ const updateSettings = async (req, res) => {
     // [Security] 結構驗證邏輯
     for (const [key, value] of Object.entries(updates)) {
       if (key === "rates_config") {
-        // 檢查必要欄位，防止前台計算機崩潰
         if (
           !value.categories ||
           !value.constants ||
@@ -130,16 +138,26 @@ const updateSettings = async (req, res) => {
         ) {
           return res.status(400).json({
             success: false,
-            message:
-              "運費設定 (rates_config) 格式錯誤，缺少 categories 或 constants",
+            message: "運費設定格式錯誤，缺少 categories 或 constants",
           });
         }
       } else if (key === "bank_info") {
         if (!value.bankName || !value.account) {
           return res.status(400).json({
             success: false,
-            message: "銀行設定 (bank_info) 格式錯誤，缺少 bankName 或 account",
+            message: "銀行設定格式錯誤，缺少 bankName 或 account",
           });
+        }
+      } else if (key === "invoice_config") {
+        // [Security] 檢查 Hash Key 是否為遮罩字串
+        if (value.hashKey === "********") {
+          // 如果是遮罩，則從資料庫取出舊的值填回去，避免覆蓋成星號
+          const oldSetting = await prisma.systemSetting.findUnique({
+            where: { key: "invoice_config" },
+          });
+          if (oldSetting && oldSetting.value && oldSetting.value.hashKey) {
+            value.hashKey = oldSetting.value.hashKey;
+          }
         }
       }
     }

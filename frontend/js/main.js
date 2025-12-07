@@ -1,4 +1,4 @@
-// frontend/js/main.js (V20 - 修復 undefined 與欄位對應 - 優化版)
+// frontend/js/main.js (V20 - 修復 undefined 與欄位對應 - 安全優化版)
 
 // --- 前端備案設定 (當後端完全掛掉時使用) ---
 const fallbackSettings = {
@@ -39,10 +39,11 @@ const fallbackSettings = {
     OVERWEIGHT_LIMIT: 100,
     OVERWEIGHT_FEE: 800,
   },
+  // [Security] 移除硬編碼的真實電話與地址，僅作為系統離線時的顯示範例
   warehouseInfo: {
-    address: "广东省东莞市虎门镇龙眼工业路28号139铺",
+    address: "广东省东莞市虎门镇...(請登入後台更新)",
     recipient: "小跑豬+[您的姓名]",
-    phone: "13652554906",
+    phone: "136********", // 已遮蔽，實際資料請由後端 API 取得
     zip: "523920",
   },
   remoteAreas: { 0: ["一般地區"] },
@@ -84,6 +85,7 @@ async function loadPublicSettings() {
     }
   } catch (e) {
     console.warn("API連線失敗，使用備案設定:", e);
+    // 使用備案設定，但已遮蔽敏感資訊
     updateUIWithSettings(fallbackSettings);
   }
 }

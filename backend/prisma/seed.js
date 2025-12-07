@@ -1,17 +1,27 @@
 // backend/prisma/seed.js
+// V2025.Security - 安全化種子腳本
 
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
+require("dotenv").config(); // 確保能讀取 .env
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("🌱 開始執行資料庫種子腳本 (Seeding)...");
 
-  // 1. 設定管理員帳號資訊
-  const adminEmail = "randyhuang1007@gmail.com";
-  const adminPassword = "randy1007";
+  // 1. 設定管理員帳號資訊 (改由環境變數讀取，避免原始碼洩漏)
+  // 若 .env 未設定，則使用預設的安全提示值 (這會導致無法登入，強迫管理者設定)
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
   const adminName = "超級管理員";
+
+  if (!adminEmail || !adminPassword) {
+    console.error(
+      "❌ 錯誤：請先在 backend/.env 檔案中設定 ADMIN_EMAIL 與 ADMIN_PASSWORD"
+    );
+    process.exit(1);
+  }
 
   // 2. 加密密碼
   const salt = await bcrypt.genSalt(10);
