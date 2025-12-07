@@ -11,13 +11,6 @@ const shipmentController = require("../controllers/admin/shipmentController");
 const userController = require("../controllers/admin/userController");
 const reportController = require("../controllers/admin/reportController");
 
-// 保留原有的手動發票控制器引用 (如果它們還在 shipmentController 裡)
-// 這裡我們直接從 shipmentController 引入，因為邏輯相同
-const {
-  manualIssueInvoice,
-  manualVoidInvoice,
-} = require("../controllers/shipmentController");
-
 const { protect, checkPermission } = require("../middleware/authMiddleware.js");
 
 // ==========================================
@@ -166,14 +159,22 @@ router
     shipmentController.getAllShipments
   );
 
-// 發票管理路由 (這部分使用原有的 shipmentController 邏輯)
+// 發票管理路由 (改為使用 admin/shipmentController)
 router
   .route("/shipments/:id/invoice/issue")
-  .post(protect, checkPermission("SHIPMENT_PROCESS"), manualIssueInvoice);
+  .post(
+    protect,
+    checkPermission("SHIPMENT_PROCESS"),
+    shipmentController.manualIssueInvoice
+  );
 
 router
   .route("/shipments/:id/invoice/void")
-  .post(protect, checkPermission("SHIPMENT_PROCESS"), manualVoidInvoice);
+  .post(
+    protect,
+    checkPermission("SHIPMENT_PROCESS"),
+    shipmentController.manualVoidInvoice
+  );
 
 // 單一訂單操作
 router

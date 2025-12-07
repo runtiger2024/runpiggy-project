@@ -357,6 +357,96 @@ const adminDeleteShipment = async (req, res) => {
   }
 };
 
+/**
+ * [NEW] 手動開立發票 (已移入 admin 控制器)
+ */
+const manualIssueInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const shipment = await prisma.shipment.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!shipment) return res.status(404).json({ message: "找不到訂單" });
+    if (shipment.invoiceNumber && shipment.invoiceStatus !== "VOID") {
+      return res
+        .status(400)
+        .json({ message: "此訂單已開立發票，不可重複開立" });
+    }
+
+    const result = await invoiceHelper.createInvoice(shipment, shipment.user);
+
+    if (result.success) {
+      await prisma.shipment.update({
+        where: { id },
+        data: {
+          invoiceNumber: result.invoiceNumber,
+          invoiceDate: result.invoiceDate,
+          invoiceRandomCode: result.randomCode,
+          invoiceStatus: "ISSUED",
+        },
+      });
+      await createLog(
+        req.user.id,
+        "INVOICE_ISSUE",
+        id,
+        `手動開立發票: ${result.invoiceNumber}`
+      );
+      res.json({
+        success: true,
+        message: "發票開立成功",
+        invoiceNumber: result.invoiceNumber,
+      });
+    } else {
+      res.status(400).json({ success: false, message: result.message });
+    }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "系統錯誤" });
+  }
+};
+
+/**
+ * [NEW] 手動作廢發票 (已移入 admin 控制器)
+ */
+const manualVoidInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const shipment = await prisma.shipment.findUnique({ where: { id } });
+
+    if (!shipment || !shipment.invoiceNumber)
+      return res.status(400).json({ message: "此訂單尚未開立發票" });
+    if (shipment.invoiceStatus === "VOID")
+      return res.status(400).json({ message: "發票已作廢" });
+
+    const result = await invoiceHelper.voidInvoice(
+      shipment.invoiceNumber,
+      reason
+    );
+
+    if (result.success) {
+      await prisma.shipment.update({
+        where: { id },
+        data: { invoiceStatus: "VOID" },
+      });
+      await createLog(
+        req.user.id,
+        "INVOICE_VOID",
+        id,
+        `作廢發票: ${shipment.invoiceNumber}`
+      );
+      res.json({ success: true, message: "發票已成功作廢" });
+    } else {
+      res.status(400).json({ success: false, message: result.message });
+    }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "系統錯誤" });
+  }
+};
+
 module.exports = {
   getAllShipments,
   exportShipments,
@@ -365,4 +455,6 @@ module.exports = {
   updateShipmentStatus,
   rejectShipment,
   adminDeleteShipment,
+  manualIssueInvoice,
+  manualVoidInvoice,
 };
