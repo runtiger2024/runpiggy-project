@@ -1,6 +1,8 @@
-// frontend/js/main.js (V20 - 修復 undefined 與欄位對應 - 安全優化版)
+// frontend/js/main.js (V20 - 安全優化版)
 
-// --- 前端備案設定 (當後端完全掛掉時使用) ---
+// --- 前端備案設定 (僅含公開費率結構，不含個資) ---
+// 當後端 API (/api/calculator/config) 無法連線時，前端會使用此設定顯示介面
+// [Security] 已移除真實電話與地址，避免洩漏
 const fallbackSettings = {
   rates: {
     general: {
@@ -39,11 +41,10 @@ const fallbackSettings = {
     OVERWEIGHT_LIMIT: 100,
     OVERWEIGHT_FEE: 800,
   },
-  // [Security] 移除硬編碼的真實電話與地址，僅作為系統離線時的顯示範例
   warehouseInfo: {
-    address: "广东省东莞市虎门镇...(請登入後台更新)",
-    recipient: "小跑豬+[您的姓名]",
-    phone: "136********", // 已遮蔽，實際資料請由後端 API 取得
+    address: "請登入系統查看最新倉庫地址",
+    recipient: "小跑豬+[您的會員名]",
+    phone: "136********", // [Security] 已遮蔽電話
     zip: "523920",
   },
   remoteAreas: { 0: ["一般地區"] },

@@ -1,17 +1,16 @@
 // backend/prisma/seed.js
-// V2025.Security - 安全化種子腳本
+// V2025.Security - 安全化種子腳本 (強制使用環境變數)
 
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
-require("dotenv").config(); // 確保能讀取 .env
+require("dotenv").config();
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("🌱 開始執行資料庫種子腳本 (Seeding)...");
 
-  // 1. 設定管理員帳號資訊 (改由環境變數讀取，避免原始碼洩漏)
-  // 若 .env 未設定，則使用預設的安全提示值 (這會導致無法登入，強迫管理者設定)
+  // [Security] 強制從環境變數讀取，不使用預設值
   const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_PASSWORD;
   const adminName = "超級管理員";
@@ -20,6 +19,8 @@ async function main() {
     console.error(
       "❌ 錯誤：請先在 backend/.env 檔案中設定 ADMIN_EMAIL 與 ADMIN_PASSWORD"
     );
+    console.error("範例: ADMIN_EMAIL=admin@example.com");
+    console.error("範例: ADMIN_PASSWORD=StrongPassword123");
     process.exit(1);
   }
 
@@ -27,9 +28,21 @@ async function main() {
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash(adminPassword, salt);
 
-  // 3. 定義完整的管理權限 (包含新舊版相容)
+  // 3. 定義完整的管理權限
   const allPermissions = [
-    // --- 舊版相容 ---
+    "DASHBOARD_VIEW",
+    "PACKAGE_VIEW",
+    "PACKAGE_EDIT",
+    "PACKAGE_DELETE",
+    "SHIPMENT_VIEW",
+    "SHIPMENT_PROCESS",
+    "FINANCE_AUDIT",
+    "USER_VIEW",
+    "USER_MANAGE",
+    "USER_IMPERSONATE",
+    "SYSTEM_CONFIG",
+    "LOGS_VIEW",
+    // 舊版相容
     "CAN_VIEW_DASHBOARD",
     "CAN_MANAGE_PACKAGES",
     "CAN_MANAGE_SHIPMENTS",
@@ -37,34 +50,14 @@ async function main() {
     "CAN_MANAGE_SYSTEM",
     "CAN_VIEW_LOGS",
     "CAN_IMPERSONATE_USERS",
-
-    // --- V2025 細緻權限 ---
-    "DASHBOARD_VIEW",
-
-    // 包裹
-    "PACKAGE_VIEW",
-    "PACKAGE_EDIT",
-    "PACKAGE_DELETE",
-
-    // 訂單
-    "SHIPMENT_VIEW",
-    "SHIPMENT_PROCESS",
-    "FINANCE_AUDIT",
-
-    // 會員與系統
-    "USER_VIEW",
-    "USER_MANAGE",
-    "USER_IMPERSONATE",
-    "SYSTEM_CONFIG",
-    "LOGS_VIEW",
   ];
 
-  // 4. 使用 upsert (有則更新，無則新增)
+  // 4. 使用 upsert
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
     update: {
       passwordHash: passwordHash,
-      permissions: allPermissions, // 更新權限列表
+      permissions: allPermissions,
       isActive: true,
     },
     create: {
@@ -77,7 +70,6 @@ async function main() {
   });
 
   console.log(`✅ 管理員帳號已就緒: ${admin.email}`);
-  console.log(`🔑 權限已更新為全功能模式`);
 }
 
 main()

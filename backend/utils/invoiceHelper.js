@@ -1,16 +1,17 @@
 // backend/utils/invoiceHelper.js
-// V2025.Security - 修正金鑰硬編碼漏洞
+// V2025.Security - 修正金鑰硬編碼漏洞 (最終版)
 
-const crypto = require("crypto");
 const axios = require("axios");
+const crypto = require("crypto");
+const qs = require("qs");
 const prisma = require("../config/db.js");
 require("dotenv").config();
 
-// AMEGO API 基礎路徑 (可透過環境變數覆寫)
+// AMEGO API 基礎路徑
 const BASE_URL =
   process.env.AMEGO_API_URL || "https://invoice-api.amego.tw/json";
 
-// 從環境變數讀取預設值 (若無設定則為 undefined，絕不使用硬編碼字串)
+// 從環境變數讀取 (若無設定則為 undefined，絕不使用硬編碼字串)
 const ENV_MERCHANT_ID = process.env.AMEGO_MERCHANT_ID;
 const ENV_HASH_KEY = process.env.AMEGO_HASH_KEY;
 
@@ -36,35 +37,18 @@ const getInvoiceConfig = async () => {
           ? JSON.parse(setting.value)
           : setting.value;
 
-      // 只有當資料庫有明確設定時才覆蓋
       if (typeof dbConfig.enabled === "boolean")
         config.enabled = dbConfig.enabled;
       if (dbConfig.mode) config.mode = dbConfig.mode;
+
+      // 若 DB 有值則覆蓋環境變數
       if (dbConfig.merchantId) config.merchantId = dbConfig.merchantId;
       if (dbConfig.hashKey) config.hashKey = dbConfig.hashKey;
     }
   } catch (error) {
-    console.warn(
-      "[Invoice] 讀取設定失敗，將嘗試使用環境變數備案",
-      error.message
-    );
+    console.warn("[Invoice] 讀取設定失敗，使用預設環境變數", error.message);
   }
   return config;
-};
-
-/**
- * AES 加密 (使用 AES-128-CBC)
- * @param {string} data - 要加密的 JSON 字串
- * @param {string} key - HashKey (32 hex chars usually)
- * @param {string} iv - Initialization Vector
- */
-const encrypt = (data, key, iv) => {
-  if (!key) throw new Error("缺少 HashKey，無法進行加密");
-
-  const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
-  let encrypted = cipher.update(data, "utf8", "base64");
-  encrypted += cipher.final("base64");
-  return encrypted;
 };
 
 /**
@@ -77,10 +61,21 @@ const generateSign = (dataJson, time, hashKey) => {
 };
 
 /**
+ * AES 加密 (使用 AES-128-CBC)
+ */
+const encrypt = (data, key, iv) => {
+  if (!key) throw new Error("缺少 HashKey，無法進行加密");
+  const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
+  let encrypted = cipher.update(data, "utf8", "base64");
+  encrypted += cipher.final("base64");
+  return encrypted;
+};
+
+/**
  * 通用 API 請求發送器
  */
 const sendAmegoRequest = async (endpoint, dataObj, config) => {
-  // 安全檢查：絕對禁止在程式碼中硬編碼金鑰
+  // [Security] 安全檢查：絕對禁止在程式碼中硬編碼金鑰
   if (!config.merchantId || !config.hashKey) {
     throw new Error("發票設定不完整：缺少 Merchant ID 或 Hash Key");
   }
@@ -102,18 +97,13 @@ const sendAmegoRequest = async (endpoint, dataObj, config) => {
   const sign = generateSign(dataJson, time, config.hashKey);
 
   // 6. 組建 POST 表單資料
-  const qs = require("qs");
+  // 注意：invoice 參數名稱需依照 AMEGO 文件，通常是 merchant 或 invoice
   const formData = {
-    merchant: config.merchantId, // 注意參數名稱可能為 merchant 或 invoice，依文件為準，此處範例為 merchant
+    merchant: config.merchantId,
     time: time,
     sign: sign,
     data: encryptedData,
   };
-
-  // 某些舊版 API 可能是 invoice 參數
-  // 若文件指定參數名為 'invoice'，請解開下方註解並註解上方 'merchant'
-  // formData.invoice = config.merchantId;
-  // delete formData.merchant;
 
   try {
     console.log(`[Invoice] 發送請求至 ${BASE_URL}${endpoint}`);
@@ -140,16 +130,14 @@ const sendAmegoRequest = async (endpoint, dataObj, config) => {
  */
 const createInvoice = async (shipment, user) => {
   const config = await getInvoiceConfig();
-
-  if (!config.enabled) {
+  if (!config.enabled)
     return { success: false, message: "系統設定：發票功能已關閉" };
-  }
-  if (!config.merchantId || !config.hashKey) {
+
+  if (!config.merchantId || !config.hashKey)
     return {
       success: false,
       message: "API 金鑰未設定 (請檢查後台設定或環境變數)",
     };
-  }
 
   // --- 金額計算邏輯 ---
   const total = Math.round(Number(shipment.totalCost));
