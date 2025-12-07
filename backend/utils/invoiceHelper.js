@@ -1,21 +1,24 @@
 // backend/utils/invoiceHelper.js
-// V2025.Final - 深度修復：對齊 Buy1688 規格 (型別、欄位、金鑰清理)
+// V2025.Final.Fix - 自動修正環境變數 URL 錯誤，解決 400 Bad Request
 
 const axios = require("axios");
 const crypto = require("crypto");
 const prisma = require("../config/db.js");
 require("dotenv").config();
 
-// AMEGO API 基礎路徑
-const BASE_URL =
+// [核心修正] 強制清洗 BASE_URL
+// 無論環境變數填寫 https://invoice-api.amego.tw/json 還是 .../json/f0401
+// 這裡都會強制修正為 https://invoice-api.amego.tw/json (不含尾部斜線)
+const RAW_BASE_URL =
   process.env.AMEGO_API_URL || "https://invoice-api.amego.tw/json";
+const BASE_URL = RAW_BASE_URL.replace(/\/f0401\/?$/, "").replace(/\/$/, "");
 
-// 從環境變數讀取 (預設)
+// 從環境變數讀取
 const ENV_MERCHANT_ID = process.env.AMEGO_MERCHANT_ID;
 const ENV_HASH_KEY = process.env.AMEGO_HASH_KEY;
 
 /**
- * 取得發票設定 (優先讀取資料庫 SystemSetting，並強制去除空白)
+ * 取得發票設定 (優先讀取資料庫 SystemSetting)
  */
 const getInvoiceConfig = async () => {
   let config = {
@@ -59,7 +62,7 @@ const generateSign = (dataString, time, hashKey) => {
 };
 
 /**
- * 字串清理 (移除特殊符號)
+ * 字串清理
  */
 const sanitizeString = (str) => {
   if (!str) return "";
@@ -67,7 +70,7 @@ const sanitizeString = (str) => {
 };
 
 /**
- * 電話清理 (移除 - 與空白，只留數字)
+ * 電話清理
  */
 const sanitizePhone = (str) => {
   if (!str) return "";
@@ -79,20 +82,13 @@ const sanitizePhone = (str) => {
  */
 const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
   if (!config.merchantId || !config.hashKey) {
-    console.error(
-      "[Invoice Error] 缺少 MerchantID 或 HashKey，請檢查 Render 環境變數或後台設定"
-    );
     throw new Error("發票設定不完整：缺少 Merchant ID 或 Hash Key");
   }
 
-  // 1. 轉 JSON 字串 (注意: 物件屬性順序不影響，但值必須精確)
   const dataString = JSON.stringify(dataObj);
   const time = Math.floor(Date.now() / 1000);
-
-  // 2. 產生簽章
   const sign = generateSign(dataString, time, config.hashKey);
 
-  // 3. 組建 Form Data
   const params = new URLSearchParams();
   params.append("MerchantID", config.merchantId);
   params.append("invoice", config.merchantId);
@@ -100,31 +96,29 @@ const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
   params.append("time", time);
   params.append("sign", sign);
 
+  // [修正] 確保 URL 組合正確
+  const fullUrl = `${BASE_URL}${endpoint}`;
+
   try {
-    // 遮蔽金鑰後 Log
-    const maskedKey = config.hashKey.substring(0, 4) + "****";
-    console.log(
-      `[Invoice] 發送: ${merchantOrderNo} -> ${BASE_URL}${endpoint} (ID:${config.merchantId}, Key:${maskedKey})`
-    );
+    console.log(`[Invoice] 發送: ${merchantOrderNo} -> ${fullUrl}`);
+    // console.log(`[Invoice Data]`, dataString); // 除錯用
 
-    const response = await axios.post(`${BASE_URL}${endpoint}`, params);
+    const response = await axios.post(fullUrl, params);
     const result = response.data;
-
-    // Amego 有時回傳 Array，有時回傳 Object
     const respData = Array.isArray(result) ? result[0] : result;
 
-    // [Debug] 若回傳非 JSON 物件 (如純字串 "error")，手動包裝以便除錯
-    if (typeof respData === "string") {
+    // [防呆] 若 API 回傳純字串 "error" 或其他非物件格式
+    if (typeof respData !== "object") {
       console.error(`[Invoice API Fatal] Raw Response: ${respData}`);
-      return { Status: "ERROR", Message: `API 回傳原始錯誤: ${respData}` };
+      throw new Error(`API 回傳異常格式: ${respData} (請檢查網址或參數)`);
     }
 
     return respData;
   } catch (error) {
-    console.error(`[Invoice Network Error] ${error.message}`);
+    console.error(`[Invoice API Error] ${error.message}`);
     if (error.response && error.response.data) {
       console.error(
-        `[Invoice Response Body]`,
+        `[Invoice API Response]`,
         JSON.stringify(error.response.data)
       );
     }
@@ -144,7 +138,7 @@ const createInvoice = async (shipment, user) => {
   const rawTaxId = shipment.taxId ? shipment.taxId.trim() : "";
   const hasTaxId = rawTaxId.length === 8;
 
-  // OrderId: S + ID後15碼 + 時間 (避免長度超過40)
+  // OrderId: S + ID後15碼 + 時間 (避免長度超過限制)
   const unixTime = Math.floor(Date.now() / 1000);
   const shortId = shipment.id.slice(-15);
   const merchantOrderNo = `S${shortId}_${unixTime}`;
@@ -175,16 +169,17 @@ const createInvoice = async (shipment, user) => {
   const productItems = [
     {
       Description: "國際運費",
-      Quantity: 1, // [Fix] Number
+      Quantity: 1,
       Unit: "式",
-      UnitPrice: unitPrice, // [Fix] Number
-      Amount: unitPrice, // [Fix] Number
-      TaxType: 1, // [Fix] Number (Buy1688 uses Number)
+      UnitPrice: unitPrice,
+      Amount: unitPrice,
+      TaxType: 1,
     },
   ];
 
   let carrierType = "";
   let carrierId1 = "";
+
   if (!hasTaxId && shipment.carrierType && shipment.carrierId) {
     const cType = shipment.carrierType;
     const cId = shipment.carrierId;
@@ -204,8 +199,8 @@ const createInvoice = async (shipment, user) => {
     BuyerPhone: sanitizePhone(shipment.phone || ""),
     Print: printMark,
     Donation: "0",
-    TaxType: 1, // [Fix] Number
-    TaxRate: 0.05, // [Fix] Number
+    TaxType: 1, // [對齊 Buy1688] Number
+    TaxRate: 0.05, // [對齊 Buy1688] Number
     SalesAmount: salesAmount,
     TaxAmount: taxAmount,
     TotalAmount: total,
@@ -220,7 +215,7 @@ const createInvoice = async (shipment, user) => {
     CarrierType: carrierType,
     CarrierId1: carrierId1,
     LoveCode: "",
-    CustomerIdentifier: "", // [Fix] 補上此欄位以對齊 Buy1688
+    CustomerIdentifier: "", // [對齊 Buy1688] 補上空字串
   };
 
   try {
@@ -247,8 +242,8 @@ const createInvoice = async (shipment, user) => {
     } else {
       return {
         success: false,
-        message: `API錯誤: ${
-          resData.Message || resData.msg || JSON.stringify(resData)
+        message: `開立失敗: ${
+          resData.Message || resData.msg || "API 回傳錯誤"
         }`,
       };
     }
@@ -312,7 +307,7 @@ const createDepositInvoice = async (transaction, user) => {
   const taxId = user.defaultTaxId ? user.defaultTaxId.trim() : "";
   const hasTaxId = taxId.length === 8;
 
-  // OrderId: DEP + ID後15碼 + 時間 (確保唯一且 < 40字)
+  // OrderId: DEP + ID後15碼 + 時間
   const unixTime = Math.floor(Date.now() / 1000);
   const shortId = transaction.id.slice(-15);
   const merchantOrderNo = `DEP${shortId}_${unixTime}`;
@@ -343,11 +338,11 @@ const createDepositInvoice = async (transaction, user) => {
   const productItems = [
     {
       Description: "運費儲值金",
-      Quantity: 1, // [Fix] Number
+      Quantity: 1,
       Unit: "式",
-      UnitPrice: unitPrice, // [Fix] Number
-      Amount: unitPrice, // [Fix] Number
-      TaxType: 1, // [Fix] Number
+      UnitPrice: unitPrice,
+      Amount: unitPrice,
+      TaxType: 1,
     },
   ];
 
@@ -359,8 +354,8 @@ const createDepositInvoice = async (transaction, user) => {
     BuyerPhone: sanitizePhone(user.phone || ""),
     Print: printMark,
     Donation: "0",
-    TaxType: 1, // [Fix] Number
-    TaxRate: 0.05, // [Fix] Number
+    TaxType: 1,
+    TaxRate: 0.05,
     SalesAmount: salesAmount,
     TaxAmount: taxAmount,
     TotalAmount: total,
@@ -375,7 +370,7 @@ const createDepositInvoice = async (transaction, user) => {
     CarrierType: "",
     CarrierId1: "",
     LoveCode: "",
-    CustomerIdentifier: "", // [Fix] 補上
+    CustomerIdentifier: "",
   };
 
   try {
@@ -401,8 +396,8 @@ const createDepositInvoice = async (transaction, user) => {
     } else {
       return {
         success: false,
-        message: `API錯誤: ${
-          resData.Message || resData.msg || JSON.stringify(resData)
+        message: `開立失敗: ${
+          resData.Message || resData.msg || "API 回傳錯誤"
         }`,
       };
     }
