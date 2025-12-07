@@ -1,5 +1,5 @@
 // frontend/js/dashboard-packages.js
-// V25.5 - 整合認領、批量預報與異常處理
+// V25.6 - Fixed: Added missing handleForecastSubmit
 
 let currentEditPackageImages = [];
 
@@ -42,6 +42,59 @@ document.addEventListener("DOMContentLoaded", () => {
     btnConfirmBulk.addEventListener("click", submitBulkForecast);
   }
 });
+
+// --- [關鍵修復] 新增預報提交處理函式 ---
+window.handleForecastSubmit = async function (e) {
+  e.preventDefault();
+  const btn = e.target.querySelector("button[type='submit']");
+  btn.disabled = true;
+  btn.textContent = "提交中...";
+
+  const fd = new FormData();
+  fd.append("trackingNumber", document.getElementById("trackingNumber").value);
+  fd.append("productName", document.getElementById("productName").value);
+  fd.append("quantity", document.getElementById("quantity").value);
+  fd.append("note", document.getElementById("note").value);
+
+  // 處理圖片 (從 input 或自訂上傳器)
+  const files = document.getElementById("images").files;
+  for (let i = 0; i < files.length; i++) {
+    fd.append("images", files[i]);
+  }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/packages/forecast/images`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${window.dashboardToken}` },
+      body: fd,
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      window.showMessage("預報成功！", "success");
+      e.target.reset();
+
+      // 重置圖片上傳器 UI
+      const imgInput = document.getElementById("images");
+      if (imgInput && imgInput.resetUploader) imgInput.resetUploader();
+
+      window.loadMyPackages();
+
+      // 如果是從試算帶入的，更新佇列
+      if (window.checkForecastDraftQueue) {
+        window.checkForecastDraftQueue(true);
+      }
+    } else {
+      window.showMessage(data.message || "預報失敗", "error");
+    }
+  } catch (err) {
+    console.error(err);
+    window.showMessage("網路錯誤", "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-plus-circle"></i> 提交預報';
+  }
+};
 
 // --- 1. 載入包裹列表 ---
 window.loadMyPackages = async function () {

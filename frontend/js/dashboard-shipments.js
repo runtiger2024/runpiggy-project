@@ -1,5 +1,5 @@
 // frontend/js/dashboard-shipments.js
-// V26.1 - 完整整合版 (保留 UI 細節 + 錢包支付 + 物流軌跡)
+// V26.2 - Fixed: Added renderDeliveryLocations & Cancel Logic
 
 // --- 1. 更新底部結帳條 ---
 window.updateCheckoutBar = function () {
@@ -99,9 +99,8 @@ window.handleCreateShipmentClick = async function () {
   togglePaymentMethod("TRANSFER"); // 確保初始化正確
 
   // 載入偏遠地區選單 (若尚未載入)
-  if (typeof renderDeliveryLocations === "function") {
-    renderDeliveryLocations();
-  }
+  // [Fix] 呼叫已修復的函式
+  renderDeliveryLocations();
 
   // 顯示彈窗
   document.getElementById("create-shipment-modal").style.display = "flex";
@@ -376,7 +375,7 @@ window.togglePaymentMethod = function (method) {
   }
 };
 
-// --- 5. 載入我的集運單列表 (保持原樣) ---
+// --- 5. 載入我的集運單列表 ---
 window.loadMyShipments = async function () {
   const tbody = document.getElementById("shipments-table-body");
   if (!tbody) return;
@@ -399,11 +398,15 @@ window.loadMyShipments = async function () {
         // 動作按鈕邏輯
         let actionsHtml = `<button class="btn btn-sm btn-primary" onclick="window.openShipmentDetails('${s.id}')">詳情</button>`;
 
+        // [Fix] 只有 PENDING_PAYMENT 且使用轉帳 (非WALLET_PAY) 且無憑證時，顯示上傳按鈕
+        // 如果是錢包支付，paymentProof 會是 'WALLET_PAY'，後端已自動處理
         if (s.status === "PENDING_PAYMENT") {
           if (s.paymentProof) {
             actionsHtml += `<span style="font-size:12px; color:#e67e22; display:block; margin-top:5px;">已傳憑證<br>審核中</span>`;
           } else {
-            actionsHtml += `<button class="btn btn-sm btn-secondary" onclick="window.openUploadProof('${s.id}')">上傳憑證</button>`;
+            actionsHtml += `<button class="btn btn-sm btn-secondary" style="margin-top:5px;" onclick="window.openUploadProof('${s.id}')">上傳憑證</button>`;
+            // [New] 取消訂單按鈕
+            actionsHtml += `<button class="btn btn-sm btn-danger" style="margin-top:5px;" onclick="window.cancelShipment('${s.id}')">取消訂單</button>`;
           }
         }
 
@@ -425,7 +428,7 @@ window.loadMyShipments = async function () {
                 <td style="color:#d32f2f; font-weight:bold;">$${(
                   s.totalCost || 0
                 ).toLocaleString()}</td>
-                <td>${actionsHtml}</td>
+                <td><div style="display:flex; flex-direction:column; gap:5px;">${actionsHtml}</div></td>
             </tr>
         `;
       });
@@ -438,7 +441,7 @@ window.loadMyShipments = async function () {
   }
 };
 
-// --- 6. 上傳憑證相關 (保持原樣) ---
+// --- 6. 上傳憑證相關 ---
 window.openUploadProof = function (id) {
   document.getElementById("upload-proof-id").value = id;
   document.getElementById("upload-proof-modal").style.display = "flex";
@@ -557,6 +560,34 @@ window.openShipmentDetails = async function (id) {
   }
 };
 
+// --- [New] 取消訂單邏輯 ---
+window.cancelShipment = async function (id) {
+  if (
+    !confirm(
+      "確定要取消此訂單嗎？\n取消後，包裹將會釋放回「已入庫」狀態，您可以重新打包。"
+    )
+  )
+    return;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/shipments/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${window.dashboardToken}` },
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      alert(data.message);
+      window.loadMyShipments();
+      window.loadMyPackages(); // 包裹釋放了，需更新包裹列表
+    } else {
+      alert(data.message || "取消失敗");
+    }
+  } catch (e) {
+    alert("網路錯誤");
+  }
+};
+
 // --- [New] 渲染物流軌跡 (Timeline) ---
 function renderTimeline(container, currentStatus) {
   // 定義狀態順序
@@ -606,8 +637,9 @@ function renderTimeline(container, currentStatus) {
   container.innerHTML = html;
 }
 
-// --- 輔助：渲染偏遠地區選單 (保持原樣) ---
-function renderDeliveryLocations() {
+// --- [關鍵修復] 渲染偏遠地區選單 ---
+// 必須定義為 window.renderDeliveryLocations 以便外部呼叫
+window.renderDeliveryLocations = function () {
   const select = document.getElementById("ship-delivery-location");
   if (!select || select.options.length > 1) return; // 避免重複渲染
 
@@ -627,7 +659,7 @@ function renderDeliveryLocations() {
     });
   }
   select.innerHTML = html;
-}
+};
 
 // [UI 保留] 附加服務 UI 連動邏輯
 document.addEventListener("DOMContentLoaded", () => {
