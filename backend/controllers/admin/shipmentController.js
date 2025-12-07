@@ -1,5 +1,5 @@
 // backend/controllers/admin/shipmentController.js
-// V13.4 - Fix Invoice Duplication on Wallet Pay
+// V13.5 - Fix: Auto refund for Cancelled/Rejected Wallet Orders
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
@@ -92,10 +92,6 @@ const bulkUpdateShipmentStatus = async (req, res) => {
       for (const ship of shipments) {
         let updateData = { status: "PROCESSING" };
 
-        // [核心判斷] 是否需要開立發票？
-        // 條件 1: 尚未開立
-        // 條件 2: 金額 > 0
-        // 條件 3: 付款方式不是 'WALLET_PAY' (錢包支付)
         const isWalletPay = ship.paymentProof === "WALLET_PAY";
 
         if (
@@ -104,7 +100,6 @@ const bulkUpdateShipmentStatus = async (req, res) => {
           ship.invoiceStatus !== "VOID" &&
           !isWalletPay
         ) {
-          // 這是轉帳付款，需要開立發票
           const result = await invoiceHelper.createInvoice(ship, ship.user);
           if (result.success) {
             updateData.invoiceNumber = result.invoiceNumber;
@@ -243,6 +238,28 @@ const updateShipmentStatus = async (req, res) => {
 
     if (status === "CANCELLED") {
       const result = await prisma.$transaction(async (tx) => {
+        // [New] 自動退款邏輯 (若為錢包支付)
+        if (
+          originalShipment.paymentProof === "WALLET_PAY" &&
+          originalShipment.totalCost > 0
+        ) {
+          // 建立退款交易
+          await tx.transaction.create({
+            data: {
+              wallet: { connect: { userId: originalShipment.userId } },
+              amount: originalShipment.totalCost,
+              type: "REFUND",
+              status: "COMPLETED",
+              description: `訂單取消退款 (${originalShipment.id})`,
+            },
+          });
+          // 返還餘額
+          await tx.wallet.update({
+            where: { userId: originalShipment.userId },
+            data: { balance: { increment: originalShipment.totalCost } },
+          });
+        }
+
         const released = await tx.package.updateMany({
           where: { shipmentId: id },
           data: { status: "ARRIVED", shipmentId: null },
@@ -253,20 +270,22 @@ const updateShipmentStatus = async (req, res) => {
         });
         return { shipment: updatedShipment, count: released.count };
       });
+
+      const refundMsg =
+        originalShipment.paymentProof === "WALLET_PAY" ? " (已退款)" : "";
       await createLog(
         req.user.id,
         "UPDATE_SHIPMENT",
         id,
-        `訂單取消，已釋放 ${result.count} 件包裹`
+        `訂單取消，已釋放 ${result.count} 件包裹${refundMsg}`
       );
       return res.status(200).json({
         success: true,
         shipment: result.shipment,
-        message: `訂單已取消，並成功釋放 ${result.count} 件包裹回倉庫`,
+        message: `訂單已取消，釋放 ${result.count} 件包裹${refundMsg}`,
       });
     }
 
-    // 單筆操作時也要檢查是否為錢包支付
     const isWalletPay = originalShipment.paymentProof === "WALLET_PAY";
 
     if (
@@ -320,7 +339,44 @@ const updateShipmentStatus = async (req, res) => {
 const rejectShipment = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // [Fix] 先查詢訂單以判斷付款方式
+    const shipment = await prisma.shipment.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        paymentProof: true,
+        totalCost: true,
+        status: true,
+      },
+    });
+
+    if (!shipment)
+      return res.status(404).json({ success: false, message: "找不到訂單" });
+    if (shipment.status === "CANCELLED")
+      return res
+        .status(400)
+        .json({ success: false, message: "訂單已取消，請勿重複操作" });
+
     const result = await prisma.$transaction(async (tx) => {
+      // [New] 自動退款邏輯 (若為錢包支付)
+      if (shipment.paymentProof === "WALLET_PAY" && shipment.totalCost > 0) {
+        await tx.transaction.create({
+          data: {
+            wallet: { connect: { userId: shipment.userId } },
+            amount: shipment.totalCost,
+            type: "REFUND",
+            status: "COMPLETED",
+            description: `訂單駁回退款 (${shipment.id})`,
+          },
+        });
+        await tx.wallet.update({
+          where: { userId: shipment.userId },
+          data: { balance: { increment: shipment.totalCost } },
+        });
+      }
+
       const updated = await tx.shipment.update({
         where: { id },
         data: { status: "CANCELLED" },
@@ -331,13 +387,18 @@ const rejectShipment = async (req, res) => {
       });
       return { count: released.count };
     });
+
+    const refundMsg =
+      shipment.paymentProof === "WALLET_PAY" ? " (已退款至錢包)" : "";
     await createLog(
       req.user.id,
       "REJECT_SHIPMENT",
       id,
-      `釋放${result.count}件包裹`
+      `釋放${result.count}件包裹${refundMsg}`
     );
-    res.status(200).json({ success: true, message: "已退回並釋放包裹" });
+    res
+      .status(200)
+      .json({ success: true, message: `已退回並釋放包裹${refundMsg}` });
   } catch (e) {
     res.status(500).json({ success: false, message: "退回失敗" });
   }
@@ -372,10 +433,6 @@ const adminDeleteShipment = async (req, res) => {
   }
 };
 
-/**
- * 手動開立發票
- * [Fix] 增加檢查：若是錢包支付 (WALLET_PAY) 則禁止開立，避免與儲值發票重複
- */
 const manualIssueInvoice = async (req, res) => {
   try {
     const { id } = req.params;
@@ -386,15 +443,12 @@ const manualIssueInvoice = async (req, res) => {
 
     if (!shipment) return res.status(404).json({ message: "找不到訂單" });
 
-    // 1. 檢查是否已開立
     if (shipment.invoiceNumber && shipment.invoiceStatus !== "VOID") {
       return res
         .status(400)
         .json({ message: "此訂單已開立發票，不可重複開立" });
     }
 
-    // 2. [關鍵修復] 檢查是否為錢包支付
-    // 錢包支付的發票已在「儲值階段」開立，此處集運單不應再開立，否則重複報稅
     if (shipment.paymentProof === "WALLET_PAY") {
       return res.status(400).json({
         message:
@@ -434,9 +488,6 @@ const manualIssueInvoice = async (req, res) => {
   }
 };
 
-/**
- * 手動作廢發票
- */
 const manualVoidInvoice = async (req, res) => {
   try {
     const { id } = req.params;
