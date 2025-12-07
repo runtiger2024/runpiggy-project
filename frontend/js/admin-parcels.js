@@ -257,7 +257,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- Modal 操作 ---
-  window.openEditModal = function (pkgStr) {
+  // [修正] 改為函式宣告，使其可被提升 (Hoisting)，解決 ReferenceError
+  function openEditModal(pkgStr) {
     isCreateMode = false;
     const pkg = JSON.parse(decodeURIComponent(pkgStr));
 
@@ -295,9 +296,12 @@ document.addEventListener("DOMContentLoaded", () => {
     renderImages(currentExistingImages);
 
     modal.style.display = "flex";
-  };
+  }
+  // [修正] 將函式掛載回 window，供 HTML onclick 使用
+  window.openEditModal = openEditModal;
 
-  window.openCreateModal = function () {
+  // [修正] 改為函式宣告，使其可被提升
+  function openCreateModal() {
     isCreateMode = true;
     document.getElementById("modal-title").textContent = "代客預報 (新增包裹)";
     form.reset();
@@ -312,7 +316,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-status").value = "PENDING";
 
     modal.style.display = "flex";
-  };
+  }
+  // [修正] 將函式掛載回 window
+  window.openCreateModal = openCreateModal;
 
   function renderSubPackages() {
     const list = document.getElementById("sub-package-list");
