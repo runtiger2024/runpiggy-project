@@ -1,5 +1,5 @@
 // backend/controllers/settingsController.js
-// V2025.Security - 支援設定結構驗證與敏感資料遮罩
+// V2025.Security - 修正金鑰洩漏與支援遮罩邏輯
 
 const prisma = require("../config/db.js");
 const ratesManager = require("../utils/ratesManager.js");
@@ -25,6 +25,7 @@ const seedDefaultSettings = async () => {
   }
 
   // 2. 遷移發票設定
+  // 注意：這裡只讀取環境變數作為初始值，若無環境變數則為空字串，絕不寫入硬編碼金鑰
   configs.push({
     key: "invoice_config",
     value: {
@@ -32,7 +33,7 @@ const seedDefaultSettings = async () => {
       hashKey: process.env.AMEGO_HASH_KEY || "",
       apiUrl:
         process.env.AMEGO_API_URL || "https://invoice-api.amego.tw/json/f0401",
-      enabled: true,
+      enabled: false,
       notifyEmail: true,
     },
     category: "INVOICE",
@@ -100,12 +101,12 @@ const getAllSettings = async (req, res) => {
 
     const result = {};
     settingsList.forEach((item) => {
-      // 複製一份 value 以便修改
       let val = item.value;
 
-      // [Security] 對敏感欄位進行遮罩，防止前端直接讀取明文
+      // [Security Fix] 關鍵修正：針對 invoice_config 的 hashKey 進行遮罩
+      // 防止後端 API 直接將金鑰明文傳送給前端
       if (item.key === "invoice_config" && val && val.hashKey) {
-        // 使用展開運算符淺拷貝，避免修改到 Prisma 原始物件
+        // 使用淺拷貝避免修改原始物件，並將 hashKey 替換為遮罩字元
         val = { ...val, hashKey: "********" };
       }
 
@@ -127,8 +128,9 @@ const updateSettings = async (req, res) => {
   try {
     const updates = req.body; // 預期格式: { key: value, key2: value2 }
 
-    // [Security] 結構驗證邏輯
+    // [Security] 結構驗證與遮罩還原邏輯
     for (const [key, value] of Object.entries(updates)) {
+      // 1. 運費設定檢查
       if (key === "rates_config") {
         if (
           !value.categories ||
@@ -141,22 +143,30 @@ const updateSettings = async (req, res) => {
             message: "運費設定格式錯誤，缺少 categories 或 constants",
           });
         }
-      } else if (key === "bank_info") {
+      }
+      // 2. 銀行設定檢查
+      else if (key === "bank_info") {
         if (!value.bankName || !value.account) {
           return res.status(400).json({
             success: false,
             message: "銀行設定格式錯誤，缺少 bankName 或 account",
           });
         }
-      } else if (key === "invoice_config") {
-        // [Security] 檢查 Hash Key 是否為遮罩字串
+      }
+      // 3. 發票設定檢查 (還原遮罩)
+      else if (key === "invoice_config") {
+        // 如果前端回傳的是遮罩字串，表示使用者沒有修改金鑰
         if (value.hashKey === "********") {
-          // 如果是遮罩，則從資料庫取出舊的值填回去，避免覆蓋成星號
+          // 從資料庫取出舊的設定
           const oldSetting = await prisma.systemSetting.findUnique({
             where: { key: "invoice_config" },
           });
+          // 將舊的金鑰填回去
           if (oldSetting && oldSetting.value && oldSetting.value.hashKey) {
             value.hashKey = oldSetting.value.hashKey;
+          } else {
+            // 如果資料庫本來就沒金鑰，則設為空字串，避免寫入 "********"
+            value.hashKey = "";
           }
         }
       }
