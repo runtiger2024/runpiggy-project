@@ -8,8 +8,7 @@ const invoiceHelper = require("../utils/invoiceHelper.js");
 const createLog = require("../utils/createLog.js");
 const { deleteFiles } = require("../utils/adminHelpers.js");
 
-// ... (calculateShipmentDetails, previewShipmentCost, createShipment, getMyShipments 保持不變)
-
+// ... (calculateShipmentDetails 保持不變)
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   const CONSTANTS = rates.constants;
   const CATEGORIES = rates.categories;
@@ -124,7 +123,7 @@ const createShipment = async (req, res) => {
       recipientName,
       phone,
       idNumber,
-      // taxId, // [Removed]
+      // taxId, // [Removed] - 客戶建立時不輸入，改為上傳憑證時輸入
       // invoiceTitle, // [Removed]
       carrierType,
       carrierId,
@@ -324,12 +323,10 @@ const uploadPaymentProof = async (req, res) => {
       // 刪除已上傳的暫存檔案避免佔用
       const fs = require("fs");
       fs.unlink(req.file.path, () => {});
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "填寫統一編號時，公司抬頭為必填項目",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "填寫統一編號時，公司抬頭為必填項目",
+      });
     }
 
     const shipment = await prisma.shipment.findFirst({
@@ -342,6 +339,7 @@ const uploadPaymentProof = async (req, res) => {
       paymentProof: `/uploads/${req.file.filename}`,
     };
 
+    // [Sync] 將客戶填寫的資料寫入資料庫，後台即可見
     if (taxId !== undefined) updateData.taxId = taxId;
     if (invoiceTitle !== undefined) updateData.invoiceTitle = invoiceTitle;
 

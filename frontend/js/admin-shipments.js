@@ -257,6 +257,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("m-user").textContent =
       s.user?.name || s.user?.email;
 
+    // [Sync] 這裡會自動帶入後端傳來的 taxId 與 invoiceTitle
     document.getElementById("m-tax-id").value = s.taxId || "";
     document.getElementById("m-invoice-title").value = s.invoiceTitle || "";
 

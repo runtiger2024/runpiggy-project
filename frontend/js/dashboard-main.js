@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V27.1 - Added Invoice Validation on Proof Upload
+// V27.2 - Added Tax ID & Invoice Title Validation for Payment Proof
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -225,7 +225,7 @@ function bindGlobalButtons() {
     });
   }
 
-  // [NEW] 錢包快速捷徑點擊事件
+  // 錢包快速捷徑點擊事件
   const btnQuickWallet = document.getElementById("btn-quick-wallet");
   if (btnQuickWallet) {
     btnQuickWallet.addEventListener("click", () => {
@@ -234,7 +234,6 @@ function bindGlobalButtons() {
       if (tabWallet) tabWallet.click();
 
       // 2. 平滑捲動至錢包區塊
-      // 延遲一點點確保 display: block 已生效
       setTimeout(() => {
         const section = document.getElementById("wallet-section");
         if (section) {
