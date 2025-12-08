@@ -1,5 +1,5 @@
 // backend/utils/invoiceHelper.js
-// V2025.Final.Fix2 - 支援交易紀錄(儲值)的專屬統編
+// V2025.Fixed - 修復 B2B SalesAmount 計算錯誤
 
 const axios = require("axios");
 const crypto = require("crypto");
@@ -103,6 +103,15 @@ const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
     const result = response.data;
     const respData = Array.isArray(result) ? result[0] : result;
 
+    // Amego 有時會回傳字串類型的 JSON，需再次解析 (防呆)
+    if (typeof respData === "string") {
+      try {
+        return JSON.parse(respData);
+      } catch (e) {
+        return respData;
+      }
+    }
+
     if (typeof respData !== "object") {
       console.error(`[Invoice API Fatal] Raw Response: ${respData}`);
       throw new Error(`API 回傳異常格式: ${respData} (請檢查網址或參數)`);
@@ -145,17 +154,17 @@ const createInvoice = async (shipment, user) => {
   let printMark = "0";
 
   if (hasTaxId) {
-    // B2B
+    // B2B: 強制拆分 Sales = Total / 1.05
     printMark = "1";
     salesAmount = Math.round(total / 1.05);
     taxAmount = total - salesAmount;
-    unitPrice = salesAmount;
+    unitPrice = salesAmount; // B2B 單價為未稅價
   } else {
-    // B2C
+    // B2C: 總額含稅
     printMark = "0";
     salesAmount = total;
     taxAmount = 0;
-    unitPrice = total;
+    unitPrice = total; // B2C 單價為含稅價
   }
 
   const buyerId = hasTaxId ? rawTaxId : "0000000000";
@@ -307,7 +316,7 @@ const createDepositInvoice = async (transaction, user) => {
 
   const total = Math.round(transaction.amount);
 
-  // [優先權修正] 優先使用該筆交易 (Transaction) 紀錄的統編，其次才是使用者的預設值 (User)
+  // [Fix] 確保讀取交易紀錄中的統編
   const txTaxId = transaction.taxId ? transaction.taxId.trim() : "";
   const userTaxId = user.defaultTaxId ? user.defaultTaxId.trim() : "";
   const rawTaxId = txTaxId || userTaxId;
@@ -324,11 +333,13 @@ const createDepositInvoice = async (transaction, user) => {
   let printMark = "0";
 
   if (hasTaxId) {
+    // B2B: 強制拆分 Sales = Total / 1.05
     printMark = "1";
     salesAmount = Math.round(total / 1.05);
     taxAmount = total - salesAmount;
     unitPrice = salesAmount;
   } else {
+    // B2C: 總額含稅
     printMark = "0";
     salesAmount = total;
     taxAmount = 0;
@@ -337,7 +348,6 @@ const createDepositInvoice = async (transaction, user) => {
 
   const buyerId = hasTaxId ? rawTaxId : "0000000000";
 
-  // [優先權修正] 抬頭同理
   let buyerName = "";
   if (hasTaxId) {
     buyerName =
