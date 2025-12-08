@@ -1,5 +1,5 @@
 // backend/prisma/seed.js
-// V2025.Security.Unclaimed - 安全化種子腳本 (含無主帳號初始化)
+// V2025.Security.Unclaimed.Fix - 修正移除不存在的 role 欄位
 
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
@@ -13,7 +13,6 @@ async function main() {
   // ==========================================
   // 1. 設定管理員 (Admin)
   // ==========================================
-  // [Security] 強制從環境變數讀取，不使用預設值以策安全
   const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_PASSWORD;
   const adminName = "超級管理員";
@@ -22,8 +21,6 @@ async function main() {
     console.error(
       "❌ 錯誤：請先在 backend/.env 檔案中設定 ADMIN_EMAIL 與 ADMIN_PASSWORD"
     );
-    console.error("範例: ADMIN_EMAIL=admin@example.com");
-    console.error("範例: ADMIN_PASSWORD=StrongPassword123");
     process.exit(1);
   }
 
@@ -55,14 +52,13 @@ async function main() {
     "CAN_IMPERSONATE_USERS",
   ];
 
-  // 建立或更新管理員
+  // 建立或更新管理員 (移除 role 欄位)
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
     update: {
       passwordHash: adminHash,
       permissions: allPermissions,
       isActive: true,
-      role: "ADMIN",
     },
     create: {
       email: adminEmail,
@@ -70,7 +66,6 @@ async function main() {
       passwordHash: adminHash,
       permissions: allPermissions,
       isActive: true,
-      role: "ADMIN",
     },
   });
 
@@ -79,30 +74,24 @@ async function main() {
   // ==========================================
   // 2. 設定無主包裹專用帳號 (Unclaimed User)
   // ==========================================
-  // 這是一個系統帳號，所有無主件都歸屬於此 user ID，方便後續查詢與認領
   const unclaimedEmail = "unclaimed@runpiggy.com";
   const unclaimedName = "無主包裹庫存";
-  // 密碼隨機或固定皆可，此帳號不應登入，僅作資料歸屬使用
   const unclaimedPassword =
     process.env.UNCLAIMED_PASSWORD || "UnclaimedStorage2025!";
   const unclaimedHash = await bcrypt.hash(unclaimedPassword, salt);
 
+  // 建立或更新無主帳號 (移除 role 欄位)
   const unclaimedUser = await prisma.user.upsert({
     where: { email: unclaimedEmail },
     update: {
-      // 確保名稱正確，方便前端辨識
       name: unclaimedName,
-      // 確保角色是一般會員 (CLIENT)，避免擁有後台權限
-      role: "CLIENT",
       isActive: true,
-      // 清空權限
-      permissions: [],
+      permissions: [], // 一般用戶無後台權限
     },
     create: {
       email: unclaimedEmail,
       name: unclaimedName,
       passwordHash: unclaimedHash,
-      role: "CLIENT",
       isActive: true,
       permissions: [],
     },
@@ -116,6 +105,8 @@ async function main() {
   if (process.env.NODE_ENV === "development") {
     const testEmail = "user@example.com";
     const testHash = await bcrypt.hash("123456", salt);
+
+    // 建立或更新測試會員 (移除 role 欄位)
     await prisma.user.upsert({
       where: { email: testEmail },
       update: {},
@@ -123,7 +114,7 @@ async function main() {
         email: testEmail,
         name: "測試會員",
         passwordHash: testHash,
-        role: "CLIENT",
+        permissions: [],
       },
     });
     console.log(`👤 開發用測試會員已就緒: ${testEmail}`);
