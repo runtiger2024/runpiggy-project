@@ -1,14 +1,12 @@
 // backend/utils/invoiceHelper.js
-// V2025.Final.Fix - 自動修正環境變數 URL 錯誤，解決 400 Bad Request & B2B 統編計算修正
+// V2025.Final.Fix2 - 支援交易紀錄(儲值)的專屬統編
 
 const axios = require("axios");
 const crypto = require("crypto");
 const prisma = require("../config/db.js");
 require("dotenv").config();
 
-// [核心修正] 強制清洗 BASE_URL
-// 無論環境變數填寫 https://invoice-api.amego.tw/json 還是 .../json/f0401
-// 這裡都會強制修正為 https://invoice-api.amego.tw/json (不含尾部斜線)
+// 強制清洗 BASE_URL
 const RAW_BASE_URL =
   process.env.AMEGO_API_URL || "https://invoice-api.amego.tw/json";
 const BASE_URL = RAW_BASE_URL.replace(/\/f0401\/?$/, "").replace(/\/$/, "");
@@ -96,7 +94,6 @@ const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
   params.append("time", time);
   params.append("sign", sign);
 
-  // [修正] 確保 URL 組合正確
   const fullUrl = `${BASE_URL}${endpoint}`;
 
   try {
@@ -106,7 +103,6 @@ const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
     const result = response.data;
     const respData = Array.isArray(result) ? result[0] : result;
 
-    // [防呆] 若 API 回傳純字串 "error" 或其他非物件格式
     if (typeof respData !== "object") {
       console.error(`[Invoice API Fatal] Raw Response: ${respData}`);
       throw new Error(`API 回傳異常格式: ${respData} (請檢查網址或參數)`);
@@ -135,12 +131,10 @@ const createInvoice = async (shipment, user) => {
 
   const total = Math.round(Number(shipment.totalCost));
 
-  // [B2B 統編處理修正]
+  // [B2B 統編處理]
   const rawTaxId = shipment.taxId ? shipment.taxId.trim() : "";
-  // 嚴格檢查：必須是8位數字
   const hasTaxId = /^[0-9]{8}$/.test(rawTaxId);
 
-  // OrderId: S + ID後15碼 + 時間 (避免長度超過限制)
   const unixTime = Math.floor(Date.now() / 1000);
   const shortId = shipment.id.slice(-15);
   const merchantOrderNo = `S${shortId}_${unixTime}`;
@@ -151,24 +145,21 @@ const createInvoice = async (shipment, user) => {
   let printMark = "0";
 
   if (hasTaxId) {
-    // B2B (公司戶)
-    printMark = "1"; // 強制列印
-    // 公式：銷售額 = 總金額 / 1.05 (四捨五入)
+    // B2B
+    printMark = "1";
     salesAmount = Math.round(total / 1.05);
-    // 公式：稅額 = 總金額 - 銷售額 (確保相加等於總額)
     taxAmount = total - salesAmount;
-    unitPrice = salesAmount; // B2B 單價為未稅價
+    unitPrice = salesAmount;
   } else {
-    // B2C (個人戶)
+    // B2C
     printMark = "0";
     salesAmount = total;
-    taxAmount = 0; // 零稅率或內含 (Amego 建議 B2C 稅額帶 0)
-    unitPrice = total; // B2C 單價為含稅價
+    taxAmount = 0;
+    unitPrice = total;
   }
 
   const buyerId = hasTaxId ? rawTaxId : "0000000000";
 
-  // [修正] 若有統編但沒有抬頭，嘗試使用收件人姓名，或給予預設值
   let buyerName = "";
   if (hasTaxId) {
     buyerName = shipment.invoiceTitle || shipment.recipientName || "貴公司";
@@ -308,7 +299,7 @@ const voidInvoice = async (invoiceNumber, reason = "訂單取消") => {
 };
 
 /**
- * 3. 儲值發票
+ * 3. 儲值發票 (優先使用交易紀錄中的統編)
  */
 const createDepositInvoice = async (transaction, user) => {
   const config = await getInvoiceConfig();
@@ -316,11 +307,13 @@ const createDepositInvoice = async (transaction, user) => {
 
   const total = Math.round(transaction.amount);
 
-  // [B2B 儲值發票修正]
-  const rawTaxId = user.defaultTaxId ? user.defaultTaxId.trim() : "";
+  // [優先權修正] 優先使用該筆交易 (Transaction) 紀錄的統編，其次才是使用者的預設值 (User)
+  const txTaxId = transaction.taxId ? transaction.taxId.trim() : "";
+  const userTaxId = user.defaultTaxId ? user.defaultTaxId.trim() : "";
+  const rawTaxId = txTaxId || userTaxId;
+
   const hasTaxId = /^[0-9]{8}$/.test(rawTaxId);
 
-  // OrderId: DEP + ID後15碼 + 時間
   const unixTime = Math.floor(Date.now() / 1000);
   const shortId = transaction.id.slice(-15);
   const merchantOrderNo = `DEP${shortId}_${unixTime}`;
@@ -343,9 +336,15 @@ const createDepositInvoice = async (transaction, user) => {
   }
 
   const buyerId = hasTaxId ? rawTaxId : "0000000000";
+
+  // [優先權修正] 抬頭同理
   let buyerName = "";
   if (hasTaxId) {
-    buyerName = user.defaultInvoiceTitle || user.name || "貴公司";
+    buyerName =
+      transaction.invoiceTitle ||
+      user.defaultInvoiceTitle ||
+      user.name ||
+      "貴公司";
   } else {
     buyerName = user.name || "會員儲值";
   }

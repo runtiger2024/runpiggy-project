@@ -473,7 +473,36 @@
         </div>
         <input type="hidden" id="upload-proof-id" />
         <form id="upload-proof-form">
+          <div
+            class="form-group"
+            style="background: #e8f0fe; padding: 10px; border-radius: 5px"
+          >
+            <label style="color: #1a73e8; font-size: 13px; font-weight: bold"
+              >📝 統一編號 (如需修改請填寫)</label
+            >
+            <div style="display: flex; gap: 10px">
+              <input
+                type="text"
+                id="proof-taxId"
+                class="form-control"
+                placeholder="統編 (8碼)"
+                style="font-size: 13px"
+              />
+              <input
+                type="text"
+                id="proof-invoiceTitle"
+                class="form-control"
+                placeholder="公司抬頭"
+                style="font-size: 13px"
+              />
+            </div>
+            <small style="color: #666; font-size: 11px"
+              >※ 若此處留空，將使用訂單建立時的資料。</small
+            >
+          </div>
+
           <div class="form-group">
+            <label class="required">轉帳截圖</label>
             <input
               type="file"
               id="proof-file"
@@ -482,7 +511,7 @@
               required
             />
           </div>
-          <button type="submit" class="btn btn-primary">上傳</button>
+          <button type="submit" class="btn btn-primary">確認上傳</button>
         </form>
       </div>
     </div>
@@ -684,4 +713,3 @@
     </script>
   </body>
 </html>
-}

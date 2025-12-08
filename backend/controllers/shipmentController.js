@@ -1,12 +1,12 @@
 // backend/controllers/shipmentController.js
-// V13.3 - Added carrier info support for Invoice
+// V13.7 - 支援上傳憑證時更新統編與完整訂單管理
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
 const ratesManager = require("../utils/ratesManager.js");
-const invoiceHelper = require("../utils/invoiceHelper.js"); // 確保引入 invoiceHelper
+const invoiceHelper = require("../utils/invoiceHelper.js");
 const createLog = require("../utils/createLog.js");
-const { deleteFiles } = require("../utils/adminHelpers.js"); // 補上 deleteFiles 引用
+const { deleteFiles } = require("../utils/adminHelpers.js");
 
 // --- 運費計算邏輯 (保持原樣) ---
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
@@ -125,7 +125,6 @@ const createShipment = async (req, res) => {
       idNumber,
       taxId,
       invoiceTitle,
-      // [新增] 接收載具參數
       carrierType,
       carrierId,
       note,
@@ -195,13 +194,11 @@ const createShipment = async (req, res) => {
       shipmentStatus = "PROCESSING"; // 錢包扣款成功直接轉處理中
     }
 
-    // [Fix] 使用 Transaction 確保扣款原子性
+    // 使用 Transaction 確保扣款原子性
     const newShipment = await prisma.$transaction(async (tx) => {
       let txRecord = null;
 
       if (isWalletPay) {
-        // [Security Fix] 關鍵修正：
-        // 利用 update 的 where 條件確保餘額足夠 (Optimistic Locking)
         try {
           await tx.wallet.update({
             where: {
@@ -237,10 +234,8 @@ const createShipment = async (req, res) => {
           idNumber,
           taxId: taxId || null,
           invoiceTitle: invoiceTitle || null,
-          // [新增] 寫入載具資料
           carrierType: carrierType || null,
           carrierId: carrierId || null,
-
           note: note || null,
           additionalServices: finalAdditionalServices,
           totalCost: calcResult.totalCost,
@@ -263,12 +258,10 @@ const createShipment = async (req, res) => {
       return createdShipment;
     });
 
-    // 寄信通知 (非關鍵路徑，放在 tx 外)
+    // 寄信通知
     try {
       await sendNewShipmentNotification(newShipment, req.user);
     } catch (e) {}
-
-    // 如果是錢包支付，這裡可以考慮自動觸發開立發票 (目前邏輯是批次處理或後台手動)
 
     res.status(201).json({
       success: true,
@@ -323,10 +316,17 @@ const getMyShipments = async (req, res) => {
   }
 };
 
+/**
+ * [Updated] 上傳付款憑證 (支援更新統編)
+ * @route PUT /api/shipments/:id/payment
+ */
 const uploadPaymentProof = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    // [New] 接收額外欄位
+    const { taxId, invoiceTitle } = req.body;
+
     if (!req.file)
       return res.status(400).json({ success: false, message: "請選擇圖片" });
 
@@ -336,9 +336,18 @@ const uploadPaymentProof = async (req, res) => {
     if (!shipment)
       return res.status(404).json({ success: false, message: "找不到集運單" });
 
+    // 準備更新資料
+    const updateData = {
+      paymentProof: `/uploads/${req.file.filename}`,
+    };
+
+    // 如果使用者有填寫統編，則更新
+    if (taxId !== undefined) updateData.taxId = taxId;
+    if (invoiceTitle !== undefined) updateData.invoiceTitle = invoiceTitle;
+
     const updatedShipment = await prisma.shipment.update({
       where: { id: id },
-      data: { paymentProof: `/uploads/${req.file.filename}` },
+      data: updateData,
     });
     res
       .status(200)
@@ -352,7 +361,6 @@ const getShipmentById = async (req, res) => {
   try {
     const { id } = req.params;
     const user = req.user;
-    // 簡單權限檢查：是否為管理員
     const isAdmin =
       user.permissions &&
       (user.permissions.includes("CAN_MANAGE_SHIPMENTS") ||

@@ -1,6 +1,6 @@
 // frontend/js/dashboard-wallet.js
 // 負責錢包餘額、交易紀錄與儲值功能
-// V25.8 - Added Global Balance Sync
+// V26.0 - Transaction UI Colors & Deposit Tax ID
 
 // --- 函式定義 ---
 
@@ -47,7 +47,6 @@ window.loadWalletData = async function () {
   await window.updateGlobalWalletDisplay();
 
   try {
-    // 再次呼叫是為了拿交易紀錄 (其實可以用同一個 API，但分開比較單純)
     const res = await fetch(`${API_BASE_URL}/api/wallet/my`, {
       headers: { Authorization: `Bearer ${window.dashboardToken}` },
     });
@@ -63,6 +62,7 @@ window.loadWalletData = async function () {
   }
 };
 
+// [UI 優化] 交易列表渲染 (新增顏色與圖示)
 function renderTransactions(txs) {
   const listEl = document.getElementById("transaction-list");
   if (!listEl) return;
@@ -79,36 +79,78 @@ function renderTransactions(txs) {
     REJECTED: { text: "已駁回", class: "status-CANCELLED" },
   };
 
-  const typeMap = {
-    DEPOSIT: "儲值",
-    PAYMENT: "支付運費",
-    REFUND: "退款",
-    ADJUST: "系統調整",
+  // 定義不同類型的視覺樣式
+  const typeConfig = {
+    DEPOSIT: {
+      label: "儲值",
+      icon: "fa-arrow-up",
+      color: "#28a745",
+      bg: "#e6f9ec",
+    }, // 綠色
+    PAYMENT: {
+      label: "支付",
+      icon: "fa-shopping-cart",
+      color: "#d32f2f",
+      bg: "#ffebee",
+    }, // 紅色
+    REFUND: { label: "退款", icon: "fa-undo", color: "#17a2b8", bg: "#e0f7fa" }, // 藍色
+    ADJUST: { label: "調整", icon: "fa-cog", color: "#6c757d", bg: "#f8f9fa" }, // 灰色
   };
 
   let html = "";
   txs.forEach((tx) => {
     const statusObj = statusMap[tx.status] || { text: tx.status, class: "" };
-    const typeText = typeMap[tx.type] || tx.type;
+
+    // 設定類型樣式，若無對應則使用預設
+    const typeInfo = typeConfig[tx.type] || {
+      label: tx.type,
+      icon: "fa-circle",
+      color: "#333",
+      bg: "#fff",
+    };
+
     const isNegative = tx.amount < 0;
     const amountClass = isNegative ? "text-danger" : "text-success";
     const amountSign = isNegative ? "" : "+";
 
+    // 若有發票號碼，顯示小圖示
+    let invHtml = "";
+    if (tx.invoiceNumber) {
+      invHtml = `<br><span style="font-size:11px; color:#28a745;"><i class="fas fa-file-invoice"></i> 發票已開</span>`;
+    }
+
+    // 統編顯示 (如果有)
+    let taxHtml = "";
+    if (tx.taxId) {
+      taxHtml = `<span style="font-size:11px; color:#666; display:block;">統編: ${tx.taxId}</span>`;
+    }
+
     html += `
-            <tr>
-                <td>${new Date(
-                  tx.createdAt
-                ).toLocaleDateString()} <small style="color:#999;">${new Date(
-      tx.createdAt
-    ).toLocaleTimeString()}</small></td>
-                <td>${typeText}</td>
-                <td>${tx.description || "-"}</td>
-                <td class="${amountClass}" style="font-weight:bold; font-family:monospace; font-size:1.1em;">
+            <tr style="border-left: 3px solid ${typeInfo.color};">
+                <td>
+                    ${new Date(tx.createdAt).toLocaleDateString()} 
+                    <small style="color:#999;">${new Date(
+                      tx.createdAt
+                    ).toLocaleTimeString()}</small>
+                </td>
+                <td>
+                    <span style="color:${
+                      typeInfo.color
+                    }; font-weight:bold; display:flex; align-items:center; gap:5px;">
+                        <i class="fas ${typeInfo.icon}"></i> ${typeInfo.label}
+                    </span>
+                </td>
+                <td>
+                    ${tx.description || "-"}
+                    ${taxHtml}
+                    ${invHtml}
+                </td>
+                <td class="${amountClass}" style="font-weight:bold; font-family:monospace; font-size:1.1em; text-align:right;">
                     ${amountSign}${tx.amount.toLocaleString()}
                 </td>
-                <td><span class="status-badge ${statusObj.class}">${
-      statusObj.text
-    }</span></td>
+                <td style="text-align:center;"><span class="status-badge ${
+                  statusObj.class
+                }">${statusObj.text}</span></td>
             </tr>
         `;
   });
@@ -133,11 +175,34 @@ window.openDepositModal = function () {
         `;
   }
 
+  // 自動插入統編輸入欄位 (如果 HTML 尚未包含)
+  // 檢查是否已存在 ID 為 dep-taxId 的元素，若無則動態插入
+  const existingTaxInput = document.getElementById("dep-taxId");
+  if (!existingTaxInput && form) {
+    const amountGroup = form.querySelector(".form-group"); // 插在金額欄位後
+    if (amountGroup) {
+      const taxDiv = document.createElement("div");
+      taxDiv.className = "form-group";
+      taxDiv.style.background = "#f0f7ff";
+      taxDiv.style.padding = "10px";
+      taxDiv.style.borderRadius = "5px";
+      taxDiv.style.border = "1px solid #cce5ff";
+      taxDiv.innerHTML = `
+            <label style="color:#0056b3; font-weight:bold; font-size:13px;">發票資訊 (B2B 請填寫)</label>
+            <div style="display: flex; gap: 10px; margin-top:5px;">
+                <input type="text" id="dep-taxId" class="form-control" placeholder="統一編號 (8碼)" style="font-size:13px;">
+                <input type="text" id="dep-invoiceTitle" class="form-control" placeholder="公司抬頭" style="font-size:13px;">
+            </div>
+          `;
+      amountGroup.insertAdjacentElement("afterend", taxDiv);
+    }
+  }
+
   if (form) form.reset();
   if (modal) modal.style.display = "flex";
 };
 
-// 3. 處理儲值提交
+// 3. 處理儲值提交 (含統編)
 async function handleDepositSubmit(e) {
   e.preventDefault();
   const btn = e.target.querySelector("button[type='submit']");
@@ -148,9 +213,19 @@ async function handleDepositSubmit(e) {
   const desc = document.getElementById("dep-note").value;
   const file = document.getElementById("dep-proof").files[0];
 
+  // [NEW] 取得統編欄位
+  const taxId = document.getElementById("dep-taxId")
+    ? document.getElementById("dep-taxId").value
+    : "";
+  const invoiceTitle = document.getElementById("dep-invoiceTitle")
+    ? document.getElementById("dep-invoiceTitle").value
+    : "";
+
   const fd = new FormData();
   fd.append("amount", amount);
   fd.append("description", desc);
+  if (taxId) fd.append("taxId", taxId);
+  if (invoiceTitle) fd.append("invoiceTitle", invoiceTitle);
   if (file) fd.append("proof", file);
 
   try {
@@ -162,7 +237,9 @@ async function handleDepositSubmit(e) {
     const data = await res.json();
 
     if (res.ok) {
-      alert("儲值申請已提交，請等待管理員審核。");
+      alert(
+        "儲值申請已提交，請等待管理員審核。\n若有填寫統編，發票將依此開立。"
+      );
       document.getElementById("deposit-modal").style.display = "none";
       window.loadWalletData();
     } else {

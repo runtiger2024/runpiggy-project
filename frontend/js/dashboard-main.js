@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V25.10 - Fix Forecast Draft Queue & Auto-fill Logic
+// V26.0 - Fix Forecast Draft Queue & Enhanced Proof Upload
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -29,8 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // 5. 其他全域按鈕綁定
   bindGlobalButtons();
 
-  // 6. [Fix] 延遲執行草稿檢查，確保 DOM (尤其是 Tab 內的表單) 已準備就緒
-  // 並傳入 false 代表這是頁面初次載入
+  // 6. 延遲執行草稿檢查
   setTimeout(() => {
     if (window.checkForecastDraftQueue) {
       window.checkForecastDraftQueue(false);
@@ -265,7 +264,7 @@ function bindGlobalButtons() {
 }
 
 /**
- * 預報草稿佇列檢查 (修復版)
+ * 預報草稿佇列檢查
  */
 window.checkForecastDraftQueue = function (isAfterSubmit = false) {
   let queue = [];
@@ -313,20 +312,16 @@ window.checkForecastDraftQueue = function (isAfterSubmit = false) {
   const noteInput = document.getElementById("note");
 
   if (nameInput) {
-    // [Fix] 邏輯修正：只要有草稿，且是在提交後(準備下一筆) 或是 剛載入頁面，就嘗試填入
-    // 移除 input.value === "" 的嚴格檢查，改為更寬容的判斷，避免瀏覽器自動填充導致失效
     const isFieldEmpty = !nameInput.value || nameInput.value.trim() === "";
 
     if (isAfterSubmit || isFieldEmpty || nameInput.value === current.name) {
       nameInput.value = current.name || "";
       qtyInput.value = current.quantity || 1;
 
-      // 只有當備註是空的或已經是"來自試算"時才覆蓋，避免蓋掉使用者手動打的字
       if (noteInput && (!noteInput.value || noteInput.value.includes("試算"))) {
         noteInput.value = "來自試算帶入";
       }
 
-      // 警示訊息
       let warnings = [];
       if (current.hasOversizedItem)
         warnings.push("⚠️ 此商品尺寸超長 (需加收超長費)");
@@ -343,11 +338,102 @@ window.checkForecastDraftQueue = function (isAfterSubmit = false) {
         }
       }
 
-      // 滾動到表單位置，提示用戶
       if (isAfterSubmit) {
         window.scrollTo({ top: 0, behavior: "smooth" });
         window.showMessage(`已自動帶入下一筆：${current.name}`, "info");
       }
     }
+  }
+};
+
+// --- 上傳憑證相關 (UI 開啟) ---
+window.openUploadProof = function (id) {
+  document.getElementById("upload-proof-id").value = id;
+  const modal = document.getElementById("upload-proof-modal");
+  const form = document.getElementById("upload-proof-form");
+
+  if (form) form.reset();
+
+  // [NEW] 自動插入統編補填欄位 (如果 HTML 尚未包含)
+  const existingTaxInput = document.getElementById("proof-taxId");
+  if (!existingTaxInput && form) {
+    const fileGroup = form.querySelector(".form-group");
+    if (fileGroup) {
+      const taxDiv = document.createElement("div");
+      taxDiv.className = "form-group";
+      taxDiv.style.background = "#e8f0fe";
+      taxDiv.style.padding = "10px";
+      taxDiv.style.borderRadius = "5px";
+      taxDiv.style.marginBottom = "10px";
+      taxDiv.innerHTML = `
+            <label style="color:#1a73e8; font-size:13px; font-weight:bold;">📝 統一編號 (如需修改請填寫)</label>
+            <div style="display:flex; gap:10px;">
+                <input type="text" id="proof-taxId" class="form-control" placeholder="統編 (8碼)" style="font-size:13px;">
+                <input type="text" id="proof-invoiceTitle" class="form-control" placeholder="公司抬頭" style="font-size:13px;">
+            </div>
+            <small style="color:#666; font-size:11px;">※ 若此處留空，將使用訂單建立時的資料。</small>
+          `;
+      form.insertBefore(taxDiv, fileGroup);
+    }
+  }
+
+  // 顯示銀行資訊提示
+  const infoBox = document.getElementById("upload-proof-bank-info");
+  if (window.BANK_INFO_CACHE) {
+    infoBox.innerHTML = `
+            <strong>請匯款至：</strong><br>
+            銀行：${window.BANK_INFO_CACHE.bankName}<br>
+            帳號：<span style="color:#d32f2f; font-weight:bold;">${window.BANK_INFO_CACHE.account}</span><br>
+            戶名：${window.BANK_INFO_CACHE.holder}
+        `;
+  }
+
+  if (modal) modal.style.display = "flex";
+};
+
+// [NEW] 上傳憑證提交 (含統編更新)
+window.handleUploadProofSubmit = async function (e) {
+  e.preventDefault();
+  const id = document.getElementById("upload-proof-id").value;
+  const file = document.getElementById("proof-file").files[0];
+
+  // 取得統編欄位 (如果存在)
+  const taxId = document.getElementById("proof-taxId")
+    ? document.getElementById("proof-taxId").value
+    : "";
+  const invoiceTitle = document.getElementById("proof-invoiceTitle")
+    ? document.getElementById("proof-invoiceTitle").value
+    : "";
+
+  if (!file) return alert("請選擇圖片");
+
+  const fd = new FormData();
+  fd.append("paymentProof", file);
+  // 加入統編資訊
+  if (taxId) fd.append("taxId", taxId);
+  if (invoiceTitle) fd.append("invoiceTitle", invoiceTitle);
+
+  const btn = e.target.querySelector("button");
+  btn.disabled = true;
+  btn.textContent = "上傳中...";
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/shipments/${id}/payment`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${window.dashboardToken}` },
+      body: fd,
+    });
+    if (res.ok) {
+      alert("上傳成功！\n若有更新統編，系統將依新資料開立發票。");
+      document.getElementById("upload-proof-modal").style.display = "none";
+      window.loadMyShipments();
+    } else {
+      alert("上傳失敗");
+    }
+  } catch (err) {
+    alert("錯誤");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "上傳";
   }
 };

@@ -11,10 +11,9 @@ const getMyWallet = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // 使用 upsert 確保用戶一定有錢包資料 (若無則自動建立)
     const wallet = await prisma.wallet.upsert({
       where: { userId: userId },
-      update: {}, // 如果存在，不更新任何欄位
+      update: {},
       create: {
         userId: userId,
         balance: 0,
@@ -22,7 +21,7 @@ const getMyWallet = async (req, res) => {
       include: {
         transactions: {
           orderBy: { createdAt: "desc" },
-          take: 50, // 只取最近 50 筆
+          take: 50,
         },
       },
     });
@@ -35,14 +34,14 @@ const getMyWallet = async (req, res) => {
 };
 
 /**
- * @description 申請儲值 (上傳憑證)
+ * @description 申請儲值 (上傳憑證 + [新增] 統編)
  * @route POST /api/wallet/deposit
  */
 const requestDeposit = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { amount, description } = req.body;
-    const proofFile = req.file; // 透過 multer 上傳
+    const { amount, description, taxId, invoiceTitle } = req.body;
+    const proofFile = req.file;
 
     if (!amount || amount <= 0) {
       return res
@@ -55,14 +54,12 @@ const requestDeposit = async (req, res) => {
         .json({ success: false, message: "請上傳轉帳憑證" });
     }
 
-    // 確保錢包存在
     const wallet = await prisma.wallet.findUnique({ where: { userId } });
     if (!wallet) {
-      // 理論上 getMyWallet 會處理，但防呆
       await prisma.wallet.create({ data: { userId, balance: 0 } });
     }
 
-    // 建立交易紀錄 (狀態: PENDING)
+    // [Updated] 建立交易紀錄時寫入 taxId / invoiceTitle
     const transaction = await prisma.transaction.create({
       data: {
         wallet: { connect: { userId } },
@@ -71,15 +68,16 @@ const requestDeposit = async (req, res) => {
         status: "PENDING",
         description: description || "會員申請儲值",
         proofImage: `/uploads/${proofFile.filename}`,
+        taxId: taxId || null,
+        invoiceTitle: invoiceTitle || null,
       },
     });
 
-    // 寫入操作日誌
     await createLog(
       userId,
       "WALLET_DEPOSIT_REQUEST",
       transaction.id,
-      `申請儲值 $${amount}`
+      `申請儲值 $${amount} ${taxId ? "(含統編)" : ""}`
     );
 
     res.status(201).json({
