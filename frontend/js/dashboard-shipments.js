@@ -1,5 +1,5 @@
 // frontend/js/dashboard-shipments.js
-// V2025.Optimized - 移除統編與商品證明邏輯
+// V2025.Optimized - 移除衝突的憑證上傳邏輯 (Fix TaxID Issue)
 
 // --- 1. 更新底部結帳條 ---
 window.updateCheckoutBar = function () {
@@ -242,8 +242,6 @@ window.handleCreateShipmentSubmit = async function (e) {
   };
   fd.append("additionalServices", JSON.stringify(services));
 
-  // [Removed] 移除所有關於統編、商品連結、商品圖片的資料收集
-
   try {
     const res = await fetch(`${API_BASE_URL}/api/shipments/create`, {
       method: "POST",
@@ -358,6 +356,7 @@ window.loadMyShipments = async function () {
           if (s.paymentProof) {
             actionsHtml += `<span style="font-size:12px; color:#e67e22; display:block; margin-top:5px;">已傳憑證<br>審核中</span>`;
           } else {
+            // [注意] 這裡呼叫 window.openUploadProof，現在會使用 dashboard-main.js 中的正確版本
             actionsHtml += `<button class="btn btn-sm btn-secondary" style="margin-top:5px;" onclick="window.openUploadProof('${s.id}')">上傳憑證</button>`;
             actionsHtml += `<button class="btn btn-sm btn-danger" style="margin-top:5px;" onclick="window.cancelShipment('${s.id}')">取消訂單</button>`;
           }
@@ -394,55 +393,8 @@ window.loadMyShipments = async function () {
   }
 };
 
-// --- 6. 上傳憑證相關 ---
-window.openUploadProof = function (id) {
-  document.getElementById("upload-proof-id").value = id;
-  document.getElementById("upload-proof-modal").style.display = "flex";
-
-  const infoBox = document.getElementById("upload-proof-bank-info");
-  if (window.BANK_INFO_CACHE) {
-    infoBox.innerHTML = `
-            <strong>請匯款至：</strong><br>
-            銀行：${window.BANK_INFO_CACHE.bankName}<br>
-            帳號：<span style="color:#d32f2f; font-weight:bold;">${window.BANK_INFO_CACHE.account}</span><br>
-            戶名：${window.BANK_INFO_CACHE.holder}
-        `;
-  }
-};
-
-window.handleUploadProofSubmit = async function (e) {
-  e.preventDefault();
-  const id = document.getElementById("upload-proof-id").value;
-  const file = document.getElementById("proof-file").files[0];
-  if (!file) return alert("請選擇圖片");
-
-  const fd = new FormData();
-  fd.append("paymentProof", file);
-
-  const btn = e.target.querySelector("button");
-  btn.disabled = true;
-  btn.textContent = "上傳中...";
-
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/shipments/${id}/payment`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${window.dashboardToken}` },
-      body: fd,
-    });
-    if (res.ok) {
-      alert("上傳成功，請等待管理員審核。");
-      document.getElementById("upload-proof-modal").style.display = "none";
-      window.loadMyShipments();
-    } else {
-      alert("上傳失敗");
-    }
-  } catch (err) {
-    alert("錯誤");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "上傳";
-  }
-};
+// [Deleted] 移除了衝突的 window.openUploadProof 和 window.handleUploadProofSubmit
+// 現在將使用 dashboard-main.js 中的完整版本 (含 TaxID 支援)
 
 // --- 7. 查看訂單詳情 ---
 window.openShipmentDetails = async function (id) {
