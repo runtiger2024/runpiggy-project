@@ -1,5 +1,5 @@
 // backend/controllers/packageController.js
-// V2025.Features - Added Unclaimed Public List (Masked)
+// V2025.Features - Added Unclaimed Public List (Masked) & Claim Logic
 
 const prisma = require("../config/db.js");
 const fs = require("fs");
@@ -30,20 +30,18 @@ const deleteFiles = (filePaths) => {
 };
 
 /**
- * @description 取得無主包裹列表 (公開給會員查看，單號遮罩)
+ * @description [New] 取得無主包裹列表 (公開給會員查看，單號遮罩)
  * @route GET /api/packages/unclaimed
  */
 const getUnclaimedPackages = async (req, res) => {
   try {
-    // 查詢歸屬於官方無主帳號的包裹
-    // 注意：這裡假設 seed.js 已經建立了這兩個帳號
+    // 查詢歸屬於官方無主帳號且已入庫的包裹
     const packages = await prisma.package.findMany({
       where: {
         user: {
           email: { in: ["unclaimed@runpiggy.com", "admin@runpiggy.com"] },
         },
-        // 只顯示已入庫的包裹，避免顯示還在 PENDING 狀態的無主預報(如果有)
-        status: "ARRIVED",
+        status: "ARRIVED", // 只顯示已入庫的實際包裹
       },
       select: {
         id: true,
@@ -58,7 +56,7 @@ const getUnclaimedPackages = async (req, res) => {
     // 資料加工：遮罩單號
     const maskedPackages = packages.map((pkg) => {
       const full = pkg.trackingNumber || "";
-      // 保留末 5 碼，其餘用 * 取代 (若長度不足5碼則不遮或全顯示，視單號規則而定，這裡假設單號夠長)
+      // 保留末 5 碼，其餘用 * 取代
       const masked =
         full.length > 5 ? "*".repeat(full.length - 5) + full.slice(-5) : full;
 
@@ -76,7 +74,7 @@ const getUnclaimedPackages = async (req, res) => {
       }
 
       return {
-        id: pkg.id, // 用於前端 key，但認領時我們要求輸入單號，所以 id 不直接用於認領 API
+        id: pkg.id, // 前端 list key 使用
         maskedTrackingNumber: masked,
         productName: pkg.productName,
         createdAt: pkg.createdAt,
@@ -107,12 +105,11 @@ const createPackageForecast = async (req, res) => {
         .json({ success: false, message: "請提供物流單號和商品名稱" });
     }
 
-    // [New Constraint] 強制檢查：購買連結 或 圖片 至少需提供一項
+    // [Constraint] 強制檢查：購買連結 或 圖片 至少需提供一項
     const hasUrl = productUrl && productUrl.trim() !== "";
     const hasImages = req.files && req.files.length > 0;
 
     if (!hasUrl && !hasImages) {
-      // 若有上傳失敗的暫存檔，需刪除以防垃圾堆積
       if (req.files) {
         const tempPaths = req.files.map((f) => `/uploads/${f.filename}`);
         deleteFiles(tempPaths);
@@ -129,7 +126,6 @@ const createPackageForecast = async (req, res) => {
     });
 
     if (existingPackage) {
-      // 若重複，刪除剛上傳的圖片
       if (req.files) {
         const tempPaths = req.files.map((f) => `/uploads/${f.filename}`);
         deleteFiles(tempPaths);
@@ -183,7 +179,7 @@ const createPackageForecast = async (req, res) => {
  */
 const bulkForecast = async (req, res) => {
   try {
-    const { packages } = req.body; // 預期是一個物件陣列
+    const { packages } = req.body;
     const userId = req.user.id;
 
     if (!Array.isArray(packages) || packages.length === 0) {
@@ -196,16 +192,13 @@ const bulkForecast = async (req, res) => {
     let failCount = 0;
     const errors = [];
 
-    // 批量預報暫不強制圖片/連結 (通常由 Excel 匯入，較難處理圖片)
     for (const pkg of packages) {
-      // 簡單驗證
       if (!pkg.trackingNumber || !pkg.productName) {
         failCount++;
         errors.push(`單號 ${pkg.trackingNumber || "未知"}: 資料不全`);
         continue;
       }
 
-      // 檢查重複
       const exists = await prisma.package.findUnique({
         where: { trackingNumber: pkg.trackingNumber.trim() },
       });
@@ -255,7 +248,7 @@ const claimPackage = async (req, res) => {
   try {
     const { trackingNumber } = req.body;
     const userId = req.user.id;
-    const proofFile = req.file; // 上傳的截圖
+    const proofFile = req.file;
 
     if (!trackingNumber) {
       return res
@@ -277,7 +270,7 @@ const claimPackage = async (req, res) => {
 
     // 檢查是否已被綁定
     if (pkg.userId !== userId) {
-      // 若不是無主件 (即 user.email 不是 unclaimed 或 admin)
+      // 若包裹不屬於申請人，且不屬於官方無主帳號，則禁止認領
       if (
         pkg.user.email !== "unclaimed@runpiggy.com" &&
         pkg.user.email !== "admin@runpiggy.com"
@@ -292,7 +285,7 @@ const claimPackage = async (req, res) => {
         .json({ success: true, message: "此包裹已在您的清單中。" });
     }
 
-    // 執行認領：轉移 userId 並存入憑證
+    // 執行認領：更新 userId 並儲存憑證
     const updateData = {
       userId: userId,
     };
@@ -327,7 +320,7 @@ const claimPackage = async (req, res) => {
 const resolveException = async (req, res) => {
   try {
     const { id } = req.params;
-    const { action, note } = req.body; // action: "DISCARD", "RETURN", "SHIP_ANYWAY"
+    const { action, note } = req.body;
     const userId = req.user.id;
 
     const pkg = await prisma.package.findFirst({
@@ -336,7 +329,6 @@ const resolveException = async (req, res) => {
 
     if (!pkg) return res.status(404).json({ message: "找不到包裹" });
 
-    // 僅更新備註，讓管理員看到客戶的決定
     const newNote = pkg.exceptionNote
       ? `${pkg.exceptionNote}\n[客戶決定]: ${action} - ${note || ""}`
       : `[客戶決定]: ${action} - ${note || ""}`;
@@ -476,7 +468,6 @@ const updateMyPackage = async (req, res) => {
     if (pkg.status !== "PENDING")
       return res.status(400).json({ message: "包裹已入庫或處理中，無法修改" });
 
-    // 單號唯一性檢查 (若有修改)
     if (trackingNumber && trackingNumber.trim() !== pkg.trackingNumber) {
       const dup = await prisma.package.findUnique({
         where: { trackingNumber: trackingNumber.trim() },
@@ -548,10 +539,10 @@ const deleteMyPackage = async (req, res) => {
 };
 
 module.exports = {
-  getUnclaimedPackages, // [New]
   createPackageForecast,
   bulkForecast,
   claimPackage,
+  getUnclaimedPackages, // [New] Exported
   resolveException,
   getMyPackages,
   updateMyPackage,

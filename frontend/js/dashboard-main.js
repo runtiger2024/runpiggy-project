@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V26.0 - Fix Forecast Draft Queue & Enhanced Proof Upload & Added Unclaimed
+// V26.0 - Fix Forecast Draft Queue & Enhanced Proof Upload & Added Unclaimed Tab
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -76,6 +76,7 @@ function setupTabs() {
       const section = document.getElementById(tab.section);
       if (section) section.style.display = "block";
 
+      // 切換時執行對應的載入函式 (如: 重新整理列表)
       if (tab.loadFn && typeof tab.loadFn === "function") {
         tab.loadFn();
       }

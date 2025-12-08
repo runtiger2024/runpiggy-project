@@ -4,7 +4,7 @@
 let currentEditPackageImages = [];
 
 document.addEventListener("DOMContentLoaded", () => {
-  // 綁定「認領包裹」按鈕
+  // 綁定「認領包裹」按鈕 (手動開啟)
   const btnClaim = document.getElementById("btn-claim-package");
   if (btnClaim) {
     btnClaim.addEventListener("click", () => {
@@ -169,7 +169,7 @@ window.handleForecastSubmit = async function (e) {
   }
 };
 
-// --- 1. 載入包裹列表 ---
+// --- 1. 載入包裹列表 (我的包裹) ---
 window.loadMyPackages = async function () {
   const tableBody = document.getElementById("packages-table-body");
   if (!tableBody) return;
@@ -319,7 +319,14 @@ async function handleClaimSubmit(e) {
     if (res.ok) {
       alert("認領成功！包裹已歸戶。");
       document.getElementById("claim-package-modal").style.display = "none";
+      // 重新載入我的包裹
       window.loadMyPackages();
+      // 如果目前在無主頁面，也刷新無主列表
+      if (
+        document.getElementById("unclaimed-section").style.display !== "none"
+      ) {
+        window.loadUnclaimedList();
+      }
     } else {
       alert(data.message || "認領失敗");
     }

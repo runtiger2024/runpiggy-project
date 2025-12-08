@@ -13,7 +13,7 @@ const {
   bulkForecast,
   claimPackage,
   resolveException,
-  getUnclaimedPackages, // [New]
+  getUnclaimedPackages, // [New] Added controller
 } = require("../controllers/packageController");
 
 const { protect } = require("../middleware/authMiddleware.js");
@@ -23,7 +23,7 @@ router
   .route("/forecast/images")
   .post(protect, upload.array("images", 5), createPackageForecast);
 
-// 2. 批量預報
+// 2. 批量預報 (接收 JSON Array)
 router.route("/bulk-forecast").post(protect, bulkForecast);
 
 // 3. 認領包裹 (需上傳截圖憑證)
