@@ -1,4 +1,4 @@
-// frontend/js/shippingData.js (V10 - 資料庫驅動備案版)
+// frontend/js/shippingData.js (V10 - 資料庫驅動備案版 + New Statuses)
 // 此檔案提供全站共用的常數與預設資料。
 // 注意：RATES, CONSTANTS, REMOTE_AREAS 設為可變變數 (var/window)，
 // 允許 main.js 或 admin.js 在載入後透過 API 從資料庫拉取最新設定並覆蓋。
@@ -45,11 +45,19 @@ const SHIPMENT_STATUS_MAP = {
   PENDING_REVIEW: "已付款(待審核)",
   PROCESSING: "已收款，安排裝櫃",
   SHIPPED: "已裝櫃",
-  COMPLETED: "海關查驗",
-  CANCELLEDD: "清關放行",
-  CANCELL: "拆櫃派送",
-  CANCEL: "已完成",
-  CANCELLED: "已取消/退回",
+
+  // [New] 新增詳細物流狀態
+  CUSTOMS_CHECK: "海關查驗中",
+  UNSTUFFING: "拆櫃派送中",
+
+  // [New] 退回狀態
+  RETURNED: "訂單被退回",
+
+  COMPLETED: "已完成",
+  CANCELLEDD: "清關放行", // (相容舊資料)
+  CANCELL: "拆櫃派送", // (相容舊資料)
+  CANCEL: "已完成", // (相容舊資料)
+  CANCELLED: "已取消",
 };
 
 // --- 4. 狀態顏色對照 (Badge Class - 靜態邏輯) ---
@@ -63,6 +71,12 @@ const STATUS_CLASSES = {
   PENDING_REVIEW: "status-PENDING_REVIEW",
   PROCESSING: "status-PROCESSING",
   SHIPPED: "status-SHIPPED",
+
+  // [New] 新增狀態顏色
+  CUSTOMS_CHECK: "status-PENDING", // 使用黃色系提示查驗
+  UNSTUFFING: "status-IN_SHIPMENT", // 使用藍色系
+  RETURNED: "status-CANCELLED", // 使用紅色系
+
   // 共用
   COMPLETED: "status-COMPLETED",
   CANCEL: "status-COMPLETED",

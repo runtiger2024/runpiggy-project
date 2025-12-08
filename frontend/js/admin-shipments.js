@@ -1,5 +1,5 @@
 // frontend/js/admin-shipments.js
-// V2025.Fix - 修復錢包支付圖片載入錯誤 & 發票開立邏輯 & UI 優化
+// V2025.Features - 退回訂單, 裝櫃日期, 狀態顯示優化
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -96,15 +96,31 @@ document.addEventListener("DOMContentLoaded", () => {
       PENDING_PAYMENT: "status-PENDING",
       PENDING_REVIEW: "status-PENDING",
       PROCESSING: "status-info",
-      SHIPPED: "status-info",
+      SHIPPED: "status-SHIPPED",
+      CUSTOMS_CHECK: "status-warning",
+      UNSTUFFING: "status-info",
       COMPLETED: "status-COMPLETED",
+      RETURNED: "status-CANCELLED",
       CANCELLED: "status-CANCELLED",
+    };
+
+    const statusMap = {
+      PENDING_PAYMENT: "待付款",
+      PENDING_REVIEW: "已付款(待審核)",
+      PROCESSING: "已收款(處理中)",
+      SHIPPED: "已裝櫃",
+      CUSTOMS_CHECK: "海關查驗中",
+      UNSTUFFING: "拆櫃派送中",
+      COMPLETED: "已完成",
+      RETURNED: "訂單退回",
+      CANCELLED: "已取消",
     };
 
     shipments.forEach((s) => {
       const tr = document.createElement("tr");
-      let displayStatus = s.status;
+      let displayStatus = statusMap[s.status] || s.status;
       let statusClass = statusClasses[s.status] || "status-secondary";
+
       if (s.status === "PENDING_PAYMENT" && s.paymentProof) {
         displayStatus = "待審核";
         statusClass = "status-warning";
@@ -113,7 +129,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // --- 發票狀態欄位 ---
       let invHtml = `<span class="badge" style="background:#e0e0e0; color:#888; padding:2px 6px; font-size:12px; border-radius:4px;">未開立</span>`;
 
-      // [Fix] 錢包支付顯示優化，避免誤導
+      // 錢包支付顯示優化
       if (s.paymentProof === "WALLET_PAY") {
         invHtml = `<span class="badge" style="background:#cce5ff; color:#004085; padding:2px 6px; font-size:12px; border-radius:4px;">
                      <i class="fas fa-wallet"></i> 儲值已開
@@ -193,6 +209,16 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("m-tax-id").value = s.taxId || "";
     document.getElementById("m-invoice-title").value = s.invoiceTitle || "";
 
+    // [New] 填入裝櫃日期 (HTML 中需新增此 input)
+    const dateInput = document.getElementById("m-loading-date");
+    if (dateInput) {
+      if (s.loadingDate) {
+        dateInput.value = new Date(s.loadingDate).toISOString().split("T")[0];
+      } else {
+        dateInput.value = "";
+      }
+    }
+
     document.getElementById("m-packages").innerHTML = s.packages
       .map(
         (p) =>
@@ -220,7 +246,6 @@ document.addEventListener("DOMContentLoaded", () => {
       costInput.title = "";
     }
 
-    // [Fix] 修復 paymentProof 為 "WALLET_PAY" 時的圖片載入錯誤
     const proofDiv = document.getElementById("m-proof");
     if (s.paymentProof === "WALLET_PAY") {
       proofDiv.innerHTML = `<span class="badge" style="background:#cce5ff; color:#004085; font-size:14px; padding:10px; display:inline-block; border:1px solid #b8daff;">
@@ -260,7 +285,6 @@ document.addEventListener("DOMContentLoaded", () => {
           <i class="fas fa-times-circle"></i> 此發票已作廢 (${s.invoiceNumber})
         </div>`;
     } else {
-      // [關鍵修復] 判斷付款方式
       if (s.paymentProof === "WALLET_PAY") {
         invContent += `
             <div style="background:#fff3cd; color:#856404; padding:10px; border-radius:5px; border:1px solid #ffeeba;">
@@ -268,7 +292,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 <span style="font-size:13px;">此訂單使用餘額扣款，發票已於會員儲值時開立。<br>無需在此重複開立。</span>
             </div>`;
       } else {
-        // 一般轉帳訂單，顯示開立按鈕
         invContent += `
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <span class="text-muted">尚未開立發票</span>
@@ -281,7 +304,51 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     invSection.innerHTML = invContent;
 
+    // [New] 退回按鈕顯示邏輯
+    const btnReturn = document.getElementById("btn-return-shipment");
+    if (btnReturn) {
+      if (s.status !== "CANCELLED" && s.status !== "RETURNED") {
+        btnReturn.style.display = "inline-block";
+        btnReturn.onclick = () => handleReturnShipment(s.id);
+      } else {
+        btnReturn.style.display = "none";
+      }
+    }
+
     modal.style.display = "flex";
+  };
+
+  // [New] 退回訂單處理
+  window.handleReturnShipment = async function (id) {
+    const reason = prompt(
+      "請輸入退回原因 (客戶可見)：\n例如：包裹違禁品、金額有誤、客戶要求...",
+      "資料有誤，請修正後重新提交"
+    );
+    if (reason === null) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/shipments/${id}/reject`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("admin_token")}`,
+          },
+          body: JSON.stringify({ returnReason: reason }),
+        }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message);
+        document.getElementById("shipment-modal").style.display = "none";
+        loadShipments();
+      } else {
+        alert("失敗: " + data.message);
+      }
+    } catch (e) {
+      alert("網路錯誤");
+    }
   };
 
   window.handleIssueInvoice = async function (id) {
@@ -355,6 +422,10 @@ document.addEventListener("DOMContentLoaded", () => {
       trackingNumberTW: document.getElementById("m-tracking-tw").value,
       taxId: document.getElementById("m-tax-id").value.trim(),
       invoiceTitle: document.getElementById("m-invoice-title").value.trim(),
+      // [New] 收集裝櫃日期
+      loadingDate: document.getElementById("m-loading-date")
+        ? document.getElementById("m-loading-date").value
+        : undefined,
     };
 
     if (
@@ -379,7 +450,6 @@ document.addEventListener("DOMContentLoaded", () => {
         modal.style.display = "none";
         loadShipments();
       } else {
-        // [Security] 顯示後端回傳的錯誤 (例如：財務鎖定、出貨檢核)
         alert("更新失敗：" + resData.message);
       }
     } catch (e) {
@@ -461,7 +531,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const count = selectedIds.size;
     if (count === 0) return alert("請先選擇要刪除的訂單");
 
-    // [Security] 雙重確認機制
     const confirmation = prompt(
       `【危險操作】\n您即將永久刪除 ${count} 筆集運單。\n注意：這將連帶刪除付款憑證與關聯的包裹紀錄(釋放)，且無法復原！\n\n請輸入 "DELETE" (大寫) 以確認刪除：`
     );

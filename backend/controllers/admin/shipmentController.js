@@ -1,5 +1,5 @@
 // backend/controllers/admin/shipmentController.js
-// V13.6 - Fix: Full coverage for Wallet Refund (Delete/Bulk/Cancel)
+// V13.7 - Fix: Full coverage for Wallet Refund (Delete/Bulk/Return) & New Features
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
@@ -12,7 +12,6 @@ const {
 // [Helper] 內部使用的退款處理函數
 const processRefund = async (tx, shipment, description) => {
   // 只有 "錢包支付" 且 "金額大於0" 且 "目前狀態非已取消" 才執行退款
-  // 注意：呼叫此函數前，外層邏輯需確保 shipment.status !== 'CANCELLED' (避免重複退款)
   if (shipment.paymentProof === "WALLET_PAY" && shipment.totalCost > 0) {
     await tx.transaction.create({
       data: {
@@ -158,7 +157,7 @@ const bulkUpdateShipmentStatus = async (req, res) => {
         message: `批量更新成功 (含發票開立 ${invoiceCount} 張)`,
       });
     }
-    // [Fix] 處理轉為 CANCELLED (包含退款邏輯)
+    // 處理轉為 CANCELLED (包含退款邏輯)
     else if (status === "CANCELLED") {
       const shipments = await prisma.shipment.findMany({
         where: { id: { in: ids } },
@@ -226,7 +225,6 @@ const bulkDeleteShipments = async (req, res) => {
     if (!Array.isArray(ids) || ids.length === 0)
       return res.status(400).json({ success: false, message: "未選擇訂單" });
 
-    // [Fix] 查詢完整資訊以進行退款判斷
     const shipments = await prisma.shipment.findMany({
       where: { id: { in: ids } },
       select: {
@@ -291,8 +289,14 @@ const bulkDeleteShipments = async (req, res) => {
 const updateShipmentStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, totalCost, trackingNumberTW, taxId, invoiceTitle } =
-      req.body;
+    const {
+      status,
+      totalCost,
+      trackingNumberTW,
+      taxId,
+      invoiceTitle,
+      loadingDate,
+    } = req.body;
 
     const originalShipment = await prisma.shipment.findUnique({
       where: { id },
@@ -342,9 +346,14 @@ const updateShipmentStatus = async (req, res) => {
     if (taxId !== undefined) dataToUpdate.taxId = taxId;
     if (invoiceTitle !== undefined) dataToUpdate.invoiceTitle = invoiceTitle;
 
+    // [New] 更新裝櫃日期
+    if (loadingDate !== undefined) {
+      dataToUpdate.loadingDate = loadingDate ? new Date(loadingDate) : null;
+    }
+
     if (status === "CANCELLED") {
       const result = await prisma.$transaction(async (tx) => {
-        // [New] 自動退款邏輯 (使用 helper, 確保原狀態非 CANCELLED 已在上方檢查)
+        // 自動退款邏輯
         const refunded = await processRefund(
           tx,
           originalShipment,
@@ -426,11 +435,12 @@ const updateShipmentStatus = async (req, res) => {
   }
 };
 
+// [New] 退回訂單 (RETURNED) 邏輯
 const rejectShipment = async (req, res) => {
   try {
     const { id } = req.params;
+    const { returnReason } = req.body; // 新增退回原因
 
-    // [Fix] 先查詢訂單以判斷付款方式與狀態
     const shipment = await prisma.shipment.findUnique({
       where: { id },
       select: {
@@ -446,23 +456,29 @@ const rejectShipment = async (req, res) => {
       return res.status(404).json({ success: false, message: "找不到訂單" });
 
     // 防止重複操作
-    if (shipment.status === "CANCELLED")
+    if (shipment.status === "CANCELLED" || shipment.status === "RETURNED")
       return res
         .status(400)
-        .json({ success: false, message: "訂單已取消，請勿重複操作" });
+        .json({ success: false, message: "訂單已取消或退回，請勿重複操作" });
 
     const result = await prisma.$transaction(async (tx) => {
-      // [New] 自動退款邏輯
+      // 1. 退款
       const refunded = await processRefund(
         tx,
         shipment,
-        `訂單駁回退款 (${shipment.id})`
+        `訂單退回退款 (${shipment.id})`
       );
 
+      // 2. 更新狀態為 RETURNED 並記錄原因
       const updated = await tx.shipment.update({
         where: { id },
-        data: { status: "CANCELLED" },
+        data: {
+          status: "RETURNED",
+          returnReason: returnReason || "管理員退回 (未說明原因)",
+        },
       });
+
+      // 3. 釋放包裹
       const released = await tx.package.updateMany({
         where: { shipmentId: id },
         data: { status: "ARRIVED", shipmentId: null },
@@ -473,13 +489,16 @@ const rejectShipment = async (req, res) => {
     const refundMsg = result.refunded ? " (已退款至錢包)" : "";
     await createLog(
       req.user.id,
-      "REJECT_SHIPMENT",
+      "RETURN_SHIPMENT",
       id,
-      `釋放${result.count}件包裹${refundMsg}`
+      `退回訂單: ${returnReason || "無"} ${refundMsg}`
     );
     res
       .status(200)
-      .json({ success: true, message: `已退回並釋放包裹${refundMsg}` });
+      .json({
+        success: true,
+        message: `訂單已退回並釋放 ${result.count} 件包裹${refundMsg}`,
+      });
   } catch (e) {
     res.status(500).json({ success: false, message: "退回失敗" });
   }

@@ -1,5 +1,5 @@
 // frontend/js/dashboard-shipments.js
-// V26.2 - Fixed: Added renderDeliveryLocations & Cancel Logic
+// V26.2 - Fixed: Added renderDeliveryLocations & Cancel Logic & New Statuses/LoadingDate
 
 // --- 1. 更新底部結帳條 ---
 window.updateCheckoutBar = function () {
@@ -93,13 +93,12 @@ window.handleCreateShipmentClick = async function () {
         window.currentUser.defaultAddress || "";
   }
 
-  // [New] 重置付款方式為預設 (轉帳) 並觸發 UI 更新
+  // 重置付款方式為預設 (轉帳) 並觸發 UI 更新
   const radioTransfer = document.getElementById("pay-transfer");
   if (radioTransfer) radioTransfer.checked = true;
   togglePaymentMethod("TRANSFER"); // 確保初始化正確
 
   // 載入偏遠地區選單 (若尚未載入)
-  // [Fix] 呼叫已修復的函式
   renderDeliveryLocations();
 
   // 顯示彈窗
@@ -190,7 +189,7 @@ window.recalculateShipmentTotal = async function () {
 
       breakdownDiv.innerHTML = html;
 
-      // [New] 如果當前選擇錢包支付，重新檢查餘額是否足夠 (因為金額可能變了)
+      // 如果當前選擇錢包支付，重新檢查餘額是否足夠 (因為金額可能變了)
       const walletRadio = document.getElementById("pay-wallet");
       if (walletRadio && walletRadio.checked) togglePaymentMethod("WALLET");
     } else {
@@ -215,7 +214,7 @@ window.handleCreateShipmentSubmit = async function (e) {
   );
   const packageIds = Array.from(selectedCheckboxes).map((cb) => cb.dataset.id);
 
-  // [New] 取得付款方式
+  // 取得付款方式
   let paymentMethod = "TRANSFER";
   const payWallet = document.getElementById("pay-wallet");
   if (payWallet && payWallet.checked) paymentMethod = "WALLET";
@@ -239,10 +238,14 @@ window.handleCreateShipmentSubmit = async function (e) {
   fd.append("taxId", document.getElementById("ship-taxId").value);
   fd.append("invoiceTitle", document.getElementById("ship-invoiceTitle").value);
   fd.append("note", document.getElementById("ship-note").value);
-  fd.append("productUrl", document.getElementById("ship-product-url").value);
-  fd.append("paymentMethod", paymentMethod); // [New] 傳送付款方式
 
-  // [UI 保留] 附加服務 (JSON)
+  // [Fix] 讀取新增的連結欄位
+  const productUrlInput = document.getElementById("ship-product-url");
+  fd.append("productUrl", productUrlInput ? productUrlInput.value : "");
+
+  fd.append("paymentMethod", paymentMethod);
+
+  // 附加服務 (JSON)
   const services = {
     floor: {
       selected: document.getElementById("srv-floor").checked,
@@ -288,7 +291,7 @@ window.handleCreateShipmentSubmit = async function (e) {
       window.lastCreatedShipmentId = data.shipment.id;
 
       if (paymentMethod === "WALLET") {
-        // [New] 錢包支付成功，直接顯示成功訊息，不需上傳憑證
+        // 錢包支付成功，直接顯示成功訊息，不需上傳憑證
         alert("訂單建立成功！費用已從錢包扣除，系統將自動安排出貨。");
         window.loadMyShipments();
         window.loadMyPackages(); // 更新包裹狀態
@@ -298,7 +301,7 @@ window.handleCreateShipmentSubmit = async function (e) {
           window.loadWalletData();
         }
       } else {
-        // [Original] 轉帳支付，顯示匯款資訊
+        // 轉帳支付，顯示匯款資訊
         if (window.BANK_INFO_CACHE) {
           const bName = document.getElementById("bank-name");
           if (bName) bName.textContent = window.BANK_INFO_CACHE.bankName;
@@ -399,13 +402,11 @@ window.loadMyShipments = async function () {
         let actionsHtml = `<button class="btn btn-sm btn-primary" onclick="window.openShipmentDetails('${s.id}')">詳情</button>`;
 
         // [Fix] 只有 PENDING_PAYMENT 且使用轉帳 (非WALLET_PAY) 且無憑證時，顯示上傳按鈕
-        // 如果是錢包支付，paymentProof 會是 'WALLET_PAY'，後端已自動處理
         if (s.status === "PENDING_PAYMENT") {
           if (s.paymentProof) {
             actionsHtml += `<span style="font-size:12px; color:#e67e22; display:block; margin-top:5px;">已傳憑證<br>審核中</span>`;
           } else {
             actionsHtml += `<button class="btn btn-sm btn-secondary" style="margin-top:5px;" onclick="window.openUploadProof('${s.id}')">上傳憑證</button>`;
-            // [New] 取消訂單按鈕
             actionsHtml += `<button class="btn btn-sm btn-danger" style="margin-top:5px;" onclick="window.cancelShipment('${s.id}')">取消訂單</button>`;
           }
         }
@@ -492,7 +493,7 @@ window.handleUploadProofSubmit = async function (e) {
   }
 };
 
-// --- 7. 查看訂單詳情 (新增軌跡與錢包支付顯示) ---
+// --- 7. 查看訂單詳情 (新增裝櫃日期與退回原因顯示) ---
 window.openShipmentDetails = async function (id) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/shipments/${id}`, {
@@ -509,14 +510,35 @@ window.openShipmentDetails = async function (id) {
     if (timelineContainer) {
       renderTimeline(timelineContainer, s.status);
     } else {
-      // Fallback (若 HTML 尚未更新)
+      // Fallback
       const statusEl = document.getElementById("sd-status");
       if (statusEl) statusEl.textContent = s.status;
     }
 
-    document.getElementById("sd-date").textContent = new Date(
+    // [New] 顯示退回原因 (若有)
+    const statusEl = document.getElementById("sd-status");
+    if (s.status === "RETURNED") {
+      statusEl.innerHTML = `<span class="status-badge status-CANCELLED">訂單已退回</span>
+        <div style="background:#fff1f0; border:1px solid #ffa39e; padding:8px; border-radius:4px; margin-top:5px; font-size:13px; color:#c0392b;">
+            <strong>退回原因：</strong> ${s.returnReason || "未說明"}
+        </div>`;
+    } else {
+      statusEl.textContent = window.SHIPMENT_STATUS_MAP[s.status] || s.status;
+    }
+
+    // [New] 顯示裝櫃日期
+    let dateHtml = `<div><strong>建立日期:</strong> <span>${new Date(
       s.createdAt
-    ).toLocaleString();
+    ).toLocaleString()}</span></div>`;
+    if (s.loadingDate) {
+      dateHtml += `<div style="color:#28a745; font-weight:bold; margin-top:5px;">
+            <i class="fas fa-ship"></i> 裝櫃日期: ${new Date(
+              s.loadingDate
+            ).toLocaleDateString()}
+        </div>`;
+    }
+    document.getElementById("sd-date").innerHTML = dateHtml;
+
     document.getElementById("sd-trackingTW").textContent =
       s.trackingNumberTW || "尚未產生";
 
@@ -524,7 +546,7 @@ window.openShipmentDetails = async function (id) {
     document.getElementById("sd-phone").textContent = s.phone;
     document.getElementById("sd-address").textContent = s.shippingAddress;
 
-    // [UI 保留] 費用明細
+    // 費用明細
     const breakdown = document.getElementById("sd-fee-breakdown");
     breakdown.innerHTML = `
         <div>運費總計: <strong>$${(
@@ -544,12 +566,10 @@ window.openShipmentDetails = async function (id) {
     // 顯示付款憑證
     if (s.paymentProof) {
       if (s.paymentProof === "WALLET_PAY") {
-        // [New] 錢包支付的特殊顯示
         gallery.innerHTML = `<div style="text-align:center; padding:10px; background:#f0f8ff; border-radius:5px; color:#0056b3;">
                 <i class="fas fa-wallet"></i> 使用錢包餘額支付
             </div>`;
       } else {
-        // 一般轉帳憑證
         gallery.innerHTML += `<div style="text-align:center;"><p>付款憑證</p><img src="${API_BASE_URL}${s.paymentProof}" onclick="window.open(this.src)" style="max-width:100px; cursor:pointer;"></div>`;
       }
     }
@@ -588,34 +608,42 @@ window.cancelShipment = async function (id) {
   }
 };
 
-// --- [New] 渲染物流軌跡 (Timeline) ---
+// --- [New] 渲染物流軌跡 (Timeline) - 含新狀態 ---
 function renderTimeline(container, currentStatus) {
-  // 定義狀態順序
+  // [Update] 定義包含新狀態的完整流程
   const steps = [
     { code: "PENDING_PAYMENT", label: "待付款" },
     { code: "PROCESSING", label: "處理中" },
-    { code: "SHIPPED", label: "已發貨" },
+    { code: "SHIPPED", label: "已裝櫃" },
+    { code: "CUSTOMS_CHECK", label: "海關查驗" }, // New
+    { code: "UNSTUFFING", label: "拆櫃派送" }, // New
     { code: "COMPLETED", label: "已完成" },
   ];
 
   // 特殊狀態處理
-  if (currentStatus === "CANCELLED") {
-    container.innerHTML = `<div class="alert alert-error text-center" style="margin:10px 0;">此訂單已取消</div>`;
+  if (currentStatus === "CANCELLED" || currentStatus === "RETURNED") {
+    const text = currentStatus === "RETURNED" ? "訂單已退回" : "訂單已取消";
+    container.innerHTML = `<div class="alert alert-error text-center" style="margin:10px 0;">${text}</div>`;
     return;
   }
   if (currentStatus === "PENDING_REVIEW") currentStatus = "PENDING_PAYMENT";
 
   let currentIndex = steps.findIndex((s) => s.code === currentStatus);
-  if (currentIndex === -1) currentIndex = 0; // Default
+  if (currentIndex === -1) {
+    // 若狀態不在流程圖中 (如舊資料)，預設顯示第一步
+    currentIndex = 0;
+  }
 
-  let html = `<div class="timeline-container" style="display:flex; justify-content:space-between; margin:20px 0; position:relative; padding:0 10px;">`;
+  let html = `<div class="timeline-container" style="display:flex; justify-content:space-between; margin:20px 0; position:relative; padding:0 10px; overflow-x:auto;">`;
 
   // 進度條背景
-  html += `<div style="position:absolute; top:15px; left:20px; right:20px; height:4px; background:#eee; z-index:0;"></div>`;
-  // 進度條顏色 (計算寬度)
-  const progressPercent = (currentIndex / (steps.length - 1)) * 100;
-  // 修正進度條寬度計算，確保對齊圓圈中心
-  html += `<div style="position:absolute; top:15px; left:20px; width:calc(${progressPercent}% - 40px); max-width:calc(100% - 40px); height:4px; background:#28a745; z-index:0; transition:width 0.3s;"></div>`;
+  html += `<div style="position:absolute; top:15px; left:20px; right:20px; height:4px; background:#eee; z-index:0; min-width:400px;"></div>`;
+
+  const stepCount = steps.length;
+  // 計算進度條長度
+  const progressPercent = (currentIndex / (stepCount - 1)) * 100;
+
+  html += `<div style="position:absolute; top:15px; left:20px; width:calc(${progressPercent}% - 40px); max-width:calc(100% - 40px); height:4px; background:#28a745; z-index:0; transition:width 0.3s; min-width:0;"></div>`;
 
   steps.forEach((step, idx) => {
     const isCompleted = idx <= currentIndex;
@@ -623,11 +651,13 @@ function renderTimeline(container, currentStatus) {
     const icon = isCompleted ? "fa-check-circle" : "fa-circle";
 
     html += `
-            <div style="position:relative; z-index:1; text-align:center; flex:1;">
+            <div style="position:relative; z-index:1; text-align:center; flex:1; min-width:60px;">
                 <i class="fas ${icon}" style="color:${color}; font-size:24px; background:#fff; border-radius:50%;"></i>
                 <div style="font-size:12px; margin-top:5px; color:${
                   isCompleted ? "#333" : "#999"
-                }; font-weight:${idx === currentIndex ? "bold" : "normal"};">
+                }; font-weight:${
+      idx === currentIndex ? "bold" : "normal"
+    }; white-space:nowrap;">
                     ${step.label}
                 </div>
             </div>
@@ -637,8 +667,7 @@ function renderTimeline(container, currentStatus) {
   container.innerHTML = html;
 }
 
-// --- [關鍵修復] 渲染偏遠地區選單 ---
-// 必須定義為 window.renderDeliveryLocations 以便外部呼叫
+// --- 渲染偏遠地區選單 ---
 window.renderDeliveryLocations = function () {
   const select = document.getElementById("ship-delivery-location");
   if (!select || select.options.length > 1) return; // 避免重複渲染
@@ -661,7 +690,7 @@ window.renderDeliveryLocations = function () {
   select.innerHTML = html;
 };
 
-// [UI 保留] 附加服務 UI 連動邏輯
+// 附加服務 UI 連動邏輯
 document.addEventListener("DOMContentLoaded", () => {
   const toggles = {
     "srv-floor": "srv-floor-options",

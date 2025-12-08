@@ -1,5 +1,5 @@
 // frontend/js/dashboard-packages.js
-// V25.6 - Fixed: Added missing handleForecastSubmit
+// V26.0 - Fix Forecast Draft Queue & Enhanced Proof Upload
 
 let currentEditPackageImages = [];
 
@@ -55,6 +55,8 @@ window.handleForecastSubmit = async function (e) {
   fd.append("productName", document.getElementById("productName").value);
   fd.append("quantity", document.getElementById("quantity").value);
   fd.append("note", document.getElementById("note").value);
+  // [New] 取得商品連結
+  fd.append("productUrl", document.getElementById("productUrl").value);
 
   // 處理圖片 (從 input 或自訂上傳器)
   const files = document.getElementById("images").files;
@@ -506,6 +508,9 @@ window.openEditPackageModal = function (pkg) {
   document.getElementById("edit-productName").value = pkg.productName;
   document.getElementById("edit-quantity").value = pkg.quantity;
   document.getElementById("edit-note").value = pkg.note || "";
+  // [New] 填入商品連結
+  document.getElementById("edit-productUrl").value = pkg.productUrl || "";
+
   currentEditPackageImages = pkg.productImages || [];
   renderEditImages();
   document.getElementById("edit-package-modal").style.display = "flex";
@@ -536,6 +541,9 @@ window.handleEditPackageSubmit = async function (e) {
   fd.append("productName", document.getElementById("edit-productName").value);
   fd.append("quantity", document.getElementById("edit-quantity").value);
   fd.append("note", document.getElementById("edit-note").value);
+  // [New] 更新商品連結
+  fd.append("productUrl", document.getElementById("edit-productUrl").value);
+
   fd.append("existingImages", JSON.stringify(currentEditPackageImages));
   const files = document.getElementById("edit-package-new-images").files;
   for (let f of files) fd.append("images", f);

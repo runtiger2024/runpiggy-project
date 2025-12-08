@@ -234,8 +234,11 @@
                     <option value="PENDING_PAYMENT">待付款</option>
                     <option value="PROCESSING">已收款 (PROCESSING)</option>
                     <option value="SHIPPED">已發貨 (SHIPPED)</option>
+                    <option value="CUSTOMS_CHECK">海關查驗中</option>
+                    <option value="UNSTUFFING">拆櫃派送中</option>
                     <option value="COMPLETED">已完成</option>
-                    <option value="CANCELLED">取消/退回</option>
+                    <option value="RETURNED">訂單退回</option>
+                    <option value="CANCELLED">已取消</option>
                   </select>
                 </div>
                 <div>
@@ -251,6 +254,13 @@
                   class="form-control"
                   placeholder="輸入台灣物流單號"
                 />
+              </div>
+              <div style="margin-top: 10px">
+                <label>🚢 裝櫃日期 (Loading Date)</label>
+                <input type="date" id="m-loading-date" class="form-control" />
+                <small class="text-muted"
+                  >設定後，客戶將可在前台看到此日期。</small
+                >
               </div>
             </div>
 
@@ -275,6 +285,15 @@
                 justify-content: flex-end;
               "
             >
+              <button
+                type="button"
+                id="btn-return-shipment"
+                class="btn btn-danger"
+                style="margin-right: auto; display: none"
+              >
+                <i class="fas fa-undo"></i> 退回訂單
+              </button>
+
               <button
                 type="button"
                 class="btn btn-secondary"

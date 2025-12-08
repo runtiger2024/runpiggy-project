@@ -79,7 +79,7 @@
       }
       .company-brand img {
         height: 60px;
-        filter: grayscale(100%); /* 報表通常轉為黑白以節省墨水，或可移除此行 */
+        filter: grayscale(100%); /* 報表通常轉為黑白以節省墨水 */
       }
       .company-title h1 {
         margin: 0;
@@ -187,7 +187,7 @@
         margin-top: 5px;
       }
 
-      /* [新增] 附加服務區塊 */
+      /* 附加服務區塊 */
       .additional-services-box {
         border: 2px solid #000;
         padding: 10px;
@@ -213,7 +213,7 @@
       }
       .service-checkbox {
         margin-right: 5px;
-        font-family: "Segoe UI Symbol", sans-serif; /* 支援特殊符號 */
+        font-family: "Segoe UI Symbol", sans-serif;
       }
       .service-note {
         font-style: italic;
@@ -279,7 +279,7 @@
       .photo-wrapper img {
         width: 100%;
         height: 120px;
-        object-fit: contain; /* 改為 contain 確保看清商品全貌 */
+        object-fit: contain;
         display: block;
       }
       .photo-caption {
@@ -575,8 +575,12 @@
           PENDING_PAYMENT: "待付款",
           PENDING_REVIEW: "付款審核中",
           PROCESSING: "已收款，安排裝櫃",
-          SHIPPED: "已裝櫃出口",
+          SHIPPED: "已裝櫃",
+          // [New] 增加狀態對照
+          CUSTOMS_CHECK: "海關查驗中",
+          UNSTUFFING: "拆櫃派送中",
           COMPLETED: "已完成",
+          RETURNED: "訂單被退回",
           CANCELLED: "已取消",
         };
         let statusText = shipmentStatusMap[ship.status] || ship.status;
@@ -691,14 +695,12 @@
             const totalCai = pkg.arrivedBoxes.reduce(
               (acc, b) => acc + (parseFloat(b.cai) || 0),
               0
-            ); // 假設後端有存 cai 或需前端重算
+            );
 
-            // 若後端沒存 cai，這裡簡單顯示箱數
             weightInfo = `${pkgWeight.toFixed(1)} kg / ${
               pkg.arrivedBoxes.length
             } 箱`;
           } else {
-            // 相容舊資料
             weightInfo = "(尚未入庫測量)";
           }
 
@@ -719,14 +721,12 @@
           `;
           tbody.appendChild(tr);
 
-          // --- 處理照片 (客戶上傳 + 倉庫實拍) ---
+          // --- [Updated] 處理照片 ---
+          // 確保包含 productImages (購買照片) 和 warehouseImages (倉庫照片)
           const allImages = [
-            ...(pkg.productImages || []), // 可能為 JSON string 或 Array，視後端處理
-            ...(pkg.warehouseImages || []),
+            ...(pkg.productImages || []), // 客戶預報時上傳的
+            ...(pkg.warehouseImages || []), // 倉庫端上傳的
           ];
-
-          // 注意：如果是後端沒解析 JSON，需在此 try-catch 解析 (視您的 API 輸出而定)
-          // 假設 API 已經解析好為 Array
 
           if (Array.isArray(allImages)) {
             allImages.forEach((imgUrl) => {

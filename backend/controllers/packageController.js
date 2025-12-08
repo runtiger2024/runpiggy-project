@@ -1,5 +1,5 @@
 // backend/controllers/packageController.js
-// V2025.Security - 完整功能版 (含認領、批量、異常處理)
+// V2025.Security - 完整功能版 (含認領、批量、異常處理、商品連結)
 
 const prisma = require("../config/db.js");
 const fs = require("fs");
@@ -35,7 +35,9 @@ const deleteFiles = (filePaths) => {
  */
 const createPackageForecast = async (req, res) => {
   try {
-    const { trackingNumber, productName, quantity, note } = req.body;
+    // [Updated] 新增接收 productUrl
+    const { trackingNumber, productName, quantity, note, productUrl } =
+      req.body;
     const userId = req.user.id;
 
     if (!trackingNumber || !productName) {
@@ -66,6 +68,7 @@ const createPackageForecast = async (req, res) => {
         productName: productName,
         quantity: quantity ? parseInt(quantity) : 1,
         note: note,
+        productUrl: productUrl || null, // [New] 儲存商品連結
         productImages: imagePaths,
         warehouseImages: [],
         userId: userId,
@@ -189,21 +192,8 @@ const claimPackage = async (req, res) => {
         .json({ success: false, message: "找不到此單號的包裹" });
     }
 
-    // 檢查是否已被綁定 (假設無主件是掛在特定管理員帳號下，或 userId 為空字串/特定標記)
-    // 這裡的邏輯：如果該包裹已經屬於某個"有效"用戶，則不能認領。
-    // 假設系統有一個機制標記無主件，或者我們檢查 pkg.user 是否存在
-    // 為了簡化，若該包裹已屬於當前用戶，提示已預報；若屬於別的用戶，提示被佔用。
-    // *若這是一個"無主件"功能，通常後端會先把包裹建立起來但 userId 指向 Admin 或 null (如果 schema 允許 nullable)*
-    // 由於我們 Schema 的 userId 是 String 且有關聯，通常會設一個 Dummy User (例如 "UNCLAIMED")
-    // 這裡假設：如果包裹狀態是 ARRIVED 且被標記為異常(無主)，或者我們允許搶奪(不建議)。
-
-    // [修正邏輯]：僅允許認領 "尚未預報" 的包裹 (即資料庫根本沒有這筆)，
-    // 或者 "已入庫但屬於無主帳號" 的包裹。
-    // 鑑於目前的架構，最常見的情境是：客戶忘了預報，貨到了，管理員建檔(掛在無主帳號)。
-    // 這裡我們簡單判定：如果包裹屬於別人，則禁止。
-
+    // 檢查是否已被綁定
     if (pkg.userId !== userId) {
-      // 這邊需要一個判斷是否為無主件的邏輯，例如 user.email === 'unclaimed@runpiggy.com'
       // 若不是無主件
       if (
         pkg.user.email !== "unclaimed@runpiggy.com" &&
@@ -222,8 +212,6 @@ const claimPackage = async (req, res) => {
     // 執行認領
     const updateData = {
       userId: userId,
-      // 若原本是無主件(ARRIVED)，認領後狀態維持 ARRIVED，但需要人工審核憑證?
-      // 或是直接歸戶。這裡設定為歸戶。
     };
 
     if (proofFile) {
@@ -266,7 +254,6 @@ const resolveException = async (req, res) => {
     if (!pkg) return res.status(404).json({ message: "找不到包裹" });
 
     // 僅更新備註，讓管理員看到客戶的決定
-    // 可以將狀態改回 ARRIVED 或保持 EXCEPTION 但加上備註
     const newNote = pkg.exceptionNote
       ? `${pkg.exceptionNote}\n[客戶決定]: ${action} - ${note || ""}`
       : `[客戶決定]: ${action} - ${note || ""}`;
@@ -275,7 +262,6 @@ const resolveException = async (req, res) => {
       where: { id },
       data: {
         exceptionNote: newNote,
-        // 如果是 SHIP_ANYWAY，或許可以移除異常狀態? 這裡先保留，由管理員人工操作
       },
     });
 
@@ -392,8 +378,15 @@ const getMyPackages = async (req, res) => {
 const updateMyPackage = async (req, res) => {
   try {
     const { id } = req.params;
-    const { trackingNumber, productName, quantity, note, existingImages } =
-      req.body;
+    // [Updated] 新增接收 productUrl
+    const {
+      trackingNumber,
+      productName,
+      quantity,
+      note,
+      existingImages,
+      productUrl,
+    } = req.body;
     const userId = req.user.id;
 
     const pkg = await prisma.package.findFirst({ where: { id, userId } });
@@ -434,6 +427,7 @@ const updateMyPackage = async (req, res) => {
         productName,
         quantity: quantity ? parseInt(quantity) : undefined,
         note,
+        productUrl: productUrl || undefined, // [New] 更新連結
         productImages: keepImagesList.slice(0, 5),
       },
     });
