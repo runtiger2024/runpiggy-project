@@ -1,4 +1,5 @@
 // backend/controllers/walletController.js
+// V1.4 - Added Tax ID Validation
 
 const prisma = require("../config/db.js");
 const createLog = require("../utils/createLog.js");
@@ -52,6 +53,23 @@ const requestDeposit = async (req, res) => {
       return res
         .status(400)
         .json({ success: false, message: "請上傳轉帳憑證" });
+    }
+
+    // [Validation] 統編與抬頭的一致性檢查
+    if (
+      taxId &&
+      taxId.trim() !== "" &&
+      (!invoiceTitle || invoiceTitle.trim() === "")
+    ) {
+      // 刪除上傳的檔案 (清理暫存)
+      const fs = require("fs");
+      fs.unlink(proofFile.path, () => {});
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "填寫統一編號時，公司抬頭為必填項目",
+        });
     }
 
     const wallet = await prisma.wallet.findUnique({ where: { userId } });

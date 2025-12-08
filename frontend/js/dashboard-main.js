@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V27.0 - Added Wallet Shortcut & Auto Scroll
+// V27.1 - Added Invoice Validation on Proof Upload
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -419,28 +419,36 @@ window.openUploadProof = function (id) {
 // 上傳憑證提交 (含統編更新)
 window.handleUploadProofSubmit = async function (e) {
   e.preventDefault();
+  const btn = e.target.querySelector("button");
+
   const id = document.getElementById("upload-proof-id").value;
   const file = document.getElementById("proof-file").files[0];
 
   // 取得統編欄位 (如果存在)
   const taxId = document.getElementById("proof-taxId")
-    ? document.getElementById("proof-taxId").value
+    ? document.getElementById("proof-taxId").value.trim()
     : "";
   const invoiceTitle = document.getElementById("proof-invoiceTitle")
-    ? document.getElementById("proof-invoiceTitle").value
+    ? document.getElementById("proof-invoiceTitle").value.trim()
     : "";
 
   if (!file) return alert("請選擇圖片");
+
+  // [Validation] 若有填寫統編，抬頭必填
+  if (taxId && !invoiceTitle) {
+    alert("請注意：填寫統一編號時，「公司抬頭」為必填項目，以利發票開立。");
+    document.getElementById("proof-invoiceTitle").focus();
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "上傳中...";
 
   const fd = new FormData();
   fd.append("paymentProof", file);
   // 加入統編資訊
   if (taxId) fd.append("taxId", taxId);
   if (invoiceTitle) fd.append("invoiceTitle", invoiceTitle);
-
-  const btn = e.target.querySelector("button");
-  btn.disabled = true;
-  btn.textContent = "上傳中...";
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/shipments/${id}/payment`, {
@@ -453,7 +461,8 @@ window.handleUploadProofSubmit = async function (e) {
       document.getElementById("upload-proof-modal").style.display = "none";
       window.loadMyShipments();
     } else {
-      alert("上傳失敗");
+      const data = await res.json();
+      alert(data.message || "上傳失敗");
     }
   } catch (err) {
     alert("錯誤");

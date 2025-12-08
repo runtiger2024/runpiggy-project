@@ -1,6 +1,6 @@
 // frontend/js/dashboard-wallet.js
 // 負責錢包餘額、交易紀錄與儲值功能
-// V26.0 - Transaction UI Colors & Deposit Tax ID
+// V26.1 - Added Tax ID Validation
 
 // --- 函式定義 ---
 
@@ -206,20 +206,29 @@ window.openDepositModal = function () {
 async function handleDepositSubmit(e) {
   e.preventDefault();
   const btn = e.target.querySelector("button[type='submit']");
-  btn.disabled = true;
-  btn.textContent = "提交中...";
 
+  // 先取得欄位值進行驗證
   const amount = document.getElementById("dep-amount").value;
   const desc = document.getElementById("dep-note").value;
   const file = document.getElementById("dep-proof").files[0];
 
   // [NEW] 取得統編欄位
   const taxId = document.getElementById("dep-taxId")
-    ? document.getElementById("dep-taxId").value
+    ? document.getElementById("dep-taxId").value.trim()
     : "";
   const invoiceTitle = document.getElementById("dep-invoiceTitle")
-    ? document.getElementById("dep-invoiceTitle").value
+    ? document.getElementById("dep-invoiceTitle").value.trim()
     : "";
+
+  // [Validation] 若有填寫統編，抬頭必填
+  if (taxId && !invoiceTitle) {
+    alert("請注意：填寫統一編號時，「公司抬頭」為必填項目，以利發票開立。");
+    document.getElementById("dep-invoiceTitle").focus();
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "提交中...";
 
   const fd = new FormData();
   fd.append("amount", amount);

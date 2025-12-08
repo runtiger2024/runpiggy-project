@@ -1,5 +1,5 @@
 // backend/controllers/shipmentController.js
-// V2025.Optimized - 移除強制商品證明驗證
+// V2025.Optimized.1 - Added Tax ID Validation for Proof Upload
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
@@ -8,7 +8,8 @@ const invoiceHelper = require("../utils/invoiceHelper.js");
 const createLog = require("../utils/createLog.js");
 const { deleteFiles } = require("../utils/adminHelpers.js");
 
-// --- 運費計算邏輯 (保持原樣) ---
+// ... (calculateShipmentDetails, previewShipmentCost, createShipment, getMyShipments 保持不變)
+
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   const CONSTANTS = rates.constants;
   const CATEGORIES = rates.categories;
@@ -137,9 +138,6 @@ const createShipment = async (req, res) => {
     const files = req.files || [];
 
     const isWalletPay = paymentMethod === "WALLET";
-
-    // [Removed] 移除商品證明驗證邏輯
-    // 因為已在包裹預報階段強制要求，集運單建立時不再需要
 
     let shipmentImagePaths = [];
     if (files.length > 0)
@@ -316,6 +314,23 @@ const uploadPaymentProof = async (req, res) => {
 
     if (!req.file)
       return res.status(400).json({ success: false, message: "請選擇圖片" });
+
+    // [Validation] 統編與抬頭的一致性檢查
+    if (
+      taxId &&
+      taxId.trim() !== "" &&
+      (!invoiceTitle || invoiceTitle.trim() === "")
+    ) {
+      // 刪除已上傳的暫存檔案避免佔用
+      const fs = require("fs");
+      fs.unlink(req.file.path, () => {});
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "填寫統一編號時，公司抬頭為必填項目",
+        });
+    }
 
     const shipment = await prisma.shipment.findFirst({
       where: { id: id, userId: userId },
