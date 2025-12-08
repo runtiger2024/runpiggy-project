@@ -158,7 +158,10 @@ const createInvoice = async (shipment, user) => {
     printMark = "1";
     salesAmount = Math.round(total / 1.05);
     taxAmount = total - salesAmount;
-    unitPrice = salesAmount; // B2B 單價為未稅價
+
+    // [FIX] 修正點：B2B 的商品單價/小計在 Amego API 中應填寫「含稅金額」以符合總額檢查
+    // 原本錯誤：unitPrice = salesAmount;
+    unitPrice = total;
   } else {
     // B2C: 總額含稅
     printMark = "0";
@@ -337,7 +340,10 @@ const createDepositInvoice = async (transaction, user) => {
     printMark = "1";
     salesAmount = Math.round(total / 1.05);
     taxAmount = total - salesAmount;
-    unitPrice = salesAmount;
+
+    // [FIX] 修正點：同上，將單價改為含稅總額
+    // 原本錯誤：unitPrice = salesAmount;
+    unitPrice = total;
   } else {
     // B2C: 總額含稅
     printMark = "0";
