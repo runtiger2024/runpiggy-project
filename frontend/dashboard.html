@@ -303,6 +303,9 @@
         <button id="tab-wallet" class="tab-btn">
           <i class="fas fa-wallet"></i> 我的錢包
         </button>
+        <button id="tab-unclaimed" class="tab-btn">
+          <i class="fas fa-search-dollar"></i> 無主招領
+        </button>
       </div>
 
       <div id="packages-section" class="tab-content active">
@@ -316,6 +319,43 @@
       </div>
       <div id="wallet-section" class="tab-content" style="display: none">
         <div id="section-container-wallet"></div>
+      </div>
+      <div id="unclaimed-section" class="tab-content" style="display: none">
+        <div class="section-card">
+          <div class="card-header">
+            <h3><i class="fas fa-search-dollar"></i> 無主包裹招領</h3>
+            <p style="font-size: 13px; color: #666; margin: 0">
+              以下是倉庫中尚未被預報的包裹。為保障安全，單號已部分遮罩。<br />若您發現疑似您的包裹，請點擊「認領」並輸入<strong>完整單號</strong>以領回。
+            </p>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table style="width: 100%">
+                <thead>
+                  <tr>
+                    <th>入庫時間</th>
+                    <th>物流單號 (末5碼)</th>
+                    <th>商品名稱</th>
+                    <th>重量/資訊</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="unclaimed-table-body">
+                  <tr>
+                    <td
+                      colspan="5"
+                      class="text-center"
+                      style="padding: 30px; color: #999"
+                    >
+                      載入中...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div style="height: 80px"></div>
       </div>
 
       <nav class="mobile-bottom-nav" id="mobile-bottom-nav"></nav>
@@ -644,7 +684,7 @@
 
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script>
-      // Component Loader & Script Injector (保持原樣)
+      // Component Loader & Script Injector
       async function loadHtml(id, path) {
         try {
           const res = await fetch(path);

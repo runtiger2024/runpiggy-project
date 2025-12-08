@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V26.0 - Fix Forecast Draft Queue & Enhanced Proof Upload
+// V26.0 - Fix Forecast Draft Queue & Enhanced Proof Upload & Added Unclaimed
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -51,6 +51,12 @@ function setupTabs() {
       id: "tab-wallet",
       section: "wallet-section",
       loadFn: window.loadWalletData,
+    },
+    // [New] 註冊無主招領頁籤
+    {
+      id: "tab-unclaimed",
+      section: "unclaimed-section",
+      loadFn: window.loadUnclaimedList,
     },
   ];
 
@@ -354,7 +360,7 @@ window.openUploadProof = function (id) {
 
   if (form) form.reset();
 
-  // [NEW] 自動插入統編補填欄位 (如果 HTML 尚未包含)
+  // 自動插入統編補填欄位 (如果 HTML 尚未包含)
   const existingTaxInput = document.getElementById("proof-taxId");
   if (!existingTaxInput && form) {
     const fileGroup = form.querySelector(".form-group");
@@ -391,7 +397,7 @@ window.openUploadProof = function (id) {
   if (modal) modal.style.display = "flex";
 };
 
-// [NEW] 上傳憑證提交 (含統編更新)
+// 上傳憑證提交 (含統編更新)
 window.handleUploadProofSubmit = async function (e) {
   e.preventDefault();
   const id = document.getElementById("upload-proof-id").value;

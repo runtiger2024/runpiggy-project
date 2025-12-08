@@ -1,5 +1,5 @@
 // backend/controllers/packageController.js
-// V2025.Optimized - 強制購買證明 (連結或圖片擇一)
+// V2025.Features - Added Unclaimed Public List (Masked)
 
 const prisma = require("../config/db.js");
 const fs = require("fs");
@@ -27,6 +27,68 @@ const deleteFiles = (filePaths) => {
       console.warn(`[File Warning] 刪除檔案失敗 (${filePath}):`, err.message);
     }
   });
+};
+
+/**
+ * @description 取得無主包裹列表 (公開給會員查看，單號遮罩)
+ * @route GET /api/packages/unclaimed
+ */
+const getUnclaimedPackages = async (req, res) => {
+  try {
+    // 查詢歸屬於官方無主帳號的包裹
+    // 注意：這裡假設 seed.js 已經建立了這兩個帳號
+    const packages = await prisma.package.findMany({
+      where: {
+        user: {
+          email: { in: ["unclaimed@runpiggy.com", "admin@runpiggy.com"] },
+        },
+        // 只顯示已入庫的包裹，避免顯示還在 PENDING 狀態的無主預報(如果有)
+        status: "ARRIVED",
+      },
+      select: {
+        id: true,
+        trackingNumber: true, // 需處理遮罩
+        productName: true,
+        createdAt: true,
+        arrivedBoxesJson: true, // 用於顯示重量資訊
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // 資料加工：遮罩單號
+    const maskedPackages = packages.map((pkg) => {
+      const full = pkg.trackingNumber || "";
+      // 保留末 5 碼，其餘用 * 取代 (若長度不足5碼則不遮或全顯示，視單號規則而定，這裡假設單號夠長)
+      const masked =
+        full.length > 5 ? "*".repeat(full.length - 5) + full.slice(-5) : full;
+
+      // 計算重量資訊 (若有)
+      let weightInfo = "未測量";
+      if (
+        Array.isArray(pkg.arrivedBoxesJson) &&
+        pkg.arrivedBoxesJson.length > 0
+      ) {
+        const totalW = pkg.arrivedBoxesJson.reduce(
+          (sum, box) => sum + (parseFloat(box.weight) || 0),
+          0
+        );
+        weightInfo = `${totalW.toFixed(1)} kg`;
+      }
+
+      return {
+        id: pkg.id, // 用於前端 key，但認領時我們要求輸入單號，所以 id 不直接用於認領 API
+        maskedTrackingNumber: masked,
+        productName: pkg.productName,
+        createdAt: pkg.createdAt,
+        weightInfo: weightInfo,
+      };
+    });
+
+    res.json({ success: true, packages: maskedPackages });
+  } catch (error) {
+    console.error("取得無主列表失敗:", error);
+    res.status(500).json({ success: false, message: "伺服器錯誤" });
+  }
 };
 
 /**
@@ -135,7 +197,6 @@ const bulkForecast = async (req, res) => {
     const errors = [];
 
     // 批量預報暫不強制圖片/連結 (通常由 Excel 匯入，較難處理圖片)
-    // 若業務需求嚴格，可在此處加入檢查，目前保持彈性
     for (const pkg of packages) {
       // 簡單驗證
       if (!pkg.trackingNumber || !pkg.productName) {
@@ -187,7 +248,7 @@ const bulkForecast = async (req, res) => {
 };
 
 /**
- * @description 認領無主包裹
+ * @description 認領無主包裹 (需完整單號)
  * @route POST /api/packages/claim
  */
 const claimPackage = async (req, res) => {
@@ -216,7 +277,7 @@ const claimPackage = async (req, res) => {
 
     // 檢查是否已被綁定
     if (pkg.userId !== userId) {
-      // 若不是無主件
+      // 若不是無主件 (即 user.email 不是 unclaimed 或 admin)
       if (
         pkg.user.email !== "unclaimed@runpiggy.com" &&
         pkg.user.email !== "admin@runpiggy.com"
@@ -231,7 +292,7 @@ const claimPackage = async (req, res) => {
         .json({ success: true, message: "此包裹已在您的清單中。" });
     }
 
-    // 執行認領
+    // 執行認領：轉移 userId 並存入憑證
     const updateData = {
       userId: userId,
     };
@@ -487,6 +548,7 @@ const deleteMyPackage = async (req, res) => {
 };
 
 module.exports = {
+  getUnclaimedPackages, // [New]
   createPackageForecast,
   bulkForecast,
   claimPackage,

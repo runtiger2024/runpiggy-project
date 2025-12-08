@@ -1,5 +1,5 @@
 // frontend/js/dashboard-packages.js
-// V2025.Optimized - 預報強制驗證 (連結或圖片)
+// V2025.Optimized - 預報強制驗證 (連結或圖片) & [New] Unclaimed Viewer
 
 let currentEditPackageImages = [];
 
@@ -42,6 +42,64 @@ document.addEventListener("DOMContentLoaded", () => {
     btnConfirmBulk.addEventListener("click", submitBulkForecast);
   }
 });
+
+// --- [New] 載入無主包裹列表 ---
+window.loadUnclaimedList = async function () {
+  const tbody = document.getElementById("unclaimed-table-body");
+  if (!tbody) return;
+
+  tbody.innerHTML =
+    '<tr><td colspan="5" class="text-center" style="padding:20px;">載入中...</td></tr>';
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/packages/unclaimed`, {
+      headers: { Authorization: `Bearer ${window.dashboardToken}` },
+    });
+    const data = await res.json();
+
+    if (data.success && data.packages && data.packages.length > 0) {
+      tbody.innerHTML = "";
+      data.packages.forEach((pkg) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td data-label="入庫時間">${new Date(
+            pkg.createdAt
+          ).toLocaleDateString()}</td>
+          <td data-label="單號 (遮罩)" style="font-family:monospace; font-weight:bold; color:#555;">${
+            pkg.maskedTrackingNumber
+          }</td>
+          <td data-label="商品名稱">${pkg.productName}</td>
+          <td data-label="重量/資訊">${pkg.weightInfo}</td>
+          <td data-label="操作">
+            <button class="btn btn-sm btn-primary" onclick="openClaimModalSafe()">
+              <i class="fas fa-hand-paper"></i> 認領
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } else {
+      tbody.innerHTML =
+        '<tr><td colspan="5" class="text-center" style="padding:30px; color:#999;">目前沒有無主包裹</td></tr>';
+    }
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="color:red;">載入失敗: ${e.message}</td></tr>`;
+  }
+};
+
+// [New] 安全開啟認領視窗 (不預填單號，強制手動輸入)
+window.openClaimModalSafe = function () {
+  const modal = document.getElementById("claim-package-modal");
+  const form = document.getElementById("claim-package-form");
+  if (form) form.reset(); // 確保清空所有欄位
+  if (modal) modal.style.display = "flex";
+
+  // 聚焦到輸入框
+  setTimeout(() => {
+    const input = document.getElementById("claim-tracking");
+    if (input) input.focus();
+  }, 100);
+};
 
 // --- [關鍵修復] 預報提交處理 (含前端驗證) ---
 window.handleForecastSubmit = async function (e) {
