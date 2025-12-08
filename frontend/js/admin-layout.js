@@ -1,4 +1,4 @@
-// frontend/js/admin-layout.js (V2025 - Mobile Optimized)
+// frontend/js/admin-layout.js (V2025 - Mobile Optimized with Unclaimed)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   if (isLoginPage) return; // 登入頁不渲染佈局
 
-  // 2. 定義側邊欄選單 (使用新版細緻權限)
+  // 2. 定義側邊欄選單
   const menuItems = [
     {
       label: "儀表板",
@@ -30,6 +30,12 @@ document.addEventListener("DOMContentLoaded", () => {
       perm: "PACKAGE_VIEW",
     },
     {
+      label: "無主包裹", // [New] 新增此項目
+      icon: "fas fa-question-circle",
+      href: "admin-unclaimed.html",
+      perm: "PACKAGE_VIEW", // 權限與包裹管理共用
+    },
+    {
       label: "集運單管理",
       icon: "fas fa-shipping-fast",
       href: "admin-shipments.html",
@@ -41,7 +47,6 @@ document.addEventListener("DOMContentLoaded", () => {
       href: "admin-members.html",
       perm: "USER_VIEW",
     },
-    // [新增] 財務管理
     {
       label: "財務審核",
       icon: "fas fa-hand-holding-usd",
@@ -75,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const wrapper = document.createElement("div");
   wrapper.id = "wrapper";
 
-  // [Mobile Fix] 插入遮罩層 (用於手機版點擊關閉選單)
+  // [Mobile Fix] 插入遮罩層
   const overlay = document.createElement("div");
   overlay.className = "sidebar-overlay";
   document.body.appendChild(overlay);
@@ -85,18 +90,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const currentPath = window.location.pathname.split("/").pop();
 
   menuItems.forEach((item) => {
-    // 權限判斷：擁有指定權限 OR 擁有舊版超級管理員權限 (相容性)
+    // 權限判斷
     let hasAccess = false;
     if (item.perm) {
       if (
         adminPermissions.includes(item.perm) ||
-        adminPermissions.includes("CAN_MANAGE_USERS") || // 舊版超級權限
-        adminPermissions.includes("CAN_MANAGE_SYSTEM") // 舊版超級權限
+        adminPermissions.includes("CAN_MANAGE_USERS") ||
+        adminPermissions.includes("CAN_MANAGE_SYSTEM")
       ) {
         hasAccess = true;
       }
     } else {
-      hasAccess = true; // 無指定權限則公開
+      hasAccess = true;
     }
 
     if (hasAccess) {
@@ -160,7 +165,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(originalContent, "text/html");
 
-  // 移除舊版 header 佔位
   const oldHeader = doc.getElementById("admin-header-container");
   if (oldHeader) oldHeader.remove();
 
@@ -177,16 +181,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (toggleBtn && sidebar) {
     toggleBtn.addEventListener("click", (e) => {
-      e.stopPropagation(); // 防止事件冒泡
+      e.stopPropagation();
       sidebar.classList.toggle("toggled");
-
-      // [Mobile Fix] 手機版同步切換遮罩
       if (window.innerWidth <= 768) {
         overlay.classList.toggle("show");
       }
     });
 
-    // [Mobile Fix] 點擊遮罩關閉側邊欄
     overlay.addEventListener("click", () => {
       sidebar.classList.remove("toggled");
       overlay.classList.remove("show");

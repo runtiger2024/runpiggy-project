@@ -1,9 +1,9 @@
 // backend/controllers/admin/packageController.js
-// V2025.Security - Integrated Notification System
+// V2025.Features - Added Unclaimed Filter
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
-const createNotification = require("../../utils/createNotification.js"); // [New]
+const createNotification = require("../../utils/createNotification.js");
 const {
   deleteFiles,
   buildPackageWhereClause,
@@ -14,8 +14,21 @@ const getAllPackages = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
-    const { status, search } = req.query;
-    const where = buildPackageWhereClause(status, search);
+    const { status, search, filter } = req.query; // [New] Added filter param
+
+    let where = buildPackageWhereClause(status, search);
+
+    // [New] 特殊篩選邏輯
+    if (filter === "UNCLAIMED") {
+      // 篩選屬於官方無主帳號的包裹
+      where.user = {
+        email: { in: ["unclaimed@runpiggy.com", "admin@runpiggy.com"] },
+      };
+    } else if (filter === "CLAIM_REVIEW") {
+      // 篩選有上傳認領憑證的包裹 (不論狀態)
+      where.claimProof = { not: null };
+    }
+
     const [total, packages] = await prisma.$transaction([
       prisma.package.count({ where }),
       prisma.package.findMany({
@@ -38,14 +51,24 @@ const getAllPackages = async (req, res) => {
       pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };
 
 const exportPackages = async (req, res) => {
   try {
-    const { status, search } = req.query;
-    const where = buildPackageWhereClause(status, search);
+    const { status, search, filter } = req.query;
+    let where = buildPackageWhereClause(status, search);
+
+    if (filter === "UNCLAIMED") {
+      where.user = {
+        email: { in: ["unclaimed@runpiggy.com", "admin@runpiggy.com"] },
+      };
+    } else if (filter === "CLAIM_REVIEW") {
+      where.claimProof = { not: null };
+    }
+
     const packages = await prisma.package.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -60,6 +83,7 @@ const exportPackages = async (req, res) => {
       預報時間: new Date(p.createdAt).toLocaleDateString(),
       備註: p.note || "",
       總運費: p.totalCalculatedFee || 0,
+      認領憑證: p.claimProof ? "有" : "無",
     }));
     res.status(200).json({ success: true, data: exportData });
   } catch (error) {
@@ -78,7 +102,6 @@ const bulkUpdatePackageStatus = async (req, res) => {
       data: { status },
     });
 
-    // [New] 批量通知
     if (status === "ARRIVED") {
       const packages = await prisma.package.findMany({
         where: { id: { in: ids } },
@@ -91,7 +114,6 @@ const bulkUpdatePackageStatus = async (req, res) => {
         type: "PACKAGE",
         link: "tab-packages",
       }));
-      // 使用 createMany 批量寫入通知 (Prisma 支援)
       await prisma.notification.createMany({ data: notifData });
     }
 
@@ -170,7 +192,6 @@ const adminCreatePackage = async (req, res) => {
       },
     });
 
-    // [New] 通知會員
     await createNotification(
       userId,
       "管理員已代為預報",
@@ -239,7 +260,6 @@ const updatePackageStatus = async (req, res) => {
       data: { status },
     });
 
-    // [New] 通知 (入庫時)
     if (status === "ARRIVED" && pkg.status !== "ARRIVED") {
       await createNotification(
         pkg.userId,
@@ -340,7 +360,6 @@ const updatePackageDetails = async (req, res) => {
       data: updateData,
     });
 
-    // [New] 通知 (如果是入庫操作)
     if (status === "ARRIVED" && pkg.status !== "ARRIVED") {
       await createNotification(
         pkg.userId,

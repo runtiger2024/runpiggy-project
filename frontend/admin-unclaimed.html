@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>無主包裹管理 - 小跑豬後台</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="css/admin-modern.css" />
+    <style>
+      /* 頁籤樣式 */
+      .nav-tabs {
+        display: flex;
+        border-bottom: 2px solid #e3e6f0;
+        margin-bottom: 20px;
+        background: #fff;
+        padding: 0 20px;
+        border-radius: 8px 8px 0 0;
+      }
+      .nav-item-tab {
+        padding: 15px 20px;
+        cursor: pointer;
+        color: #858796;
+        font-weight: 600;
+        border-bottom: 3px solid transparent;
+        transition: all 0.2s;
+      }
+      .nav-item-tab:hover {
+        color: #4e73df;
+      }
+      .nav-item-tab.active {
+        color: #4e73df;
+        border-bottom-color: #4e73df;
+      }
+      .proof-img {
+        max-width: 100px;
+        max-height: 100px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: transform 0.2s;
+      }
+      .proof-img:hover {
+        transform: scale(2);
+        z-index: 10;
+        position: relative;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container-fluid">
+      <h1 class="page-title">無主包裹管理</h1>
+
+      <div class="card">
+        <div class="nav-tabs">
+          <div class="nav-item-tab active" data-filter="UNCLAIMED">
+            <i class="fas fa-question-circle"></i> 無主件庫存
+          </div>
+          <div class="nav-item-tab" data-filter="CLAIM_REVIEW">
+            <i class="fas fa-check-circle"></i> 待審核認領
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="filters-bar" style="margin-bottom: 0">
+            <div style="flex: 1; min-width: 200px">
+              <input
+                type="text"
+                id="search-input"
+                class="form-control"
+                placeholder="搜尋單號 / 商品名稱..."
+              />
+            </div>
+            <button class="btn btn-primary" id="btn-search">
+              <i class="fas fa-search"></i> 搜尋
+            </button>
+            <button class="btn btn-secondary" id="btn-export">
+              <i class="fas fa-file-export"></i> 匯出清單
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span><i class="fas fa-list"></i> 包裹列表</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th>預報時間</th>
+                  <th>物流單號</th>
+                  <th>商品名稱</th>
+                  <th>重量/尺寸</th>
+                  <th>目前歸屬 (會員)</th>
+                  <th>憑證/備註</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="unclaimed-list">
+                <tr>
+                  <td colspan="7" class="text-center p-3">載入中...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div
+          class="card-body border-top"
+          id="pagination"
+          style="display: flex; justify-content: flex-end; gap: 5px"
+        ></div>
+      </div>
+    </div>
+
+    <div
+      id="image-modal"
+      class="modal"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 2000;
+        align-items: center;
+        justify-content: center;
+      "
+    >
+      <img
+        id="modal-img-display"
+        src=""
+        style="max-width: 90%; max-height: 90vh; border-radius: 5px"
+      />
+      <button
+        type="button"
+        class="btn btn-danger"
+        style="position: absolute; top: 20px; right: 20px"
+        onclick="document.getElementById('image-modal').style.display='none'"
+      >
+        <i class="fas fa-times"></i> 關閉
+      </button>
+    </div>
+
+    <script src="js/apiConfig.js"></script>
+    <script src="js/admin-layout.js"></script>
+    <script src="js/admin-unclaimed.js"></script>
+  </body>
+</html>
