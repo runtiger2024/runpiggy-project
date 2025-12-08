@@ -35,13 +35,15 @@ const deleteFiles = (filePaths) => {
  */
 const getUnclaimedPackages = async (req, res) => {
   try {
-    // 查詢歸屬於官方無主帳號且已入庫的包裹
+    // 查詢歸屬於官方無主帳號的包裹
+    // [修改] 移除 status: "ARRIVED" 限制，以確保與後台看到的列表同步
+    // 管理員可能手動建立了 PENDING 的無主件，現在前台也能看到了
     const packages = await prisma.package.findMany({
       where: {
         user: {
           email: { in: ["unclaimed@runpiggy.com", "admin@runpiggy.com"] },
         },
-        status: "ARRIVED", // 只顯示已入庫的實際包裹
+        // status: "ARRIVED", // [已移除] 不再限制必須入庫才能看到
       },
       select: {
         id: true,
@@ -61,7 +63,7 @@ const getUnclaimedPackages = async (req, res) => {
         full.length > 5 ? "*".repeat(full.length - 5) + full.slice(-5) : full;
 
       // 計算重量資訊 (若有)
-      let weightInfo = "未測量";
+      let weightInfo = "待入庫測量";
       if (
         Array.isArray(pkg.arrivedBoxesJson) &&
         pkg.arrivedBoxesJson.length > 0
@@ -144,9 +146,9 @@ const createPackageForecast = async (req, res) => {
     const newPackage = await prisma.package.create({
       data: {
         trackingNumber: trackingNumber.trim(),
-        productName: productName,
+        productName,
         quantity: quantity ? parseInt(quantity) : 1,
-        note: note,
+        note,
         productUrl: productUrl || null,
         productImages: imagePaths,
         warehouseImages: [],
@@ -285,7 +287,8 @@ const claimPackage = async (req, res) => {
         .json({ success: true, message: "此包裹已在您的清單中。" });
     }
 
-    // 執行認領：更新 userId 並儲存憑證
+    // 執行認領：更新 userId
+    // [修改] 憑證為選填，只有在有上傳時才更新欄位
     const updateData = {
       userId: userId,
     };
@@ -303,7 +306,7 @@ const claimPackage = async (req, res) => {
       userId,
       "CLAIM_PACKAGE",
       pkg.id,
-      `認領包裹 ${trackingNumber}`
+      `認領包裹 ${trackingNumber} ${proofFile ? "(含憑證)" : "(無憑證)"}`
     );
 
     res.json({ success: true, message: "認領成功！包裹已歸入您的帳戶。" });
@@ -542,7 +545,7 @@ module.exports = {
   createPackageForecast,
   bulkForecast,
   claimPackage,
-  getUnclaimedPackages, // [New] Exported
+  getUnclaimedPackages,
   resolveException,
   getMyPackages,
   updateMyPackage,

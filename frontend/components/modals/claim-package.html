@@ -4,7 +4,7 @@
     <h3>🙋‍♂️ 認領無主包裹</h3>
     <div class="alert alert-info" style="font-size: 13px">
       若您忘記預報且包裹已入庫（顯示為無主件），請在此認領。<br />
-      需上傳購物截圖以供管理員審核。
+      <strong>只需輸入完整單號即可認領</strong>，購物憑證為選填。
     </div>
     <form id="claim-package-form">
       <div class="form-group">
@@ -18,13 +18,12 @@
         />
       </div>
       <div class="form-group">
-        <label class="required">購物證明截圖</label>
+        <label>購物證明截圖 (選填)</label>
         <input
           type="file"
           id="claim-proof"
           accept="image/*"
           class="form-control"
-          required
         />
       </div>
       <button type="submit" class="btn btn-primary">提交認領</button>
