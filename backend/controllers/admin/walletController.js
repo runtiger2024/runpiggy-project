@@ -1,8 +1,9 @@
 // backend/controllers/admin/walletController.js
-// V1.2 - 整合自動發票開立功能與手動補開機制
+// V1.3 - Integrated with Notifications
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
+const createNotification = require("../../utils/createNotification.js"); // [New]
 const invoiceHelper = require("../../utils/invoiceHelper.js");
 
 /**
@@ -60,7 +61,7 @@ const getTransactions = async (req, res) => {
       status: tx.status,
       description: tx.description,
       proofImage: tx.proofImage,
-      // [新增] 回傳發票資訊
+      // 回傳發票資訊
       invoiceNumber: tx.invoiceNumber,
       invoiceStatus: tx.invoiceStatus,
       createdAt: tx.createdAt,
@@ -95,7 +96,7 @@ const reviewTransaction = async (req, res) => {
       where: { id },
       include: {
         wallet: {
-          include: { user: true }, // 需要 User 資料來開立發票
+          include: { user: true }, // 需要 User 資料來開立發票與發送通知
         },
       },
     });
@@ -108,8 +109,7 @@ const reviewTransaction = async (req, res) => {
       let invoiceResult = null;
       let invoiceMsg = "";
 
-      // [核心優化] 自動開立發票邏輯
-      // 只有 "DEPOSIT" (儲值) 且金額 > 0 才開立
+      // 自動開立發票邏輯：只有 "DEPOSIT" (儲值) 且金額 > 0 才開立
       if (tx.type === "DEPOSIT" && tx.amount > 0) {
         try {
           invoiceResult = await invoiceHelper.createDepositInvoice(
@@ -156,6 +156,15 @@ const reviewTransaction = async (req, res) => {
         });
       });
 
+      // [New] 發送站內通知
+      await createNotification(
+        tx.wallet.userId,
+        "儲值成功",
+        `您申請的 $${tx.amount.toLocaleString()} 儲值已核准並入帳。`,
+        "WALLET",
+        "tab-wallet"
+      );
+
       await createLog(
         req.user.id,
         "APPROVE_DEPOSIT",
@@ -176,6 +185,15 @@ const reviewTransaction = async (req, res) => {
             (rejectReason ? ` (駁回原因: ${rejectReason})` : ""),
         },
       });
+
+      // [New] 發送站內通知
+      await createNotification(
+        tx.wallet.userId,
+        "儲值申請已駁回",
+        `您的儲值申請已被駁回，原因：${rejectReason || "資料不符"}。`,
+        "WALLET",
+        "tab-wallet"
+      );
 
       await createLog(req.user.id, "REJECT_DEPOSIT", id, "駁回儲值申請");
       res.status(200).json({ success: true, message: "已駁回申請" });
@@ -232,6 +250,18 @@ const manualAdjust = async (req, res) => {
       });
     });
 
+    // [New] 發送站內通知
+    const actionText = adjustAmount > 0 ? "補款" : "扣款";
+    await createNotification(
+      userId,
+      "錢包餘額變動",
+      `管理員執行了人工${actionText} $${Math.abs(
+        adjustAmount
+      ).toLocaleString()}，備註：${note || "無"}。`,
+      "WALLET",
+      "tab-wallet"
+    );
+
     await createLog(
       req.user.id,
       "MANUAL_ADJUST",
@@ -246,7 +276,7 @@ const manualAdjust = async (req, res) => {
 };
 
 /**
- * [新增] 手動補開儲值發票 (針對已完成但發票失敗的交易)
+ * 手動補開儲值發票 (針對已完成但發票失敗的交易)
  * @route POST /api/admin/finance/transactions/:id/invoice
  */
 const manualIssueDepositInvoice = async (req, res) => {

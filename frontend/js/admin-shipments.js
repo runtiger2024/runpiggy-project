@@ -1,5 +1,5 @@
 // frontend/js/admin-shipments.js
-// V2025.Features - 退回訂單, 裝櫃日期, 狀態顯示優化
+// V2025.Features.Enhanced - Impersonate & Notifications
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -129,7 +129,6 @@ document.addEventListener("DOMContentLoaded", () => {
       // --- 發票狀態欄位 ---
       let invHtml = `<span class="badge" style="background:#e0e0e0; color:#888; padding:2px 6px; font-size:12px; border-radius:4px;">未開立</span>`;
 
-      // 錢包支付顯示優化
       if (s.paymentProof === "WALLET_PAY") {
         invHtml = `<span class="badge" style="background:#cce5ff; color:#004085; padding:2px 6px; font-size:12px; border-radius:4px;">
                      <i class="fas fa-wallet"></i> 儲值已開
@@ -145,8 +144,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const sStr = encodeURIComponent(JSON.stringify(s));
+      // [NEW] 模擬登入資訊準備
+      const userName = s.user ? s.user.name || s.user.email : "未知";
+      const userId = s.userId;
 
-      // [Mobile Opt] 加入 data-label
       tr.innerHTML = `
         <td><input type="checkbox" class="ship-checkbox" value="${s.id}"></td>
         <td data-label="訂單號"><strong>${s.id
@@ -157,13 +158,20 @@ document.addEventListener("DOMContentLoaded", () => {
         ).toLocaleDateString()}</td>
         <td data-label="會員/收件人">
           <div>${s.recipientName}</div>
-          <small class="text-muted">${s.user?.email}</small>
+          <small class="text-muted" style="cursor:pointer;" title="點擊模擬登入" onclick="window.impersonateUser('${userId}', '${userName}')">
+            <i class="fas fa-user-circle"></i> ${s.user?.email}
+          </small>
         </td>
         <td data-label="總金額"><span class="text-danger font-weight-bold">NT$ ${s.totalCost.toLocaleString()}</span></td>
         <td data-label="發票狀態">${invHtml}</td>
         <td data-label="訂單狀態"><span class="status-badge ${statusClass}">${displayStatus}</span></td>
         <td data-label="操作">
-          <button class="btn btn-primary btn-sm" onclick="openModal('${sStr}')">管理</button>
+          <div style="display:flex; gap:5px; justify-content:flex-end;">
+            <button class="btn btn-primary btn-sm" onclick="openModal('${sStr}')">管理</button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="window.impersonateUser('${userId}', '${userName}')" title="模擬登入前台">
+               <i class="fas fa-key"></i>
+            </button>
+          </div>
         </td>
       `;
       tr.querySelector(".ship-checkbox").addEventListener("change", (e) =>
@@ -195,6 +203,49 @@ document.addEventListener("DOMContentLoaded", () => {
       paginationDiv.appendChild(btn(">", currentPage + 1));
   }
 
+  // --- [New] 模擬登入功能 ---
+  window.impersonateUser = async function (userId, name) {
+    if (
+      !confirm(
+        `確定要模擬「${name}」登入前台嗎？\n(將開啟新視窗並以該會員身分操作)`
+      )
+    )
+      return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/users/${userId}/impersonate`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${adminToken}` },
+        }
+      );
+      const data = await res.json();
+
+      if (res.ok) {
+        const win = window.open("index.html", "_blank");
+        setTimeout(() => {
+          if (win) {
+            try {
+              win.localStorage.setItem("token", data.token);
+              win.localStorage.setItem(
+                "userName",
+                data.user.name || data.user.email
+              );
+              win.location.href = "dashboard.html";
+            } catch (e) {
+              console.warn("無法自動寫入 localStorage", e);
+            }
+          }
+        }, 800);
+      } else {
+        alert("模擬失敗: " + (data.message || "權限不足"));
+      }
+    } catch (err) {
+      alert("錯誤: " + err.message);
+    }
+  };
+
   // --- Modal 操作 ---
   window.openModal = function (str) {
     const s = JSON.parse(decodeURIComponent(str));
@@ -209,7 +260,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("m-tax-id").value = s.taxId || "";
     document.getElementById("m-invoice-title").value = s.invoiceTitle || "";
 
-    // [New] 填入裝櫃日期 (HTML 中需新增此 input)
     const dateInput = document.getElementById("m-loading-date");
     if (dateInput) {
       if (s.loadingDate) {
@@ -230,7 +280,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("m-cost").value = s.totalCost;
     document.getElementById("m-tracking-tw").value = s.trackingNumberTW || "";
 
-    // [Security] 財務鎖定：若發票已開立，禁用金額修改
     const costInput = document.getElementById("m-cost");
     if (
       s.invoiceStatus === "ISSUED" &&
@@ -257,7 +306,6 @@ document.addEventListener("DOMContentLoaded", () => {
       proofDiv.innerHTML = "尚未上傳";
     }
 
-    // 發票管理區塊
     const invSection = document.getElementById("invoice-management-section");
     invSection.innerHTML = "";
     invSection.style.cssText =
@@ -304,7 +352,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     invSection.innerHTML = invContent;
 
-    // [New] 退回按鈕顯示邏輯
     const btnReturn = document.getElementById("btn-return-shipment");
     if (btnReturn) {
       if (s.status !== "CANCELLED" && s.status !== "RETURNED") {
@@ -318,7 +365,6 @@ document.addEventListener("DOMContentLoaded", () => {
     modal.style.display = "flex";
   };
 
-  // [New] 退回訂單處理
   window.handleReturnShipment = async function (id) {
     const reason = prompt(
       "請輸入退回原因 (客戶可見)：\n例如：包裹違禁品、金額有誤、客戶要求...",
@@ -422,7 +468,6 @@ document.addEventListener("DOMContentLoaded", () => {
       trackingNumberTW: document.getElementById("m-tracking-tw").value,
       taxId: document.getElementById("m-tax-id").value.trim(),
       invoiceTitle: document.getElementById("m-invoice-title").value.trim(),
-      // [New] 收集裝櫃日期
       loadingDate: document.getElementById("m-loading-date")
         ? document.getElementById("m-loading-date").value
         : undefined,
@@ -457,7 +502,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- 批量邏輯 ---
   function toggleSelection(id, checked) {
     if (checked) selectedIds.add(id);
     else selectedIds.delete(id);

@@ -1,5 +1,9 @@
+// backend/controllers/admin/packageController.js
+// V2025.Security - Integrated Notification System
+
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
+const createNotification = require("../../utils/createNotification.js"); // [New]
 const {
   deleteFiles,
   buildPackageWhereClause,
@@ -68,10 +72,29 @@ const bulkUpdatePackageStatus = async (req, res) => {
     const { ids, status } = req.body;
     if (!Array.isArray(ids) || ids.length === 0 || !status)
       return res.status(400).json({ success: false, message: "參數錯誤" });
+
     await prisma.package.updateMany({
       where: { id: { in: ids } },
       data: { status },
     });
+
+    // [New] 批量通知
+    if (status === "ARRIVED") {
+      const packages = await prisma.package.findMany({
+        where: { id: { in: ids } },
+        select: { userId: true, trackingNumber: true },
+      });
+      const notifData = packages.map((p) => ({
+        userId: p.userId,
+        title: "包裹已入庫",
+        message: `您的包裹 ${p.trackingNumber} 已送達倉庫並入庫。`,
+        type: "PACKAGE",
+        link: "tab-packages",
+      }));
+      // 使用 createMany 批量寫入通知 (Prisma 支援)
+      await prisma.notification.createMany({ data: notifData });
+    }
+
     await createLog(
       req.user.id,
       "BULK_UPDATE_PACKAGE",
@@ -80,6 +103,7 @@ const bulkUpdatePackageStatus = async (req, res) => {
     );
     res.status(200).json({ success: true, message: "批量更新成功" });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };
@@ -145,6 +169,15 @@ const adminCreatePackage = async (req, res) => {
         userId,
       },
     });
+
+    // [New] 通知會員
+    await createNotification(
+      userId,
+      "管理員已代為預報",
+      `您的包裹 ${trackingNumber} 已由客服建立。`,
+      "PACKAGE"
+    );
+
     await createLog(
       adminUserId,
       "ADMIN_CREATE_PACKAGE",
@@ -205,6 +238,18 @@ const updatePackageStatus = async (req, res) => {
       where: { id },
       data: { status },
     });
+
+    // [New] 通知 (入庫時)
+    if (status === "ARRIVED" && pkg.status !== "ARRIVED") {
+      await createNotification(
+        pkg.userId,
+        "包裹已入庫",
+        `您的包裹 ${pkg.trackingNumber} 已測量完畢並入庫，請前往打包。`,
+        "PACKAGE",
+        "tab-packages"
+      );
+    }
+
     await createLog(
       req.user.id,
       "UPDATE_PACKAGE_STATUS",
@@ -294,6 +339,18 @@ const updatePackageDetails = async (req, res) => {
       where: { id },
       data: updateData,
     });
+
+    // [New] 通知 (如果是入庫操作)
+    if (status === "ARRIVED" && pkg.status !== "ARRIVED") {
+      await createNotification(
+        pkg.userId,
+        "包裹已入庫",
+        `您的包裹 ${pkg.trackingNumber} 已更新測量數據。`,
+        "PACKAGE",
+        "tab-packages"
+      );
+    }
+
     await createLog(
       req.user.id,
       "UPDATE_PACKAGE_DETAILS",

@@ -1,5 +1,5 @@
 // backend/routes/adminRoutes.js
-// V14.1 - Added Invoice Manual Issue Route
+// V14.2 - Added Email Test Route
 
 const express = require("express");
 const router = express.Router();
@@ -11,13 +11,12 @@ const packageController = require("../controllers/admin/packageController");
 const shipmentController = require("../controllers/admin/shipmentController");
 const userController = require("../controllers/admin/userController");
 const reportController = require("../controllers/admin/reportController");
-// [新增] 錢包控制器
 const walletController = require("../controllers/admin/walletController");
 
 const { protect, checkPermission } = require("../middleware/authMiddleware.js");
 
 // ==========================================
-// 1. 儀表板與報表 (Dashboard & Reports)
+// 1. 儀表板與報表
 // ==========================================
 router
   .route("/stats")
@@ -40,7 +39,7 @@ router
   );
 
 // ==========================================
-// 2. 系統全域設定 (System Settings)
+// 2. 系統全域設定
 // ==========================================
 router
   .route("/settings")
@@ -58,8 +57,17 @@ router
     settingsController.updateSystemSetting
   );
 
+// [New] 測試 Email
+router
+  .route("/settings/test/email")
+  .post(
+    protect,
+    checkPermission("SYSTEM_CONFIG"),
+    settingsController.sendTestEmail
+  );
+
 // ==========================================
-// 3. 包裹管理 (Packages)
+// 3. 包裹管理
 // ==========================================
 router
   .route("/packages/export")
@@ -128,7 +136,7 @@ router
   );
 
 // ==========================================
-// 4. 集運單管理 (Shipments)
+// 4. 集運單管理
 // ==========================================
 router
   .route("/shipments/export")
@@ -200,7 +208,7 @@ router
   );
 
 // ==========================================
-// 5. 會員管理 (Users)
+// 5. 會員管理
 // ==========================================
 router
   .route("/users")
@@ -263,7 +271,7 @@ router
   );
 
 // ==========================================
-// 6. 財務管理 (Finance & Wallet) - [NEW]
+// 6. 財務管理
 // ==========================================
 router
   .route("/finance/transactions")
@@ -281,7 +289,6 @@ router
     walletController.reviewTransaction
   );
 
-// [新增] 手動補開儲值發票路由
 router
   .route("/finance/transactions/:id/invoice")
   .post(

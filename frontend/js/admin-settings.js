@@ -1,5 +1,5 @@
 // frontend/js/admin-settings.js
-// V2025.Security - 包含結構預檢查 (Schema Validation)
+// V2025.Features - Added Email Testing
 
 document.addEventListener("DOMContentLoaded", async () => {
   const token = localStorage.getItem("admin_token");
@@ -36,10 +36,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     .getElementById("form-email")
     .addEventListener("submit", saveEmailConfig);
 
-  // 4. 綁定新增按鈕
+  // 4. 綁定按鈕
   document.getElementById("btn-add-category").addEventListener("click", () => {
     addCategoryBlock("", {}, true);
   });
+
+  // [New] 綁定 Email 測試按鈕
+  const btnTestEmail = document.getElementById("btn-test-email");
+  if (btnTestEmail) {
+    btnTestEmail.addEventListener("click", sendTestEmail);
+  }
 
   // --- 核心函式 ---
 
@@ -212,7 +218,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         hasError = true;
         return;
       }
-      // [Security] 數值驗證
       if (isNaN(wRate) || isNaN(vRate) || wRate < 0 || vRate < 0) {
         alert(`錯誤：類別 ${key} 的費率必須為正數`);
         hasError = true;
@@ -286,6 +291,31 @@ document.addEventListener("DOMContentLoaded", async () => {
       recipients: recipients,
     };
     await sendUpdate("email_config", data, "郵件設定");
+  }
+
+  // [New] 發送測試信
+  async function sendTestEmail() {
+    const btn = document.getElementById("btn-test-email");
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 發送中...';
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/admin/settings/test/email`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message);
+      } else {
+        alert("發送失敗: " + data.message);
+      }
+    } catch (e) {
+      alert("網路錯誤");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-vial"></i> 發送測試信';
+    }
   }
 
   async function sendUpdate(key, value, name) {
