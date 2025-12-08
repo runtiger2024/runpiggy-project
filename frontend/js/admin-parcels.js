@@ -1,5 +1,5 @@
 // frontend/js/admin-parcels.js
-// V2025.AutoArrive - 自動切換入庫狀態 & [Security] 雙重刪除確認 & [Fix] 認領顯示同步
+// V2025.AutoArrive - 自動切換入庫狀態 & [Feature] 快速設為無主件
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -27,6 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
   init();
 
   function init() {
+    // 列表搜尋
     document.getElementById("btn-search").addEventListener("click", () => {
       currentSearch = document.getElementById("search-input").value;
       currentStatus = document.getElementById("status-filter").value;
@@ -34,6 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
       loadParcels();
     });
 
+    // 打開新增視窗
     document
       .getElementById("btn-show-create-modal")
       .addEventListener("click", openCreateModal);
@@ -59,6 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
       btnBulkDelete.addEventListener("click", performBulkDelete);
     }
 
+    // 分箱功能
     document
       .getElementById("btn-add-sub-package")
       .addEventListener("click", () => {
@@ -72,7 +75,56 @@ document.addEventListener("DOMContentLoaded", () => {
 
     form.addEventListener("submit", handleFormSubmit);
 
+    // [New] 綁定「設為無主件」按鈕
+    const btnSetUnclaimed = document.getElementById("btn-set-unclaimed");
+    if (btnSetUnclaimed) {
+      btnSetUnclaimed.addEventListener("click", setAsUnclaimedUser);
+    }
+
     loadParcels();
+  }
+
+  // --- [New] 快速設定為無主件 ---
+  async function setAsUnclaimedUser() {
+    const searchInput = document.getElementById("admin-customer-search");
+    const resultDiv = document.getElementById("admin-customer-search-results");
+
+    // 鎖定按鈕避免重複點擊
+    const btn = document.getElementById("btn-set-unclaimed");
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 搜尋中...';
+
+    try {
+      // 搜尋官方無主帳號 (由 Seed 建立)
+      const keyword = "unclaimed@runpiggy.com";
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/users/list?search=${encodeURIComponent(
+          keyword
+        )}`,
+        { headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      const data = await res.json();
+
+      if (data.users && data.users.length > 0) {
+        // 找到帳號，直接選取
+        const user = data.users[0];
+        selectUser(user.id, user.email, user.name);
+        // 額外提示
+        searchInput.style.backgroundColor = "#fff3cd"; // 黃色底色提示
+        setTimeout(() => (searchInput.style.backgroundColor = ""), 1000);
+      } else {
+        alert(
+          "找不到官方無主帳號 (unclaimed@runpiggy.com)。\n請確認系統是否已執行 Seed 初始化。"
+        );
+      }
+    } catch (e) {
+      console.error(e);
+      alert("連線錯誤，無法設定無主件");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
   }
 
   async function loadParcels() {
@@ -192,6 +244,15 @@ document.addEventListener("DOMContentLoaded", () => {
         alertBadges += `<span class="badge" style="background-color:#6610f2; color:white; font-size:11px; padding:2px 6px; margin-right:2px; border-radius:4px;">🙋‍♂️ 已認領</span> `;
       }
 
+      // [New] 若是無主件，標示特殊標籤
+      if (
+        pkg.user &&
+        (pkg.user.email === "unclaimed@runpiggy.com" ||
+          pkg.user.email === "admin@runpiggy.com")
+      ) {
+        alertBadges += `<span class="badge" style="background-color:#6c757d; color:white; font-size:11px; padding:2px 6px; margin-right:2px; border-radius:4px;">❓ 無主</span> `;
+      }
+
       if (pkg.arrivedBoxesJson && pkg.arrivedBoxesJson.length > 0) {
         let isOversized = false;
         let isOverweight = false;
@@ -299,7 +360,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("user-info-section").style.display = "block";
     document.getElementById("create-user-search").style.display = "none";
 
-    // [Fix] 若有認領憑證，顯示在用戶資訊區塊
     let claimHtml = "";
     if (pkg.claimProof) {
       claimHtml = `
@@ -347,7 +407,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function openCreateModal() {
     isCreateMode = true;
-    document.getElementById("modal-title").textContent = "代客預報 (新增包裹)";
+    document.getElementById("modal-title").textContent =
+      "代客預報 (或新增無主件)";
     form.reset();
     document.getElementById("modal-pkg-id").value = "";
 
@@ -355,6 +416,10 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-user-display").innerHTML = "";
     document.getElementById("create-user-search").style.display = "block";
     document.getElementById("admin-create-userId").value = "";
+    // 清空搜尋欄位
+    document.getElementById("admin-customer-search").value = "";
+    document.getElementById("admin-customer-search-results").style.display =
+      "none";
 
     document.getElementById("boxes-section").style.display = "none";
     document.getElementById("modal-status").value = "PENDING";
@@ -363,6 +428,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   window.openCreateModal = openCreateModal;
 
+  // ... (renderSubPackages, updateFeesOnInput, renderImages, deleteImage 保持不變) ...
   function renderSubPackages() {
     const list = document.getElementById("sub-package-list");
     list.innerHTML = "";
@@ -673,6 +739,7 @@ document.addEventListener("DOMContentLoaded", () => {
     resultDiv.style.display = "none";
   };
 
+  // ... (toggleSelection, updateBulkUI, performBulkDelete 保持不變) ...
   function toggleSelection(id, checked) {
     if (checked) selectedIds.add(id);
     else selectedIds.delete(id);

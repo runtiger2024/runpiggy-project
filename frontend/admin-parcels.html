@@ -39,7 +39,7 @@
               <i class="fas fa-search"></i> 搜尋
             </button>
             <button class="btn btn-success" id="btn-show-create-modal">
-              <i class="fas fa-plus"></i> 代客預報
+              <i class="fas fa-plus"></i> 代客預報 / 入庫
             </button>
             <button class="btn btn-secondary" id="btn-export">
               <i class="fas fa-file-export"></i> 匯出 CSV
@@ -138,16 +138,28 @@
               "
             >
               <label class="small font-weight-bold text-primary"
-                >會員資訊</label
+                >歸屬會員 (Owner)</label
               >
               <div id="modal-user-display"></div>
+
               <div id="create-user-search" style="display: none">
-                <input
-                  type="text"
-                  id="admin-customer-search"
-                  class="form-control"
-                  placeholder="輸入 Email 或姓名搜尋會員..."
-                />
+                <div style="display: flex; gap: 5px">
+                  <input
+                    type="text"
+                    id="admin-customer-search"
+                    class="form-control"
+                    placeholder="輸入 Email 或姓名搜尋..."
+                  />
+                  <button
+                    type="button"
+                    id="btn-set-unclaimed"
+                    class="btn btn-warning btn-sm"
+                    style="white-space: nowrap"
+                    title="將此包裹歸類為官方無主件庫存"
+                  >
+                    <i class="fas fa-user-secret"></i> 設為無主
+                  </button>
+                </div>
                 <div
                   id="admin-customer-search-results"
                   style="
@@ -155,6 +167,10 @@
                     max-height: 150px;
                     overflow-y: auto;
                     display: none;
+                    background: white;
+                    position: absolute;
+                    width: 90%;
+                    z-index: 10;
                   "
                 ></div>
                 <input type="hidden" id="admin-create-userId" />
