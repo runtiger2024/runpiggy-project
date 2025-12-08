@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V26.0 - Fix Forecast Draft Queue & Enhanced Proof Upload & Added Unclaimed Tab
+// V27.0 - Added Wallet Shortcut & Auto Scroll
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // 4. 初始化圖片上傳器
   initUploaders();
 
-  // 5. 其他全域按鈕綁定
+  // 5. 其他全域按鈕綁定 (含錢包捷徑)
   bindGlobalButtons();
 
   // 6. 延遲執行草稿檢查
@@ -52,7 +52,6 @@ function setupTabs() {
       section: "wallet-section",
       loadFn: window.loadWalletData,
     },
-    // [New] 註冊無主招領頁籤
     {
       id: "tab-unclaimed",
       section: "unclaimed-section",
@@ -223,6 +222,25 @@ function bindGlobalButtons() {
       const form = document.getElementById("change-password-form");
       if (form) form.reset();
       document.getElementById("change-password-modal").style.display = "flex";
+    });
+  }
+
+  // [NEW] 錢包快速捷徑點擊事件
+  const btnQuickWallet = document.getElementById("btn-quick-wallet");
+  if (btnQuickWallet) {
+    btnQuickWallet.addEventListener("click", () => {
+      // 1. 觸發切換 Tab
+      const tabWallet = document.getElementById("tab-wallet");
+      if (tabWallet) tabWallet.click();
+
+      // 2. 平滑捲動至錢包區塊
+      // 延遲一點點確保 display: block 已生效
+      setTimeout(() => {
+        const section = document.getElementById("wallet-section");
+        if (section) {
+          section.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
     });
   }
 

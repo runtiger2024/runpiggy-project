@@ -1,5 +1,5 @@
 /* frontend/css/client-dashboard.css */
-/* 會員中心 (Dashboard) 專用樣式 - V25.5 Mobile Grid Fix */
+/* 會員中心 (Dashboard) 專用樣式 - V27.0 Mobile Grid Fix + Wallet Card */
 
 /* --- 1. Dashboard Header --- */
 .dashboard-header {
@@ -36,7 +36,7 @@
   padding: 0 20px 20px;
   position: relative;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-end; /* 讓內容底部對齊 */
   gap: 15px;
   margin-top: -40px;
 }
@@ -55,7 +55,7 @@
   flex-shrink: 0;
 }
 .profile-details {
-  flex: 1;
+  flex: 1; /* 佔據剩餘空間 */
   padding-top: 45px;
 }
 .profile-details h2 {
@@ -79,7 +79,53 @@
   display: flex;
   gap: 10px;
   align-items: center;
-  margin-left: auto;
+  margin-left: auto; /* 靠右對齊 */
+}
+
+/* --- 錢包餘額功能卡片 (Wallet Balance Card) - [NEW] --- */
+.wallet-balance-card {
+  background: #f8fbff;
+  border: 1px solid #cce5ff;
+  border-radius: 10px;
+  padding: 8px 15px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 140px;
+  margin-left: 15px; /* 桌機版與詳細資料保持距離 */
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+/* 懸浮效果：讓用戶知道可點擊 */
+.wallet-balance-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 5px 12px rgba(26, 115, 232, 0.15);
+  border-color: var(--color-primary);
+  background: #fff;
+}
+/* 點擊回饋 */
+.wallet-balance-card:active {
+  transform: scale(0.98);
+}
+
+.wb-label {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 2px;
+}
+.wb-amount {
+  font-size: 20px;
+  font-weight: 800;
+  color: #28a745;
+  font-family: var(--font-mono);
+  line-height: 1.2;
+}
+.wb-action {
+  font-size: 11px;
+  color: var(--color-primary);
+  font-weight: bold;
+  margin-top: 4px;
 }
 
 /* --- 3. 標籤頁 (Tabs) --- */
@@ -90,10 +136,10 @@
   overflow-x: auto;
   white-space: nowrap;
   padding-bottom: 5px;
-  scrollbar-width: none; /* Firefox */
+  scrollbar-width: none;
 }
 .dashboard-tabs::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+  display: none;
 }
 .tab-btn {
   padding: 8px 16px;
@@ -174,12 +220,10 @@
 
 /* === 手機版 (Mobile): Grid 卡片佈局 (修正歪斜問題) === */
 @media (max-width: 768px) {
-  /* 1. 修正容器邊距 */
   .dashboard-container {
     padding: 0 16px;
   }
 
-  /* 2. 解除 table 限制 */
   .table-responsive table,
   .table-responsive tbody {
     display: block;
@@ -187,7 +231,7 @@
     min-width: 0 !important;
   }
   .table-responsive thead {
-    display: none; /* 隱藏表頭 */
+    display: none;
   }
   .table-responsive {
     background: transparent;
@@ -196,13 +240,11 @@
     overflow: visible;
   }
 
-  /* 3. 卡片本體 (TR) - 改用 Grid 佈局 */
+  /* 卡片 Grid 定義 */
   .table-responsive tr {
     display: grid;
-    /* 定義兩欄：左邊自動(checkbox)，右邊自動(狀態) -> 中間內容跨欄 */
     grid-template-columns: auto 1fr auto;
     grid-gap: 10px;
-
     background: #fff;
     margin-bottom: 16px;
     border-radius: 12px;
@@ -211,10 +253,9 @@
     padding: 15px;
     width: 100%;
     box-sizing: border-box;
-    position: relative; /* 為了選中效果 */
+    position: relative;
   }
 
-  /* 選中狀態樣式 */
   .table-responsive tr:has(input:checked) {
     border-color: var(--color-primary);
     background: #f8fbff;
@@ -227,14 +268,11 @@
     padding: 0;
   }
 
-  /* --- [重點修正] 欄位定位 --- */
-
-  /* 1. Checkbox (左上角) */
+  /* 1. Checkbox */
   .table-responsive td:first-child {
-    grid-column: 1; /* 第一欄 */
-    grid-row: 1; /* 第一列 */
+    grid-column: 1;
+    grid-row: 1;
     align-self: center;
-    width: auto;
     margin: 0;
   }
   .table-responsive td input[type="checkbox"] {
@@ -244,28 +282,24 @@
     cursor: pointer;
   }
 
-  /* 2. Status (右上角) */
+  /* 2. Status */
   .table-responsive td:nth-child(2) {
-    grid-column: 3; /* 第三欄 (最右邊) */
-    grid-row: 1; /* 第一列 */
-    justify-self: end; /* 靠右對齊 */
-    width: auto;
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
     margin: 0;
   }
 
-  /* 3. 商品/訂單資訊 (第二列，跨滿版) */
+  /* 3. 內容 */
   .table-responsive td:nth-child(3) {
-    grid-column: 1 / -1; /* 跨越所有欄位 */
-    grid-row: 2; /* 第二列 */
-
+    grid-column: 1 / -1;
+    grid-row: 2;
     margin-top: 5px;
     padding-top: 10px;
     padding-bottom: 10px;
     border-top: 1px dashed #eee;
     border-bottom: 1px dashed #eee;
   }
-
-  /* 針對內容的文字樣式 */
   .table-responsive td:nth-child(3) div {
     font-size: 16px;
     font-weight: bold;
@@ -284,7 +318,7 @@
     word-break: break-all;
   }
 
-  /* 4. 規格/費用 (第三列，跨滿版) */
+  /* 4. 費用 */
   .table-responsive td:nth-child(4) {
     grid-column: 1 / -1;
     grid-row: 3;
@@ -296,27 +330,24 @@
     font-size: 14px;
     color: #555;
   }
-  /* 強調金額 */
   .fee-highlight {
     color: #d32f2f;
     font-weight: 800;
-    margin-left: auto; /* 讓金額靠右 */
+    margin-left: auto;
   }
 
-  /* 5. 操作按鈕 (第四列，跨滿版) */
+  /* 5. 按鈕 */
   .table-responsive td:last-child {
     grid-column: 1 / -1;
     grid-row: 4;
     margin-top: 10px;
     display: grid;
-    grid-template-columns: 1fr 1fr; /* 兩顆按鈕並排 */
+    grid-template-columns: 1fr 1fr;
     gap: 10px;
   }
-  /* 只有一顆按鈕時，讓它滿版 */
   .table-responsive td:last-child .btn:only-child {
     grid-column: 1 / -1;
   }
-
   .table-responsive td:last-child .btn {
     width: 100%;
     padding: 8px 0;
@@ -331,7 +362,7 @@
 /* --- 6. 懸浮結帳欄 --- */
 .sticky-checkout-bar {
   position: fixed;
-  bottom: 0; /* 手機版貼底 */
+  bottom: 0;
   left: 0;
   width: 100%;
   background: rgba(255, 255, 255, 0.95);
@@ -345,10 +376,9 @@
   backdrop-filter: blur(5px);
   padding-bottom: calc(12px + env(safe-area-inset-bottom));
 }
-/* 電腦版時，結帳欄不一定要貼底，可視需求調整，這裡維持貼底 */
 @media (max-width: 768px) {
   .sticky-checkout-bar {
-    bottom: var(--mobile-nav-height); /* 避開底部導航欄 */
+    bottom: var(--mobile-nav-height);
   }
 }
 
@@ -358,7 +388,7 @@
   color: #333;
 }
 .checkout-info .highlight {
-  color: #ff5000;
+  color: var(--color-accent);
   font-size: 1.2em;
   margin: 0 3px;
 }
@@ -369,16 +399,17 @@
   box-shadow: 0 4px 10px rgba(255, 80, 0, 0.3);
 }
 
-/* --- 7. 手機版 Profile 修正 --- */
+/* --- 7. 手機版 Profile 修正 (整合 Wallet Card) --- */
 @media (max-width: 768px) {
   .header-nav-right {
-    gap: 8px; /* 縮小間距 */
+    gap: 8px;
   }
   .header-nav-right .nav-link {
     padding: 6px 10px;
     font-size: 13px;
   }
-  /* Profile 卡片內容靠左對齊，不置中 */
+
+  /* 手機版：Profile 垂直堆疊 */
   .profile-content {
     align-items: flex-start;
     flex-direction: column;
@@ -401,26 +432,43 @@
     margin-left: 0;
   }
 
-  /* 錢包卡片手機版樣式 */
+  /* [NEW] 手機版錢包卡片：變成橫條按鈕，置於下方 */
   .wallet-balance-card {
     width: 100%;
-    margin-top: 10px;
+    margin-top: 15px;
+    margin-left: 0; /* 移除桌機版左邊距 */
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 15px;
-    background: #f0f7ff;
-    border: 1px solid #cce5ff;
+    padding: 12px 15px;
+    background: #e6f9ec; /* 淺綠底色 */
+    border: 1px solid #28a745;
+  }
+  .wallet-balance-card:active {
+    background: #d4edda;
   }
   .wb-label {
     margin: 0;
     font-size: 14px;
+    color: #155724;
+    font-weight: bold;
   }
   .wb-amount {
     font-size: 18px;
+    color: #155724;
   }
+  /* 顯示箭頭提示 */
   .wb-action {
-    display: none; /* 手機版空間小，隱藏操作字樣 */
+    display: block;
+    font-size: 14px;
+    color: #155724;
+  }
+  /* 手機版隱藏 "儲值/詳情" 文字，只留箭頭 */
+  .wb-action {
+    font-size: 0; /* 隱藏文字 */
+  }
+  .wb-action i {
+    font-size: 16px; /* 顯示箭頭 */
   }
 }
 
@@ -559,38 +607,6 @@
   display: flex;
   justify-content: flex-end;
   gap: 5px;
-}
-
-/* 錢包餘額小卡 (Desktop) */
-.wallet-balance-card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 10px;
-  padding: 8px 12px;
-  text-align: center;
-  cursor: pointer;
-  transition: 0.2s;
-  min-width: 120px;
-}
-.wallet-balance-card:hover {
-  border-color: var(--color-primary);
-  transform: translateY(-2px);
-}
-.wb-label {
-  font-size: 11px;
-  color: #888;
-}
-.wb-amount {
-  font-size: 18px;
-  font-weight: 800;
-  color: #28a745;
-  font-family: monospace;
-}
-.wb-action {
-  font-size: 11px;
-  color: var(--color-primary);
-  font-weight: bold;
-  margin-top: 2px;
 }
 
 /* 警示標籤 */

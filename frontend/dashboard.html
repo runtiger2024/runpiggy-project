@@ -27,17 +27,6 @@
         border-radius: 4px;
         border: 1px solid #ddd;
       }
-      .btn-mini {
-        padding: 4px 12px;
-        font-size: 12px;
-        height: 32px;
-        line-height: 1;
-        width: auto !important;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 5px;
-      }
     </style>
   </head>
   <body class="dashboard-theme">
@@ -98,6 +87,7 @@
         <div class="profile-bg"></div>
         <div class="profile-content">
           <div class="avatar-circle"><i class="fas fa-user"></i></div>
+
           <div class="profile-details">
             <h2 id="welcome-message">歡迎回來</h2>
             <div class="user-meta">
@@ -116,21 +106,17 @@
             </div>
           </div>
 
-          <div
-            class="wallet-balance-card"
-            onclick="document.getElementById('tab-wallet').click()"
-            title="點擊查看錢包詳情"
-          >
+          <div id="btn-quick-wallet" class="wallet-balance-card">
             <div class="wb-label"><i class="fas fa-coins"></i> 錢包餘額</div>
             <div class="wb-amount" id="header-wallet-balance">...</div>
-            <div class="wb-action"><i class="fas fa-plus-circle"></i> 儲值</div>
+            <div class="wb-action">
+              儲值 / 詳情
+              <i class="fas fa-chevron-right" style="font-size: 10px"></i>
+            </div>
           </div>
 
           <div class="profile-actions">
-            <button
-              id="btn-edit-profile"
-              class="btn btn-secondary btn-mini btn-edit-profile"
-            >
+            <button id="btn-edit-profile" class="btn btn-secondary btn-mini">
               <i class="fas fa-pen"></i> 編輯
             </button>
             <button
