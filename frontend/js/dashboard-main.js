@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V28.0 - Full Auto-fill & Validation
+// V29.1 - Tax ID Validation & Invoice Info Display
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -378,7 +378,7 @@ window.openUploadProof = function (id) {
 
   if (form) form.reset();
 
-  // 自動插入統編補填欄位 (如果 HTML 尚未包含)
+  // 1. 自動插入統編補填欄位 (如果 HTML 尚未包含)
   const existingTaxInput = document.getElementById("proof-taxId");
   if (!existingTaxInput && form) {
     const fileGroup = form.querySelector(".form-group");
@@ -390,16 +390,46 @@ window.openUploadProof = function (id) {
       taxDiv.style.borderRadius = "5px";
       taxDiv.style.marginBottom = "10px";
       taxDiv.innerHTML = `
-            <label style="color:#1a73e8; font-size:13px; font-weight:bold;">📝 統一編號 (如需修改請填寫)</label>
-            <div style="display:flex; gap:10px;">
-                <input type="text" id="proof-taxId" class="form-control" placeholder="統編 (8碼)" style="font-size:13px;">
-                <input type="text" id="proof-invoiceTitle" class="form-control" placeholder="公司抬頭" style="font-size:13px;">
+            <label style="color:#1a73e8; font-size:13px; font-weight:bold;">
+                📝 發票資訊 (如需打統編請填寫)
+            </label>
+            <div style="display:flex; gap:10px; flex-wrap: wrap;">
+                <div style="flex:1;">
+                    <input type="text" id="proof-taxId" class="form-control" placeholder="統一編號 (8碼)" maxlength="8" style="font-size:13px;">
+                </div>
+                <div style="flex:1;">
+                    <input type="text" id="proof-invoiceTitle" class="form-control" placeholder="公司抬頭" style="font-size:13px;">
+                </div>
             </div>
-            <small style="color:#666; font-size:11px;">※ 若此處留空，將使用訂單建立時的資料。</small>
+            <small style="color:#666; font-size:11px;">※ 若填寫統編，公司抬頭為必填項目。</small>
           `;
       form.insertBefore(taxDiv, fileGroup);
     }
   }
+
+  // 2. [New] 綁定連動邏輯：有填統編 -> 抬頭變必填
+  setTimeout(() => {
+    const taxInput = document.getElementById("proof-taxId");
+    const titleInput = document.getElementById("proof-invoiceTitle");
+
+    if (taxInput && titleInput) {
+      const validateTax = () => {
+        if (taxInput.value.trim().length > 0) {
+          titleInput.setAttribute("required", "true");
+          titleInput.style.border = "1px solid #d32f2f";
+          titleInput.placeholder = "公司抬頭 (必填)";
+        } else {
+          titleInput.removeAttribute("required");
+          titleInput.style.border = "";
+          titleInput.placeholder = "公司抬頭";
+        }
+      };
+      // 綁定輸入事件
+      taxInput.oninput = validateTax;
+      // 初始化狀態
+      validateTax();
+    }
+  }, 50);
 
   // [Auto-fill] 自動填入預設資料
   if (window.currentUser) {
@@ -480,5 +510,134 @@ window.handleUploadProofSubmit = async function (e) {
   } finally {
     btn.disabled = false;
     btn.textContent = "上傳";
+  }
+};
+
+// [New] 查看訂單詳情 (同步顯示發票資訊)
+window.openShipmentDetails = async function (id) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/shipments/${id}`, {
+      headers: { Authorization: `Bearer ${window.dashboardToken}` },
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
+
+    const s = data.shipment;
+    document.getElementById("sd-id").textContent = s.id.slice(-8).toUpperCase();
+
+    // 渲染狀態時間軸
+    const timelineContainer = document.getElementById("sd-timeline");
+    if (timelineContainer) {
+      if (typeof renderTimeline === "function") {
+        renderTimeline(timelineContainer, s.status);
+      } else {
+        const statusEl = document.getElementById("sd-status");
+        if (statusEl) statusEl.textContent = s.status;
+      }
+    }
+
+    const statusEl = document.getElementById("sd-status");
+    if (s.status === "RETURNED") {
+      statusEl.innerHTML = `<span class="status-badge status-CANCELLED">訂單已退回</span>
+        <div style="background:#fff1f0; border:1px solid #ffa39e; padding:8px; border-radius:4px; margin-top:5px; font-size:13px; color:#c0392b;">
+            <strong>退回原因：</strong> ${s.returnReason || "未說明"}
+        </div>`;
+    } else {
+      const statusText =
+        (window.SHIPMENT_STATUS_MAP && window.SHIPMENT_STATUS_MAP[s.status]) ||
+        s.status;
+      statusEl.textContent = statusText;
+    }
+
+    let dateHtml = `<div><strong>建立日期:</strong> <span>${new Date(
+      s.createdAt
+    ).toLocaleString()}</span></div>`;
+    if (s.loadingDate) {
+      dateHtml += `<div style="color:#28a745; font-weight:bold; margin-top:5px;">
+            <i class="fas fa-ship"></i> 裝櫃日期: ${new Date(
+              s.loadingDate
+            ).toLocaleDateString()}
+        </div>`;
+    }
+    document.getElementById("sd-date").innerHTML = dateHtml;
+
+    document.getElementById("sd-trackingTW").textContent =
+      s.trackingNumberTW || "尚未產生";
+
+    document.getElementById("sd-name").textContent = s.recipientName;
+    document.getElementById("sd-phone").textContent = s.phone;
+    document.getElementById("sd-address").textContent = s.shippingAddress;
+
+    // --- [NEW] 同步顯示發票資訊區塊 ---
+    let invoiceInfoContainer = document.getElementById("sd-invoice-info");
+    if (!invoiceInfoContainer) {
+      invoiceInfoContainer = document.createElement("div");
+      invoiceInfoContainer.id = "sd-invoice-info";
+      const addressBlock = document.getElementById("sd-address").closest("div");
+      if (addressBlock) {
+        addressBlock.insertAdjacentElement("afterend", invoiceInfoContainer);
+      }
+    }
+
+    invoiceInfoContainer.innerHTML = `
+      <div class="modal-section-title" style="margin-top:15px;">
+          <i class="fas fa-file-invoice"></i> 發票資訊
+      </div>
+      <div style="background:#fff; border:1px solid #d9d9d9; padding:15px; border-radius:5px;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+              <div>
+                  <label style="display:block; font-size:12px; color:#666; margin-bottom:4px;">統一編號 (Tax ID)</label>
+                  <input type="text" class="form-control" value="${
+                    s.taxId || "未填寫 (個人發票)"
+                  }" disabled 
+                         style="background:#f5f5f5; font-size:13px; color:${
+                           s.taxId ? "#000" : "#999"
+                         };">
+              </div>
+              <div>
+                  <label style="display:block; font-size:12px; color:#666; margin-bottom:4px;">發票抬頭 (Title)</label>
+                  <input type="text" class="form-control" value="${
+                    s.invoiceTitle || "-"
+                  }" disabled 
+                         style="background:#f5f5f5; font-size:13px;">
+              </div>
+          </div>
+          ${
+            s.invoiceNumber
+              ? `
+            <div style="margin-top:10px; padding-top:10px; border-top:1px dashed #eee; color:#28a745; font-weight:bold; font-size:13px;">
+                <i class="fas fa-check-circle"></i> 發票已開立：${s.invoiceNumber}
+            </div>`
+              : ""
+          }
+      </div>
+    `;
+
+    const breakdown = document.getElementById("sd-fee-breakdown");
+    breakdown.innerHTML = `
+        <div>運費總計: <strong style="font-size:1.2em;">$${(
+          s.totalCost || 0
+        ).toLocaleString()}</strong></div>
+    `;
+
+    const gallery = document.getElementById("sd-proof-images");
+    gallery.innerHTML = "";
+
+    if (s.paymentProof) {
+      if (s.paymentProof === "WALLET_PAY") {
+        gallery.innerHTML = `<div style="text-align:center; padding:10px; background:#f0f8ff; border-radius:5px; color:#0056b3;">
+                <i class="fas fa-wallet"></i> 使用錢包餘額支付
+            </div>`;
+      } else {
+        gallery.innerHTML += `<div style="text-align:center;"><p>付款憑證</p><img src="${API_BASE_URL}${s.paymentProof}" onclick="window.open(this.src)" style="max-width:100px; cursor:pointer; border:1px solid #ccc; padding:2px;"></div>`;
+      }
+    } else {
+      gallery.innerHTML = `<span style="color:#999; font-size:13px;">尚未上傳</span>`;
+    }
+
+    document.getElementById("shipment-details-modal").style.display = "flex";
+  } catch (e) {
+    console.error(e);
+    alert("無法載入詳情");
   }
 };
