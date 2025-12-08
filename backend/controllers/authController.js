@@ -1,5 +1,5 @@
 // backend/controllers/authController.js
-// V11 - Native JSON Support (移除 permissions 的 parse/stringify)
+// V12 - Added Invoice Defaults to Response
 
 const prisma = require("../config/db.js");
 const bcrypt = require("bcryptjs");
@@ -29,7 +29,6 @@ const registerUser = async (req, res) => {
         email: email.toLowerCase(),
         passwordHash: passwordHash,
         name: name,
-        // [修改] 直接存入陣列，Prisma 處理 JSON
         permissions: [],
       },
     });
@@ -65,7 +64,6 @@ const loginUser = async (req, res) => {
       where: { email: email.toLowerCase() },
     });
     if (user && (await bcrypt.compare(password, user.passwordHash))) {
-      // [修改] 直接讀取 permissions 陣列
       const permissions = user.permissions || [];
 
       res.status(200).json({
@@ -76,8 +74,11 @@ const loginUser = async (req, res) => {
           email: user.email,
           name: user.name,
           permissions: permissions,
+          // [New] 回傳預設發票資料
+          defaultTaxId: user.defaultTaxId,
+          defaultInvoiceTitle: user.defaultInvoiceTitle,
         },
-        token: generateToken(user.id, { permissions }), // 將權限放入 Token Payload
+        token: generateToken(user.id, { permissions }),
       });
     } else {
       return res
@@ -104,9 +105,11 @@ const getMe = async (req, res) => {
           phone: true,
           defaultAddress: true,
           createdAt: true,
+          // [New] 確保前端能拿到預設發票資料
+          defaultTaxId: true,
+          defaultInvoiceTitle: true,
         },
       });
-      // [修改] 直接使用
       const permissions = userFromDb.permissions || [];
 
       res.status(200).json({
@@ -125,10 +128,19 @@ const getMe = async (req, res) => {
 const updateMe = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { name, phone, defaultAddress } = req.body;
+    const { name, phone, defaultAddress, defaultTaxId, defaultInvoiceTitle } =
+      req.body;
+
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: { name: name, phone: phone, defaultAddress: defaultAddress },
+      data: {
+        name,
+        phone,
+        defaultAddress,
+        // [New] 允許使用者更新預設發票資料
+        defaultTaxId,
+        defaultInvoiceTitle,
+      },
       select: {
         id: true,
         email: true,
@@ -136,9 +148,10 @@ const updateMe = async (req, res) => {
         phone: true,
         defaultAddress: true,
         permissions: true,
+        defaultTaxId: true,
+        defaultInvoiceTitle: true,
       },
     });
-    // [修改] 直接使用
     const permissions = updatedUser.permissions || [];
 
     res.status(200).json({
@@ -189,10 +202,6 @@ const forgotPassword = async (req, res) => {
         html: `<h3>您已申請重設密碼</h3><p>請點擊以下連結重設您的密碼 (連結 10 分鐘內有效)：</p><a href="${resetUrl}" clicktracking=off>${resetUrl}</a><p>若您未申請此操作，請忽略此信。</p>`,
       };
       await sgMail.send(msg);
-    } else {
-      console.log(
-        `[Dev Mode] 重設連結: /reset-password.html?token=${resetToken}`
-      );
     }
     res.status(200).json({ success: true, message: "重設信件已發送" });
   } catch (error) {

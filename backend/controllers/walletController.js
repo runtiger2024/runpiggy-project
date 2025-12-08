@@ -1,13 +1,10 @@
 // backend/controllers/walletController.js
-// V1.4 - Added Tax ID Validation
+// V1.5 - Strict Validation for Deposit
 
 const prisma = require("../config/db.js");
 const createLog = require("../utils/createLog.js");
+const fs = require("fs"); // 引入 fs
 
-/**
- * @description 取得我的錢包 (餘額與交易紀錄)
- * @route GET /api/wallet/my
- */
 const getMyWallet = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -34,10 +31,6 @@ const getMyWallet = async (req, res) => {
   }
 };
 
-/**
- * @description 申請儲值 (上傳憑證 + [新增] 統編)
- * @route POST /api/wallet/deposit
- */
 const requestDeposit = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -55,29 +48,29 @@ const requestDeposit = async (req, res) => {
         .json({ success: false, message: "請上傳轉帳憑證" });
     }
 
-    // [Validation] 統編與抬頭的一致性檢查
+    // [Backend Validation] 統編與抬頭的一致性檢查
     if (
       taxId &&
       taxId.trim() !== "" &&
       (!invoiceTitle || invoiceTitle.trim() === "")
     ) {
-      // 刪除上傳的檔案 (清理暫存)
-      const fs = require("fs");
-      fs.unlink(proofFile.path, () => {});
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "填寫統一編號時，公司抬頭為必填項目",
-        });
+      // 驗證失敗：刪除上傳的檔案
+      fs.unlink(proofFile.path, (err) => {
+        if (err) console.warn("刪除暫存檔案失敗:", err.message);
+      });
+      return res.status(400).json({
+        success: false,
+        message: "填寫統一編號時，公司抬頭為必填項目",
+      });
     }
 
-    const wallet = await prisma.wallet.findUnique({ where: { userId } });
-    if (!wallet) {
-      await prisma.wallet.create({ data: { userId, balance: 0 } });
-    }
+    const wallet = await prisma.wallet.upsert({
+      where: { userId },
+      update: {},
+      create: { userId, balance: 0 },
+    });
 
-    // [Updated] 建立交易紀錄時寫入 taxId / invoiceTitle
+    // [Data Sync] 建立交易紀錄時寫入 taxId / invoiceTitle
     const transaction = await prisma.transaction.create({
       data: {
         wallet: { connect: { userId } },
@@ -104,6 +97,7 @@ const requestDeposit = async (req, res) => {
       transaction,
     });
   } catch (error) {
+    if (req.file) fs.unlink(req.file.path, () => {});
     console.error("儲值申請失敗:", error);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }

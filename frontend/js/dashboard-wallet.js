@@ -1,6 +1,5 @@
 // frontend/js/dashboard-wallet.js
-// 負責錢包餘額、交易紀錄與儲值功能
-// V26.1 - Added Tax ID Validation
+// V29.0 - Auto-fill Tax Info from User Profile
 
 // --- 函式定義 ---
 
@@ -199,6 +198,19 @@ window.openDepositModal = function () {
   }
 
   if (form) form.reset();
+
+  // [Auto-fill] 自動填入預設資料
+  if (window.currentUser) {
+    const tInput = document.getElementById("dep-taxId");
+    const titleInput = document.getElementById("dep-invoiceTitle");
+    if (tInput && window.currentUser.defaultTaxId) {
+      tInput.value = window.currentUser.defaultTaxId;
+    }
+    if (titleInput && window.currentUser.defaultInvoiceTitle) {
+      titleInput.value = window.currentUser.defaultInvoiceTitle;
+    }
+  }
+
   if (modal) modal.style.display = "flex";
 };
 

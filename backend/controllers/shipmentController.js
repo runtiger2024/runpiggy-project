@@ -1,5 +1,5 @@
 // backend/controllers/shipmentController.js
-// V2025.Optimized.1 - Added Tax ID Validation for Proof Upload
+// V2025.Optimized.Final - Strict Validation
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
@@ -7,8 +7,8 @@ const ratesManager = require("../utils/ratesManager.js");
 const invoiceHelper = require("../utils/invoiceHelper.js");
 const createLog = require("../utils/createLog.js");
 const { deleteFiles } = require("../utils/adminHelpers.js");
+const fs = require("fs"); // 引入 fs 供刪檔使用
 
-// ... (calculateShipmentDetails 保持不變)
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   const CONSTANTS = rates.constants;
   const CATEGORIES = rates.categories;
@@ -123,15 +123,12 @@ const createShipment = async (req, res) => {
       recipientName,
       phone,
       idNumber,
-      // taxId, // [Removed] - 客戶建立時不輸入，改為上傳憑證時輸入
-      // invoiceTitle, // [Removed]
       carrierType,
       carrierId,
       note,
       deliveryLocationRate,
-      // productUrl, // [Removed]
       additionalServices,
-      paymentMethod, // 'TRANSFER' or 'WALLET'
+      paymentMethod,
     } = req.body;
     const userId = req.user.id;
     const files = req.files || [];
@@ -178,13 +175,11 @@ const createShipment = async (req, res) => {
       } catch (e) {}
     }
 
-    // 初始狀態
     let shipmentStatus = "PENDING_PAYMENT";
     if (isWalletPay) {
       shipmentStatus = "PROCESSING";
     }
 
-    // 使用 Transaction 確保扣款原子性
     const newShipment = await prisma.$transaction(async (tx) => {
       let txRecord = null;
 
@@ -203,7 +198,6 @@ const createShipment = async (req, res) => {
           throw new Error("錢包餘額不足，扣款失敗");
         }
 
-        // 建立交易紀錄
         txRecord = await tx.transaction.create({
           data: {
             wallet: { connect: { userId } },
@@ -215,15 +209,14 @@ const createShipment = async (req, res) => {
         });
       }
 
-      // 建立訂單
       const createdShipment = await tx.shipment.create({
         data: {
           recipientName,
           phone,
           shippingAddress,
           idNumber,
-          taxId: null, // [Hardcoded Null] 已移除前端輸入
-          invoiceTitle: null, // [Hardcoded Null] 已移除前端輸入
+          taxId: null,
+          invoiceTitle: null,
           carrierType: carrierType || null,
           carrierId: carrierId || null,
           note: note || null,
@@ -232,14 +225,13 @@ const createShipment = async (req, res) => {
           deliveryLocationRate: parseFloat(deliveryLocationRate) || 0,
           status: shipmentStatus,
           userId: userId,
-          productUrl: null, // [Hardcoded Null]
-          shipmentProductImages: shipmentImagePaths, // 雖然欄位還在，但前端已不傳送
+          productUrl: null,
+          shipmentProductImages: shipmentImagePaths,
           transactionId: txRecord ? txRecord.id : null,
           paymentProof: isWalletPay ? "WALLET_PAY" : null,
         },
       });
 
-      // 更新包裹狀態
       await tx.package.updateMany({
         where: { id: { in: packageIds } },
         data: { status: "IN_SHIPMENT", shipmentId: createdShipment.id },
@@ -314,15 +306,17 @@ const uploadPaymentProof = async (req, res) => {
     if (!req.file)
       return res.status(400).json({ success: false, message: "請選擇圖片" });
 
-    // [Validation] 統編與抬頭的一致性檢查
+    // [Backend Validation] 統編與抬頭的一致性檢查
     if (
       taxId &&
       taxId.trim() !== "" &&
       (!invoiceTitle || invoiceTitle.trim() === "")
     ) {
-      // 刪除已上傳的暫存檔案避免佔用
-      const fs = require("fs");
-      fs.unlink(req.file.path, () => {});
+      // 驗證失敗：立即刪除已上傳的暫存檔案，避免佔用伺服器空間
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.warn("刪除暫存檔案失敗:", err.message);
+      });
+
       return res.status(400).json({
         success: false,
         message: "填寫統一編號時，公司抬頭為必填項目",
@@ -332,14 +326,17 @@ const uploadPaymentProof = async (req, res) => {
     const shipment = await prisma.shipment.findFirst({
       where: { id: id, userId: userId },
     });
-    if (!shipment)
+    if (!shipment) {
+      // 找不到訂單也要刪除檔案
+      fs.unlink(req.file.path, () => {});
       return res.status(404).json({ success: false, message: "找不到集運單" });
+    }
 
     const updateData = {
       paymentProof: `/uploads/${req.file.filename}`,
     };
 
-    // [Sync] 將客戶填寫的資料寫入資料庫，後台即可見
+    // [Data Sync] 將客戶填寫的資料寫入資料庫
     if (taxId !== undefined) updateData.taxId = taxId;
     if (invoiceTitle !== undefined) updateData.invoiceTitle = invoiceTitle;
 
@@ -351,6 +348,8 @@ const uploadPaymentProof = async (req, res) => {
       .status(200)
       .json({ success: true, message: "上傳成功", shipment: updatedShipment });
   } catch (error) {
+    // 發生未知錯誤時也要嘗試刪除檔案
+    if (req.file) fs.unlink(req.file.path, () => {});
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };

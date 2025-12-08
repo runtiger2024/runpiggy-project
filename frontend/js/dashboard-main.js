@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V27.2 - Added Tax ID & Invoice Title Validation for Payment Proof
+// V28.0 - Full Auto-fill & Validation
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -401,6 +401,18 @@ window.openUploadProof = function (id) {
     }
   }
 
+  // [Auto-fill] 自動填入預設資料
+  if (window.currentUser) {
+    const tInput = document.getElementById("proof-taxId");
+    const titleInput = document.getElementById("proof-invoiceTitle");
+    if (tInput && window.currentUser.defaultTaxId) {
+      tInput.value = window.currentUser.defaultTaxId;
+    }
+    if (titleInput && window.currentUser.defaultInvoiceTitle) {
+      titleInput.value = window.currentUser.defaultInvoiceTitle;
+    }
+  }
+
   // 顯示銀行資訊提示
   const infoBox = document.getElementById("upload-proof-bank-info");
   if (window.BANK_INFO_CACHE) {
@@ -433,7 +445,7 @@ window.handleUploadProofSubmit = async function (e) {
 
   if (!file) return alert("請選擇圖片");
 
-  // [Validation] 若有填寫統編，抬頭必填
+  // [Frontend Validation] 強制檢查：有統編必填抬頭
   if (taxId && !invoiceTitle) {
     alert("請注意：填寫統一編號時，「公司抬頭」為必填項目，以利發票開立。");
     document.getElementById("proof-invoiceTitle").focus();
