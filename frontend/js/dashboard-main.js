@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V25.9 - Auto Balance Sync
+// V25.10 - Fix Forecast Draft Queue & Auto-fill Logic
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -13,27 +13,29 @@ document.addEventListener("DOMContentLoaded", () => {
   window.loadMyPackages(); // 載入包裹
   window.loadMyShipments(); // 載入訂單
 
-  // [NEW] 載入錢包餘額 (如果功能存在)
   if (typeof window.updateGlobalWalletDisplay === "function") {
     window.updateGlobalWalletDisplay();
   }
 
-  // 2. 啟動預報草稿檢查
-  if (window.checkForecastDraftQueue) {
-    window.checkForecastDraftQueue(false);
-  }
-
-  // 3. Tab 切換邏輯 (統一管理)
+  // 2. Tab 切換邏輯
   setupTabs();
 
-  // 4. 表單提交事件綁定
+  // 3. 表單提交事件綁定
   bindForms();
 
-  // 5. 初始化圖片上傳器
+  // 4. 初始化圖片上傳器
   initUploaders();
 
-  // 6. 其他全域按鈕綁定 (個人資料、密碼修改)
+  // 5. 其他全域按鈕綁定
   bindGlobalButtons();
+
+  // 6. [Fix] 延遲執行草稿檢查，確保 DOM (尤其是 Tab 內的表單) 已準備就緒
+  // 並傳入 false 代表這是頁面初次載入
+  setTimeout(() => {
+    if (window.checkForecastDraftQueue) {
+      window.checkForecastDraftQueue(false);
+    }
+  }, 500);
 });
 
 // --- Tab 管理 ---
@@ -45,12 +47,12 @@ function setupTabs() {
       id: "tab-recipients",
       section: "recipient-section",
       loadFn: window.loadRecipients,
-    }, // 需要 dashboard-recipient.js
+    },
     {
       id: "tab-wallet",
       section: "wallet-section",
       loadFn: window.loadWalletData,
-    }, // 需要 dashboard-wallet.js
+    },
   ];
 
   tabs.forEach((tab) => {
@@ -58,7 +60,6 @@ function setupTabs() {
     if (!btn) return;
 
     btn.addEventListener("click", () => {
-      // 1. UI 狀態切換
       document
         .querySelectorAll(".tab-btn")
         .forEach((b) => b.classList.remove("active"));
@@ -70,7 +71,6 @@ function setupTabs() {
       const section = document.getElementById(tab.section);
       if (section) section.style.display = "block";
 
-      // 2. 觸發該頁面的資料載入 (Lazy Load)
       if (tab.loadFn && typeof tab.loadFn === "function") {
         tab.loadFn();
       }
@@ -80,11 +80,9 @@ function setupTabs() {
 
 // --- 表單綁定 ---
 function bindForms() {
-  // 預報
   const forecastForm = document.getElementById("forecast-form");
   if (forecastForm) {
     forecastForm.addEventListener("submit", window.handleForecastSubmit);
-    // Reset 時重置圖片元件
     forecastForm.addEventListener("reset", () => {
       const input = document.getElementById("images");
       if (input && input.resetUploader)
@@ -94,12 +92,10 @@ function bindForms() {
     });
   }
 
-  // 編輯包裹
   const editPkgForm = document.getElementById("edit-package-form");
   if (editPkgForm)
     editPkgForm.addEventListener("submit", window.handleEditPackageSubmit);
 
-  // 建立訂單
   const createShipForm = document.getElementById("create-shipment-form");
   if (createShipForm)
     createShipForm.addEventListener(
@@ -107,12 +103,10 @@ function bindForms() {
       window.handleCreateShipmentSubmit
     );
 
-  // 上傳憑證
   const proofForm = document.getElementById("upload-proof-form");
   if (proofForm)
     proofForm.addEventListener("submit", window.handleUploadProofSubmit);
 
-  // 個人資料
   const profileForm = document.getElementById("edit-profile-form");
   if (profileForm) {
     profileForm.addEventListener("submit", async (e) => {
@@ -140,7 +134,6 @@ function bindForms() {
     });
   }
 
-  // 修改密碼
   const pwdForm = document.getElementById("change-password-form");
   if (pwdForm) {
     pwdForm.addEventListener("submit", async (e) => {
@@ -186,35 +179,23 @@ function bindForms() {
   }
 }
 
-// --- 初始化上傳器 ---
 function initUploaders() {
   if (window.initImageUploader) {
-    // 1. 預報包裹 (5張)
     window.initImageUploader("images", "forecast-uploader", 5);
-    // 2. 建立集運單 (20張)
     window.initImageUploader(
       "ship-product-images",
       "ship-shipment-uploader",
       20
     );
-    // 3. 編輯包裹 (5張)
     window.initImageUploader(
       "edit-package-new-images",
       "edit-package-uploader",
       5
     );
-    // 4. [New] 錢包儲值憑證 (1張)
-    const depProof = document.getElementById("dep-proof");
-    if (depProof) {
-      // 這裡可以選擇是否套用預覽器，或保持原生 input file
-      // 為了保持一致性，暫不套用複雜預覽，保持簡單
-    }
   }
 }
 
-// --- 按鈕事件綁定 ---
 function bindGlobalButtons() {
-  // 編輯個人資料按鈕
   const btnEditProfile = document.getElementById("btn-edit-profile");
   if (btnEditProfile) {
     btnEditProfile.addEventListener("click", () => {
@@ -230,7 +211,6 @@ function bindGlobalButtons() {
     });
   }
 
-  // 修改密碼按鈕
   const btnChangePwd = document.getElementById("btn-change-password");
   if (btnChangePwd) {
     btnChangePwd.addEventListener("click", () => {
@@ -240,13 +220,11 @@ function bindGlobalButtons() {
     });
   }
 
-  // 建立訂單 (合併打包) 按鈕
   const btnCreateShip = document.getElementById("btn-create-shipment");
   if (btnCreateShip) {
     btnCreateShip.addEventListener("click", window.handleCreateShipmentClick);
   }
 
-  // 訂單詳情中的複製按鈕
   const btnCopyBank = document.getElementById("btn-copy-bank-info");
   if (btnCopyBank) {
     btnCopyBank.addEventListener("click", () => {
@@ -262,7 +240,6 @@ function bindGlobalButtons() {
     });
   }
 
-  // 立即上傳憑證 (從成功彈窗跳轉)
   const btnUploadNow = document.getElementById("btn-upload-now");
   if (btnUploadNow) {
     btnUploadNow.addEventListener("click", () => {
@@ -275,7 +252,6 @@ function bindGlobalButtons() {
     });
   }
 
-  // 關閉彈窗 (通用)
   document.querySelectorAll(".modal-overlay").forEach((m) => {
     m.addEventListener("click", (e) => {
       if (e.target === m) m.style.display = "none";
@@ -289,7 +265,7 @@ function bindGlobalButtons() {
 }
 
 /**
- * 預報草稿佇列檢查 (保留原功能)
+ * 預報草稿佇列檢查 (修復版)
  */
 window.checkForecastDraftQueue = function (isAfterSubmit = false) {
   let queue = [];
@@ -299,6 +275,7 @@ window.checkForecastDraftQueue = function (isAfterSubmit = false) {
     queue = [];
   }
 
+  // 提交後移除第一筆
   if (isAfterSubmit) {
     queue.shift();
     localStorage.setItem("forecast_draft_list", JSON.stringify(queue));
@@ -308,47 +285,69 @@ window.checkForecastDraftQueue = function (isAfterSubmit = false) {
   const listEl = document.getElementById("draft-queue-list");
   const warningEl = document.getElementById("forecast-warning-box");
 
-  if (queue.length === 0) {
+  // 若無草稿，隱藏並返回
+  if (!queue || queue.length === 0) {
     if (container) container.style.display = "none";
     if (warningEl) warningEl.style.display = "none";
     return;
   }
 
+  // 渲染佇列清單
   if (container && listEl) {
-    container.style.display = "flex";
+    container.style.display = "flex"; // 確保顯示
     listEl.innerHTML = "";
     queue.forEach((item, idx) => {
       const isNext = idx === 0;
       const style = isNext ? "font-weight:bold; color:#d35400;" : "";
-      const icon = isNext ? ' <i class="fas fa-arrow-left"></i> 準備預報' : "";
+      const icon = isNext
+        ? ' <i class="fas fa-arrow-left"></i> <span class="badge badge-warning" style="font-size:10px;">準備填入</span>'
+        : "";
       listEl.innerHTML += `<li style="${style}">${item.name} (x${item.quantity}) ${icon}</li>`;
     });
   }
 
+  // 自動填入第一筆 (Auto-fill)
   const current = queue[0];
   const nameInput = document.getElementById("productName");
   const qtyInput = document.getElementById("quantity");
   const noteInput = document.getElementById("note");
 
-  if (nameInput && (isAfterSubmit || nameInput.value === "")) {
-    nameInput.value = current.name || "";
-    qtyInput.value = current.quantity || 1;
-    noteInput.value = "來自試算帶入";
+  if (nameInput) {
+    // [Fix] 邏輯修正：只要有草稿，且是在提交後(準備下一筆) 或是 剛載入頁面，就嘗試填入
+    // 移除 input.value === "" 的嚴格檢查，改為更寬容的判斷，避免瀏覽器自動填充導致失效
+    const isFieldEmpty = !nameInput.value || nameInput.value.trim() === "";
 
-    let warnings = [];
-    if (current.hasOversizedItem)
-      warnings.push("⚠️ 此商品尺寸超長 (需加收超長費)");
-    if (current.isOverweight) warnings.push("⚠️ 此商品單件超重 (需加收超重費)");
+    if (isAfterSubmit || isFieldEmpty || nameInput.value === current.name) {
+      nameInput.value = current.name || "";
+      qtyInput.value = current.quantity || 1;
 
-    if (warningEl) {
-      if (warnings.length > 0) {
-        warningEl.innerHTML = warnings.join("<br>");
-        warningEl.style.display = "block";
-        warningEl.classList.add("alert-error");
-      } else {
-        warningEl.style.display = "none";
+      // 只有當備註是空的或已經是"來自試算"時才覆蓋，避免蓋掉使用者手動打的字
+      if (noteInput && (!noteInput.value || noteInput.value.includes("試算"))) {
+        noteInput.value = "來自試算帶入";
+      }
+
+      // 警示訊息
+      let warnings = [];
+      if (current.hasOversizedItem)
+        warnings.push("⚠️ 此商品尺寸超長 (需加收超長費)");
+      if (current.isOverweight)
+        warnings.push("⚠️ 此商品單件超重 (需加收超重費)");
+
+      if (warningEl) {
+        if (warnings.length > 0) {
+          warningEl.innerHTML = warnings.join("<br>");
+          warningEl.style.display = "block";
+          warningEl.className = "alert alert-error";
+        } else {
+          warningEl.style.display = "none";
+        }
+      }
+
+      // 滾動到表單位置，提示用戶
+      if (isAfterSubmit) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        window.showMessage(`已自動帶入下一筆：${current.name}`, "info");
       }
     }
-    window.showMessage(`已自動帶入：${current.name}`, "info");
   }
 };

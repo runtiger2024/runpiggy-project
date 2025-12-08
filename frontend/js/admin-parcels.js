@@ -1,5 +1,5 @@
 // frontend/js/admin-parcels.js
-// V2025.AutoArrive - 自動切換入庫狀態 & [Security] 雙重刪除確認
+// V2025.AutoArrive - 自動切換入庫狀態 & [Security] 雙重刪除確認 & [Fix] 認領顯示同步
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -27,7 +27,6 @@ document.addEventListener("DOMContentLoaded", () => {
   init();
 
   function init() {
-    // 綁定篩選事件
     document.getElementById("btn-search").addEventListener("click", () => {
       currentSearch = document.getElementById("search-input").value;
       currentStatus = document.getElementById("status-filter").value;
@@ -43,12 +42,10 @@ document.addEventListener("DOMContentLoaded", () => {
       .getElementById("btn-export")
       .addEventListener("click", exportPackages);
 
-    // 綁定 Modal 關閉
     document.querySelectorAll(".modal-close-btn").forEach((btn) => {
       btn.addEventListener("click", () => (modal.style.display = "none"));
     });
 
-    // 綁定全選
     if (selectAll) {
       selectAll.addEventListener("change", (e) => {
         document.querySelectorAll(".pkg-checkbox").forEach((cb) => {
@@ -58,12 +55,10 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
 
-    // 綁定批量刪除
     if (btnBulkDelete) {
       btnBulkDelete.addEventListener("click", performBulkDelete);
     }
 
-    // 綁定分箱新增
     document
       .getElementById("btn-add-sub-package")
       .addEventListener("click", () => {
@@ -75,10 +70,8 @@ document.addEventListener("DOMContentLoaded", () => {
         updateFeesOnInput();
       });
 
-    // 綁定表單提交
     form.addEventListener("submit", handleFormSubmit);
 
-    // 初始載入
     loadParcels();
   }
 
@@ -194,6 +187,11 @@ document.addEventListener("DOMContentLoaded", () => {
       let weightInfo = "-";
       let alertBadges = "";
 
+      // [Fix] 若有 claimProof，顯示已認領標籤
+      if (pkg.claimProof) {
+        alertBadges += `<span class="badge" style="background-color:#6610f2; color:white; font-size:11px; padding:2px 6px; margin-right:2px; border-radius:4px;">🙋‍♂️ 已認領</span> `;
+      }
+
       if (pkg.arrivedBoxesJson && pkg.arrivedBoxesJson.length > 0) {
         let isOversized = false;
         let isOverweight = false;
@@ -291,7 +289,6 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
-  // --- Modal 操作 ---
   function openEditModal(pkgStr) {
     isCreateMode = false;
     const pkg = JSON.parse(decodeURIComponent(pkgStr));
@@ -301,8 +298,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("user-info-section").style.display = "block";
     document.getElementById("create-user-search").style.display = "none";
+
+    // [Fix] 若有認領憑證，顯示在用戶資訊區塊
+    let claimHtml = "";
+    if (pkg.claimProof) {
+      claimHtml = `
+            <div style="margin-top:5px; padding:5px; background:#e6f7ff; border:1px solid #1890ff; border-radius:4px;">
+                <strong style="color:#1890ff;">🙋‍♂️ 此包裹已被認領</strong><br>
+                <a href="${API_BASE_URL}${pkg.claimProof}" target="_blank" style="font-size:12px; text-decoration:underline; display:flex; align-items:center; gap:5px;">
+                    <i class="fas fa-image"></i> 查看購物證明截圖
+                </a>
+            </div>
+        `;
+    }
+
     document.getElementById("modal-user-display").innerHTML = `
         <strong>${pkg.user?.name}</strong> (${pkg.user?.email})
+        ${claimHtml}
     `;
 
     document.getElementById("modal-trackingNumber").value = pkg.trackingNumber;
@@ -485,7 +497,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       if (w > 0 && l > 0 && wd > 0 && h > 0) {
-        hasValidBox = true; // 標記為有有效數據
+        hasValidBox = true;
         const rate = RATES[type] || { weightRate: 0, volumeRate: 0 };
         const rawCai = (l * wd * h) / CONSTANTS.VOLUME_DIVISOR;
         const cai = Math.ceil(rawCai);
@@ -519,12 +531,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // [New] 自動切換狀態為 ARRIVED (Point 3)
-    // 只有當原本是 PENDING 且現在輸入了有效數據時才切換
+    // [Auto] 自動切換狀態
     const statusSelect = document.getElementById("modal-status");
     if (hasValidBox && statusSelect && statusSelect.value === "PENDING") {
       statusSelect.value = "ARRIVED";
-      // 視覺提示
       statusSelect.style.backgroundColor = "#d4edda";
       statusSelect.style.color = "#155724";
       statusSelect.style.fontWeight = "bold";
@@ -680,7 +690,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const count = selectedIds.size;
     if (count === 0) return alert("請先選擇要刪除的包裹");
 
-    // [Security] 雙重確認機制
     const confirmation = prompt(
       `【危險操作】\n您即將永久刪除 ${count} 筆包裹資料。\n此操作無法復原，且會一並刪除相關圖片。\n\n請輸入 "DELETE" (大寫) 以確認刪除：`
     );

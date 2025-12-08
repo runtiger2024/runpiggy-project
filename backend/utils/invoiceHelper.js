@@ -1,5 +1,5 @@
 // backend/utils/invoiceHelper.js
-// V2025.Final.Fix - 自動修正環境變數 URL 錯誤，解決 400 Bad Request
+// V2025.Final.Fix - 自動修正環境變數 URL 錯誤，解決 400 Bad Request & B2B 統編計算修正
 
 const axios = require("axios");
 const crypto = require("crypto");
@@ -101,7 +101,6 @@ const sendAmegoRequest = async (endpoint, dataObj, config, merchantOrderNo) => {
 
   try {
     console.log(`[Invoice] 發送: ${merchantOrderNo} -> ${fullUrl}`);
-    // console.log(`[Invoice Data]`, dataString); // 除錯用
 
     const response = await axios.post(fullUrl, params);
     const result = response.data;
@@ -135,8 +134,11 @@ const createInvoice = async (shipment, user) => {
     return { success: false, message: "系統設定：發票功能已關閉" };
 
   const total = Math.round(Number(shipment.totalCost));
+
+  // [B2B 統編處理修正]
   const rawTaxId = shipment.taxId ? shipment.taxId.trim() : "";
-  const hasTaxId = rawTaxId.length === 8;
+  // 嚴格檢查：必須是8位數字
+  const hasTaxId = /^[0-9]{8}$/.test(rawTaxId);
 
   // OrderId: S + ID後15碼 + 時間 (避免長度超過限制)
   const unixTime = Math.floor(Date.now() / 1000);
@@ -149,21 +151,30 @@ const createInvoice = async (shipment, user) => {
   let printMark = "0";
 
   if (hasTaxId) {
-    printMark = "1";
+    // B2B (公司戶)
+    printMark = "1"; // 強制列印
+    // 公式：銷售額 = 總金額 / 1.05 (四捨五入)
     salesAmount = Math.round(total / 1.05);
+    // 公式：稅額 = 總金額 - 銷售額 (確保相加等於總額)
     taxAmount = total - salesAmount;
-    unitPrice = salesAmount;
+    unitPrice = salesAmount; // B2B 單價為未稅價
   } else {
+    // B2C (個人戶)
     printMark = "0";
     salesAmount = total;
-    taxAmount = 0;
-    unitPrice = total;
+    taxAmount = 0; // 零稅率或內含 (Amego 建議 B2C 稅額帶 0)
+    unitPrice = total; // B2C 單價為含稅價
   }
 
   const buyerId = hasTaxId ? rawTaxId : "0000000000";
-  let buyerName = hasTaxId
-    ? shipment.invoiceTitle || shipment.recipientName
-    : shipment.recipientName || "個人";
+
+  // [修正] 若有統編但沒有抬頭，嘗試使用收件人姓名，或給予預設值
+  let buyerName = "";
+  if (hasTaxId) {
+    buyerName = shipment.invoiceTitle || shipment.recipientName || "貴公司";
+  } else {
+    buyerName = shipment.recipientName || "個人";
+  }
   buyerName = sanitizeString(buyerName);
 
   const productItems = [
@@ -199,8 +210,8 @@ const createInvoice = async (shipment, user) => {
     BuyerPhone: sanitizePhone(shipment.phone || ""),
     Print: printMark,
     Donation: "0",
-    TaxType: 1, // [對齊 Buy1688] Number
-    TaxRate: 0.05, // [對齊 Buy1688] Number
+    TaxType: 1,
+    TaxRate: 0.05,
     SalesAmount: salesAmount,
     TaxAmount: taxAmount,
     TotalAmount: total,
@@ -215,7 +226,7 @@ const createInvoice = async (shipment, user) => {
     CarrierType: carrierType,
     CarrierId1: carrierId1,
     LoveCode: "",
-    CustomerIdentifier: "", // [對齊 Buy1688] 補上空字串
+    CustomerIdentifier: "",
   };
 
   try {
@@ -304,8 +315,10 @@ const createDepositInvoice = async (transaction, user) => {
   if (!config.enabled) return { success: false, message: "發票功能未啟用" };
 
   const total = Math.round(transaction.amount);
-  const taxId = user.defaultTaxId ? user.defaultTaxId.trim() : "";
-  const hasTaxId = taxId.length === 8;
+
+  // [B2B 儲值發票修正]
+  const rawTaxId = user.defaultTaxId ? user.defaultTaxId.trim() : "";
+  const hasTaxId = /^[0-9]{8}$/.test(rawTaxId);
 
   // OrderId: DEP + ID後15碼 + 時間
   const unixTime = Math.floor(Date.now() / 1000);
@@ -329,10 +342,13 @@ const createDepositInvoice = async (transaction, user) => {
     unitPrice = total;
   }
 
-  const buyerId = hasTaxId ? taxId : "0000000000";
-  let buyerName = hasTaxId
-    ? user.defaultInvoiceTitle || user.name
-    : user.name || "會員儲值";
+  const buyerId = hasTaxId ? rawTaxId : "0000000000";
+  let buyerName = "";
+  if (hasTaxId) {
+    buyerName = user.defaultInvoiceTitle || user.name || "貴公司";
+  } else {
+    buyerName = user.name || "會員儲值";
+  }
   buyerName = sanitizeString(buyerName);
 
   const productItems = [
