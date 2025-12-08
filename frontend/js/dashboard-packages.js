@@ -1,5 +1,5 @@
 // frontend/js/dashboard-packages.js
-// V26.0 - Fix Forecast Draft Queue & Enhanced Proof Upload
+// V2025.Optimized - 預報強制驗證 (連結或圖片)
 
 let currentEditPackageImages = [];
 
@@ -43,10 +43,25 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// --- [關鍵修復] 新增預報提交處理函式 ---
+// --- [關鍵修復] 預報提交處理 (含前端驗證) ---
 window.handleForecastSubmit = async function (e) {
   e.preventDefault();
   const btn = e.target.querySelector("button[type='submit']");
+
+  // 1. 前端驗證：檢查「商品連結」與「圖片」是否擇一提供
+  const productUrl = document.getElementById("productUrl").value.trim();
+  const fileInput = document.getElementById("images");
+  const hasFiles = fileInput && fileInput.files && fileInput.files.length > 0;
+
+  if (!productUrl && !hasFiles) {
+    alert(
+      "【資料不全】請務必提供「商品購買連結」或「上傳商品圖片」(擇一)，方便我們核對商品！"
+    );
+    // 將焦點移至連結欄位
+    document.getElementById("productUrl").focus();
+    return;
+  }
+
   btn.disabled = true;
   btn.textContent = "提交中...";
 
@@ -55,11 +70,10 @@ window.handleForecastSubmit = async function (e) {
   fd.append("productName", document.getElementById("productName").value);
   fd.append("quantity", document.getElementById("quantity").value);
   fd.append("note", document.getElementById("note").value);
-  // [New] 取得商品連結
-  fd.append("productUrl", document.getElementById("productUrl").value);
+  fd.append("productUrl", productUrl);
 
-  // 處理圖片 (從 input 或自訂上傳器)
-  const files = document.getElementById("images").files;
+  // 處理圖片
+  const files = fileInput.files;
   for (let i = 0; i < files.length; i++) {
     fd.append("images", files[i]);
   }
@@ -77,8 +91,7 @@ window.handleForecastSubmit = async function (e) {
       e.target.reset();
 
       // 重置圖片上傳器 UI
-      const imgInput = document.getElementById("images");
-      if (imgInput && imgInput.resetUploader) imgInput.resetUploader();
+      if (fileInput && fileInput.resetUploader) fileInput.resetUploader();
 
       window.loadMyPackages();
 
@@ -277,15 +290,13 @@ function handleExcelUpload(e) {
     const data = new Uint8Array(e.target.result);
     const workbook = XLSX.read(data, { type: "array" });
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    // 假設 Excel 欄位: 單號, 商品名稱, 數量, 備註
     const jsonData = XLSX.utils.sheet_to_json(firstSheet, {
       header: ["trackingNumber", "productName", "quantity", "note"],
       range: 1,
-    }); // range:1 跳過標題列
+    });
 
     bulkData = jsonData.filter((row) => row.trackingNumber && row.productName);
 
-    // 預覽
     const previewEl = document.getElementById("bulk-preview-area");
     if (previewEl) {
       previewEl.innerHTML = `
@@ -325,11 +336,10 @@ async function submitBulkForecast() {
     const data = await res.json();
 
     if (res.ok) {
-      alert(data.message); // 成功幾筆失敗幾筆
+      alert(data.message);
       document.getElementById("bulk-forecast-modal").style.display = "none";
       window.loadMyPackages();
 
-      // 如果有失敗的，可以顯示
       if (data.errors && data.errors.length > 0) {
         alert("部分失敗：\n" + data.errors.join("\n"));
       }
@@ -377,7 +387,7 @@ window.resolveException = function (pkgId) {
     .catch(() => alert("操作失敗"));
 };
 
-// --- 5. 既有詳情、編輯、刪除邏輯 (保持相容) ---
+// --- 5. 既有詳情、編輯、刪除邏輯 ---
 window.openPackageDetails = function (pkgDataStr) {
   try {
     const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
@@ -473,7 +483,6 @@ window.openPackageDetails = function (pkgDataStr) {
         "<p style='grid-column:1/-1; text-align:center; color:#999; font-size:13px;'>尚無照片</p>";
     }
 
-    // 顯示認領憑證 (如果有的話)
     if (pkg.claimProof) {
       imagesGallery.innerHTML += `<div style="grid-column:1/-1; margin-top:10px; border-top:1px dashed #ccc; padding-top:10px;">
             <p style="font-size:12px; color:#666;">認領憑證：</p>
@@ -508,7 +517,6 @@ window.openEditPackageModal = function (pkg) {
   document.getElementById("edit-productName").value = pkg.productName;
   document.getElementById("edit-quantity").value = pkg.quantity;
   document.getElementById("edit-note").value = pkg.note || "";
-  // [New] 填入商品連結
   document.getElementById("edit-productUrl").value = pkg.productUrl || "";
 
   currentEditPackageImages = pkg.productImages || [];
@@ -541,7 +549,6 @@ window.handleEditPackageSubmit = async function (e) {
   fd.append("productName", document.getElementById("edit-productName").value);
   fd.append("quantity", document.getElementById("edit-quantity").value);
   fd.append("note", document.getElementById("edit-note").value);
-  // [New] 更新商品連結
   fd.append("productUrl", document.getElementById("edit-productUrl").value);
 
   fd.append("existingImages", JSON.stringify(currentEditPackageImages));

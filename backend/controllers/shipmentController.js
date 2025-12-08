@@ -1,5 +1,5 @@
 // backend/controllers/shipmentController.js
-// V13.7 - 支援上傳憑證時更新統編與完整訂單管理
+// V2025.Optimized - 移除強制商品證明驗證
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
@@ -123,13 +123,13 @@ const createShipment = async (req, res) => {
       recipientName,
       phone,
       idNumber,
-      taxId,
-      invoiceTitle,
+      // taxId, // [Removed]
+      // invoiceTitle, // [Removed]
       carrierType,
       carrierId,
       note,
       deliveryLocationRate,
-      productUrl,
+      // productUrl, // [Removed]
       additionalServices,
       paymentMethod, // 'TRANSFER' or 'WALLET'
     } = req.body;
@@ -138,15 +138,8 @@ const createShipment = async (req, res) => {
 
     const isWalletPay = paymentMethod === "WALLET";
 
-    if (
-      !isWalletPay &&
-      (!productUrl || productUrl.trim() === "") &&
-      files.length === 0
-    ) {
-      return res
-        .status(400)
-        .json({ success: false, message: "請提供商品證明(連結或截圖)" });
-    }
+    // [Removed] 移除商品證明驗證邏輯
+    // 因為已在包裹預報階段強制要求，集運單建立時不再需要
 
     let shipmentImagePaths = [];
     if (files.length > 0)
@@ -191,7 +184,7 @@ const createShipment = async (req, res) => {
     // 初始狀態
     let shipmentStatus = "PENDING_PAYMENT";
     if (isWalletPay) {
-      shipmentStatus = "PROCESSING"; // 錢包扣款成功直接轉處理中
+      shipmentStatus = "PROCESSING";
     }
 
     // 使用 Transaction 確保扣款原子性
@@ -203,7 +196,7 @@ const createShipment = async (req, res) => {
           await tx.wallet.update({
             where: {
               userId: userId,
-              balance: { gte: calcResult.totalCost }, // 確保餘額 >= 扣款金額
+              balance: { gte: calcResult.totalCost },
             },
             data: {
               balance: { decrement: calcResult.totalCost },
@@ -232,8 +225,8 @@ const createShipment = async (req, res) => {
           phone,
           shippingAddress,
           idNumber,
-          taxId: taxId || null,
-          invoiceTitle: invoiceTitle || null,
+          taxId: null, // [Hardcoded Null] 已移除前端輸入
+          invoiceTitle: null, // [Hardcoded Null] 已移除前端輸入
           carrierType: carrierType || null,
           carrierId: carrierId || null,
           note: note || null,
@@ -242,8 +235,8 @@ const createShipment = async (req, res) => {
           deliveryLocationRate: parseFloat(deliveryLocationRate) || 0,
           status: shipmentStatus,
           userId: userId,
-          productUrl: productUrl || null,
-          shipmentProductImages: shipmentImagePaths,
+          productUrl: null, // [Hardcoded Null]
+          shipmentProductImages: shipmentImagePaths, // 雖然欄位還在，但前端已不傳送
           transactionId: txRecord ? txRecord.id : null,
           paymentProof: isWalletPay ? "WALLET_PAY" : null,
         },
@@ -258,7 +251,6 @@ const createShipment = async (req, res) => {
       return createdShipment;
     });
 
-    // 寄信通知
     try {
       await sendNewShipmentNotification(newShipment, req.user);
     } catch (e) {}
@@ -316,15 +308,10 @@ const getMyShipments = async (req, res) => {
   }
 };
 
-/**
- * [Updated] 上傳付款憑證 (支援更新統編)
- * @route PUT /api/shipments/:id/payment
- */
 const uploadPaymentProof = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    // [New] 接收額外欄位
     const { taxId, invoiceTitle } = req.body;
 
     if (!req.file)
@@ -336,12 +323,10 @@ const uploadPaymentProof = async (req, res) => {
     if (!shipment)
       return res.status(404).json({ success: false, message: "找不到集運單" });
 
-    // 準備更新資料
     const updateData = {
       paymentProof: `/uploads/${req.file.filename}`,
     };
 
-    // 如果使用者有填寫統編，則更新
     if (taxId !== undefined) updateData.taxId = taxId;
     if (invoiceTitle !== undefined) updateData.invoiceTitle = invoiceTitle;
 

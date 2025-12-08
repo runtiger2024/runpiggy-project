@@ -1,5 +1,5 @@
 // backend/controllers/packageController.js
-// V2025.Security - 完整功能版 (含認領、批量、異常處理、商品連結)
+// V2025.Optimized - 強制購買證明 (連結或圖片擇一)
 
 const prisma = require("../config/db.js");
 const fs = require("fs");
@@ -35,7 +35,6 @@ const deleteFiles = (filePaths) => {
  */
 const createPackageForecast = async (req, res) => {
   try {
-    // [Updated] 新增接收 productUrl
     const { trackingNumber, productName, quantity, note, productUrl } =
       req.body;
     const userId = req.user.id;
@@ -46,11 +45,33 @@ const createPackageForecast = async (req, res) => {
         .json({ success: false, message: "請提供物流單號和商品名稱" });
     }
 
+    // [New Constraint] 強制檢查：購買連結 或 圖片 至少需提供一項
+    const hasUrl = productUrl && productUrl.trim() !== "";
+    const hasImages = req.files && req.files.length > 0;
+
+    if (!hasUrl && !hasImages) {
+      // 若有上傳失敗的暫存檔，需刪除以防垃圾堆積
+      if (req.files) {
+        const tempPaths = req.files.map((f) => `/uploads/${f.filename}`);
+        deleteFiles(tempPaths);
+      }
+      return res.status(400).json({
+        success: false,
+        message:
+          "資料不全：請務必提供「商品購買連結」或「上傳商品圖片」(擇一)。",
+      });
+    }
+
     const existingPackage = await prisma.package.findUnique({
       where: { trackingNumber: trackingNumber.trim() },
     });
 
     if (existingPackage) {
+      // 若重複，刪除剛上傳的圖片
+      if (req.files) {
+        const tempPaths = req.files.map((f) => `/uploads/${f.filename}`);
+        deleteFiles(tempPaths);
+      }
       return res.status(400).json({
         success: false,
         message: "此物流單號已存在系統中，請勿重複預報。",
@@ -68,7 +89,7 @@ const createPackageForecast = async (req, res) => {
         productName: productName,
         quantity: quantity ? parseInt(quantity) : 1,
         note: note,
-        productUrl: productUrl || null, // [New] 儲存商品連結
+        productUrl: productUrl || null,
         productImages: imagePaths,
         warehouseImages: [],
         userId: userId,
@@ -113,7 +134,8 @@ const bulkForecast = async (req, res) => {
     let failCount = 0;
     const errors = [];
 
-    // 使用 Transaction 確保原子性，或逐筆處理 (這裡選擇逐筆以允許部分成功)
+    // 批量預報暫不強制圖片/連結 (通常由 Excel 匯入，較難處理圖片)
+    // 若業務需求嚴格，可在此處加入檢查，目前保持彈性
     for (const pkg of packages) {
       // 簡單驗證
       if (!pkg.trackingNumber || !pkg.productName) {
@@ -378,7 +400,6 @@ const getMyPackages = async (req, res) => {
 const updateMyPackage = async (req, res) => {
   try {
     const { id } = req.params;
-    // [Updated] 新增接收 productUrl
     const {
       trackingNumber,
       productName,
@@ -427,7 +448,7 @@ const updateMyPackage = async (req, res) => {
         productName,
         quantity: quantity ? parseInt(quantity) : undefined,
         note,
-        productUrl: productUrl || undefined, // [New] 更新連結
+        productUrl: productUrl || undefined,
         productImages: keepImagesList.slice(0, 5),
       },
     });
