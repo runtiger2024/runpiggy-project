@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V29.1 - Tax ID Validation & Invoice Info Display
+// V29.2 - Fix Tax ID Sync Issue (FormData Order)
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -407,7 +407,7 @@ window.openUploadProof = function (id) {
     }
   }
 
-  // 2. [New] 綁定連動邏輯：有填統編 -> 抬頭變必填
+  // 2. 綁定連動邏輯：有填統編 -> 抬頭變必填
   setTimeout(() => {
     const taxInput = document.getElementById("proof-taxId");
     const titleInput = document.getElementById("proof-invoiceTitle");
@@ -486,10 +486,14 @@ window.handleUploadProofSubmit = async function (e) {
   btn.textContent = "上傳中...";
 
   const fd = new FormData();
-  fd.append("paymentProof", file);
-  // 加入統編資訊
+
+  // [Fix] 關鍵修正：確保文字欄位在檔案之前加入
+  // 某些後端 Multer 配置若檔案先到，可能導致 req.body 在處理檔案時尚未填充文字欄位
   if (taxId) fd.append("taxId", taxId);
   if (invoiceTitle) fd.append("invoiceTitle", invoiceTitle);
+
+  // 檔案最後加入
+  fd.append("paymentProof", file);
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/shipments/${id}/payment`, {
