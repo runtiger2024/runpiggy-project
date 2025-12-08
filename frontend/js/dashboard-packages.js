@@ -1,5 +1,5 @@
 // frontend/js/dashboard-packages.js
-// V2025.Optimized - 預報強制驗證 (連結或圖片) & [New] Unclaimed Viewer
+// V2025.Optimized - 預報強制驗證 & 費用透明化詳情 & 無主件認領
 
 let currentEditPackageImages = [];
 
@@ -8,10 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnClaim = document.getElementById("btn-claim-package");
   if (btnClaim) {
     btnClaim.addEventListener("click", () => {
-      const modal = document.getElementById("claim-package-modal");
-      const form = document.getElementById("claim-package-form");
-      if (form) form.reset();
-      if (modal) modal.style.display = "flex";
+      window.openClaimModalSafe();
     });
   }
 
@@ -452,7 +449,7 @@ window.resolveException = function (pkgId) {
     .catch(() => alert("操作失敗"));
 };
 
-// --- 5. 既有詳情、編輯、刪除邏輯 ---
+// --- 5. 包裹詳情與透明化運費展示 (Updated V2025) ---
 window.openPackageDetails = function (pkgDataStr) {
   try {
     const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
@@ -460,51 +457,92 @@ window.openPackageDetails = function (pkgDataStr) {
     const boxesListContainer = document.getElementById("details-boxes-list");
     const imagesGallery = document.getElementById("details-images-gallery");
 
+    // 取得系統常數 (若尚未載入則使用預設值)
+    const CONSTANTS = window.CONSTANTS || {
+      VOLUME_DIVISOR: 28317,
+      CBM_TO_CAI_FACTOR: 35.3,
+      MINIMUM_CHARGE: 2000,
+      OVERSIZED_LIMIT: 300,
+      OVERSIZED_FEE: 800,
+      OVERWEIGHT_LIMIT: 100,
+      OVERWEIGHT_FEE: 800,
+    };
+
     const arrivedBoxes = Array.isArray(pkg.arrivedBoxes)
       ? pkg.arrivedBoxes
       : [];
     let boxesHtml = "";
-    const DIVISOR =
-      (window.CONSTANTS && window.CONSTANTS.VOLUME_DIVISOR) || 28317;
+    let isPkgOversized = false;
+    let isPkgOverweight = false;
 
     if (arrivedBoxes.length > 0) {
       boxesHtml = `<div class="detail-scroll-container">`;
+
       arrivedBoxes.forEach((box, idx) => {
-        const fee = box.calculatedFee || 0;
-        const isVolWin = box.isVolWin;
-        const rateName = box.rateName || "一般";
+        // 資料準備
+        const l = parseFloat(box.length) || 0;
+        const w = parseFloat(box.width) || 0;
+        const h = parseFloat(box.height) || 0;
+        const weight = parseFloat(box.weight) || 0;
+
+        // 判斷超規 (>=)
+        const isBoxOversized =
+          l >= CONSTANTS.OVERSIZED_LIMIT ||
+          w >= CONSTANTS.OVERSIZED_LIMIT ||
+          h >= CONSTANTS.OVERSIZED_LIMIT;
+        const isBoxOverweight = weight >= CONSTANTS.OVERWEIGHT_LIMIT;
+
+        if (isBoxOversized) isPkgOversized = true;
+        if (isBoxOverweight) isPkgOverweight = true;
+
+        // 計算邏輯
+        const DIVISOR = CONSTANTS.VOLUME_DIVISOR;
+        const cai = box.cai || Math.ceil((l * w * h) / DIVISOR);
+
         const volFee = box.volFee || 0;
         const wtFee = box.wtFee || 0;
-        const cai =
-          box.cai || Math.ceil((box.length * box.width * box.height) / DIVISOR);
+        const isVolWin =
+          box.isVolWin !== undefined ? box.isVolWin : volFee >= wtFee;
+        const finalFee = box.calculatedFee || Math.max(volFee, wtFee);
+        const rateName = box.rateName || "一般";
 
+        // 渲染單箱卡片
         boxesHtml += `
           <div class="detail-box-card">
             <div class="box-header">
               <span class="box-title">📦 第 ${idx + 1} 箱 (${rateName})</span>
-              <span class="box-fee">運費 $${fee.toLocaleString()}</span>
+              <span class="box-fee">運費 $${finalFee.toLocaleString()}</span>
             </div>
+            
             <div class="box-specs">
-              <div class="spec-item"><span class="label">尺寸:</span> <span class="value">${
-                box.length
-              }x${box.width}x${box.height} cm</span></div>
-              <div class="spec-item"><span class="label">重量:</span> <span class="value">${
-                box.weight
-              } kg</span></div>
+              <div class="spec-item"><span class="label">尺寸:</span> <span class="value">${l}x${w}x${h} cm</span></div>
+              <div class="spec-item"><span class="label">重量:</span> <span class="value">${weight} kg</span></div>
+              <div class="spec-item"><span class="label">材積:</span> <span class="value">${cai} 材</span></div>
             </div>
+
+            ${
+              isBoxOversized
+                ? `<div class="alert-highlight"><i class="fas fa-exclamation-triangle"></i> 尺寸超長 (>=${CONSTANTS.OVERSIZED_LIMIT}cm)，將加收超長費 $${CONSTANTS.OVERSIZED_FEE}</div>`
+                : ""
+            }
+            ${
+              isBoxOverweight
+                ? `<div class="alert-highlight"><i class="fas fa-weight-hanging"></i> 單件超重 (>=${CONSTANTS.OVERWEIGHT_LIMIT}kg)，將加收超重費 $${CONSTANTS.OVERWEIGHT_FEE}</div>`
+                : ""
+            }
+
             <div class="detail-calc-box">
                 <div class="calc-comparison-row ${
                   !isVolWin ? "is-winner" : ""
                 }">
                     <span class="calc-label">重量計費</span>
-                    <span class="calc-formula">${box.weight}kg x 費率</span>
+                    <span class="calc-formula">${weight}kg × 費率</span>
                     <span class="calc-amount">$${wtFee.toLocaleString()}</span>
                 </div>
+                
                 <div class="calc-comparison-row ${isVolWin ? "is-winner" : ""}">
                     <span class="calc-label">材積計費</span>
-                    <span class="calc-formula">(${box.length}*${box.width}*${
-          box.height
-        })/${DIVISOR} = ${cai}材</span>
+                    <span class="calc-formula">(${l}×${w}×${h}) ÷ ${DIVISOR} × 費率</span>
                     <span class="calc-amount">$${volFee.toLocaleString()}</span>
                 </div>
             </div>
@@ -512,15 +550,39 @@ window.openPackageDetails = function (pkgDataStr) {
       });
       boxesHtml += `</div>`;
 
+      // 底部總結 (針對包裹本身的基本運費)
       const totalBaseFee = pkg.totalCalculatedFee || 0;
-      boxesHtml += `<div style="background:#f0f8ff; padding:15px; border-radius:8px; margin-top:15px; text-align:right;"><strong>基本運費總計：$${totalBaseFee.toLocaleString()}</strong></div>`;
+      boxesHtml += `
+        <div style="background:#f0f8ff; padding:15px; border-radius:8px; margin-top:15px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                <span>基本運費總計</span>
+                <strong>$${totalBaseFee.toLocaleString()}</strong>
+            </div>
+            ${
+              isPkgOversized
+                ? `<div style="display:flex; justify-content:space-between; color:#e74a3b; font-size:13px;"><span>⚠️ 包含超長物品</span><span>(整單 +$${CONSTANTS.OVERSIZED_FEE})</span></div>`
+                : ""
+            }
+            ${
+              isPkgOverweight
+                ? `<div style="display:flex; justify-content:space-between; color:#e74a3b; font-size:13px;"><span>⚠️ 包含超重物品</span><span>(整單 +$${CONSTANTS.OVERWEIGHT_FEE})</span></div>`
+                : ""
+            }
+            <div style="font-size:12px; color:#888; margin-top:5px; text-align:right;">
+                * 最終費用將於「合併打包」時計算，若未達低消 $${
+                  CONSTANTS.MINIMUM_CHARGE
+                } 將自動補足。
+            </div>
+        </div>
+      `;
 
       boxesListContainer.innerHTML = boxesHtml;
     } else {
       boxesListContainer.innerHTML =
-        '<p style="text-align: center; color: #888; padding:20px;">📦 倉庫尚未測量數據</p>';
+        '<div style="text-align:center; color:#999; padding:30px; background:#f9f9f9; border-radius:8px;"><i class="fas fa-ruler-combined" style="font-size:24px; margin-bottom:10px;"></i><br>倉庫尚未輸入測量數據</div>';
     }
 
+    // 更新 Modal 上方的總覽數據
     const totalWeight = arrivedBoxes.reduce(
       (sum, box) => sum + (parseFloat(box.weight) || 0),
       0
@@ -529,8 +591,9 @@ window.openPackageDetails = function (pkgDataStr) {
       totalWeight.toFixed(1);
     document.getElementById("details-total-fee").textContent = `NT$ ${(
       pkg.totalCalculatedFee || 0
-    ).toLocaleString()} (基本)`;
+    ).toLocaleString()}`;
 
+    // 處理照片顯示
     const warehouseImages = Array.isArray(pkg.warehouseImages)
       ? pkg.warehouseImages
       : [];
@@ -540,6 +603,8 @@ window.openPackageDetails = function (pkgDataStr) {
         const img = document.createElement("img");
         img.src = `${API_BASE_URL}${imgUrl}`;
         img.className = "warehouse-thumb";
+        img.style.cssText =
+          "width:100%; height:80px; object-fit:cover; border-radius:4px; cursor:zoom-in; border:1px solid #ddd;";
         img.onclick = () => window.open(img.src, "_blank");
         imagesGallery.appendChild(img);
       });

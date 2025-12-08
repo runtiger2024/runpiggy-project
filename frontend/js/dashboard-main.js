@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V29.2 - Fix Tax ID Sync Issue (FormData Order)
+// V29.3 - Fix Tax ID Sync Issue & Shipment Fee Transparency
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -517,7 +517,7 @@ window.handleUploadProofSubmit = async function (e) {
   }
 };
 
-// [New] 查看訂單詳情 (同步顯示發票資訊)
+// --- 7. 查看訂單詳情 (增強版：費用透明化) ---
 window.openShipmentDetails = async function (id) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/shipments/${id}`, {
@@ -527,31 +527,35 @@ window.openShipmentDetails = async function (id) {
     if (!data.success) throw new Error(data.message);
 
     const s = data.shipment;
+
+    // 取得系統常數
+    const CONSTANTS = window.CONSTANTS || {
+      MINIMUM_CHARGE: 2000,
+      OVERSIZED_FEE: 800,
+      OVERWEIGHT_FEE: 800,
+      OVERSIZED_LIMIT: 300,
+      OVERWEIGHT_LIMIT: 100,
+    };
+
     document.getElementById("sd-id").textContent = s.id.slice(-8).toUpperCase();
 
-    // 渲染狀態時間軸
+    // 渲染時間軸 (確認 renderTimeline 是否可用)
     const timelineContainer = document.getElementById("sd-timeline");
-    if (timelineContainer) {
-      if (typeof renderTimeline === "function") {
-        renderTimeline(timelineContainer, s.status);
-      } else {
-        const statusEl = document.getElementById("sd-status");
-        if (statusEl) statusEl.textContent = s.status;
-      }
+    if (timelineContainer && typeof renderTimeline === "function") {
+      renderTimeline(timelineContainer, s.status);
+    } else {
+      // 若 renderTimeline 函式未定義，僅更新文字狀態 (Fallback)
+      const statusEl = document.getElementById("sd-status");
+      if (statusEl)
+        statusEl.textContent = window.SHIPMENT_STATUS_MAP[s.status] || s.status;
     }
 
-    const statusEl = document.getElementById("sd-status");
-    if (s.status === "RETURNED") {
-      statusEl.innerHTML = `<span class="status-badge status-CANCELLED">訂單已退回</span>
-        <div style="background:#fff1f0; border:1px solid #ffa39e; padding:8px; border-radius:4px; margin-top:5px; font-size:13px; color:#c0392b;">
-            <strong>退回原因：</strong> ${s.returnReason || "未說明"}
-        </div>`;
-    } else {
-      const statusText =
-        (window.SHIPMENT_STATUS_MAP && window.SHIPMENT_STATUS_MAP[s.status]) ||
-        s.status;
-      statusEl.textContent = statusText;
-    }
+    // 基本資訊
+    document.getElementById("sd-trackingTW").textContent =
+      s.trackingNumberTW || "尚未產生";
+    document.getElementById("sd-name").textContent = s.recipientName;
+    document.getElementById("sd-phone").textContent = s.phone;
+    document.getElementById("sd-address").textContent = s.shippingAddress;
 
     let dateHtml = `<div><strong>建立日期:</strong> <span>${new Date(
       s.createdAt
@@ -565,14 +569,117 @@ window.openShipmentDetails = async function (id) {
     }
     document.getElementById("sd-date").innerHTML = dateHtml;
 
-    document.getElementById("sd-trackingTW").textContent =
-      s.trackingNumberTW || "尚未產生";
+    // --- [NEW] 費用計算明細邏輯 ---
+    // 我們需要重新遍歷包裹來計算是否有超重/超長，因為後端只存了 totalCost
+    let hasOversized = false;
+    let hasOverweight = false;
+    let totalBaseFee = 0; // 所有包裹的「基本」運費總和
 
-    document.getElementById("sd-name").textContent = s.recipientName;
-    document.getElementById("sd-phone").textContent = s.phone;
-    document.getElementById("sd-address").textContent = s.shippingAddress;
+    if (s.packages && Array.isArray(s.packages)) {
+      s.packages.forEach((pkg) => {
+        // 累加包裹的基本運費
+        totalBaseFee += pkg.totalCalculatedFee || 0;
 
-    // --- [NEW] 同步顯示發票資訊區塊 ---
+        // 檢查是否含有異常規格
+        const boxes = pkg.arrivedBoxes || [];
+        boxes.forEach((box) => {
+          const l = parseFloat(box.length) || 0;
+          const w = parseFloat(box.width) || 0;
+          const h = parseFloat(box.height) || 0;
+          const weight = parseFloat(box.weight) || 0;
+          if (
+            l >= CONSTANTS.OVERSIZED_LIMIT ||
+            w >= CONSTANTS.OVERSIZED_LIMIT ||
+            h >= CONSTANTS.OVERSIZED_LIMIT
+          )
+            hasOversized = true;
+          if (weight >= CONSTANTS.OVERWEIGHT_LIMIT) hasOverweight = true;
+        });
+      });
+    }
+
+    // 計算各項費用
+    const baseFee = Math.max(totalBaseFee, CONSTANTS.MINIMUM_CHARGE); // 補足低消後的基本費
+    const minChargeGap = baseFee - totalBaseFee; // 補足差額
+
+    // 這裡我們用逆推法或邏輯判斷來顯示
+    // 因為總金額 s.totalCost = baseFee + remoteFee + surcharges
+    // 如果是已完成的訂單，s.totalCost 是準確的。
+    // 我們嘗試顯示明確的項目：
+
+    let breakdownHtml = `<table class="fee-summary-table">`;
+
+    // 1. 基本運費
+    breakdownHtml += `
+        <tr>
+            <td>基本海運費 (共 ${s.packages.length} 件)</td>
+            <td align="right">$${totalBaseFee.toLocaleString()}</td>
+        </tr>`;
+
+    // 2. 低消補足
+    if (minChargeGap > 0) {
+      breakdownHtml += `
+        <tr style="color:#28a745;">
+            <td><i class="fas fa-arrow-up"></i> 未達低消補足 (低消 $${
+              CONSTANTS.MINIMUM_CHARGE
+            })</td>
+            <td align="right">+$${minChargeGap.toLocaleString()}</td>
+        </tr>`;
+    }
+
+    // 3. 附加費用 (超長/超重/偏遠)
+    // 由於我們沒有在 DB 存分項，這裡只能根據包裹狀態「推算」顯示
+    // 注意：如果您的後端 createShipment 有存 additionalFee，這裡讀取會更準。
+    // 但基於目前資料結構，我們用 hasOversized 旗標來顯示「包含」
+
+    if (hasOversized) {
+      breakdownHtml += `
+        <tr style="color:#e74a3b;">
+            <td>⚠️ 超長附加費 (整單)</td>
+            <td align="right">+$${CONSTANTS.OVERSIZED_FEE.toLocaleString()}</td>
+        </tr>`;
+    }
+    if (hasOverweight) {
+      breakdownHtml += `
+        <tr style="color:#e74a3b;">
+            <td>⚠️ 超重附加費 (整單)</td>
+            <td align="right">+$${CONSTANTS.OVERWEIGHT_FEE.toLocaleString()}</td>
+        </tr>`;
+    }
+
+    // 4. 偏遠地區費 (逆推：總額 - 上述費用)
+    // 這種逆推法在前端展示僅供參考，主要讓客戶知道錢花去哪
+    let estimatedTotal =
+      baseFee +
+      (hasOversized ? CONSTANTS.OVERSIZED_FEE : 0) +
+      (hasOverweight ? CONSTANTS.OVERWEIGHT_FEE : 0);
+    let gap = s.totalCost - estimatedTotal;
+
+    if (gap > 0) {
+      breakdownHtml += `
+        <tr>
+            <td>偏遠地區 / 其他加收</td>
+            <td align="right">+$${gap.toLocaleString()}</td>
+        </tr>`;
+    }
+
+    // 5. 總計
+    breakdownHtml += `
+        <tr>
+            <td><strong>總金額</strong></td>
+            <td align="right" style="font-size:18px; color:#d32f2f;"><strong>$${s.totalCost.toLocaleString()}</strong></td>
+        </tr>
+    </table>`;
+
+    // 注入 HTML
+    const breakdownEl = document.getElementById("sd-fee-breakdown");
+    breakdownEl.innerHTML = breakdownHtml;
+    breakdownEl.style.background = "#fff";
+    breakdownEl.style.border = "1px solid #eee";
+
+    // --- (其餘照片、發票顯示邏輯保持不變) ---
+    // ... (Invoice Info & Proof Images) ...
+
     let invoiceInfoContainer = document.getElementById("sd-invoice-info");
     if (!invoiceInfoContainer) {
       invoiceInfoContainer = document.createElement("div");
@@ -617,13 +724,6 @@ window.openShipmentDetails = async function (id) {
       </div>
     `;
 
-    const breakdown = document.getElementById("sd-fee-breakdown");
-    breakdown.innerHTML = `
-        <div>運費總計: <strong style="font-size:1.2em;">$${(
-          s.totalCost || 0
-        ).toLocaleString()}</strong></div>
-    `;
-
     const gallery = document.getElementById("sd-proof-images");
     gallery.innerHTML = "";
 
@@ -645,3 +745,54 @@ window.openShipmentDetails = async function (id) {
     alert("無法載入詳情");
   }
 };
+
+// 訂單詳情頁所需的時間軸渲染函式 (移至最外層確保全域可見)
+function renderTimeline(container, currentStatus) {
+  const steps = [
+    { code: "PENDING_PAYMENT", label: "待付款" },
+    { code: "PROCESSING", label: "處理中" },
+    { code: "SHIPPED", label: "已裝櫃" },
+    { code: "CUSTOMS_CHECK", label: "海關查驗" },
+    { code: "UNSTUFFING", label: "拆櫃派送" },
+    { code: "COMPLETED", label: "已完成" },
+  ];
+
+  if (currentStatus === "CANCELLED" || currentStatus === "RETURNED") {
+    const text = currentStatus === "RETURNED" ? "訂單已退回" : "訂單已取消";
+    container.innerHTML = `<div class="alert alert-error text-center" style="margin:10px 0;">${text}</div>`;
+    return;
+  }
+  if (currentStatus === "PENDING_REVIEW") currentStatus = "PENDING_PAYMENT";
+
+  let currentIndex = steps.findIndex((s) => s.code === currentStatus);
+  if (currentIndex === -1) currentIndex = 0;
+
+  let html = `<div class="timeline-container" style="display:flex; justify-content:space-between; margin:20px 0; position:relative; padding:0 10px; overflow-x:auto;">`;
+  html += `<div style="position:absolute; top:15px; left:20px; right:20px; height:4px; background:#eee; z-index:0; min-width:400px;"></div>`;
+
+  const stepCount = steps.length;
+  const progressPercent = (currentIndex / (stepCount - 1)) * 100;
+
+  html += `<div style="position:absolute; top:15px; left:20px; width:calc(${progressPercent}% - 40px); max-width:calc(100% - 40px); height:4px; background:#28a745; z-index:0; transition:width 0.3s; min-width:0;"></div>`;
+
+  steps.forEach((step, idx) => {
+    const isCompleted = idx <= currentIndex;
+    const color = isCompleted ? "#28a745" : "#ccc";
+    const icon = isCompleted ? "fa-check-circle" : "fa-circle";
+
+    html += `
+            <div style="position:relative; z-index:1; text-align:center; flex:1; min-width:60px;">
+                <i class="fas ${icon}" style="color:${color}; font-size:24px; background:#fff; border-radius:50%;"></i>
+                <div style="font-size:12px; margin-top:5px; color:${
+                  isCompleted ? "#333" : "#999"
+                }; font-weight:${
+      idx === currentIndex ? "bold" : "normal"
+    }; white-space:nowrap;">
+                    ${step.label}
+                </div>
+            </div>
+        `;
+  });
+  html += `</div>`;
+  container.innerHTML = html;
+}
