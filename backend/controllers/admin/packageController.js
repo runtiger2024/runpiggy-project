@@ -1,11 +1,12 @@
 // backend/controllers/admin/packageController.js
-// V2025.Features - Added Unclaimed Filter & Status Counts & Email Notifications
+// V2025.Features.Fixed - Added Unclaimed Filter, Status Counts, Email Notifications & Rates Fix
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
 const createNotification = require("../../utils/createNotification.js");
 // 引入新的 Email 通知函數
 const { sendPackageArrivedNotification } = require("../../utils/sendEmail.js");
+const ratesManager = require("../../utils/ratesManager.js"); // [Fix] 引入費率管理器
 const {
   deleteFiles,
   buildPackageWhereClause,
@@ -327,6 +328,7 @@ const updatePackageStatus = async (req, res) => {
   }
 };
 
+// [Critical Fix] 更新包裹詳情與運費計算 (修復 0 元運費問題)
 const updatePackageDetails = async (req, res) => {
   try {
     const { id } = req.params;
@@ -337,14 +339,8 @@ const updatePackageDetails = async (req, res) => {
     });
     if (!pkg) return res.status(404).json({ message: "找不到包裹" });
 
-    const settings = await prisma.systemSetting.findUnique({
-      where: { key: "rates_config" },
-    });
-    let systemRates = {};
-    if (settings && settings.value) {
-      systemRates = settings.value;
-    }
-    const RATES = systemRates.categories || {};
+    // [Fix] 使用 ratesManager 獲取費率，確保安全性與 fallback 機制
+    const systemRates = await ratesManager.getRates();
     const CONSTANTS = systemRates.constants || { VOLUME_DIVISOR: 28317 };
 
     const updateData = {};
@@ -354,24 +350,31 @@ const updatePackageDetails = async (req, res) => {
       try {
         const boxes = JSON.parse(boxesData);
         let totalFee = 0;
+
         const processedBoxes = boxes.map((box) => {
           const weight = parseFloat(box.weight) || 0;
           const l = parseFloat(box.length) || 0;
           const w_dim = parseFloat(box.width) || 0;
           const h = parseFloat(box.height) || 0;
-          const type = box.type;
+
+          // [Fix] 標準化 type 並使用安全查找，避免找不到費率導致運費為 0
+          const rateInfo = ratesManager.getCategoryRate(systemRates, box.type);
+
           let fee = 0;
           let cai = 0;
-          const rate = RATES[type];
-          if (weight > 0 && l > 0 && w_dim > 0 && h > 0 && rate) {
+
+          if (weight > 0 && l > 0 && w_dim > 0 && h > 0) {
             cai = Math.ceil((l * w_dim * h) / CONSTANTS.VOLUME_DIVISOR);
-            const volCost = cai * rate.volumeRate;
-            const wtCost = (Math.ceil(weight * 10) / 10) * rate.weightRate;
+            const volCost = cai * rateInfo.volumeRate;
+            const wtCost = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
             fee = Math.max(volCost, wtCost);
           }
+
           totalFee += fee;
           return {
             ...box,
+            // 存入處理過、標準化的小寫 type，確保未來讀取一致
+            type: (box.type || "general").trim().toLowerCase(),
             weight,
             length: l,
             width: w_dim,
@@ -380,6 +383,7 @@ const updatePackageDetails = async (req, res) => {
             fee,
           };
         });
+
         updateData.arrivedBoxesJson = processedBoxes;
         updateData.totalCalculatedFee = totalFee;
       } catch (e) {
@@ -425,7 +429,7 @@ const updatePackageDetails = async (req, res) => {
       req.user.id,
       "UPDATE_PACKAGE_DETAILS",
       id,
-      "更新詳情(含運費計算)"
+      "更新詳情(含運費計算 - Fix)"
     );
     res.status(200).json({
       success: true,
@@ -436,6 +440,7 @@ const updatePackageDetails = async (req, res) => {
       },
     });
   } catch (e) {
+    console.error("Update Package Details Error:", e);
     res.status(500).json({ success: false, message: e.message });
   }
 };

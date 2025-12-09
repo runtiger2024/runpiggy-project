@@ -1,6 +1,6 @@
 // backend/controllers/shipmentController.js
 // V2025.Final.Transparent.Email - 整合運費透明化、統編修復與客戶 Email 通知
-// Logic Update: 修正運費計算邏輯 (先加總後計算低消，附加費單次計算)
+// Logic Update: 修正運費計算邏輯 (先加總後計算低消，附加費單次計算) & 費率匹配修復
 
 const prisma = require("../config/db.js");
 const {
@@ -14,10 +14,10 @@ const createLog = require("../utils/createLog.js");
 const { deleteFiles } = require("../utils/adminHelpers.js");
 const fs = require("fs"); // 引入 fs 供刪檔使用
 
-// --- 輔助計算函式 (修正版：總和優先邏輯) ---
+// --- 輔助計算函式 (修正版：總和優先邏輯 + 安全費率查找) ---
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   const CONSTANTS = rates.constants;
-  const CATEGORIES = rates.categories;
+  // const CATEGORIES = rates.categories; // [Updated] 不直接使用，改用 getCategoryRate 函式
 
   // 1. 初始化總計變數
   let totalRawBaseCost = 0; // 所有包裹的原始運費總和 (未含低消)
@@ -41,8 +41,10 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
           const w = parseFloat(box.width) || 0;
           const h = parseFloat(box.height) || 0;
           const weight = parseFloat(box.weight) || 0;
-          const type = box.type || "general";
-          const rateInfo = CATEGORIES[type] || { weightRate: 0, volumeRate: 0 };
+
+          // [Critical Fix] 使用 ratesManager 的安全查找功能，避免 Key 不匹配導致 0 元費率
+          // 原本: const rateInfo = CATEGORIES[type] || { weightRate: 0, volumeRate: 0 };
+          const rateInfo = ratesManager.getCategoryRate(rates, box.type);
 
           // 累加實重
           totalActualWeight += weight;
