@@ -1,5 +1,5 @@
 // frontend/js/admin-shipments.js
-// V2025.Features.Enhanced - Impersonate & Notifications
+// V2025.Features.Enhanced - Impersonate & Notifications & Status Counts
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const tbody = document.getElementById("shipment-list");
   const paginationDiv = document.getElementById("pagination");
   const modal = document.getElementById("shipment-modal");
+  const statusFilterSelect = document.getElementById("status-filter");
 
   init();
 
@@ -61,6 +62,31 @@ document.addEventListener("DOMContentLoaded", () => {
     loadShipments();
   }
 
+  // --- [New] 更新下拉選單數字 ---
+  function updateStatusCounts(counts) {
+    if (!counts) return;
+    const options = statusFilterSelect.options;
+    const total = counts["ALL"] || 0;
+
+    for (let i = 0; i < options.length; i++) {
+      const opt = options[i];
+      const statusKey = opt.value;
+
+      // 保存原始文字以便重複更新
+      if (!opt.hasAttribute("data-original-text")) {
+        opt.setAttribute("data-original-text", opt.innerText);
+      }
+      const originalText = opt.getAttribute("data-original-text");
+
+      if (statusKey === "") {
+        opt.innerText = `${originalText} (${total})`;
+      } else {
+        const count = counts[statusKey] || 0;
+        opt.innerText = `${originalText} (${count})`;
+      }
+    }
+  }
+
   async function loadShipments() {
     tbody.innerHTML =
       '<tr><td colspan="8" class="text-center p-3">載入中...</td></tr>';
@@ -79,6 +105,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
       renderTable(data.shipments || []);
       renderPagination(data.pagination);
+
+      // [New] 更新狀態數量
+      if (data.statusCounts) {
+        updateStatusCounts(data.statusCounts);
+      }
     } catch (e) {
       tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger p-3">錯誤: ${e.message}</td></tr>`;
     }

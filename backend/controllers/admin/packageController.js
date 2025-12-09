@@ -1,5 +1,5 @@
 // backend/controllers/admin/packageController.js
-// V2025.Features - Added Unclaimed Filter
+// V2025.Features - Added Unclaimed Filter & Status Counts
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
@@ -16,6 +16,7 @@ const getAllPackages = async (req, res) => {
     const skip = (page - 1) * limit;
     const { status, search, filter } = req.query; // [New] Added filter param
 
+    // 1. 主要列表查詢的 Where 條件 (包含 Status 篩選)
     let where = buildPackageWhereClause(status, search);
 
     // [New] 特殊篩選邏輯
@@ -29,7 +30,19 @@ const getAllPackages = async (req, res) => {
       where.claimProof = { not: null };
     }
 
-    const [total, packages] = await prisma.$transaction([
+    // 2. 狀態統計查詢的 Where 條件 (不包含 Status 篩選，但保留搜尋與 Filter)
+    // 目的：讓使用者在選擇狀態前，能看到該搜尋條件下各狀態有多少筆
+    let statsWhere = buildPackageWhereClause(undefined, search);
+    if (filter === "UNCLAIMED") {
+      statsWhere.user = {
+        email: { in: ["unclaimed@runpiggy.com", "admin@runpiggy.com"] },
+      };
+    } else if (filter === "CLAIM_REVIEW") {
+      statsWhere.claimProof = { not: null };
+    }
+
+    // 3. 執行查詢 (列表 + 總數 + 狀態統計)
+    const [total, packages, statusGroups] = await prisma.$transaction([
       prisma.package.count({ where }),
       prisma.package.findMany({
         where,
@@ -38,17 +51,35 @@ const getAllPackages = async (req, res) => {
         orderBy: { createdAt: "desc" },
         include: { user: { select: { name: true, email: true } } },
       }),
+      prisma.package.groupBy({
+        by: ["status"],
+        where: statsWhere,
+        _count: { status: true },
+      }),
     ]);
+
+    // 4. 整理統計數據
+    const statusCounts = {};
+    let totalInSearch = 0;
+    statusGroups.forEach((g) => {
+      statusCounts[g.status] = g._count.status;
+      totalInSearch += g._count.status;
+    });
+    // 添加一個總數 (ALL)
+    statusCounts["ALL"] = totalInSearch;
+
     const processedPackages = packages.map((pkg) => ({
       ...pkg,
       productImages: pkg.productImages || [],
       warehouseImages: pkg.warehouseImages || [],
       arrivedBoxesJson: pkg.arrivedBoxesJson || [],
     }));
+
     res.status(200).json({
       success: true,
       packages: processedPackages,
       pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      statusCounts, // [New] 回傳統計數據
     });
   } catch (error) {
     console.error(error);

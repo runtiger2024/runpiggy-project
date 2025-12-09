@@ -1,5 +1,5 @@
 // backend/controllers/admin/shipmentController.js
-// V13.8 - Integrated with Notification System
+// V13.8 - Integrated with Notification System & Status Counts
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
@@ -37,8 +37,15 @@ const getAllShipments = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
     const { status, search } = req.query;
+
+    // 1. 列表查詢條件 (含 Status)
     const where = buildShipmentWhereClause(status, search);
-    const [total, shipments] = await prisma.$transaction([
+
+    // 2. 統計查詢條件 (不含 Status，但保留搜尋)
+    const statsWhere = buildShipmentWhereClause(undefined, search);
+
+    // 3. 執行交易查詢
+    const [total, shipments, statusGroups] = await prisma.$transaction([
       prisma.shipment.count({ where }),
       prisma.shipment.findMany({
         where,
@@ -50,7 +57,22 @@ const getAllShipments = async (req, res) => {
           packages: { select: { productName: true, trackingNumber: true } },
         },
       }),
+      prisma.shipment.groupBy({
+        by: ["status"],
+        where: statsWhere,
+        _count: { status: true },
+      }),
     ]);
+
+    // 4. 處理統計數據
+    const statusCounts = {};
+    let totalInSearch = 0;
+    statusGroups.forEach((g) => {
+      statusCounts[g.status] = g._count.status;
+      totalInSearch += g._count.status;
+    });
+    statusCounts["ALL"] = totalInSearch;
+
     const processed = shipments.map((s) => {
       return {
         ...s,
@@ -62,8 +84,10 @@ const getAllShipments = async (req, res) => {
       success: true,
       shipments: processed,
       pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      statusCounts, // [New]
     });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };

@@ -1,5 +1,5 @@
 // frontend/js/admin-parcels.js
-// V2025.AutoArrive - 自動切換入庫狀態 & [Feature] 快速設為無主件
+// V2025.AutoArrive - 自動切換入庫狀態 & [Feature] 快速設為無主件 & Status Counts
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -22,6 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("parcel-form");
   const selectAll = document.getElementById("select-all");
   const btnBulkDelete = document.getElementById("btn-bulk-delete");
+  const statusFilterSelect = document.getElementById("status-filter");
 
   // 初始化
   init();
@@ -82,6 +83,32 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     loadParcels();
+  }
+
+  // --- [New] 更新下拉選單數字 ---
+  function updateStatusCounts(counts) {
+    if (!counts) return;
+    const options = statusFilterSelect.options;
+    const total = counts["ALL"] || 0;
+
+    for (let i = 0; i < options.length; i++) {
+      const opt = options[i];
+      const statusKey = opt.value;
+
+      // 保存原始文字以便重複更新
+      if (!opt.hasAttribute("data-original-text")) {
+        opt.setAttribute("data-original-text", opt.innerText);
+      }
+      const originalText = opt.getAttribute("data-original-text");
+
+      if (statusKey === "") {
+        // "所有狀態"
+        opt.innerText = `${originalText} (${total})`;
+      } else {
+        const count = counts[statusKey] || 0;
+        opt.innerText = `${originalText} (${count})`;
+      }
+    }
   }
 
   // --- [New] 快速設定為無主件 ---
@@ -147,6 +174,11 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) throw new Error(data.message);
       renderTable(data.packages || []);
       renderPagination(data.pagination);
+
+      // [New] 更新狀態數量
+      if (data.statusCounts) {
+        updateStatusCounts(data.statusCounts);
+      }
     } catch (e) {
       tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger p-3">載入錯誤: ${e.message}</td></tr>`;
     }
