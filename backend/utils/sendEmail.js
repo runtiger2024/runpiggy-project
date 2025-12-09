@@ -1,4 +1,4 @@
-// backend/utils/sendEmail.js (V11 完整通知版 - 含客戶與管理員雙向通知)
+// backend/utils/sendEmail.js (V12 Debug版 - 強化錯誤訊息與檢查)
 
 const sgMail = require("@sendgrid/mail");
 const prisma = require("../config/db.js");
@@ -8,7 +8,9 @@ require("dotenv").config();
 if (process.env.SENDGRID_API_KEY) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 } else {
-  console.warn("* SENDGRID_API_KEY 未設定，Email 通知功能將無法使用。 *");
+  console.warn(
+    "⚠️ [Email Warning] SENDGRID_API_KEY 未設定，Email 功能將失效。"
+  );
 }
 
 /**
@@ -40,11 +42,21 @@ const getEmailConfig = async () => {
   }
 
   // 2. 若資料庫無名單，則回退使用環境變數
-  if (config.recipients.length === 0 && process.env.ADMIN_EMAIL_RECIPIENT) {
+  if (
+    (!config.recipients || config.recipients.length === 0) &&
+    process.env.ADMIN_EMAIL_RECIPIENT
+  ) {
     config.recipients = process.env.ADMIN_EMAIL_RECIPIENT.split(",")
       .map((e) => e.trim())
       .filter((e) => e.length > 0);
   }
+
+  // Debug Log: 檢查最終配置
+  // console.log("[Email Config Check]", {
+  //   sender: config.senderEmail,
+  //   recipientsCount: config.recipients.length,
+  //   recipients: config.recipients
+  // });
 
   return config;
 };
@@ -57,14 +69,27 @@ const getEmailConfig = async () => {
  * A-1. 發送「新集運單成立」的通知給管理員
  */
 const sendNewShipmentNotification = async (shipment, customer) => {
+  console.log(`[Email Debug] 準備發送新訂單通知 ID: ${shipment.id}`);
   try {
     const config = await getEmailConfig();
-    if (
-      !process.env.SENDGRID_API_KEY ||
-      !config.senderEmail ||
-      config.recipients.length === 0
-    )
+
+    // 詳細檢查並印出缺少的項目
+    if (!process.env.SENDGRID_API_KEY) {
+      console.error("❌ [Email Failed] 缺少 SENDGRID_API_KEY");
       return;
+    }
+    if (!config.senderEmail) {
+      console.error(
+        "❌ [Email Failed] 缺少寄件者 Email (SENDER_EMAIL_ADDRESS)"
+      );
+      return;
+    }
+    if (!config.recipients || config.recipients.length === 0) {
+      console.error(
+        "❌ [Email Failed] 缺少管理員收件列表 (ADMIN_EMAIL_RECIPIENT)"
+      );
+      return;
+    }
 
     const subject = `[${config.senderName}] 新集運單成立 - ${
       shipment.recipientName
@@ -94,9 +119,16 @@ const sendNewShipmentNotification = async (shipment, customer) => {
       subject: subject,
       html: html,
     });
-    console.log(`[Email] 已發送新訂單通知 (ID: ${shipment.id})`);
+    console.log(
+      `✅ [Email Success] 已發送新訂單通知 (ID: ${
+        shipment.id
+      }) 至 ${config.recipients.join(", ")}`
+    );
   } catch (error) {
-    console.error(`[Email] 發送新訂單通知失敗:`, error.message);
+    console.error(
+      `❌ [Email Error] 發送新訂單通知失敗:`,
+      error.response ? error.response.body : error.message
+    );
   }
 };
 
@@ -288,7 +320,7 @@ const sendShipmentShippedNotification = async (shipment, customer) => {
   }
 };
 
-// [新增] B-3. 發送「訂單建立確認」通知給客戶
+// B-3. 發送「訂單建立確認」通知給客戶
 const sendShipmentCreatedNotification = async (shipment, customer) => {
   try {
     const config = await getEmailConfig();
