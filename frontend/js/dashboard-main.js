@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V29.4 - Debug Version for TaxID Upload
+// V29.5 - Fix Event Listener Issue for Dynamic Modals
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -35,6 +35,15 @@ document.addEventListener("DOMContentLoaded", () => {
       window.checkForecastDraftQueue(false);
     }
   }, 500);
+
+  // [NEW] 事件委派：全域監聽上傳憑證表單提交
+  // 解決 Modal 動態載入導致 addEventListener 失效的問題
+  document.body.addEventListener("submit", function (e) {
+    if (e.target && e.target.id === "upload-proof-form") {
+      console.log("偵測到上傳憑證表單提交，觸發處理函式...");
+      window.handleUploadProofSubmit(e);
+    }
+  });
 });
 
 // --- Tab 管理 ---
@@ -108,9 +117,8 @@ function bindForms() {
       window.handleCreateShipmentSubmit
     );
 
-  const proofForm = document.getElementById("upload-proof-form");
-  if (proofForm)
-    proofForm.addEventListener("submit", window.handleUploadProofSubmit);
+  // [修改] 移除這裡的 upload-proof-form 綁定，改用上方的 document.body 事件委派
+  // 因為 bindForms 執行時，upload-proof-modal 可能還沒被載入到 DOM 中
 
   const profileForm = document.getElementById("edit-profile-form");
   if (profileForm) {
