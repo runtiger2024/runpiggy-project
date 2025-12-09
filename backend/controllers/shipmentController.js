@@ -1,6 +1,5 @@
 // backend/controllers/shipmentController.js
-// V2025.Final.Transparent.Email - 整合運費透明化、統編修復與客戶 Email 通知
-// Logic Update: 修正運費計算邏輯 (先加總後計算低消，附加費單次計算) & 費率匹配修復
+// V2025.Final.Transparent - 運費透明化 (Breakdown Report) + 核心邏輯修復
 
 const prisma = require("../config/db.js");
 const {
@@ -14,104 +13,173 @@ const createLog = require("../utils/createLog.js");
 const { deleteFiles } = require("../utils/adminHelpers.js");
 const fs = require("fs"); // 引入 fs 供刪檔使用
 
-// --- 輔助計算函式 (修正版：總和優先邏輯 + 安全費率查找) ---
+// --- 輔助計算函式 (增強版：產生詳細透明化報告) ---
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   const CONSTANTS = rates.constants;
-  // const CATEGORIES = rates.categories; // [Updated] 不直接使用，改用 getCategoryRate 函式
 
-  // 1. 初始化總計變數
-  let totalRawBaseCost = 0; // 所有包裹的原始運費總和 (未含低消)
-  let totalVolumeDivisor = 0; // 用於計算總材積 (Cai)
+  // 1. 初始化計算變數
+  let totalRawBaseCost = 0; // 原始運費總和 (未含低消)
+  let totalVolumeDivisor = 0; // 總材積 (Cai)
+  let totalActualWeight = 0; // 總實重
+  let totalVolumetricCai = 0; // 統計用總材數
 
-  // 新增統計數據
-  let totalActualWeight = 0;
-  let totalVolumetricCai = 0; // 總材數
-
-  // 標記是否觸發附加費 (整單只算一次)
+  // 附加費標記
   let hasOversized = false;
   let hasOverweight = false;
 
-  // 2. 遍歷所有包裹進行累加
+  // [新增] 透明化報告結構
+  let breakdown = {
+    packages: [], // 每箱計算細節
+    subtotal: 0, // 原始加總
+    minChargeDiff: 0, // 低消補差額
+    surcharges: [], // 附加費明細 (名稱, 金額, 原因)
+    remoteFeeCalc: "", // 偏遠費計算公式字串
+    finalTotal: 0,
+  };
+
+  // 2. 遍歷所有包裹進行計算與記錄
   packages.forEach((pkg) => {
     try {
       const boxes = pkg.arrivedBoxesJson || [];
-      if (boxes.length > 0) {
-        boxes.forEach((box) => {
-          const l = parseFloat(box.length) || 0;
-          const w = parseFloat(box.width) || 0;
-          const h = parseFloat(box.height) || 0;
-          const weight = parseFloat(box.weight) || 0;
 
-          // [Critical Fix] 使用 ratesManager 的安全查找功能，避免 Key 不匹配導致 0 元費率
-          // 原本: const rateInfo = CATEGORIES[type] || { weightRate: 0, volumeRate: 0 };
-          const rateInfo = ratesManager.getCategoryRate(rates, box.type);
-
-          // 累加實重
-          totalActualWeight += weight;
-
-          // 檢查超規 (只要有一個箱子超規，整單標記為 true)
-          if (
-            l >= CONSTANTS.OVERSIZED_LIMIT ||
-            w >= CONSTANTS.OVERSIZED_LIMIT ||
-            h >= CONSTANTS.OVERSIZED_LIMIT
-          ) {
-            hasOversized = true;
-          }
-          if (weight >= CONSTANTS.OVERWEIGHT_LIMIT) {
-            hasOverweight = true;
-          }
-
-          if (l > 0 && w > 0 && h > 0 && weight > 0) {
-            // 計算單箱材積 (材)
-            const cai = Math.ceil((l * w * h) / CONSTANTS.VOLUME_DIVISOR);
-            totalVolumeDivisor += cai;
-            totalVolumetricCai += cai;
-
-            // 計算單箱運費 (材積重 vs 實重 取大)
-            const volFee = cai * rateInfo.volumeRate;
-            const wtFee = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
-
-            // 累加到原始總運費
-            totalRawBaseCost += Math.max(volFee, wtFee);
-          }
+      // 針對舊資料或無箱子資料的相容處理
+      if (boxes.length === 0) {
+        const legacyFee = pkg.totalCalculatedFee || 0;
+        totalRawBaseCost += legacyFee;
+        breakdown.packages.push({
+          trackingNumber: pkg.trackingNumber,
+          note: "舊資料或無測量數據 (直接引用預估費)",
+          finalFee: legacyFee,
         });
-      } else {
-        // 舊資料相容：直接累加舊的計算結果
-        totalRawBaseCost += pkg.totalCalculatedFee || 0;
+        return;
       }
+
+      boxes.forEach((box, index) => {
+        const l = parseFloat(box.length) || 0;
+        const w = parseFloat(box.width) || 0;
+        const h = parseFloat(box.height) || 0;
+        const weight = parseFloat(box.weight) || 0;
+
+        // [Safety] 使用 ratesManager 安全查找費率
+        const rateInfo = ratesManager.getCategoryRate(rates, box.type);
+        const typeName = rateInfo.name || box.type || "一般";
+
+        // 累加實重
+        totalActualWeight += weight;
+
+        // 檢查超規 (標記並記錄原因，但費用最後算)
+        let boxNotes = [];
+        if (
+          l >= CONSTANTS.OVERSIZED_LIMIT ||
+          w >= CONSTANTS.OVERSIZED_LIMIT ||
+          h >= CONSTANTS.OVERSIZED_LIMIT
+        ) {
+          hasOversized = true;
+          boxNotes.push("超長");
+        }
+        if (weight >= CONSTANTS.OVERWEIGHT_LIMIT) {
+          hasOverweight = true;
+          boxNotes.push("超重");
+        }
+
+        if (l > 0 && w > 0 && h > 0 && weight > 0) {
+          // 計算單箱材積
+          const cai = Math.ceil((l * w * h) / CONSTANTS.VOLUME_DIVISOR);
+          totalVolumeDivisor += cai;
+          totalVolumetricCai += cai;
+
+          // 核心比價：材積費 vs 重量費
+          const volFee = cai * rateInfo.volumeRate;
+          const wtFee = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
+          const finalBoxFee = Math.max(volFee, wtFee);
+
+          // 累加原始運費
+          totalRawBaseCost += finalBoxFee;
+
+          // [Transparecy] 記錄單箱計算細節
+          breakdown.packages.push({
+            trackingNumber: pkg.trackingNumber,
+            boxIndex: index + 1,
+            type: typeName,
+            dims: `${l}x${w}x${h} cm`,
+            weight: `${weight} kg`,
+            cai: cai,
+            calcMethod: volFee >= wtFee ? "材積計費" : "重量計費",
+            rateUsed:
+              volFee >= wtFee ? rateInfo.volumeRate : rateInfo.weightRate,
+            rawFee: finalBoxFee,
+            notes: boxNotes.join(", "),
+          });
+        }
+      });
     } catch (e) {
-      console.warn("計算包裹費用時發生錯誤:", e);
+      console.warn(`包裹 ${pkg.trackingNumber} 計算異常:`, e);
+      // 容錯處理
       totalRawBaseCost += pkg.totalCalculatedFee || 0;
     }
   });
 
-  // 3. 計算最終基礎運費 (處理最低消費)
-  // 邏輯：先看總金額是否 > 0 且 < 低消，若是則以低消計算，否則以總金額計算
+  breakdown.subtotal = totalRawBaseCost;
+
+  // 3. 處理最低消費 (Minimum Charge)
   let finalBaseCost = totalRawBaseCost;
   const isMinimumChargeApplied =
     totalRawBaseCost > 0 && totalRawBaseCost < CONSTANTS.MINIMUM_CHARGE;
 
   if (isMinimumChargeApplied) {
     finalBaseCost = CONSTANTS.MINIMUM_CHARGE;
+    // 記錄補差額
+    breakdown.minChargeDiff = CONSTANTS.MINIMUM_CHARGE - totalRawBaseCost;
+    breakdown.surcharges.push({
+      name: "低消補足",
+      amount: breakdown.minChargeDiff,
+      reason: `未達最低消費 $${CONSTANTS.MINIMUM_CHARGE}`,
+    });
   }
 
-  // 4. 計算附加費 (整單只收一次)
+  // 4. 計算附加費 (整單一次性)
   const overweightFee = hasOverweight ? CONSTANTS.OVERWEIGHT_FEE : 0;
-  const oversizedFee = hasOversized ? CONSTANTS.OVERSIZED_FEE : 0;
+  if (hasOverweight) {
+    breakdown.surcharges.push({
+      name: "超重附加費",
+      amount: overweightFee,
+      reason: "包含單件超重包裹 (整單計收一次)",
+    });
+  }
 
-  // 5. 偏遠地區費計算 (依總 CBM 計算)
+  const oversizedFee = hasOversized ? CONSTANTS.OVERSIZED_FEE : 0;
+  if (hasOversized) {
+    breakdown.surcharges.push({
+      name: "超長附加費",
+      amount: oversizedFee,
+      reason: "包含單件超長包裹 (整單計收一次)",
+    });
+  }
+
+  // 5. 偏遠地區費 (依總 CBM)
   const totalCbm = parseFloat(
     (totalVolumeDivisor / CONSTANTS.CBM_TO_CAI_FACTOR).toFixed(2)
   );
-  const remoteFee = Math.round(totalCbm * (parseFloat(deliveryRate) || 0));
+  const deliveryRateVal = parseFloat(deliveryRate) || 0;
+  const remoteFee = Math.round(totalCbm * deliveryRateVal);
 
-  // 6. 總費用合計
+  if (remoteFee > 0) {
+    breakdown.remoteFeeCalc = `${totalCbm} CBM x $${deliveryRateVal}`;
+    breakdown.surcharges.push({
+      name: "偏遠/聯運費",
+      amount: remoteFee,
+      reason: `總體積 ${totalCbm} CBM`,
+    });
+  }
+
+  // 6. 總結
   const totalCost = finalBaseCost + remoteFee + overweightFee + oversizedFee;
+  breakdown.finalTotal = totalCost;
 
   return {
     totalCost,
     baseCost: finalBaseCost,
-    originalBaseCost: totalRawBaseCost, // 回傳原始加總供參考
+    originalBaseCost: totalRawBaseCost,
     remoteFee,
     totalCbm,
     totalActualWeight: parseFloat(totalActualWeight.toFixed(2)),
@@ -121,13 +189,14 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
     isMinimumChargeApplied,
     hasOversized,
     hasOverweight,
-    // 回傳費率常數供前端參考顯示
+    breakdown, // [New] 回傳完整透明化報告
     ratesConstant: {
       minimumCharge: CONSTANTS.MINIMUM_CHARGE,
     },
   };
 };
 
+// [API] 預估運費 (含透明化報告)
 const previewShipmentCost = async (req, res) => {
   try {
     let { packageIds, deliveryLocationRate } = req.body;
@@ -148,11 +217,14 @@ const previewShipmentCost = async (req, res) => {
       return res.status(400).json({ success: false, message: "包含無效包裹" });
 
     const systemRates = await ratesManager.getRates();
+
+    // 計算並生成報告
     const result = calculateShipmentDetails(
       packagesToShip,
       systemRates,
       deliveryLocationRate
     );
+
     res.status(200).json({ success: true, preview: result });
   } catch (error) {
     console.error("預算失敗:", error);
@@ -160,6 +232,7 @@ const previewShipmentCost = async (req, res) => {
   }
 };
 
+// [API] 建立集運單
 const createShipment = async (req, res) => {
   try {
     let {
@@ -274,6 +347,7 @@ const createShipment = async (req, res) => {
           shipmentProductImages: shipmentImagePaths,
           transactionId: txRecord ? txRecord.id : null,
           paymentProof: isWalletPay ? "WALLET_PAY" : null,
+          // 建議: 未來可將 calcResult.breakdown 存入 DB (需新增欄位) 以便日後查詢
         },
       });
 
@@ -287,9 +361,7 @@ const createShipment = async (req, res) => {
 
     // 觸發 Email 通知
     try {
-      // 1. 通知管理員 (原有)
       await sendNewShipmentNotification(newShipment, req.user);
-      // 2. 通知客戶 (新增：訂單建立確認)
       await sendShipmentCreatedNotification(newShipment, req.user);
     } catch (e) {
       console.warn("Email通知發送失敗 (CreateShipment):", e.message);
@@ -301,6 +373,8 @@ const createShipment = async (req, res) => {
         ? "扣款成功！訂單已成立並開始處理。"
         : "集運單建立成功！請儘速完成轉帳。",
       shipment: newShipment,
+      // 回傳計算報告供前端顯示最後確認
+      costBreakdown: calcResult.breakdown,
     });
   } catch (error) {
     console.error("建立訂單錯誤:", error.message);
@@ -348,7 +422,6 @@ const getMyShipments = async (req, res) => {
   }
 };
 
-// [Critical Fix] 上傳憑證 (含統編) - 保留詳細 Debug Log
 const uploadPaymentProof = async (req, res) => {
   try {
     const { id } = req.params;
@@ -358,10 +431,6 @@ const uploadPaymentProof = async (req, res) => {
     console.log(`\n=== [UploadProof Debug] Start ===`);
     console.log(`User: ${userId}, Shipment: ${id}`);
 
-    // 檢查 req.body 是否有收到文字欄位
-    console.log(`Req.Body Content:`, JSON.stringify(req.body, null, 2));
-
-    // 檢查檔案是否成功接收
     if (req.file) {
       console.log(`Req.File: ${req.file.filename} (${req.file.mimetype})`);
     } else {
@@ -372,25 +441,18 @@ const uploadPaymentProof = async (req, res) => {
     if (!req.file)
       return res.status(400).json({ success: false, message: "請選擇圖片" });
 
-    // 從 req.body 讀取，並移除多餘空白
     const taxId = req.body.taxId ? req.body.taxId.trim() : "";
     const invoiceTitle = req.body.invoiceTitle
       ? req.body.invoiceTitle.trim()
       : "";
 
-    console.log(`Parsed TaxId: "${taxId}"`);
-    console.log(`Parsed InvoiceTitle: "${invoiceTitle}"`);
-
-    // [Backend Validation] 統編與抬頭的一致性檢查
     if (taxId && !invoiceTitle) {
       console.log(
         `[UploadProof Error] TaxId provided but InvoiceTitle missing.`
       );
-      // 驗證失敗：立即刪除已上傳的暫存檔案
       fs.unlink(req.file.path, (err) => {
         if (err) console.warn("刪除暫存檔案失敗:", err.message);
       });
-
       return res.status(400).json({
         success: false,
         message: "填寫統一編號時，公司抬頭為必填項目",
@@ -412,11 +474,9 @@ const uploadPaymentProof = async (req, res) => {
       paymentProof: `/uploads/${req.file.filename}`,
     };
 
-    // [Data Sync] 將資料寫入 updateData
     if (taxId) updateData.taxId = taxId;
     if (invoiceTitle) updateData.invoiceTitle = invoiceTitle;
 
-    // --- DEBUG LOG: 確認最終寫入 DB 的資料 ---
     console.log(
       `Executing Prisma Update with data:`,
       JSON.stringify(updateData, null, 2)
@@ -429,7 +489,6 @@ const uploadPaymentProof = async (req, res) => {
 
     console.log(`=== [UploadProof Debug] Success ===\n`);
 
-    // 觸發 Email 通知 (新增：通知客戶憑證已上傳)
     try {
       await sendPaymentProofNotification(updatedShipment, req.user);
     } catch (e) {
@@ -442,7 +501,6 @@ const uploadPaymentProof = async (req, res) => {
   } catch (error) {
     console.error(`=== [UploadProof Error] Exception ===`);
     console.error(error);
-    // 發生未知錯誤時也要嘗試刪除檔案
     if (req.file) fs.unlink(req.file.path, () => {});
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
