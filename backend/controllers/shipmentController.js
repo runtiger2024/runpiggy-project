@@ -1,5 +1,5 @@
 // backend/controllers/shipmentController.js
-// V2025.Optimized.Final - Strict Validation
+// V2025.Debug.Full - Added Detailed Logs for TaxID/InvoiceTitle Troubleshooting
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
@@ -9,6 +9,7 @@ const createLog = require("../utils/createLog.js");
 const { deleteFiles } = require("../utils/adminHelpers.js");
 const fs = require("fs"); // 引入 fs 供刪檔使用
 
+// --- 輔助計算函式 ---
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   const CONSTANTS = rates.constants;
   const CATEGORIES = rates.categories;
@@ -297,22 +298,46 @@ const getMyShipments = async (req, res) => {
   }
 };
 
+// [Critical Fix] 上傳憑證 (含統編) - 加入詳細 Debug Log
 const uploadPaymentProof = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { taxId, invoiceTitle } = req.body;
+
+    // --- DEBUG LOG START ---
+    console.log(`\n=== [UploadProof Debug] Start ===`);
+    console.log(`User: ${userId}, Shipment: ${id}`);
+
+    // 檢查 req.body 是否有收到文字欄位
+    // 注意：如果是 Multer 解析問題，這裡可能看不到 taxId
+    console.log(`Req.Body Content:`, JSON.stringify(req.body, null, 2));
+
+    // 檢查檔案是否成功接收
+    if (req.file) {
+      console.log(`Req.File: ${req.file.filename} (${req.file.mimetype})`);
+    } else {
+      console.log(`Req.File: MISSING`);
+    }
+    // --- DEBUG LOG END ---
 
     if (!req.file)
       return res.status(400).json({ success: false, message: "請選擇圖片" });
 
+    // 從 req.body 讀取，並移除多餘空白
+    const taxId = req.body.taxId ? req.body.taxId.trim() : "";
+    const invoiceTitle = req.body.invoiceTitle
+      ? req.body.invoiceTitle.trim()
+      : "";
+
+    console.log(`Parsed TaxId: "${taxId}"`);
+    console.log(`Parsed InvoiceTitle: "${invoiceTitle}"`);
+
     // [Backend Validation] 統編與抬頭的一致性檢查
-    if (
-      taxId &&
-      taxId.trim() !== "" &&
-      (!invoiceTitle || invoiceTitle.trim() === "")
-    ) {
-      // 驗證失敗：立即刪除已上傳的暫存檔案，避免佔用伺服器空間
+    if (taxId && !invoiceTitle) {
+      console.log(
+        `[UploadProof Error] TaxId provided but InvoiceTitle missing.`
+      );
+      // 驗證失敗：立即刪除已上傳的暫存檔案
       fs.unlink(req.file.path, (err) => {
         if (err) console.warn("刪除暫存檔案失敗:", err.message);
       });
@@ -327,8 +352,10 @@ const uploadPaymentProof = async (req, res) => {
       where: { id: id, userId: userId },
     });
     if (!shipment) {
-      // 找不到訂單也要刪除檔案
       fs.unlink(req.file.path, () => {});
+      console.log(
+        `[UploadProof Error] Shipment not found or not owned by user.`
+      );
       return res.status(404).json({ success: false, message: "找不到集運單" });
     }
 
@@ -336,18 +363,30 @@ const uploadPaymentProof = async (req, res) => {
       paymentProof: `/uploads/${req.file.filename}`,
     };
 
-    // [Data Sync] 將客戶填寫的資料寫入資料庫
-    if (taxId !== undefined) updateData.taxId = taxId;
-    if (invoiceTitle !== undefined) updateData.invoiceTitle = invoiceTitle;
+    // [Data Sync] 將資料寫入 updateData
+    // 這裡使用明確的條件判斷，確保非 undefined/null 才會寫入
+    if (taxId) updateData.taxId = taxId;
+    if (invoiceTitle) updateData.invoiceTitle = invoiceTitle;
+
+    // --- DEBUG LOG: 確認最終寫入 DB 的資料 ---
+    console.log(
+      `Executing Prisma Update with data:`,
+      JSON.stringify(updateData, null, 2)
+    );
 
     const updatedShipment = await prisma.shipment.update({
       where: { id: id },
       data: updateData,
     });
+
+    console.log(`=== [UploadProof Debug] Success ===\n`);
+
     res
       .status(200)
       .json({ success: true, message: "上傳成功", shipment: updatedShipment });
   } catch (error) {
+    console.error(`=== [UploadProof Error] Exception ===`);
+    console.error(error);
     // 發生未知錯誤時也要嘗試刪除檔案
     if (req.file) fs.unlink(req.file.path, () => {});
     res.status(500).json({ success: false, message: "伺服器錯誤" });

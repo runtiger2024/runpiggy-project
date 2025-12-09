@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V29.3 - Fix Tax ID Sync Issue & Shipment Fee Transparency
+// V29.4 - Debug Version for TaxID Upload
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -457,7 +457,7 @@ window.openUploadProof = function (id) {
   if (modal) modal.style.display = "flex";
 };
 
-// 上傳憑證提交 (含統編更新)
+// [Critical Debug] 上傳憑證提交 (含統編更新 + 詳細 Log)
 window.handleUploadProofSubmit = async function (e) {
   e.preventDefault();
   const btn = e.target.querySelector("button");
@@ -495,6 +495,19 @@ window.handleUploadProofSubmit = async function (e) {
   // 檔案最後加入
   fd.append("paymentProof", file);
 
+  // --- DEBUG LOG: 前端送出前檢查 ---
+  console.log("=== [Frontend Upload Debug] ===");
+  console.log("TaxID:", taxId);
+  console.log("Title:", invoiceTitle);
+  console.log("File:", file.name);
+  console.log("FormData Entries:");
+  for (var pair of fd.entries()) {
+    console.log(
+      pair[0] + ", " + (pair[1] instanceof File ? pair[1].name : pair[1])
+    );
+  }
+  console.log("===============================");
+
   try {
     const res = await fetch(`${API_BASE_URL}/api/shipments/${id}/payment`, {
       method: "PUT",
@@ -510,7 +523,8 @@ window.handleUploadProofSubmit = async function (e) {
       alert(data.message || "上傳失敗");
     }
   } catch (err) {
-    alert("錯誤");
+    console.error(err);
+    alert("錯誤: " + err.message);
   } finally {
     btn.disabled = false;
     btn.textContent = "上傳";
