@@ -60,7 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadMembers() {
     tbody.innerHTML =
-      '<tr><td colspan="7" class="text-center p-4">資料載入中...</td></tr>';
+      '<tr><td colspan="8" class="text-center p-4">資料載入中...</td></tr>';
 
     try {
       let url = `${API_BASE_URL}/api/admin/users?page=${currentPage}&limit=${limit}`;
@@ -79,7 +79,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderTable(data.users || []);
       renderPagination(data.pagination);
     } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger p-4">載入錯誤: ${e.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger p-4">載入錯誤: ${e.message}</td></tr>`;
     }
   }
 
@@ -87,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
     tbody.innerHTML = "";
     if (users.length === 0) {
       tbody.innerHTML =
-        '<tr><td colspan="7" class="text-center p-4" style="color:#999;">查無符合條件的會員</td></tr>';
+        '<tr><td colspan="8" class="text-center p-4" style="color:#999;">查無符合條件的會員</td></tr>';
       return;
     }
 
@@ -118,15 +118,27 @@ document.addEventListener("DOMContentLoaded", () => {
         ? '<span class="text-success"><i class="fas fa-check-circle"></i> 啟用中</span>'
         : '<span class="text-danger"><i class="fas fa-ban"></i> 已停用</span>';
 
+      // [新增] 處理餘額顯示 (如果沒有錢包則顯示 0)
+      const balance = u.wallet ? u.wallet.balance : 0;
+      const formattedBalance = new Intl.NumberFormat("zh-TW", {
+        style: "currency",
+        currency: "TWD",
+        minimumFractionDigits: 0,
+      }).format(balance);
+
       const uStr = encodeURIComponent(JSON.stringify(u));
 
       // [Mobile Opt] 加入 data-label
+      // [新增] 錢包餘額欄位
       tr.innerHTML = `
             <td data-label="姓名"><div class="font-weight-bold text-dark">${
               u.name || "-"
             }</div></td>
             <td data-label="帳號">${u.email}</td>
             <td data-label="電話">${u.phone || "-"}</td>
+            <td data-label="錢包餘額" style="font-family: monospace; font-weight: bold; color: #2c3e50;">
+              ${formattedBalance}
+            </td>
             <td data-label="角色">${roleBadge}</td>
             <td data-label="註冊日期">${new Date(
               u.createdAt

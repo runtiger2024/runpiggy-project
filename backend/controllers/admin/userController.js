@@ -46,6 +46,12 @@ const getUsers = async (req, res) => {
           permissions: true,
           createdAt: true,
           isActive: true,
+          // [新增] 關聯查詢錢包餘額
+          wallet: {
+            select: {
+              balance: true,
+            },
+          },
         },
       }),
     ]);
