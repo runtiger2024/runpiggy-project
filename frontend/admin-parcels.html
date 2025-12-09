@@ -226,12 +226,38 @@
             </div>
 
             <div class="form-group mb-3">
+              <label>商品購買連結 (User Link)</label>
+              <div
+                id="modal-productUrl-display"
+                style="padding: 5px 0; font-size: 14px"
+              ></div>
+            </div>
+
+            <div class="form-group mb-3">
               <label>備註</label>
               <textarea
                 id="modal-note"
                 class="form-control"
                 rows="2"
               ></textarea>
+            </div>
+
+            <div class="form-group mb-3" id="client-images-section">
+              <label class="text-secondary font-weight-bold"
+                >📷 客戶上傳照片 (預報資料)</label
+              >
+              <div
+                id="modal-client-images-preview"
+                style="
+                  display: flex;
+                  gap: 10px;
+                  flex-wrap: wrap;
+                  margin-top: 5px;
+                  padding: 10px;
+                  background-color: #f1f3f5;
+                  border-radius: 5px;
+                "
+              ></div>
             </div>
 
             <hr />
@@ -262,7 +288,9 @@
             </div>
 
             <div class="form-group mt-3">
-              <label>倉庫照片</label>
+              <label class="text-primary font-weight-bold"
+                >🏭 倉庫實拍照片 (入庫作業)</label
+              >
               <input
                 type="file"
                 id="modal-warehouseImages"

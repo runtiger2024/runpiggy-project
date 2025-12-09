@@ -1,5 +1,5 @@
 // frontend/js/admin-parcels.js
-// V2025.AutoArrive - 自動切換入庫狀態 & [Feature] 快速設為無主件 & Status Counts
+// V2025.AutoArrive - 自動切換入庫狀態 & [Feature] 快速設為無主件 & Status Counts & [View] Client Images/Url
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -417,6 +417,39 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-note").value = pkg.note || "";
     document.getElementById("modal-status").value = pkg.status;
 
+    // --- [New] 顯示商品購買連結 ---
+    const urlDisplay = document.getElementById("modal-productUrl-display");
+    if (pkg.productUrl) {
+      urlDisplay.innerHTML = `<a href="${
+        pkg.productUrl
+      }" target="_blank" class="text-primary" style="text-decoration: underline;"><i class="fas fa-external-link-alt"></i> 點擊開啟：${
+        pkg.productUrl.length > 50
+          ? pkg.productUrl.substring(0, 50) + "..."
+          : pkg.productUrl
+      }</a>`;
+    } else {
+      urlDisplay.innerHTML = `<span class="text-muted"><i class="fas fa-ban"></i> 客戶未提供連結</span>`;
+    }
+
+    // --- [New] 顯示客戶上傳照片 ---
+    const clientImgDiv = document.getElementById("modal-client-images-preview");
+    const clientSection = document.getElementById("client-images-section");
+    clientImgDiv.innerHTML = "";
+    if (pkg.productImages && pkg.productImages.length > 0) {
+      clientSection.style.display = "block";
+      pkg.productImages.forEach((img) => {
+        const fullUrl = `${API_BASE_URL}${img}`;
+        clientImgDiv.innerHTML += `
+            <a href="${fullUrl}" target="_blank" title="點擊放大">
+                <img src="${fullUrl}" style="width:80px; height:80px; object-fit:cover; border:1px solid #ddd; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+            </a>
+        `;
+      });
+    } else {
+      // 若無照片，也可以隱藏整個區塊，或顯示無照片
+      clientImgDiv.innerHTML = `<span class="text-muted small">客戶未上傳照片</span>`;
+    }
+
     document.getElementById("boxes-section").style.display = "block";
     currentSubPackages = pkg.arrivedBoxesJson || [];
     if (currentSubPackages.length === 0) {
@@ -457,6 +490,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("boxes-section").style.display = "none";
     document.getElementById("modal-status").value = "PENDING";
+
+    // 清空連結與客戶圖片顯示
+    document.getElementById("modal-productUrl-display").innerHTML = "";
+    document.getElementById("modal-client-images-preview").innerHTML = "";
+    document.getElementById("client-images-section").style.display = "none";
 
     modal.style.display = "flex";
   }
