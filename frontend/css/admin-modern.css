@@ -391,26 +391,57 @@ body {
   border-radius: 0.35rem;
 }
 
-/* 狀態標籤 (Badges) - 沿用但美化 */
+/* --- [Updated] 狀態標籤 (Badges) V2025.Color-Optimized --- */
 .status-badge {
-  padding: 0.35em 0.65em;
+  padding: 0.4em 0.8em;
   font-size: 0.75em;
-  font-weight: 700;
-  border-radius: 1rem;
+  font-weight: 800;
+  border-radius: 50rem; /* Pill shape */
   color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
 }
+
+/* 1. 包裹/一般通用 */
 .status-PENDING {
-  background-color: var(--warning-color);
-  color: #fff;
+  background-color: #858796; /* 灰色: 尚未入庫/待處理 */
 }
 .status-ARRIVED {
-  background-color: var(--info-color);
+  background-color: #1cc88a; /* 綠色: 已入庫 (安全/完成第一步) */
+}
+.status-IN_SHIPMENT {
+  background-color: #36b9cc; /* 藍綠色: 運送中 (包裹狀態) */
+}
+
+/* 2. 訂單/集運單專用 - 高對比區分 */
+.status-PENDING_PAYMENT {
+  background-color: #fd7e14; /* 鮮橘色: 待付款 (警示/需要錢) */
+}
+.status-PENDING_REVIEW {
+  background-color: #6f42c1; /* 紫色: 已付待審 (需要人工介入) */
+}
+.status-PROCESSING {
+  background-color: #0dcaf0; /* 亮青色: 處理中 (系統作業中) */
+  color: #fff;
+}
+.status-SHIPPED {
+  background-color: #4e73df; /* 深藍色: 已裝櫃/運輸中 */
+}
+.status-CUSTOMS_CHECK {
+  background-color: #f6c23e; /* 黃色: 海關查驗 (注意) */
+  color: #333; /* 為了對比度，黃底配黑字 */
+}
+.status-UNSTUFFING {
+  background-color: #20c9a6; /* 湖水綠: 拆櫃派送 (接近完成) */
 }
 .status-COMPLETED {
-  background-color: var(--success-color);
+  background-color: #198754; /* 墨綠色: 最終完成 */
 }
-.status-CANCELLED {
-  background-color: var(--danger-color);
+.status-CANCELLED,
+.status-RETURNED {
+  background-color: #e74a3b; /* 紅色: 取消/異常 */
 }
 
 /* --- 響應式設計 (Mobile) --- */
@@ -440,6 +471,7 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
 /* --- V25.0 運費算式透明化樣式 (Admin) --- */
 .calc-formula-box {
   background-color: #f8f9fc;
@@ -473,10 +505,8 @@ body {
   margin-top: 2px;
   margin-left: 10px;
 }
-/* frontend/css/admin-modern.css */
-/* ... (保留原本上方的 Desktop 樣式) ... */
 
-/* --- 響應式設計 (Mobile Optimization) --- */
+/* --- 響應式設計補充 (Mobile Optimization) --- */
 @media (max-width: 768px) {
   /* 1. 側邊欄改為抽屜式 (Off-canvas) */
   .sidebar {

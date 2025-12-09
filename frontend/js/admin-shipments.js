@@ -123,16 +123,17 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // [Update] V2025.Color-Optimized: 更新為高對比色 Class
     const statusClasses = {
-      PENDING_PAYMENT: "status-PENDING",
-      PENDING_REVIEW: "status-PENDING",
-      PROCESSING: "status-info",
-      SHIPPED: "status-SHIPPED",
-      CUSTOMS_CHECK: "status-warning",
-      UNSTUFFING: "status-info",
-      COMPLETED: "status-COMPLETED",
-      RETURNED: "status-CANCELLED",
-      CANCELLED: "status-CANCELLED",
+      PENDING_PAYMENT: "status-PENDING_PAYMENT", // 橘色 (催款)
+      PENDING_REVIEW: "status-PENDING_REVIEW", // 紫色 (待審)
+      PROCESSING: "status-PROCESSING", // 青色
+      SHIPPED: "status-SHIPPED", // 藍色
+      CUSTOMS_CHECK: "status-CUSTOMS_CHECK", // 黃色
+      UNSTUFFING: "status-UNSTUFFING", // 湖水綠
+      COMPLETED: "status-COMPLETED", // 墨綠
+      RETURNED: "status-RETURNED", // 紅
+      CANCELLED: "status-CANCELLED", // 紅
     };
 
     const statusMap = {
@@ -150,11 +151,13 @@ document.addEventListener("DOMContentLoaded", () => {
     shipments.forEach((s) => {
       const tr = document.createElement("tr");
       let displayStatus = statusMap[s.status] || s.status;
-      let statusClass = statusClasses[s.status] || "status-secondary";
+      let statusClass =
+        statusClasses[s.status] || "status-secondary"; /* Fallback */
 
+      // 特殊邏輯：若狀態是 待付款 但有上傳截圖，則顯示待審核 (黃->紫)
       if (s.status === "PENDING_PAYMENT" && s.paymentProof) {
         displayStatus = "待審核";
-        statusClass = "status-warning";
+        statusClass = "status-PENDING_REVIEW"; // 覆寫為紫色
       }
 
       // --- 發票狀態欄位 ---

@@ -249,12 +249,13 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // [Update] V2025.Color-Optimized: 更新為高對比色 Class
     const statusClasses = {
-      PENDING: "status-PENDING",
-      ARRIVED: "status-ARRIVED",
-      IN_SHIPMENT: "status-info",
-      COMPLETED: "status-COMPLETED",
-      CANCELLED: "status-CANCELLED",
+      PENDING: "status-PENDING", // 灰色
+      ARRIVED: "status-ARRIVED", // 綠色
+      IN_SHIPMENT: "status-IN_SHIPMENT", // 藍綠色 (區分運送中)
+      COMPLETED: "status-COMPLETED", // 墨綠色
+      CANCELLED: "status-CANCELLED", // 紅色
     };
     const statusTextMap = window.PACKAGE_STATUS_MAP || {};
 
@@ -265,7 +266,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     packages.forEach((pkg) => {
       const tr = document.createElement("tr");
-      const statusClass = statusClasses[pkg.status] || "status-secondary";
+      // 若狀態沒有對應，預設為灰色
+      const statusClass = statusClasses[pkg.status] || "status-PENDING";
       const statusText = statusTextMap[pkg.status] || pkg.status;
 
       let weightInfo = "-";
