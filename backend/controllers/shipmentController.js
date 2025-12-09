@@ -1,5 +1,5 @@
 // backend/controllers/shipmentController.js
-// V2025.Debug.Full - Added Detailed Logs for TaxID/InvoiceTitle Troubleshooting
+// V2025.Final.Transparent - 整合運費透明化顯示與統編修復
 
 const prisma = require("../config/db.js");
 const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
@@ -9,13 +9,18 @@ const createLog = require("../utils/createLog.js");
 const { deleteFiles } = require("../utils/adminHelpers.js");
 const fs = require("fs"); // 引入 fs 供刪檔使用
 
-// --- 輔助計算函式 ---
+// --- 輔助計算函式 (增強版：回傳重量與材積分析) ---
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   const CONSTANTS = rates.constants;
   const CATEGORIES = rates.categories;
 
   let baseCost = 0;
-  let totalVolumeDivisor = 0;
+  let totalVolumeDivisor = 0; // 用於計算總材積 (Cai)
+
+  // 新增統計數據
+  let totalActualWeight = 0;
+  let totalVolumetricCai = 0; // 總材數
+
   let hasOversized = false;
   let hasOverweight = false;
 
@@ -31,6 +36,10 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
           const type = box.type || "general";
           const rateInfo = CATEGORIES[type] || { weightRate: 0, volumeRate: 0 };
 
+          // 累加實重
+          totalActualWeight += weight;
+
+          // 檢查超規
           if (
             l >= CONSTANTS.OVERSIZED_LIMIT ||
             w >= CONSTANTS.OVERSIZED_LIMIT ||
@@ -43,14 +52,21 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
           }
 
           if (l > 0 && w > 0 && h > 0 && weight > 0) {
+            // 計算材積 (材)
             const cai = Math.ceil((l * w * h) / CONSTANTS.VOLUME_DIVISOR);
             totalVolumeDivisor += cai;
+            totalVolumetricCai += cai;
+
+            // 計算個別費率
             const volFee = cai * rateInfo.volumeRate;
             const wtFee = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
+
+            // 取大者為運費
             baseCost += Math.max(volFee, wtFee);
           }
         });
       } else {
+        // 舊資料相容
         baseCost += pkg.totalCalculatedFee || 0;
       }
     } catch (e) {
@@ -65,10 +81,13 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
 
   const overweightFee = hasOverweight ? CONSTANTS.OVERWEIGHT_FEE : 0;
   const oversizedFee = hasOversized ? CONSTANTS.OVERSIZED_FEE : 0;
+
+  // 偏遠地區費計算 (依 CBM)
   const totalCbm = parseFloat(
     (totalVolumeDivisor / CONSTANTS.CBM_TO_CAI_FACTOR).toFixed(2)
   );
   const remoteFee = Math.round(totalCbm * (parseFloat(deliveryRate) || 0));
+
   const totalCost = finalBaseCost + remoteFee + overweightFee + oversizedFee;
 
   return {
@@ -77,11 +96,17 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
     originalBaseCost: baseCost,
     remoteFee,
     totalCbm,
+    totalActualWeight: parseFloat(totalActualWeight.toFixed(2)),
+    totalVolumetricCai: totalVolumetricCai,
     overweightFee,
     oversizedFee,
     isMinimumChargeApplied,
     hasOversized,
     hasOverweight,
+    // 回傳費率常數供前端參考顯示
+    ratesConstant: {
+      minimumCharge: CONSTANTS.MINIMUM_CHARGE,
+    },
   };
 };
 
@@ -112,6 +137,7 @@ const previewShipmentCost = async (req, res) => {
     );
     res.status(200).json({ success: true, preview: result });
   } catch (error) {
+    console.error("預算失敗:", error);
     res.status(500).json({ success: false, message: "預估失敗" });
   }
 };
@@ -298,7 +324,7 @@ const getMyShipments = async (req, res) => {
   }
 };
 
-// [Critical Fix] 上傳憑證 (含統編) - 加入詳細 Debug Log
+// [Critical Fix] 上傳憑證 (含統編) - 保留詳細 Debug Log
 const uploadPaymentProof = async (req, res) => {
   try {
     const { id } = req.params;
@@ -309,7 +335,6 @@ const uploadPaymentProof = async (req, res) => {
     console.log(`User: ${userId}, Shipment: ${id}`);
 
     // 檢查 req.body 是否有收到文字欄位
-    // 注意：如果是 Multer 解析問題，這裡可能看不到 taxId
     console.log(`Req.Body Content:`, JSON.stringify(req.body, null, 2));
 
     // 檢查檔案是否成功接收
@@ -364,7 +389,6 @@ const uploadPaymentProof = async (req, res) => {
     };
 
     // [Data Sync] 將資料寫入 updateData
-    // 這裡使用明確的條件判斷，確保非 undefined/null 才會寫入
     if (taxId) updateData.taxId = taxId;
     if (invoiceTitle) updateData.invoiceTitle = invoiceTitle;
 

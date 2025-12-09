@@ -9,22 +9,107 @@
         padding-bottom: 10px;
       "
     >
-      <h3>確認訂單 (合併打包)</h3>
+      <h3><i class="fas fa-boxes"></i> 確認訂單 (合併打包)</h3>
     </div>
     <form id="create-shipment-form">
       <div class="checkout-layout">
         <div class="checkout-items">
-          <h4 style="margin-top: 0">📦 包裹清單</h4>
+          <h4
+            style="
+              margin-top: 0;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            "
+          >
+            📦 包裹清單
+            <span style="font-size: 13px; color: #666; font-weight: normal"
+              >已選 <span id="checkout-total-count">0</span> 件</span
+            >
+          </h4>
+
           <div
             id="shipment-package-list"
-            style="max-height: 200px; overflow-y: auto; margin-bottom: 10px"
+            style="
+              max-height: 250px;
+              overflow-y: auto;
+              margin-bottom: 15px;
+              border: 1px solid #eee;
+              border-radius: 4px;
+              background: #fafafa;
+            "
           ></div>
+
           <div
-            class="checkout-summary"
-            style="border-top: 2px solid #ddd; padding-top: 15px"
+            class="cost-calculation-box"
+            style="
+              background: #f8f9fa;
+              padding: 15px;
+              border-radius: 8px;
+              border: 1px solid #e9ecef;
+            "
           >
+            <h5
+              style="
+                margin: 0 0 10px 0;
+                color: #2c3e50;
+                font-weight: bold;
+                border-bottom: 2px solid #ddd;
+                padding-bottom: 5px;
+              "
+            >
+              💰 費用試算明細
+            </h5>
+
+            <div
+              id="weight-analysis-panel"
+              style="
+                margin-bottom: 12px;
+                padding-bottom: 12px;
+                border-bottom: 1px dashed #ccc;
+                font-size: 13px;
+              "
+            >
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  margin-bottom: 4px;
+                "
+              >
+                <span>總實重 (Actual Weight):</span>
+                <span id="calc-actual-weight" style="font-weight: 500"
+                  >-- kg</span
+                >
+              </div>
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  margin-bottom: 4px;
+                "
+              >
+                <span>總材積 (Volumetric):</span>
+                <span id="calc-volumetric" style="font-weight: 500">-- 材</span>
+              </div>
+              <div
+                style="
+                  background: #e3f2fd;
+                  padding: 5px 8px;
+                  border-radius: 4px;
+                  color: #0d47a1;
+                  margin-top: 5px;
+                  font-size: 12px;
+                  border-left: 3px solid #1976d2;
+                "
+              >
+                <i class="fas fa-info-circle"></i> <strong>計費說明：</strong>
+                取每箱「實重」與「材積重」較高者計算運費。
+              </div>
+            </div>
+
             <div id="api-fee-breakdown">
-              <div style="text-align: center; color: #999">
+              <div style="text-align: center; color: #999; padding: 10px">
                 <div
                   class="spinner"
                   style="width: 20px; height: 20px; display: inline-block"
@@ -39,11 +124,10 @@
           <div
             id="forklift-warning"
             class="alert alert-danger"
-            style="display: none; margin-bottom: 15px"
+            style="display: none; margin-bottom: 15px; font-size: 13px"
           >
             <i class="fas fa-dolly"></i>
-            <strong>超重提醒：</strong> 偵測到包裹含有超重物品 (單件 >
-            100kg)。<br />
+            <strong>超重提醒：</strong> 偵測到單件 > 100kg 包裹。<br />
             請確認台灣收件地址可<strong>自行安排堆高機</strong>下貨，否則司機可能無法派送。
           </div>
 
@@ -61,7 +145,7 @@
               class="btn btn-sm btn-outline-primary"
               style="width: auto; padding: 4px 10px"
             >
-              <i class="fas fa-address-book"></i> 從常用選取
+              <i class="fas fa-address-book"></i> 常用地址
             </button>
           </div>
 
@@ -73,6 +157,7 @@
             <label class="required">電話</label
             ><input type="tel" id="ship-phone" class="form-control" required />
           </div>
+
           <div class="form-group">
             <label class="required">配送地區</label>
             <div style="display: flex; gap: 5px; margin-bottom: 5px">
@@ -92,20 +177,30 @@
               id="ship-remote-area-info"
               style="
                 display: none;
-                background: #e8f5e9;
-                padding: 5px;
+                background: #fff3e0;
+                color: #e65100;
+                padding: 8px;
                 margin-top: 5px;
                 border-radius: 4px;
                 font-size: 13px;
+                border: 1px solid #ffe0b2;
               "
             >
-              選定：<span id="ship-selected-area-name"></span> (<span
+              <i class="fas fa-map-marker-alt"></i>
+              <strong>偏遠地區加價：</strong><br />
+              選定地區：<span
+                id="ship-selected-area-name"
+                style="font-weight: bold"
+              ></span>
+              <br />
+              加收費率：<span
                 id="ship-selected-area-fee"
-                style="color: #d32f2f; font-weight: bold"
-              ></span
-              >)
+                style="font-weight: bold; color: #d32f2f"
+              ></span>
+              / 材
             </div>
           </div>
+
           <div class="form-group">
             <label class="required">詳細地址</label
             ><input
@@ -129,12 +224,12 @@
           <div
             class="form-section"
             style="
-              margin-top: 20px;
-              border-top: 1px dashed #ccc;
-              padding-top: 15px;
+              margin-top: 15px;
+              padding-top: 10px;
+              border-top: 1px solid #eee;
             "
           >
-            <h4 style="margin-bottom: 15px; color: #2c3e50">🛠️ 附加服務</h4>
+            <h4 style="margin-bottom: 10px; color: #2c3e50">🛠️ 附加服務</h4>
             <div class="service-item" style="margin-bottom: 10px">
               <div style="display: flex; align-items: center; gap: 10px">
                 <input
@@ -182,6 +277,7 @@
                 />
               </div>
             </div>
+
             <div class="service-item" style="margin-bottom: 10px">
               <div style="display: flex; align-items: center; gap: 10px">
                 <input
@@ -246,44 +342,36 @@
                   type="text"
                   id="srv-old-note"
                   class="form-control"
-                  placeholder="品項/數量 (例: 雙人床墊x1)..."
+                  placeholder="品項/數量 (例: 5樓, 樓梯較窄)..."
                   style="font-size: 13px"
                 />
               </div>
             </div>
+
             <div
               class="alert alert-warning"
               style="
                 display: block;
-                margin-top: 15px;
-                background-color: #fff3cd;
-                color: #856404;
-                border: 1px solid #ffeeba;
-                font-size: 13px;
-                line-height: 1.6;
+                margin-top: 10px;
+                font-size: 12px;
+                padding: 8px;
               "
             >
-              <strong
-                ><i class="fas fa-exclamation-triangle"></i> 費用說明：</strong
-              ><br />
-              因每個社區中庭距離及規定不同，以上需求僅供司機參考。<br />
-              <span style="color: #d32f2f; font-weight: bold"
-                >實際報價以派送司機視現場情況為準，現場請務必與派送司機確認金額！</span
-              ><br />
-              此附加費用由客戶直接支付給派貨司機。
+              <i class="fas fa-exclamation-circle"></i>
+              附加服務費由司機現場報價並收取。
             </div>
           </div>
 
           <div
             class="form-section"
             style="
-              margin-top: 20px;
+              margin-top: 15px;
               border-top: 1px dashed #ccc;
-              padding-top: 15px;
+              padding-top: 10px;
             "
           >
             <h4 style="margin-bottom: 10px; color: #2c3e50">💳 付款方式</h4>
-            <div style="display: flex; gap: 20px; margin-bottom: 10px">
+            <div style="display: flex; gap: 15px; margin-bottom: 10px">
               <label
                 style="
                   cursor: pointer;
@@ -300,7 +388,7 @@
                   checked
                   onchange="togglePaymentMethod('TRANSFER')"
                 />
-                <span>銀行轉帳 (需上傳憑證)</span>
+                <span>銀行轉帳</span>
               </label>
               <label
                 style="
@@ -317,18 +405,18 @@
                   value="WALLET"
                   onchange="togglePaymentMethod('WALLET')"
                 />
-                <span>錢包餘額扣款</span>
+                <span>錢包餘額</span>
               </label>
             </div>
             <div
               id="wallet-pay-info"
               style="
                 display: none;
-                background: #f0f7ff;
+                background: #e8f5e9;
                 padding: 10px;
                 border-radius: 5px;
-                border: 1px solid #cce5ff;
                 font-size: 13px;
+                color: #2e7d32;
               "
             >
               正在檢查餘額...
@@ -336,8 +424,13 @@
           </div>
 
           <div class="form-group" style="margin-top: 15px">
-            <label>備註</label
-            ><input type="text" id="ship-note" class="form-control" />
+            <label>訂單備註</label
+            ><input
+              type="text"
+              id="ship-note"
+              class="form-control"
+              placeholder="有什麼想告訴我們的嗎？"
+            />
           </div>
         </div>
       </div>
@@ -347,7 +440,7 @@
           取消
         </button>
         <button type="submit" class="btn btn-primary btn-place-order">
-          提交訂單
+          <i class="fas fa-paper-plane"></i> 提交訂單
         </button>
       </div>
     </form>
