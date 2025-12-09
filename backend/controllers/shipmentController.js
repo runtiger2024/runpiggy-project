@@ -1,5 +1,6 @@
 // backend/controllers/shipmentController.js
 // V2025.Final.Transparent.Email - 整合運費透明化、統編修復與客戶 Email 通知
+// Logic Update: 修正運費計算邏輯 (先加總後計算低消，附加費單次計算)
 
 const prisma = require("../config/db.js");
 const {
@@ -13,21 +14,24 @@ const createLog = require("../utils/createLog.js");
 const { deleteFiles } = require("../utils/adminHelpers.js");
 const fs = require("fs"); // 引入 fs 供刪檔使用
 
-// --- 輔助計算函式 (增強版：回傳重量與材積分析) ---
+// --- 輔助計算函式 (修正版：總和優先邏輯) ---
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   const CONSTANTS = rates.constants;
   const CATEGORIES = rates.categories;
 
-  let baseCost = 0;
+  // 1. 初始化總計變數
+  let totalRawBaseCost = 0; // 所有包裹的原始運費總和 (未含低消)
   let totalVolumeDivisor = 0; // 用於計算總材積 (Cai)
 
   // 新增統計數據
   let totalActualWeight = 0;
   let totalVolumetricCai = 0; // 總材數
 
+  // 標記是否觸發附加費 (整單只算一次)
   let hasOversized = false;
   let hasOverweight = false;
 
+  // 2. 遍歷所有包裹進行累加
   packages.forEach((pkg) => {
     try {
       const boxes = pkg.arrivedBoxesJson || [];
@@ -43,7 +47,7 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
           // 累加實重
           totalActualWeight += weight;
 
-          // 檢查超規
+          // 檢查超規 (只要有一個箱子超規，整單標記為 true)
           if (
             l >= CONSTANTS.OVERSIZED_LIMIT ||
             w >= CONSTANTS.OVERSIZED_LIMIT ||
@@ -56,48 +60,56 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
           }
 
           if (l > 0 && w > 0 && h > 0 && weight > 0) {
-            // 計算材積 (材)
+            // 計算單箱材積 (材)
             const cai = Math.ceil((l * w * h) / CONSTANTS.VOLUME_DIVISOR);
             totalVolumeDivisor += cai;
             totalVolumetricCai += cai;
 
-            // 計算個別費率
+            // 計算單箱運費 (材積重 vs 實重 取大)
             const volFee = cai * rateInfo.volumeRate;
             const wtFee = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
 
-            // 取大者為運費
-            baseCost += Math.max(volFee, wtFee);
+            // 累加到原始總運費
+            totalRawBaseCost += Math.max(volFee, wtFee);
           }
         });
       } else {
-        // 舊資料相容
-        baseCost += pkg.totalCalculatedFee || 0;
+        // 舊資料相容：直接累加舊的計算結果
+        totalRawBaseCost += pkg.totalCalculatedFee || 0;
       }
     } catch (e) {
-      baseCost += pkg.totalCalculatedFee || 0;
+      console.warn("計算包裹費用時發生錯誤:", e);
+      totalRawBaseCost += pkg.totalCalculatedFee || 0;
     }
   });
 
-  let finalBaseCost = baseCost;
+  // 3. 計算最終基礎運費 (處理最低消費)
+  // 邏輯：先看總金額是否 > 0 且 < 低消，若是則以低消計算，否則以總金額計算
+  let finalBaseCost = totalRawBaseCost;
   const isMinimumChargeApplied =
-    baseCost > 0 && baseCost < CONSTANTS.MINIMUM_CHARGE;
-  if (isMinimumChargeApplied) finalBaseCost = CONSTANTS.MINIMUM_CHARGE;
+    totalRawBaseCost > 0 && totalRawBaseCost < CONSTANTS.MINIMUM_CHARGE;
 
+  if (isMinimumChargeApplied) {
+    finalBaseCost = CONSTANTS.MINIMUM_CHARGE;
+  }
+
+  // 4. 計算附加費 (整單只收一次)
   const overweightFee = hasOverweight ? CONSTANTS.OVERWEIGHT_FEE : 0;
   const oversizedFee = hasOversized ? CONSTANTS.OVERSIZED_FEE : 0;
 
-  // 偏遠地區費計算 (依 CBM)
+  // 5. 偏遠地區費計算 (依總 CBM 計算)
   const totalCbm = parseFloat(
     (totalVolumeDivisor / CONSTANTS.CBM_TO_CAI_FACTOR).toFixed(2)
   );
   const remoteFee = Math.round(totalCbm * (parseFloat(deliveryRate) || 0));
 
+  // 6. 總費用合計
   const totalCost = finalBaseCost + remoteFee + overweightFee + oversizedFee;
 
   return {
     totalCost,
     baseCost: finalBaseCost,
-    originalBaseCost: baseCost,
+    originalBaseCost: totalRawBaseCost, // 回傳原始加總供參考
     remoteFee,
     totalCbm,
     totalActualWeight: parseFloat(totalActualWeight.toFixed(2)),
