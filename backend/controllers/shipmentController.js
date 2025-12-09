@@ -1,8 +1,12 @@
 // backend/controllers/shipmentController.js
-// V2025.Final.Transparent - 整合運費透明化顯示與統編修復
+// V2025.Final.Transparent.Email - 整合運費透明化、統編修復與客戶 Email 通知
 
 const prisma = require("../config/db.js");
-const { sendNewShipmentNotification } = require("../utils/sendEmail.js");
+const {
+  sendNewShipmentNotification, // 原有: 通知管理員
+  sendShipmentCreatedNotification, // 新增: 通知客戶 (訂單建立確認)
+  sendPaymentProofNotification, // 新增: 通知客戶 (憑證上傳確認)
+} = require("../utils/sendEmail.js");
 const ratesManager = require("../utils/ratesManager.js");
 const invoiceHelper = require("../utils/invoiceHelper.js");
 const createLog = require("../utils/createLog.js");
@@ -267,9 +271,15 @@ const createShipment = async (req, res) => {
       return createdShipment;
     });
 
+    // 觸發 Email 通知
     try {
+      // 1. 通知管理員 (原有)
       await sendNewShipmentNotification(newShipment, req.user);
-    } catch (e) {}
+      // 2. 通知客戶 (新增：訂單建立確認)
+      await sendShipmentCreatedNotification(newShipment, req.user);
+    } catch (e) {
+      console.warn("Email通知發送失敗 (CreateShipment):", e.message);
+    }
 
     res.status(201).json({
       success: true,
@@ -404,6 +414,13 @@ const uploadPaymentProof = async (req, res) => {
     });
 
     console.log(`=== [UploadProof Debug] Success ===\n`);
+
+    // 觸發 Email 通知 (新增：通知客戶憑證已上傳)
+    try {
+      await sendPaymentProofNotification(updatedShipment, req.user);
+    } catch (e) {
+      console.warn("Email通知發送失敗 (UploadProof):", e.message);
+    }
 
     res
       .status(200)

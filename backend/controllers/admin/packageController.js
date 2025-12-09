@@ -1,9 +1,11 @@
 // backend/controllers/admin/packageController.js
-// V2025.Features - Added Unclaimed Filter & Status Counts
+// V2025.Features - Added Unclaimed Filter & Status Counts & Email Notifications
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
 const createNotification = require("../../utils/createNotification.js");
+// 引入新的 Email 通知函數
+const { sendPackageArrivedNotification } = require("../../utils/sendEmail.js");
 const {
   deleteFiles,
   buildPackageWhereClause,
@@ -14,24 +16,18 @@ const getAllPackages = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
-    const { status, search, filter } = req.query; // [New] Added filter param
+    const { status, search, filter } = req.query;
 
-    // 1. 主要列表查詢的 Where 條件 (包含 Status 篩選)
     let where = buildPackageWhereClause(status, search);
 
-    // [New] 特殊篩選邏輯
     if (filter === "UNCLAIMED") {
-      // 篩選屬於官方無主帳號的包裹
       where.user = {
         email: { in: ["unclaimed@runpiggy.com", "admin@runpiggy.com"] },
       };
     } else if (filter === "CLAIM_REVIEW") {
-      // 篩選有上傳認領憑證的包裹 (不論狀態)
       where.claimProof = { not: null };
     }
 
-    // 2. 狀態統計查詢的 Where 條件 (不包含 Status 篩選，但保留搜尋與 Filter)
-    // 目的：讓使用者在選擇狀態前，能看到該搜尋條件下各狀態有多少筆
     let statsWhere = buildPackageWhereClause(undefined, search);
     if (filter === "UNCLAIMED") {
       statsWhere.user = {
@@ -41,7 +37,6 @@ const getAllPackages = async (req, res) => {
       statsWhere.claimProof = { not: null };
     }
 
-    // 3. 執行查詢 (列表 + 總數 + 狀態統計)
     const [total, packages, statusGroups] = await prisma.$transaction([
       prisma.package.count({ where }),
       prisma.package.findMany({
@@ -58,14 +53,12 @@ const getAllPackages = async (req, res) => {
       }),
     ]);
 
-    // 4. 整理統計數據
     const statusCounts = {};
     let totalInSearch = 0;
     statusGroups.forEach((g) => {
       statusCounts[g.status] = g._count.status;
       totalInSearch += g._count.status;
     });
-    // 添加一個總數 (ALL)
     statusCounts["ALL"] = totalInSearch;
 
     const processedPackages = packages.map((pkg) => ({
@@ -79,7 +72,7 @@ const getAllPackages = async (req, res) => {
       success: true,
       packages: processedPackages,
       pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
-      statusCounts, // [New] 回傳統計數據
+      statusCounts,
     });
   } catch (error) {
     console.error(error);
@@ -133,19 +126,34 @@ const bulkUpdatePackageStatus = async (req, res) => {
       data: { status },
     });
 
+    // 若狀態變更為 ARRIVED，發送通知
     if (status === "ARRIVED") {
       const packages = await prisma.package.findMany({
         where: { id: { in: ids } },
-        select: { userId: true, trackingNumber: true },
+        select: {
+          userId: true,
+          trackingNumber: true,
+          productName: true,
+          arrivedBoxesJson: true,
+        },
+        include: { user: true }, // 需要 User email
       });
-      const notifData = packages.map((p) => ({
-        userId: p.userId,
-        title: "包裹已入庫",
-        message: `您的包裹 ${p.trackingNumber} 已送達倉庫並入庫。`,
-        type: "PACKAGE",
-        link: "tab-packages",
-      }));
-      await prisma.notification.createMany({ data: notifData });
+
+      // 並行處理通知
+      await Promise.all(
+        packages.map(async (p) => {
+          // 1. 站內通知
+          await createNotification(
+            p.userId,
+            "包裹已入庫",
+            `您的包裹 ${p.trackingNumber} 已送達倉庫並入庫。`,
+            "PACKAGE",
+            "tab-packages"
+          );
+          // 2. [New] Email 通知
+          await sendPackageArrivedNotification(p, p.user);
+        })
+      );
     }
 
     await createLog(
@@ -276,7 +284,10 @@ const updatePackageStatus = async (req, res) => {
     if (!status)
       return res.status(400).json({ success: false, message: "無狀態" });
 
-    const pkg = await prisma.package.findUnique({ where: { id } });
+    const pkg = await prisma.package.findUnique({
+      where: { id },
+      include: { user: true }, // 包含 User 資訊以便發信
+    });
     if (!pkg) return res.status(404).json({ message: "包裹不存在" });
 
     if (pkg.status === "PENDING" && status === "COMPLETED") {
@@ -292,6 +303,7 @@ const updatePackageStatus = async (req, res) => {
     });
 
     if (status === "ARRIVED" && pkg.status !== "ARRIVED") {
+      // 1. 站內通知
       await createNotification(
         pkg.userId,
         "包裹已入庫",
@@ -299,6 +311,8 @@ const updatePackageStatus = async (req, res) => {
         "PACKAGE",
         "tab-packages"
       );
+      // 2. [New] Email 通知
+      await sendPackageArrivedNotification(updatedPkg, pkg.user);
     }
 
     await createLog(
@@ -317,7 +331,10 @@ const updatePackageDetails = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, boxesData, existingImages } = req.body;
-    const pkg = await prisma.package.findUnique({ where: { id } });
+    const pkg = await prisma.package.findUnique({
+      where: { id },
+      include: { user: true },
+    });
     if (!pkg) return res.status(404).json({ message: "找不到包裹" });
 
     const settings = await prisma.systemSetting.findUnique({
@@ -392,6 +409,7 @@ const updatePackageDetails = async (req, res) => {
     });
 
     if (status === "ARRIVED" && pkg.status !== "ARRIVED") {
+      // 1. 站內通知
       await createNotification(
         pkg.userId,
         "包裹已入庫",
@@ -399,6 +417,8 @@ const updatePackageDetails = async (req, res) => {
         "PACKAGE",
         "tab-packages"
       );
+      // 2. [New] Email 通知
+      await sendPackageArrivedNotification(updated, pkg.user);
     }
 
     await createLog(

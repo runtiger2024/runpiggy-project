@@ -1,9 +1,11 @@
 // backend/controllers/admin/shipmentController.js
-// V13.8 - Integrated with Notification System & Status Counts
+// V13.9 - Integrated with Notification System & Email & Status Counts
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
-const createNotification = require("../../utils/createNotification.js"); // [New]
+const createNotification = require("../../utils/createNotification.js");
+// 引入新的 Email 通知函數
+const { sendShipmentShippedNotification } = require("../../utils/sendEmail.js");
 const invoiceHelper = require("../../utils/invoiceHelper.js");
 const {
   deleteFiles,
@@ -38,13 +40,9 @@ const getAllShipments = async (req, res) => {
     const skip = (page - 1) * limit;
     const { status, search } = req.query;
 
-    // 1. 列表查詢條件 (含 Status)
     const where = buildShipmentWhereClause(status, search);
-
-    // 2. 統計查詢條件 (不含 Status，但保留搜尋)
     const statsWhere = buildShipmentWhereClause(undefined, search);
 
-    // 3. 執行交易查詢
     const [total, shipments, statusGroups] = await prisma.$transaction([
       prisma.shipment.count({ where }),
       prisma.shipment.findMany({
@@ -64,7 +62,6 @@ const getAllShipments = async (req, res) => {
       }),
     ]);
 
-    // 4. 處理統計數據
     const statusCounts = {};
     let totalInSearch = 0;
     statusGroups.forEach((g) => {
@@ -84,7 +81,7 @@ const getAllShipments = async (req, res) => {
       success: true,
       shipments: processed,
       pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
-      statusCounts, // [New]
+      statusCounts,
     });
   } catch (e) {
     console.error(e);
@@ -126,7 +123,6 @@ const bulkUpdateShipmentStatus = async (req, res) => {
     if (!Array.isArray(ids) || ids.length === 0 || !status)
       return res.status(400).json({ success: false, message: "參數錯誤" });
 
-    // 處理轉為 PROCESSING (自動開立發票)
     if (status === "PROCESSING") {
       const shipments = await prisma.shipment.findMany({
         where: { id: { in: ids } },
@@ -161,7 +157,6 @@ const bulkUpdateShipmentStatus = async (req, res) => {
           data: updateData,
         });
 
-        // [New] 通知
         await createNotification(
           ship.userId,
           "訂單已確認收款",
@@ -183,9 +178,7 @@ const bulkUpdateShipmentStatus = async (req, res) => {
         success: true,
         message: `批量更新成功 (含發票開立 ${invoiceCount} 張)`,
       });
-    }
-    // 處理轉為 CANCELLED (包含退款邏輯)
-    else if (status === "CANCELLED") {
+    } else if (status === "CANCELLED") {
       const shipments = await prisma.shipment.findMany({
         where: { id: { in: ids } },
       });
@@ -211,7 +204,6 @@ const bulkUpdateShipmentStatus = async (req, res) => {
             data: { status: "ARRIVED", shipmentId: null },
           });
 
-          // [New] 通知
           await createNotification(
             ship.userId,
             "訂單已取消",
@@ -232,19 +224,25 @@ const bulkUpdateShipmentStatus = async (req, res) => {
       return res
         .status(200)
         .json({ success: true, message: `批量取消成功${msg}` });
-    }
-    // 其他狀態直接更新 (如 SHIPPED, COMPLETED)
-    else {
+    } else {
+      // SHIPPED, COMPLETED 等其他狀態
       await prisma.shipment.updateMany({
         where: { id: { in: ids } },
         data: { status },
       });
 
-      // [New] 批量通知
+      // 批量通知 & Email
       const shipments = await prisma.shipment.findMany({
         where: { id: { in: ids } },
-        select: { userId: true, id: true },
+        select: {
+          userId: true,
+          id: true,
+          recipientName: true,
+          trackingNumberTW: true,
+        },
+        include: { user: true }, // 需要 User 來發 Email
       });
+
       const statusMsgs = {
         SHIPPED: "已裝櫃出貨",
         CUSTOMS_CHECK: "海關查驗中",
@@ -253,16 +251,22 @@ const bulkUpdateShipmentStatus = async (req, res) => {
       };
 
       if (statusMsgs[status]) {
-        const notifs = shipments.map((s) => ({
-          userId: s.userId,
-          title: `訂單狀態更新：${statusMsgs[status]}`,
-          message: `您的訂單 ${s.id.slice(-8)} 目前狀態：${
-            statusMsgs[status]
-          }。`,
-          type: "SHIPMENT",
-          link: s.id,
-        }));
-        await prisma.notification.createMany({ data: notifs });
+        await Promise.all(
+          shipments.map(async (s) => {
+            // 1. 站內通知
+            await createNotification(
+              s.userId,
+              `訂單狀態更新：${statusMsgs[status]}`,
+              `您的訂單 ${s.id.slice(-8)} 目前狀態：${statusMsgs[status]}。`,
+              "SHIPMENT",
+              s.id
+            );
+            // 2. [New] 如果是 SHIPPED，發送 Email
+            if (status === "SHIPPED") {
+              await sendShipmentShippedNotification(s, s.user);
+            }
+          })
+        );
       }
 
       await createLog(
@@ -412,7 +416,6 @@ const updateShipmentStatus = async (req, res) => {
         return { shipment: updatedShipment, count: released.count, refunded };
       });
 
-      // [New] 通知
       await createNotification(
         originalShipment.userId,
         "訂單已取消",
@@ -467,7 +470,6 @@ const updateShipmentStatus = async (req, res) => {
       data: dataToUpdate,
     });
 
-    // [New] 通知
     const statusMsgs = {
       PROCESSING: "訂單已收款，正在處理中",
       SHIPPED: "訂單已裝櫃出貨",
@@ -476,6 +478,7 @@ const updateShipmentStatus = async (req, res) => {
       COMPLETED: "訂單已完成",
     };
     if (status && statusMsgs[status]) {
+      // 1. 站內通知
       await createNotification(
         originalShipment.userId,
         statusMsgs[status],
@@ -483,6 +486,10 @@ const updateShipmentStatus = async (req, res) => {
         "SHIPMENT",
         id
       );
+      // 2. [New] 如果是 SHIPPED，發送 Email
+      if (status === "SHIPPED") {
+        await sendShipmentShippedNotification(updated, originalShipment.user);
+      }
     }
 
     await createLog(
@@ -543,7 +550,6 @@ const rejectShipment = async (req, res) => {
       return { count: released.count, refunded };
     });
 
-    // [New] 通知
     await createNotification(
       shipment.userId,
       "訂單被退回",

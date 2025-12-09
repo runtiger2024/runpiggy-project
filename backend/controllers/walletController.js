@@ -1,9 +1,11 @@
 // backend/controllers/walletController.js
-// V1.5 - Strict Validation for Deposit
+// V1.6 - Strict Validation for Deposit & Email Notification
 
 const prisma = require("../config/db.js");
 const createLog = require("../utils/createLog.js");
 const fs = require("fs"); // 引入 fs
+// 引入 Email 通知 (新增：通知客戶儲值申請)
+const { sendDepositRequestNotification } = require("../utils/sendEmail.js");
 
 const getMyWallet = async (req, res) => {
   try {
@@ -90,6 +92,13 @@ const requestDeposit = async (req, res) => {
       transaction.id,
       `申請儲值 $${amount} ${taxId ? "(含統編)" : ""}`
     );
+
+    // 觸發 Email 通知 (新增)
+    try {
+      await sendDepositRequestNotification(transaction, req.user);
+    } catch (e) {
+      console.warn("Email通知發送失敗 (Deposit):", e.message);
+    }
 
     res.status(201).json({
       success: true,

@@ -288,10 +288,53 @@ const sendShipmentShippedNotification = async (shipment, customer) => {
   }
 };
 
+// [新增] B-3. 發送「訂單建立確認」通知給客戶
+const sendShipmentCreatedNotification = async (shipment, customer) => {
+  try {
+    const config = await getEmailConfig();
+    if (!process.env.SENDGRID_API_KEY || !config.senderEmail || !customer.email)
+      return;
+
+    const subject = `[${config.senderName}] 訂單建立確認 - ${shipment.id.slice(
+      -8
+    )}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2 style="color: #1a73e8;">您的訂單已成功建立！</h2>
+        <p>親愛的 ${customer.name || "會員"} 您好：</p>
+        <p>您的集運訂單 <strong>${shipment.id}</strong> 已經建立。</p>
+        <ul>
+          <li><strong>總金額:</strong> NT$ ${shipment.totalCost.toLocaleString()}</li>
+          <li><strong>收件人:</strong> ${shipment.recipientName}</li>
+          <li><strong>狀態:</strong> ${
+            shipment.status === "PROCESSING" ? "處理中" : "待付款"
+          }</li>
+        </ul>
+        <p>若尚未付款，請盡速完成轉帳並上傳憑證，以便我們為您安排出貨。</p>
+        <br>
+        <a href="${
+          process.env.FRONTEND_URL || "#"
+        }" style="background-color: #1a73e8; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">查看訂單詳情</a>
+      </div>
+    `;
+
+    await sgMail.send({
+      to: customer.email,
+      from: { email: config.senderEmail, name: config.senderName },
+      subject: subject,
+      html: html,
+    });
+    console.log(`[Email] 已發送訂單建立通知給 ${customer.email}`);
+  } catch (error) {
+    console.error(`[Email] 發送訂單建立通知失敗:`, error.message);
+  }
+};
+
 module.exports = {
   sendNewShipmentNotification,
   sendPaymentProofNotification,
   sendDepositRequestNotification,
   sendPackageArrivedNotification,
   sendShipmentShippedNotification,
+  sendShipmentCreatedNotification,
 };
