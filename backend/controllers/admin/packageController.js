@@ -1,5 +1,5 @@
 // backend/controllers/admin/packageController.js
-// V2025.Features.Fixed - Added Unclaimed Filter, Status Counts, Email Notifications & Rates Fix
+// V2025.Features.Fixed - Added Unclaimed Filter, Status Counts, Email Notifications & Rates Fix (Case Sensitivity Fixed)
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
@@ -328,7 +328,7 @@ const updatePackageStatus = async (req, res) => {
   }
 };
 
-// [Critical Fix] 更新包裹詳情與運費計算 (修復 0 元運費問題)
+// [Critical Fix] 更新包裹詳情與運費計算 (修復 0 元運費問題 & 類型大小寫問題)
 const updatePackageDetails = async (req, res) => {
   try {
     const { id } = req.params;
@@ -373,8 +373,10 @@ const updatePackageDetails = async (req, res) => {
           totalFee += fee;
           return {
             ...box,
-            // 存入處理過、標準化的小寫 type，確保未來讀取一致
-            type: (box.type || "general").trim().toLowerCase(),
+            // [Critical Fix] 移除 .toLowerCase()！
+            // 必須保留原始大小寫 (例如 "Special Furniture A")，否則 ratesManager
+            // 在比對區分大小寫的費率 Key 時會失敗，導致降級為一般費率。
+            type: (box.type || "general").trim(),
             weight,
             length: l,
             width: w_dim,
