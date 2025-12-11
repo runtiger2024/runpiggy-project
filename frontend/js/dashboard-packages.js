@@ -1,5 +1,5 @@
 // frontend/js/dashboard-packages.js
-// V2025.Optimized.FixDisplayType - 預報強制驗證 & 費用透明化詳情 & 無主件認領 & 顯示家具類型 & 費率邏輯修正
+// V2025.Optimized.FixTotalCalculation - 徹底修復運費總計與類型不符的問題
 
 let currentEditPackageImages = [];
 
@@ -463,7 +463,7 @@ window.resolveException = function (pkgId) {
     .catch(() => alert("操作失敗"));
 };
 
-// --- 5. 包裹詳情與透明化運費展示 (Updated V2025 - Fix applied) ---
+// --- 5. 包裹詳情與透明化運費展示 (Fixed: Recalculate Total on Frontend) ---
 window.openPackageDetails = function (pkgDataStr) {
   try {
     const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
@@ -489,9 +489,10 @@ window.openPackageDetails = function (pkgDataStr) {
     let isPkgOversized = false;
     let isPkgOverweight = false;
 
-    // [Fix] 1. 解析該包裹對應的費率 (從 window.RATES 查找)
-    // 優先使用 displayType (中文名稱) 比對，若無則預設 general
-    // 讓顯示公式時能呈現正確的費率 (例如 一般家具=22, 特殊=32)
+    // [Fix Total Calculation 1] 初始化前端重算總額變數
+    let calculatedTotalBaseFee = 0;
+
+    // 解析該包裹對應的費率
     let pkgRateConfig =
       window.RATES && window.RATES.general
         ? window.RATES.general
@@ -499,14 +500,12 @@ window.openPackageDetails = function (pkgDataStr) {
     const pType = pkg.displayType || "一般家具";
 
     if (window.RATES) {
-      // 嘗試從 values 找 name (因為 key 可能是 'special_a' 但 displayType 是 '特殊家具A')
       const foundRate = Object.values(window.RATES).find(
         (r) => r.name === pType
       );
       if (foundRate) {
         pkgRateConfig = foundRate;
       } else if (window.RATES[pType]) {
-        // 容錯：如果有直接對應 key
         pkgRateConfig = window.RATES[pType];
       }
     }
@@ -535,23 +534,25 @@ window.openPackageDetails = function (pkgDataStr) {
         const DIVISOR = CONSTANTS.VOLUME_DIVISOR;
         const cai = box.cai || Math.ceil((l * w * h) / DIVISOR);
 
-        const volFee = box.volFee || 0;
-        const wtFee = box.wtFee || 0;
-        const isVolWin =
-          box.isVolWin !== undefined ? box.isVolWin : volFee >= wtFee;
-        const finalFee = box.calculatedFee || Math.max(volFee, wtFee);
-
-        // 顯示用的費率 (優先取用已解析的包裹費率)
+        // [Fix Total Calculation 2] 強制使用當前費率重新計算，不依賴後端可能過時的數據
         const currentWRate = pkgRateConfig.weightRate;
         const currentVRate = pkgRateConfig.volumeRate;
-        const rateName = box.rateName || pType;
+
+        const recalcWtFee = Math.ceil(weight * currentWRate);
+        const recalcVolFee = Math.ceil(cai * currentVRate);
+        const recalcFinalFee = Math.max(recalcWtFee, recalcVolFee);
+        const isVolWin = recalcVolFee >= recalcWtFee;
+        const rateName = pType;
+
+        // 累加總額
+        calculatedTotalBaseFee += recalcFinalFee;
 
         // 渲染單箱卡片
         boxesHtml += `
           <div class="detail-box-card">
             <div class="box-header">
               <span class="box-title">📦 第 ${idx + 1} 箱 (${rateName})</span>
-              <span class="box-fee">運費 $${finalFee.toLocaleString()}</span>
+              <span class="box-fee">運費 $${recalcFinalFee.toLocaleString()}</span>
             </div>
             
             <div class="box-specs">
@@ -577,26 +578,25 @@ window.openPackageDetails = function (pkgDataStr) {
                 }">
                     <span class="calc-label">重量計費</span>
                     <span class="calc-formula">${weight}kg × ${currentWRate}</span>
-                    <span class="calc-amount">$${wtFee.toLocaleString()}</span>
+                    <span class="calc-amount">$${recalcWtFee.toLocaleString()}</span>
                 </div>
                 
                 <div class="calc-comparison-row ${isVolWin ? "is-winner" : ""}">
                     <span class="calc-label">材積計費</span>
                     <span class="calc-formula">(${l}×${w}×${h}) ÷ ${DIVISOR} × ${currentVRate}</span>
-                    <span class="calc-amount">$${volFee.toLocaleString()}</span>
+                    <span class="calc-amount">$${recalcVolFee.toLocaleString()}</span>
                 </div>
             </div>
           </div>`;
       });
       boxesHtml += `</div>`;
 
-      // 底部總結 (針對包裹本身的基本運費)
-      const totalBaseFee = pkg.totalCalculatedFee || 0;
+      // [Fix Total Calculation 3] 底部顯示使用前端重算的總額 (calculatedTotalBaseFee)
       boxesHtml += `
         <div style="background:#f0f8ff; padding:15px; border-radius:8px; margin-top:15px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
                 <span>基本運費總計 (${pType})</span>
-                <strong>$${totalBaseFee.toLocaleString()}</strong>
+                <strong>$${calculatedTotalBaseFee.toLocaleString()}</strong>
             </div>
             ${
               isPkgOversized
@@ -629,9 +629,11 @@ window.openPackageDetails = function (pkgDataStr) {
     );
     document.getElementById("details-total-weight").textContent =
       totalWeight.toFixed(1);
-    document.getElementById("details-total-fee").textContent = `NT$ ${(
-      pkg.totalCalculatedFee || 0
-    ).toLocaleString()}`;
+
+    // [Fix Total Calculation 4] 標題總金額也更新為重算值
+    document.getElementById(
+      "details-total-fee"
+    ).textContent = `NT$ ${calculatedTotalBaseFee.toLocaleString()}`;
 
     // 處理照片顯示
     const warehouseImages = Array.isArray(pkg.warehouseImages)
