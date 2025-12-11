@@ -1,5 +1,5 @@
 // frontend/js/dashboard-shipments.js
-// V2025.Final.Transparent.UI - 前端費用透明化顯示邏輯適配
+// V2025.Final.Transparent.UI - 前端費用透明化顯示邏輯適配 (含傢俱類型顯示修復)
 
 // --- 1. 更新底部結帳條 ---
 window.updateCheckoutBar = function () {
@@ -175,7 +175,7 @@ window.recalculateShipmentTotal = async function () {
   }
 };
 
-// [New] 渲染詳細透明化報表
+// [New] 渲染詳細透明化報表 (已修復：顯示傢俱類型)
 function renderBreakdownTable(breakdown, container, rate) {
   let html = `
     <div style="font-size: 13px; border: 1px solid #eee; border-radius: 4px; overflow: hidden; background: #fff;">
@@ -194,12 +194,21 @@ function renderBreakdownTable(breakdown, container, rate) {
   breakdown.packages.forEach((pkg) => {
     // 判斷哪個數值比較大，做 highlight
     const isVol = pkg.calcMethod === "材積計費";
+
+    // [新增] 檢查是否有 type 欄位，若有則顯示
+    const productTypeBadge = pkg.type
+      ? `<span style="background:#e3f2fd; color:#0d47a1; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:5px; border:1px solid #bbdefb;">${pkg.type}</span>`
+      : "";
+
     html += `
       <tr style="border-bottom: 1px solid #f8f9fa;">
         <td style="padding: 8px;">
-          <div style="font-weight: bold; color: #333;">${
-            pkg.trackingNumber
-          }</div>
+          <div style="display:flex; align-items:center; margin-bottom:2px;">
+             ${productTypeBadge}
+             <div style="font-weight: bold; color: #333;">${
+               pkg.trackingNumber
+             }</div>
+          </div>
           <div style="color: #888; font-size: 12px;">
             ${pkg.dims} | 
             <span style="${!isVol ? "color:#ccc;" : ""}">${pkg.cai} 材</span> | 
