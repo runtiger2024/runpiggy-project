@@ -430,6 +430,7 @@ const getMyPackages = async (req, res) => {
         isOversized: pkgIsOversized,
         isOverweight: pkgIsOverweight,
         totalCalculatedFee: finalTotalFee,
+        displayType: mainDisplayType,
       };
     });
 

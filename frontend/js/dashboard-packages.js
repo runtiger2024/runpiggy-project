@@ -1,5 +1,5 @@
 // frontend/js/dashboard-packages.js
-// V2025.Optimized - 預報強制驗證 & 費用透明化詳情 & 無主件認領
+// V2025.Optimized.FixDisplayType - 預報強制驗證 & 費用透明化詳情 & 無主件認領 & 顯示家具類型
 
 let currentEditPackageImages = [];
 
@@ -248,6 +248,15 @@ function renderPackagesTable() {
       if (badgesHtml) infoHtml = `<div class="pkg-badges">${badgesHtml}</div>`;
     }
 
+    // [Fix] 讀取後端回傳的類別名稱，若無則顯示一般
+    const categoryLabel = pkg.displayType || "一般家具";
+
+    // 設定標籤顏色：如果是特殊家具(包含"特殊"字眼)，給它一個明顯的顏色
+    const isSpecial = categoryLabel.includes("特殊");
+    const categoryBadgeStyle = isSpecial
+      ? "background:#e8f0fe; color:#1a73e8; border:1px solid #c2dbfe;" // 藍色系
+      : "background:#f8f9fa; color:#6c757d; border:1px solid #e9ecef;"; // 灰色系
+
     const pkgStr = encodeURIComponent(JSON.stringify(pkg));
     const tr = document.createElement("tr");
 
@@ -257,6 +266,11 @@ function renderPackagesTable() {
     }></td>
       <td><span class="status-badge ${statusClass}">${statusText}</span></td>
       <td>
+        <div style="margin-bottom:4px;">
+            <span style="font-size:12px; padding:2px 6px; border-radius:4px; ${categoryBadgeStyle}">
+                ${categoryLabel}
+            </span>
+        </div>
         <div style="font-weight:bold;">${pkg.productName}</div>
         <small style="color:#888; font-family:monospace;">${
           pkg.trackingNumber
