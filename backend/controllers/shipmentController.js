@@ -1,5 +1,5 @@
 // backend/controllers/shipmentController.js
-// V2025.Final.FixPrecision - 修復運費計算精度與試算機不一致的問題 (含超重判斷邏輯修正)
+// V2025.Final.Transparency - 透明化費用試算 (含派送費合併計算)
 
 const prisma = require("../config/db.js");
 const {
@@ -13,13 +13,13 @@ const createLog = require("../utils/createLog.js");
 const { deleteFiles } = require("../utils/adminHelpers.js");
 const fs = require("fs");
 
-// --- 輔助計算函式 (修正版：同步 calculatorController 邏輯) ---
+// --- 輔助計算函式 (高透明度版本) ---
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   const CONSTANTS = rates.constants;
 
   // 1. 初始化計算變數
   let totalRawBaseCost = 0; // 原始運費總和 (未含低消)
-  let totalVolumeDivisor = 0; // 總材積 (Cai) - 用於計算總 CBM
+  let totalVolumeDivisor = 0; // 總材積 (Cai)
   let totalActualWeight = 0; // 總實重
   let totalVolumetricCai = 0; // 統計用總材數
 
@@ -33,7 +33,7 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
     subtotal: 0, // 原始加總
     minChargeDiff: 0, // 低消補差額
     surcharges: [], // 附加費明細 (名稱, 金額, 原因)
-    remoteFeeCalc: "", // 偏遠費計算公式字串
+    remoteFeeCalc: "", // 派送費計算公式字串
     finalTotal: 0,
   };
 
@@ -60,25 +60,22 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
         const h = parseFloat(box.height) || 0;
         const weight = parseFloat(box.weight) || 0;
 
-        // [修正 1] 同步試算機邏輯：先計算進位後的計費重量 (無條件進位到小數點後1位)
+        // [計費重量] 無條件進位到小數點後1位
         const roundedWeight = Math.ceil(weight * 10) / 10;
 
-        // [Safety] 使用 ratesManager 安全查找費率
+        // [取得費率]
         const rateInfo = ratesManager.getCategoryRate(rates, box.type);
         const typeName = rateInfo.name || box.type || "一般";
 
-        // 累加實重 (統計用，使用原始重量)
+        // 累加實重 (統計用)
         totalActualWeight += weight;
 
-        // 檢查超規 (標記並記錄原因，但費用最後算)
+        // 檢查超規
         let boxNotes = [];
-
-        // [修正 2] 檢查超重 (使用 roundedWeight 判斷，並改為 >=)
         if (roundedWeight >= CONSTANTS.OVERWEIGHT_LIMIT) {
           hasOverweight = true;
           boxNotes.push("超重");
         }
-
         if (
           l >= CONSTANTS.OVERSIZED_LIMIT ||
           w >= CONSTANTS.OVERSIZED_LIMIT ||
@@ -96,25 +93,30 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
 
           // 核心比價：材積費 vs 重量費
           const volFee = cai * rateInfo.volumeRate;
-          // [修正 3] 使用 roundedWeight 計算重量費
           const wtFee = roundedWeight * rateInfo.weightRate;
-
           const finalBoxFee = Math.max(volFee, wtFee);
+          const isVolWin = volFee >= wtFee;
 
           // 累加原始運費
           totalRawBaseCost += finalBoxFee;
 
-          // 記錄單箱計算細節
+          // [Update] 記錄極詳細的單箱計算細節
           breakdown.packages.push({
             trackingNumber: pkg.trackingNumber,
             boxIndex: index + 1,
             type: typeName,
             dims: `${l}x${w}x${h} cm`,
-            weight: `${weight} kg`, // 顯示原始重量
+            weight: `${weight} kg`,
             cai: cai,
-            calcMethod: volFee >= wtFee ? "材積計費" : "重量計費",
-            rateUsed:
-              volFee >= wtFee ? rateInfo.volumeRate : rateInfo.weightRate,
+
+            // 核心透明化欄位
+            calcMethod: isVolWin ? "材積計費" : "重量計費",
+            appliedRate: isVolWin ? rateInfo.volumeRate : rateInfo.weightRate,
+            rateUnit: isVolWin ? "元/材" : "元/kg",
+            calcFormula: isVolWin
+              ? `${cai} 材 x $${rateInfo.volumeRate}`
+              : `${roundedWeight} kg x $${rateInfo.weightRate}`,
+
             rawFee: finalBoxFee,
             notes: boxNotes.join(", "),
           });
@@ -122,21 +124,19 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
       });
     } catch (e) {
       console.warn(`包裹 ${pkg.trackingNumber} 計算異常:`, e);
-      // 容錯處理
       totalRawBaseCost += pkg.totalCalculatedFee || 0;
     }
   });
 
   breakdown.subtotal = totalRawBaseCost;
 
-  // 3. 處理最低消費 (Minimum Charge)
+  // 3. 處理最低消費
   let finalBaseCost = totalRawBaseCost;
   const isMinimumChargeApplied =
     totalRawBaseCost > 0 && totalRawBaseCost < CONSTANTS.MINIMUM_CHARGE;
 
   if (isMinimumChargeApplied) {
     finalBaseCost = CONSTANTS.MINIMUM_CHARGE;
-    // 記錄補差額
     breakdown.minChargeDiff = CONSTANTS.MINIMUM_CHARGE - totalRawBaseCost;
     breakdown.surcharges.push({
       name: "低消補足",
@@ -151,7 +151,7 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
     breakdown.surcharges.push({
       name: "超重附加費",
       amount: overweightFee,
-      reason: "包含單件超重包裹 (整單計收一次)",
+      reason: "包含單件超重包裹",
     });
   }
 
@@ -160,33 +160,29 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
     breakdown.surcharges.push({
       name: "超長附加費",
       amount: oversizedFee,
-      reason: "包含單件超長包裹 (整單計收一次)",
+      reason: "包含單件超長包裹",
     });
   }
 
-  // 5. 偏遠地區費 (依總 CBM)
-  // [FIX] 修正：移除 toFixed(2) 的中間截斷，保持高精度運算，與 calculatorController 一致
+  // 5. [重點優化] 派送/偏遠地區費計算
   const rawTotalCbm = totalVolumeDivisor / CONSTANTS.CBM_TO_CAI_FACTOR;
-
-  // 顯示用的 CBM (僅用於報告顯示)
   const displayTotalCbm = parseFloat(rawTotalCbm.toFixed(2));
-
   const deliveryRateVal = parseFloat(deliveryRate) || 0;
 
-  // [FIX] 修正：不進行中間四捨五入 (Math.round)，保持浮點數直到最後加總
+  // 不進行中間四捨五入
   const rawRemoteFee = rawTotalCbm * deliveryRateVal;
 
   if (rawRemoteFee > 0) {
     breakdown.remoteFeeCalc = `${displayTotalCbm} CBM x $${deliveryRateVal}`;
+    // 新增至附加費列表，明確顯示為「派送運費」
     breakdown.surcharges.push({
-      name: "偏遠/聯運費",
-      amount: Math.round(rawRemoteFee), // 顯示時取整，方便閱讀
-      reason: `總體積 ${displayTotalCbm} 方 (費率 $${deliveryRateVal}/方)`,
+      name: "派送費 (偏遠/聯運)",
+      amount: Math.round(rawRemoteFee),
+      reason: `總體積 ${displayTotalCbm} CBM x 地區費率 $${deliveryRateVal}`,
     });
   }
 
   // 6. 總結
-  // [FIX] 修正：所有項目加總後，最後才進行 Math.round()，確保與試算機邏輯完全一致
   const totalCostRaw =
     finalBaseCost + rawRemoteFee + overweightFee + oversizedFee;
   const totalCost = Math.round(totalCostRaw);
@@ -194,10 +190,10 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   breakdown.finalTotal = totalCost;
 
   return {
-    totalCost, // 最終收費 (整數)
+    totalCost, // 最終收費 (含派送費)
     baseCost: finalBaseCost,
     originalBaseCost: totalRawBaseCost,
-    remoteFee: Math.round(rawRemoteFee), // 僅供參考的整數
+    remoteFee: Math.round(rawRemoteFee),
     totalCbm: displayTotalCbm,
     totalActualWeight: parseFloat(totalActualWeight.toFixed(2)),
     totalVolumetricCai: totalVolumetricCai,
@@ -206,7 +202,7 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
     isMinimumChargeApplied,
     hasOversized,
     hasOverweight,
-    breakdown,
+    breakdown, // 前端可直接使用此物件渲染詳細帳單
     ratesConstant: {
       minimumCharge: CONSTANTS.MINIMUM_CHARGE,
     },

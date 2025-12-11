@@ -1,5 +1,5 @@
 // backend/controllers/packageController.js
-// V2025.Features - Added Unclaimed Public List (Masked) & Claim Logic
+// V2025.Features.Enhanced - 增加包裹費率透視資訊 & 無主件功能
 
 const prisma = require("../config/db.js");
 const fs = require("fs");
@@ -35,34 +35,27 @@ const deleteFiles = (filePaths) => {
  */
 const getUnclaimedPackages = async (req, res) => {
   try {
-    // 查詢歸屬於官方無主帳號的包裹
-    // [修改] 移除 status: "ARRIVED" 限制，以確保與後台看到的列表同步
-    // 管理員可能手動建立了 PENDING 的無主件，現在前台也能看到了
     const packages = await prisma.package.findMany({
       where: {
         user: {
           email: { in: ["unclaimed@runpiggy.com", "admin@runpiggy.com"] },
         },
-        // status: "ARRIVED", // [已移除] 不再限制必須入庫才能看到
       },
       select: {
         id: true,
-        trackingNumber: true, // 需處理遮罩
+        trackingNumber: true,
         productName: true,
         createdAt: true,
-        arrivedBoxesJson: true, // 用於顯示重量資訊
+        arrivedBoxesJson: true,
       },
       orderBy: { createdAt: "desc" },
     });
 
-    // 資料加工：遮罩單號
     const maskedPackages = packages.map((pkg) => {
       const full = pkg.trackingNumber || "";
-      // 保留末 5 碼，其餘用 * 取代
       const masked =
         full.length > 5 ? "*".repeat(full.length - 5) + full.slice(-5) : full;
 
-      // 計算重量資訊 (若有)
       let weightInfo = "待入庫測量";
       if (
         Array.isArray(pkg.arrivedBoxesJson) &&
@@ -76,7 +69,7 @@ const getUnclaimedPackages = async (req, res) => {
       }
 
       return {
-        id: pkg.id, // 前端 list key 使用
+        id: pkg.id,
         maskedTrackingNumber: masked,
         productName: pkg.productName,
         createdAt: pkg.createdAt,
@@ -107,7 +100,6 @@ const createPackageForecast = async (req, res) => {
         .json({ success: false, message: "請提供物流單號和商品名稱" });
     }
 
-    // [Constraint] 強制檢查：購買連結 或 圖片 至少需提供一項
     const hasUrl = productUrl && productUrl.trim() !== "";
     const hasImages = req.files && req.files.length > 0;
 
@@ -176,7 +168,7 @@ const createPackageForecast = async (req, res) => {
 };
 
 /**
- * @description 批量預報 (接收 JSON 陣列)
+ * @description 批量預報
  * @route POST /api/packages/bulk-forecast
  */
 const bulkForecast = async (req, res) => {
@@ -243,7 +235,7 @@ const bulkForecast = async (req, res) => {
 };
 
 /**
- * @description 認領無主包裹 (需完整單號)
+ * @description 認領無主包裹
  * @route POST /api/packages/claim
  */
 const claimPackage = async (req, res) => {
@@ -258,7 +250,6 @@ const claimPackage = async (req, res) => {
         .json({ success: false, message: "請輸入物流單號" });
     }
 
-    // 搜尋該單號的包裹
     const pkg = await prisma.package.findUnique({
       where: { trackingNumber: trackingNumber.trim() },
       include: { user: true },
@@ -270,9 +261,7 @@ const claimPackage = async (req, res) => {
         .json({ success: false, message: "找不到此單號的包裹" });
     }
 
-    // 檢查是否已被綁定
     if (pkg.userId !== userId) {
-      // 若包裹不屬於申請人，且不屬於官方無主帳號，則禁止認領
       if (
         pkg.user.email !== "unclaimed@runpiggy.com" &&
         pkg.user.email !== "admin@runpiggy.com"
@@ -287,8 +276,6 @@ const claimPackage = async (req, res) => {
         .json({ success: true, message: "此包裹已在您的清單中。" });
     }
 
-    // 執行認領：更新 userId
-    // [修改] 憑證為選填，只有在有上傳時才更新欄位
     const updateData = {
       userId: userId,
     };
@@ -353,7 +340,8 @@ const resolveException = async (req, res) => {
 };
 
 /**
- * @description 取得 "我" 的所有包裹
+ * @description [Updated] 取得 "我" 的所有包裹
+ * @summary 已優化：回傳詳細的費率類型與單價資訊，供前端顯示
  * @route GET /api/packages/my
  */
 const getMyPackages = async (req, res) => {
@@ -379,12 +367,13 @@ const getMyPackages = async (req, res) => {
         const w = parseFloat(box.width) || 0;
         const h = parseFloat(box.height) || 0;
         const weight = parseFloat(box.weight) || 0;
-        const type = box.type || "general";
-        const rateInfo = RATES[type] || {
-          weightRate: 0,
-          volumeRate: 0,
-          name: "未知",
-        };
+
+        // [New Feature] 取得詳細的費率資訊
+        const type = (box.type || "general").trim().toLowerCase();
+        // 嘗試查找，若無則使用 general
+        let rateInfo = RATES[type];
+        if (!rateInfo && RATES[box.type]) rateInfo = RATES[box.type]; // 嘗試原始 key
+        if (!rateInfo) rateInfo = RATES["general"]; // Fallback
 
         const isOversized =
           l >= CONSTANTS.OVERSIZED_LIMIT ||
@@ -403,8 +392,8 @@ const getMyPackages = async (req, res) => {
 
         if (l > 0 && w > 0 && h > 0) {
           cai = Math.ceil((l * w * h) / CONSTANTS.VOLUME_DIVISOR);
-          volFee = cai * rateInfo.volumeRate;
-          wtFee = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
+          volFee = cai * (rateInfo.volumeRate || 0);
+          wtFee = (Math.ceil(weight * 10) / 10) * (rateInfo.weightRate || 0);
           finalFee = Math.max(volFee, wtFee);
           isVolWin = volFee >= wtFee;
         }
@@ -419,7 +408,13 @@ const getMyPackages = async (req, res) => {
           isVolWin,
           isOversized,
           isOverweight,
-          rateName: rateInfo.name,
+          // [API Update] 回傳前端需要的顯示資訊
+          rateType: type,
+          rateName: rateInfo.name || "一般家具",
+          rateDetails: {
+            weightRate: rateInfo.weightRate,
+            volumeRate: rateInfo.volumeRate,
+          },
         };
       });
 
