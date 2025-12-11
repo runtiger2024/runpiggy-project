@@ -1,5 +1,5 @@
 // backend/controllers/shipmentController.js
-// V2025.Final.FixPrecision - 修復運費計算精度與試算機不一致的問題
+// V2025.Final.FixPrecision - 修復運費計算精度與試算機不一致的問題 (含超重判斷邏輯修正)
 
 const prisma = require("../config/db.js");
 const {
@@ -60,15 +60,25 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
         const h = parseFloat(box.height) || 0;
         const weight = parseFloat(box.weight) || 0;
 
+        // [修正 1] 同步試算機邏輯：先計算進位後的計費重量 (無條件進位到小數點後1位)
+        const roundedWeight = Math.ceil(weight * 10) / 10;
+
         // [Safety] 使用 ratesManager 安全查找費率
         const rateInfo = ratesManager.getCategoryRate(rates, box.type);
         const typeName = rateInfo.name || box.type || "一般";
 
-        // 累加實重
+        // 累加實重 (統計用，使用原始重量)
         totalActualWeight += weight;
 
         // 檢查超規 (標記並記錄原因，但費用最後算)
         let boxNotes = [];
+
+        // [修正 2] 檢查超重 (使用 roundedWeight 判斷，並改為 >=)
+        if (roundedWeight >= CONSTANTS.OVERWEIGHT_LIMIT) {
+          hasOverweight = true;
+          boxNotes.push("超重");
+        }
+
         if (
           l >= CONSTANTS.OVERSIZED_LIMIT ||
           w >= CONSTANTS.OVERSIZED_LIMIT ||
@@ -76,10 +86,6 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
         ) {
           hasOversized = true;
           boxNotes.push("超長");
-        }
-        if (weight >= CONSTANTS.OVERWEIGHT_LIMIT) {
-          hasOverweight = true;
-          boxNotes.push("超重");
         }
 
         if (l > 0 && w > 0 && h > 0 && weight > 0) {
@@ -90,7 +96,9 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
 
           // 核心比價：材積費 vs 重量費
           const volFee = cai * rateInfo.volumeRate;
-          const wtFee = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
+          // [修正 3] 使用 roundedWeight 計算重量費
+          const wtFee = roundedWeight * rateInfo.weightRate;
+
           const finalBoxFee = Math.max(volFee, wtFee);
 
           // 累加原始運費
@@ -102,7 +110,7 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
             boxIndex: index + 1,
             type: typeName,
             dims: `${l}x${w}x${h} cm`,
-            weight: `${weight} kg`,
+            weight: `${weight} kg`, // 顯示原始重量
             cai: cai,
             calcMethod: volFee >= wtFee ? "材積計費" : "重量計費",
             rateUsed:
