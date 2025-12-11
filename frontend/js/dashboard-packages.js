@@ -1,5 +1,5 @@
 // frontend/js/dashboard-packages.js
-// V2025.Optimized.FixDisplayType - 預報強制驗證 & 費用透明化詳情 & 無主件認領 & 顯示家具類型
+// V2025.Optimized.FixDisplayType - 預報強制驗證 & 費用透明化詳情 & 無主件認領 & 顯示家具類型 & 費率邏輯修正
 
 let currentEditPackageImages = [];
 
@@ -463,7 +463,7 @@ window.resolveException = function (pkgId) {
     .catch(() => alert("操作失敗"));
 };
 
-// --- 5. 包裹詳情與透明化運費展示 (Updated V2025) ---
+// --- 5. 包裹詳情與透明化運費展示 (Updated V2025 - Fix applied) ---
 window.openPackageDetails = function (pkgDataStr) {
   try {
     const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
@@ -471,7 +471,7 @@ window.openPackageDetails = function (pkgDataStr) {
     const boxesListContainer = document.getElementById("details-boxes-list");
     const imagesGallery = document.getElementById("details-images-gallery");
 
-    // 取得系統常數 (若尚未載入則使用預設值)
+    // 取得系統常數
     const CONSTANTS = window.CONSTANTS || {
       VOLUME_DIVISOR: 28317,
       CBM_TO_CAI_FACTOR: 35.3,
@@ -489,6 +489,28 @@ window.openPackageDetails = function (pkgDataStr) {
     let isPkgOversized = false;
     let isPkgOverweight = false;
 
+    // [Fix] 1. 解析該包裹對應的費率 (從 window.RATES 查找)
+    // 優先使用 displayType (中文名稱) 比對，若無則預設 general
+    // 讓顯示公式時能呈現正確的費率 (例如 一般家具=22, 特殊=32)
+    let pkgRateConfig =
+      window.RATES && window.RATES.general
+        ? window.RATES.general
+        : { weightRate: 0, volumeRate: 0 };
+    const pType = pkg.displayType || "一般家具";
+
+    if (window.RATES) {
+      // 嘗試從 values 找 name (因為 key 可能是 'special_a' 但 displayType 是 '特殊家具A')
+      const foundRate = Object.values(window.RATES).find(
+        (r) => r.name === pType
+      );
+      if (foundRate) {
+        pkgRateConfig = foundRate;
+      } else if (window.RATES[pType]) {
+        // 容錯：如果有直接對應 key
+        pkgRateConfig = window.RATES[pType];
+      }
+    }
+
     if (arrivedBoxes.length > 0) {
       boxesHtml = `<div class="detail-scroll-container">`;
 
@@ -499,7 +521,7 @@ window.openPackageDetails = function (pkgDataStr) {
         const h = parseFloat(box.height) || 0;
         const weight = parseFloat(box.weight) || 0;
 
-        // 判斷超規 (>=)
+        // 判斷超規
         const isBoxOversized =
           l >= CONSTANTS.OVERSIZED_LIMIT ||
           w >= CONSTANTS.OVERSIZED_LIMIT ||
@@ -518,7 +540,11 @@ window.openPackageDetails = function (pkgDataStr) {
         const isVolWin =
           box.isVolWin !== undefined ? box.isVolWin : volFee >= wtFee;
         const finalFee = box.calculatedFee || Math.max(volFee, wtFee);
-        const rateName = box.rateName || "一般";
+
+        // 顯示用的費率 (優先取用已解析的包裹費率)
+        const currentWRate = pkgRateConfig.weightRate;
+        const currentVRate = pkgRateConfig.volumeRate;
+        const rateName = box.rateName || pType;
 
         // 渲染單箱卡片
         boxesHtml += `
@@ -550,13 +576,13 @@ window.openPackageDetails = function (pkgDataStr) {
                   !isVolWin ? "is-winner" : ""
                 }">
                     <span class="calc-label">重量計費</span>
-                    <span class="calc-formula">${weight}kg × 費率</span>
+                    <span class="calc-formula">${weight}kg × ${currentWRate}</span>
                     <span class="calc-amount">$${wtFee.toLocaleString()}</span>
                 </div>
                 
                 <div class="calc-comparison-row ${isVolWin ? "is-winner" : ""}">
                     <span class="calc-label">材積計費</span>
-                    <span class="calc-formula">(${l}×${w}×${h}) ÷ ${DIVISOR} × 費率</span>
+                    <span class="calc-formula">(${l}×${w}×${h}) ÷ ${DIVISOR} × ${currentVRate}</span>
                     <span class="calc-amount">$${volFee.toLocaleString()}</span>
                 </div>
             </div>
@@ -569,7 +595,7 @@ window.openPackageDetails = function (pkgDataStr) {
       boxesHtml += `
         <div style="background:#f0f8ff; padding:15px; border-radius:8px; margin-top:15px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                <span>基本運費總計</span>
+                <span>基本運費總計 (${pType})</span>
                 <strong>$${totalBaseFee.toLocaleString()}</strong>
             </div>
             ${
