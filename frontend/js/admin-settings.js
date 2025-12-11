@@ -1,5 +1,5 @@
 // frontend/js/admin-settings.js
-// V2025.Features - Added Email Testing
+// V2025.RemoteAreas - Added Remote Areas Management
 
 document.addEventListener("DOMContentLoaded", async () => {
   const token = localStorage.getItem("admin_token");
@@ -25,6 +25,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 3. 綁定表單提交
   document.getElementById("form-rates").addEventListener("submit", saveRates);
+  // [New] 偏遠地區表單
+  document
+    .getElementById("form-remote")
+    .addEventListener("submit", saveRemoteAreas);
   document
     .getElementById("form-announcement")
     .addEventListener("submit", saveAnnouncement);
@@ -39,6 +43,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 4. 綁定按鈕
   document.getElementById("btn-add-category").addEventListener("click", () => {
     addCategoryBlock("", {}, true);
+  });
+  // [New] 新增偏遠區塊按鈕
+  document.getElementById("btn-add-remote").addEventListener("click", () => {
+    addRemoteBlock("", []);
   });
 
   // [New] 綁定 Email 測試按鈕
@@ -84,14 +92,27 @@ document.addEventListener("DOMContentLoaded", async () => {
         keys.forEach((key) => addCategoryBlock(key, cats[key], false));
       }
 
-      // B. 公告
+      // [New] B. 偏遠地區設定
+      if (s.remote_areas) {
+        const remoteContainer = document.getElementById("remote-container");
+        remoteContainer.innerHTML = "";
+        // 依金額排序
+        const sortedRates = Object.keys(s.remote_areas).sort(
+          (a, b) => parseInt(a) - parseInt(b)
+        );
+        sortedRates.forEach((rate) => {
+          addRemoteBlock(rate, s.remote_areas[rate]);
+        });
+      }
+
+      // C. 公告
       if (s.announcement) {
         setValue("ann-text", s.announcement.text);
         document.getElementById("ann-enabled").checked = s.announcement.enabled;
         setValue("ann-color", s.announcement.color || "info");
       }
 
-      // C. 銀行
+      // D. 銀行
       if (s.bank_info) {
         setValue("bank-name", s.bank_info.bankName);
         setValue("bank-branch", s.bank_info.branch);
@@ -99,7 +120,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         setValue("bank-holder", s.bank_info.holder);
       }
 
-      // D. 發票設定 (New)
+      // E. 發票設定
       if (s.invoice_config) {
         document.getElementById("inv-enabled").checked =
           s.invoice_config.enabled;
@@ -108,7 +129,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         setValue("inv-mode", s.invoice_config.mode);
       }
 
-      // E. Email 設定 (New)
+      // F. Email 設定
       if (s.email_config) {
         setValue("email-sender-name", s.email_config.senderName);
         setValue("email-sender-addr", s.email_config.senderEmail);
@@ -172,6 +193,31 @@ document.addEventListener("DOMContentLoaded", async () => {
             </div>
         </div>
       `;
+    container.insertAdjacentHTML("beforeend", html);
+  }
+
+  // [New] 渲染偏遠地區區塊
+  function addRemoteBlock(rate, areas) {
+    const container = document.getElementById("remote-container");
+    const areasStr = Array.isArray(areas) ? areas.join(", ") : "";
+
+    const html = `
+      <div class="remote-block card">
+        <div class="remote-header">
+          <div class="d-flex align-items-center">
+             <span class="font-weight-bold mr-2">費率單價: $</span>
+             <input type="number" class="form-control form-control-sm remote-rate" 
+                    value="${rate}" placeholder="2000" style="width: 100px;">
+             <span class="ml-2">/ CBM</span>
+          </div>
+          <i class="fas fa-trash-alt btn-remove-cat" title="刪除此區間" onclick="this.closest('.remote-block').remove()"></i>
+        </div>
+        <div class="card-body p-3">
+          <label class="small text-muted mb-1">包含地區 (請以逗號分隔關鍵字)</label>
+          <textarea class="form-control remote-areas" rows="2" placeholder="例如: 宜蘭, 花蓮, 台東">${areasStr}</textarea>
+        </div>
+      </div>
+    `;
     container.insertAdjacentHTML("beforeend", html);
   }
 
@@ -240,6 +286,56 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
 
     await sendUpdate("rates_config", { constants, categories }, "費率設定");
+  }
+
+  // [New] 儲存偏遠地區
+  async function saveRemoteAreas(e) {
+    e.preventDefault();
+    const remoteData = {};
+    let hasError = false;
+
+    document.querySelectorAll(".remote-block").forEach((block) => {
+      const rateInput = block.querySelector(".remote-rate");
+      const areasInput = block.querySelector(".remote-areas");
+
+      const rate = rateInput.value.trim();
+      const areasStr = areasInput.value.trim();
+
+      if (!rate) {
+        alert("請填寫費率金額");
+        hasError = true;
+        return;
+      }
+      if (isNaN(rate)) {
+        alert("費率必須為數字");
+        hasError = true;
+        return;
+      }
+
+      // 解析逗號分隔的字串為陣列
+      const areasList = areasStr
+        .split(/[,\n]/) // 支援逗號或換行分隔
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+      if (areasList.length === 0) {
+        // 如果沒有填寫地區，可以略過或跳警告，這裡選擇跳過
+        return;
+      }
+
+      // 檢查 Key 是否重複 (相同價格是否重複定義)
+      if (remoteData[rate]) {
+        // 如果已存在，合併陣列
+        remoteData[rate] = [...remoteData[rate], ...areasList];
+      } else {
+        remoteData[rate] = areasList;
+      }
+    });
+
+    if (hasError) return;
+
+    // 送出更新
+    await sendUpdate("remote_areas", remoteData, "偏遠地區設定");
   }
 
   async function saveAnnouncement(e) {

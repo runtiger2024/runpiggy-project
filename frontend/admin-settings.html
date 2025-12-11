@@ -48,6 +48,20 @@
         color: #c0392b;
         transform: scale(1.1);
       }
+      /* 新增：偏遠地區區塊樣式 */
+      .remote-block {
+        border-left: 4px solid #36b9cc;
+        background: #fff;
+        margin-bottom: 15px;
+      }
+      .remote-header {
+        background: #f8f9fc;
+        padding: 10px 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #e3e6f0;
+      }
     </style>
   </head>
   <body>
@@ -58,6 +72,9 @@
         <div class="settings-tab-nav">
           <div class="tab-btn active" data-tab="tab-rates">
             <i class="fas fa-calculator"></i> 運費費率
+          </div>
+          <div class="tab-btn" data-tab="tab-remote">
+            <i class="fas fa-map-marked-alt"></i> 偏遠地區
           </div>
           <div class="tab-btn" data-tab="tab-sys">
             <i class="fas fa-bullhorn"></i> 公告與系統
@@ -185,6 +202,38 @@
             <div style="text-align: right; margin-top: 20px">
               <button type="submit" class="btn btn-success btn-lg">
                 <i class="fas fa-save"></i> 儲存所有費率設定
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div id="tab-remote" class="tab-content">
+          <form id="form-remote">
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle"></i>
+              在此設定偏遠地區的加收費用（每 CBM
+              價格）。系統會自動比對地址中的關鍵字。
+              <br />
+              <strong>注意：</strong>
+              當這裡有資料時，系統將優先使用此處設定，而非程式碼中的預設值。
+            </div>
+
+            <div id="remote-container"></div>
+
+            <div class="mb-4">
+              <button
+                type="button"
+                id="btn-add-remote"
+                class="btn btn-outline-info btn-sm"
+                style="border-style: dashed"
+              >
+                <i class="fas fa-plus"></i> 新增費率區間
+              </button>
+            </div>
+
+            <div style="text-align: right">
+              <button type="submit" class="btn btn-info btn-lg">
+                <i class="fas fa-map-marked-alt"></i> 儲存偏遠地區設定
               </button>
             </div>
           </form>
