@@ -181,7 +181,7 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
     breakdown.surcharges.push({
       name: "偏遠/聯運費",
       amount: Math.round(rawRemoteFee), // 顯示時取整，方便閱讀
-      reason: `總體積 ${displayTotalCbm} CBM`,
+      reason: `總體積 ${displayTotalCbm} 方 (費率 $${deliveryRateVal}/方)`,
     });
   }
 
