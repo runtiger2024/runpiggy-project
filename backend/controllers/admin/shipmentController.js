@@ -1,5 +1,5 @@
 // backend/controllers/admin/shipmentController.js
-// V13.9 - Integrated with Notification System & Email & Status Counts
+// V14.0 - Added Manual Price Adjustment Feature
 
 const prisma = require("../../config/db.js");
 const createLog = require("../../utils/createLog.js");
@@ -712,6 +712,158 @@ const manualVoidInvoice = async (req, res) => {
   }
 };
 
+// [新增功能] 人工調整訂單價格 (含錢包多退少補邏輯)
+const adjustShipmentPrice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPrice, reason } = req.body;
+
+    // 1. 基本驗證
+    if (newPrice === undefined || newPrice < 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "請提供有效的新價格 (newPrice)" });
+    }
+    if (!reason || reason.trim() === "") {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "為了稽核安全，請務必填寫「調整原因」",
+        });
+    }
+
+    const shipment = await prisma.shipment.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!shipment) {
+      return res.status(404).json({ success: false, message: "找不到訂單" });
+    }
+
+    // 2. 發票防呆：若已開立發票，必須先作廢才能改價
+    if (shipment.invoiceStatus === "ISSUED" && shipment.invoiceNumber) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "危險操作禁止：此訂單已開立發票，禁止直接修改金額！請先「作廢發票」後再行調整。",
+      });
+    }
+
+    const oldPrice = shipment.totalCost || 0;
+    const targetPrice = parseFloat(newPrice);
+    const diff = oldPrice - targetPrice; // 正數代表降價(需退款)，負數代表漲價(需補扣)
+    const isWalletPay = shipment.paymentProof === "WALLET_PAY";
+
+    // 若價格無變動則直接返回
+    if (Math.abs(diff) < 0.01) {
+      return res.status(200).json({ success: true, message: "價格無變動" });
+    }
+
+    // 3. 開始資料庫交易 (確保金額與錢包一致性)
+    await prisma.$transaction(async (tx) => {
+      // 3.1 更新訂單金額
+      await tx.shipment.update({
+        where: { id },
+        data: { totalCost: targetPrice },
+      });
+
+      // 3.2 若已使用錢包支付，需處理多退少補
+      if (isWalletPay) {
+        if (diff > 0) {
+          // === 降價：退還差額給客戶 ===
+          await tx.wallet.update({
+            where: { userId: shipment.userId },
+            data: { balance: { increment: diff } },
+          });
+
+          await tx.transaction.create({
+            data: {
+              wallet: { connect: { userId: shipment.userId } },
+              amount: diff,
+              type: "REFUND",
+              status: "COMPLETED",
+              description: `訂單改價退款 #${
+                shipment.trackingNumberTW || shipment.id.slice(-6)
+              }: ${reason}`,
+              shipment: { connect: { id: shipment.id } },
+            },
+          });
+        } else {
+          // === 漲價：補扣客戶餘額 ===
+          const chargeAmount = Math.abs(diff);
+
+          // 檢查餘額是否足夠
+          const wallet = await tx.wallet.findUnique({
+            where: { userId: shipment.userId },
+          });
+          if (!wallet || wallet.balance < chargeAmount) {
+            throw new Error(
+              `用戶錢包餘額不足，無法調漲價格 (需補扣 $${chargeAmount}，目前餘額 $${
+                wallet?.balance || 0
+              })。請先請用戶儲值或將訂單改為未付款狀態。`
+            );
+          }
+
+          await tx.wallet.update({
+            where: { userId: shipment.userId },
+            data: { balance: { decrement: chargeAmount } },
+          });
+
+          await tx.transaction.create({
+            data: {
+              wallet: { connect: { userId: shipment.userId } },
+              amount: chargeAmount,
+              type: "ADJUST", // 使用 ADJUST 或 PAYMENT
+              status: "COMPLETED",
+              description: `訂單改價補扣 #${
+                shipment.trackingNumberTW || shipment.id.slice(-6)
+              }: ${reason}`,
+              shipment: { connect: { id: shipment.id } },
+            },
+          });
+        }
+      }
+    });
+
+    // 4. 寫入操作日誌 (Audit Log)
+    await createLog(
+      req.user.id,
+      "ADJUST_PRICE",
+      id,
+      `價格調整: $${oldPrice} -> $${targetPrice}, 原因: ${reason}`
+    );
+
+    // 5. 發送通知給用戶
+    await createNotification(
+      shipment.userId,
+      "訂單金額調整通知",
+      `您的訂單 ${id.slice(
+        -8
+      )} 金額已由系統管理員調整為 $${targetPrice}。原因：${reason}`,
+      "SHIPMENT",
+      id
+    );
+
+    res.status(200).json({
+      success: true,
+      message:
+        `價格已更新為 $${targetPrice}` +
+        (isWalletPay
+          ? diff > 0
+            ? ` (已退還 $${diff} 至錢包)`
+            : ` (已補扣 $${Math.abs(diff)} 從錢包)`
+          : ""),
+    });
+  } catch (e) {
+    console.error("Adjust Price Error:", e);
+    res
+      .status(500)
+      .json({ success: false, message: e.message || "調整價格失敗" });
+  }
+};
+
 module.exports = {
   getAllShipments,
   exportShipments,
@@ -722,4 +874,5 @@ module.exports = {
   adminDeleteShipment,
   manualIssueInvoice,
   manualVoidInvoice,
+  adjustShipmentPrice,
 };

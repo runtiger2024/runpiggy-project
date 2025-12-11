@@ -1,5 +1,5 @@
 // frontend/js/admin-shipments.js
-// V2025.Features.Enhanced - Impersonate & Notifications & Status Counts
+// V2025.Features.Enhanced - Impersonate & Notifications & Status Counts & Manual Price Adjustment
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -58,6 +58,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnBulkDelete) {
       btnBulkDelete.addEventListener("click", performBulkDelete);
     }
+
+    // 點擊 Modal 外部關閉
+    window.onclick = function (event) {
+      const priceModal = document.getElementById("adjust-price-modal");
+      if (event.target === modal) {
+        modal.style.display = "none";
+      }
+      if (event.target === priceModal) {
+        priceModal.style.display = "none";
+      }
+    };
 
     loadShipments();
   }
@@ -165,22 +176,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (s.paymentProof === "WALLET_PAY") {
         invHtml = `<span class="badge" style="background:#cce5ff; color:#004085; padding:2px 6px; font-size:12px; border-radius:4px;">
-                     <i class="fas fa-wallet"></i> 儲值已開
-                   </span>`;
+                      <i class="fas fa-wallet"></i> 儲值已開
+                    </span>`;
       } else if (s.invoiceStatus === "ISSUED" && s.invoiceNumber) {
         invHtml = `<span class="badge" style="background:#d4edda; color:#155724; padding:2px 6px; font-size:12px; border-radius:4px;">
-                     <i class="fas fa-check"></i> 已開立<br>${s.invoiceNumber}
-                   </span>`;
+                      <i class="fas fa-check"></i> 已開立<br>${s.invoiceNumber}
+                    </span>`;
       } else if (s.invoiceStatus === "VOID") {
         invHtml = `<span class="badge" style="background:#f8d7da; color:#721c24; padding:2px 6px; font-size:12px; border-radius:4px;">
-                     <i class="fas fa-ban"></i> 已作廢
-                   </span>`;
+                      <i class="fas fa-ban"></i> 已作廢
+                    </span>`;
       }
 
       const sStr = encodeURIComponent(JSON.stringify(s));
       // [NEW] 模擬登入資訊準備
       const userName = s.user ? s.user.name || s.user.email : "未知";
       const userId = s.userId;
+
+      // [New] 改價按鈕顯示邏輯 (已完成或已取消通常不改價)
+      const canAdjustPrice =
+        s.status !== "COMPLETED" && s.status !== "CANCELLED";
+      const adjustPriceBtn = canAdjustPrice
+        ? `<button class="btn btn-warning btn-sm" onclick="window.openAdjustPriceModal('${s.id}', ${s.totalCost})" title="修改金額"><i class="fas fa-dollar-sign"></i></button>`
+        : "";
 
       tr.innerHTML = `
         <td><input type="checkbox" class="ship-checkbox" value="${s.id}"></td>
@@ -201,6 +219,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <td data-label="訂單狀態"><span class="status-badge ${statusClass}">${displayStatus}</span></td>
         <td data-label="操作">
           <div style="display:flex; gap:5px; justify-content:flex-end;">
+            ${adjustPriceBtn}
             <button class="btn btn-primary btn-sm" onclick="openModal('${sStr}')">管理</button>
             <button class="btn btn-outline-secondary btn-sm" onclick="window.impersonateUser('${userId}', '${userName}')" title="模擬登入前台">
                <i class="fas fa-key"></i>
@@ -236,6 +255,70 @@ document.addEventListener("DOMContentLoaded", () => {
     if (currentPage < pg.totalPages)
       paginationDiv.appendChild(btn(">", currentPage + 1));
   }
+
+  // --- [New] 人工改價功能 ---
+  window.openAdjustPriceModal = function (id, currentPrice) {
+    document.getElementById("adjust-shipment-id").value = id;
+    document.getElementById("adjust-original-price").value = currentPrice;
+    document.getElementById("adjust-new-price").value = currentPrice; // 預設填入當前價格
+    document.getElementById("adjust-reason").value = ""; // 清空原因
+    document.getElementById("adjust-price-modal").style.display = "flex";
+  };
+
+  window.closeAdjustPriceModal = function () {
+    document.getElementById("adjust-price-modal").style.display = "none";
+  };
+
+  window.confirmAdjustPrice = async function () {
+    const id = document.getElementById("adjust-shipment-id").value;
+    const newPrice = document.getElementById("adjust-new-price").value;
+    const reason = document.getElementById("adjust-reason").value;
+
+    if (!newPrice || newPrice < 0) {
+      alert("請輸入有效的金額");
+      return;
+    }
+    if (!reason || reason.trim() === "") {
+      alert("請填寫調整原因");
+      return;
+    }
+
+    if (
+      !confirm(
+        `確定要將金額從 $${
+          document.getElementById("adjust-original-price").value
+        } 調整為 $${newPrice} 嗎？\n此操作不可撤銷。`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/admin/shipments/${id}/price`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ newPrice: parseFloat(newPrice), reason }),
+        }
+      );
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(data.message);
+        window.closeAdjustPriceModal();
+        loadShipments();
+      } else {
+        alert(data.message || "調整失敗");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("系統錯誤，調整失敗");
+    }
+  };
 
   // --- [New] 模擬登入功能 ---
   window.impersonateUser = async function (userId, name) {

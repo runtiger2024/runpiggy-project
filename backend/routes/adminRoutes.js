@@ -1,5 +1,5 @@
 // backend/routes/adminRoutes.js
-// V14.2 - Added Email Test Route
+// V14.2 - Added Email Test Route & Manual Price Adjustment Route
 
 const express = require("express");
 const router = express.Router();
@@ -184,6 +184,15 @@ router
     protect,
     checkPermission("SHIPMENT_PROCESS"),
     shipmentController.manualVoidInvoice
+  );
+
+// [新增] 人工改價 API
+router
+  .route("/shipments/:id/price")
+  .put(
+    protect,
+    checkPermission("SHIPMENT_PROCESS"),
+    shipmentController.adjustShipmentPrice
   );
 
 router
