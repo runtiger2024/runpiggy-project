@@ -1,25 +1,25 @@
 // backend/controllers/shipmentController.js
-// V2025.Final.Transparent - 運費透明化 (Breakdown Report) + 核心邏輯修復
+// V2025.Final.FixPrecision - 修復運費計算精度與試算機不一致的問題
 
 const prisma = require("../config/db.js");
 const {
-  sendNewShipmentNotification, // 原有: 通知管理員
-  sendShipmentCreatedNotification, // 新增: 通知客戶 (訂單建立確認)
-  sendPaymentProofNotification, // 新增: 通知客戶 (憑證上傳確認)
+  sendNewShipmentNotification,
+  sendShipmentCreatedNotification,
+  sendPaymentProofNotification,
 } = require("../utils/sendEmail.js");
 const ratesManager = require("../utils/ratesManager.js");
 const invoiceHelper = require("../utils/invoiceHelper.js");
 const createLog = require("../utils/createLog.js");
 const { deleteFiles } = require("../utils/adminHelpers.js");
-const fs = require("fs"); // 引入 fs 供刪檔使用
+const fs = require("fs");
 
-// --- 輔助計算函式 (增強版：產生詳細透明化報告) ---
+// --- 輔助計算函式 (修正版：同步 calculatorController 邏輯) ---
 const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   const CONSTANTS = rates.constants;
 
   // 1. 初始化計算變數
   let totalRawBaseCost = 0; // 原始運費總和 (未含低消)
-  let totalVolumeDivisor = 0; // 總材積 (Cai)
+  let totalVolumeDivisor = 0; // 總材積 (Cai) - 用於計算總 CBM
   let totalActualWeight = 0; // 總實重
   let totalVolumetricCai = 0; // 統計用總材數
 
@@ -27,7 +27,7 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   let hasOversized = false;
   let hasOverweight = false;
 
-  // [新增] 透明化報告結構
+  // 透明化報告結構
   let breakdown = {
     packages: [], // 每箱計算細節
     subtotal: 0, // 原始加總
@@ -96,7 +96,7 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
           // 累加原始運費
           totalRawBaseCost += finalBoxFee;
 
-          // [Transparecy] 記錄單箱計算細節
+          // 記錄單箱計算細節
           breakdown.packages.push({
             trackingNumber: pkg.trackingNumber,
             boxIndex: index + 1,
@@ -157,31 +157,40 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
   }
 
   // 5. 偏遠地區費 (依總 CBM)
-  const totalCbm = parseFloat(
-    (totalVolumeDivisor / CONSTANTS.CBM_TO_CAI_FACTOR).toFixed(2)
-  );
-  const deliveryRateVal = parseFloat(deliveryRate) || 0;
-  const remoteFee = Math.round(totalCbm * deliveryRateVal);
+  // [FIX] 修正：移除 toFixed(2) 的中間截斷，保持高精度運算，與 calculatorController 一致
+  const rawTotalCbm = totalVolumeDivisor / CONSTANTS.CBM_TO_CAI_FACTOR;
 
-  if (remoteFee > 0) {
-    breakdown.remoteFeeCalc = `${totalCbm} CBM x $${deliveryRateVal}`;
+  // 顯示用的 CBM (僅用於報告顯示)
+  const displayTotalCbm = parseFloat(rawTotalCbm.toFixed(2));
+
+  const deliveryRateVal = parseFloat(deliveryRate) || 0;
+
+  // [FIX] 修正：不進行中間四捨五入 (Math.round)，保持浮點數直到最後加總
+  const rawRemoteFee = rawTotalCbm * deliveryRateVal;
+
+  if (rawRemoteFee > 0) {
+    breakdown.remoteFeeCalc = `${displayTotalCbm} CBM x $${deliveryRateVal}`;
     breakdown.surcharges.push({
       name: "偏遠/聯運費",
-      amount: remoteFee,
-      reason: `總體積 ${totalCbm} CBM`,
+      amount: Math.round(rawRemoteFee), // 顯示時取整，方便閱讀
+      reason: `總體積 ${displayTotalCbm} CBM`,
     });
   }
 
   // 6. 總結
-  const totalCost = finalBaseCost + remoteFee + overweightFee + oversizedFee;
+  // [FIX] 修正：所有項目加總後，最後才進行 Math.round()，確保與試算機邏輯完全一致
+  const totalCostRaw =
+    finalBaseCost + rawRemoteFee + overweightFee + oversizedFee;
+  const totalCost = Math.round(totalCostRaw);
+
   breakdown.finalTotal = totalCost;
 
   return {
-    totalCost,
+    totalCost, // 最終收費 (整數)
     baseCost: finalBaseCost,
     originalBaseCost: totalRawBaseCost,
-    remoteFee,
-    totalCbm,
+    remoteFee: Math.round(rawRemoteFee), // 僅供參考的整數
+    totalCbm: displayTotalCbm,
     totalActualWeight: parseFloat(totalActualWeight.toFixed(2)),
     totalVolumetricCai: totalVolumetricCai,
     overweightFee,
@@ -189,7 +198,7 @@ const calculateShipmentDetails = (packages, rates, deliveryRate) => {
     isMinimumChargeApplied,
     hasOversized,
     hasOverweight,
-    breakdown, // [New] 回傳完整透明化報告
+    breakdown,
     ratesConstant: {
       minimumCharge: CONSTANTS.MINIMUM_CHARGE,
     },
@@ -347,7 +356,6 @@ const createShipment = async (req, res) => {
           shipmentProductImages: shipmentImagePaths,
           transactionId: txRecord ? txRecord.id : null,
           paymentProof: isWalletPay ? "WALLET_PAY" : null,
-          // 建議: 未來可將 calcResult.breakdown 存入 DB (需新增欄位) 以便日後查詢
         },
       });
 
@@ -373,7 +381,6 @@ const createShipment = async (req, res) => {
         ? "扣款成功！訂單已成立並開始處理。"
         : "集運單建立成功！請儘速完成轉帳。",
       shipment: newShipment,
-      // 回傳計算報告供前端顯示最後確認
       costBreakdown: calcResult.breakdown,
     });
   } catch (error) {
@@ -427,17 +434,6 @@ const uploadPaymentProof = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
 
-    // --- DEBUG LOG START ---
-    console.log(`\n=== [UploadProof Debug] Start ===`);
-    console.log(`User: ${userId}, Shipment: ${id}`);
-
-    if (req.file) {
-      console.log(`Req.File: ${req.file.filename} (${req.file.mimetype})`);
-    } else {
-      console.log(`Req.File: MISSING`);
-    }
-    // --- DEBUG LOG END ---
-
     if (!req.file)
       return res.status(400).json({ success: false, message: "請選擇圖片" });
 
@@ -447,12 +443,7 @@ const uploadPaymentProof = async (req, res) => {
       : "";
 
     if (taxId && !invoiceTitle) {
-      console.log(
-        `[UploadProof Error] TaxId provided but InvoiceTitle missing.`
-      );
-      fs.unlink(req.file.path, (err) => {
-        if (err) console.warn("刪除暫存檔案失敗:", err.message);
-      });
+      fs.unlink(req.file.path, () => {});
       return res.status(400).json({
         success: false,
         message: "填寫統一編號時，公司抬頭為必填項目",
@@ -464,9 +455,6 @@ const uploadPaymentProof = async (req, res) => {
     });
     if (!shipment) {
       fs.unlink(req.file.path, () => {});
-      console.log(
-        `[UploadProof Error] Shipment not found or not owned by user.`
-      );
       return res.status(404).json({ success: false, message: "找不到集運單" });
     }
 
@@ -477,17 +465,10 @@ const uploadPaymentProof = async (req, res) => {
     if (taxId) updateData.taxId = taxId;
     if (invoiceTitle) updateData.invoiceTitle = invoiceTitle;
 
-    console.log(
-      `Executing Prisma Update with data:`,
-      JSON.stringify(updateData, null, 2)
-    );
-
     const updatedShipment = await prisma.shipment.update({
       where: { id: id },
       data: updateData,
     });
-
-    console.log(`=== [UploadProof Debug] Success ===\n`);
 
     try {
       await sendPaymentProofNotification(updatedShipment, req.user);
@@ -499,7 +480,6 @@ const uploadPaymentProof = async (req, res) => {
       .status(200)
       .json({ success: true, message: "上傳成功", shipment: updatedShipment });
   } catch (error) {
-    console.error(`=== [UploadProof Error] Exception ===`);
     console.error(error);
     if (req.file) fs.unlink(req.file.path, () => {});
     res.status(500).json({ success: false, message: "伺服器錯誤" });
