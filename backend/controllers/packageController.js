@@ -1,5 +1,5 @@
 // backend/controllers/packageController.js
-// V2025.Features.Enhanced - 增加包裹費率透視資訊 & 無主件功能
+// V2025.Stable.Fix500 - 修復 500 錯誤 (費率讀取容錯) & 支援前端顯示家具類型
 
 const prisma = require("../config/db.js");
 const fs = require("fs");
@@ -340,8 +340,8 @@ const resolveException = async (req, res) => {
 };
 
 /**
- * @description [Updated] 取得 "我" 的所有包裹
- * @summary 已優化：回傳詳細的費率類型與單價資訊，供前端顯示
+ * @description [Fixed] 取得 "我" 的所有包裹
+ * @summary 修復 500 錯誤，增加費率讀取容錯，並回傳前端需要的 displayType
  * @route GET /api/packages/my
  */
 const getMyPackages = async (req, res) => {
@@ -352,12 +352,31 @@ const getMyPackages = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
+    // 1. 取得費率設定 (增加安全性檢查)
     const systemRates = await ratesManager.getRates();
-    const CONSTANTS = systemRates.constants;
-    const RATES = systemRates.categories;
+    // 使用預設空物件防止解構失敗
+    const CONSTANTS = systemRates.constants || {};
+    const RATES = systemRates.categories || {};
+
+    // 定義安全常數預設值 (防止 CONSTANTS 為空時計算 NaN)
+    const SAFE_CONSTANTS = {
+      VOLUME_DIVISOR: CONSTANTS.VOLUME_DIVISOR || 28317,
+      OVERSIZED_LIMIT: CONSTANTS.OVERSIZED_LIMIT || 300,
+      OVERWEIGHT_LIMIT: CONSTANTS.OVERWEIGHT_LIMIT || 100,
+      CBM_TO_CAI_FACTOR: CONSTANTS.CBM_TO_CAI_FACTOR || 35.3,
+    };
 
     const packagesWithParsedJson = myPackages.map((pkg) => {
-      const arrivedBoxes = pkg.arrivedBoxesJson || [];
+      // 2. 確保 arrivedBoxesJson 是陣列
+      let arrivedBoxes = [];
+      if (Array.isArray(pkg.arrivedBoxesJson)) {
+        arrivedBoxes = pkg.arrivedBoxesJson;
+      } else if (typeof pkg.arrivedBoxesJson === "string") {
+        try {
+          arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson);
+        } catch (e) {}
+      }
+
       let pkgIsOversized = false;
       let pkgIsOverweight = false;
       let calculatedTotalFee = 0;
@@ -368,18 +387,32 @@ const getMyPackages = async (req, res) => {
         const h = parseFloat(box.height) || 0;
         const weight = parseFloat(box.weight) || 0;
 
-        // [New Feature] 取得詳細的費率資訊
+        // 3. 安全取得費率 (防止 500 錯誤的核心修正)
         const type = (box.type || "general").trim().toLowerCase();
-        // 嘗試查找，若無則使用 general
+
         let rateInfo = RATES[type];
         if (!rateInfo && RATES[box.type]) rateInfo = RATES[box.type]; // 嘗試原始 key
         if (!rateInfo) rateInfo = RATES["general"]; // Fallback
 
+        // 萬一連 general 都沒有 (例如設定檔損毀或 Key 不存在)，給予預設值避免崩潰
+        if (!rateInfo) {
+          // 加入警告日誌，方便您排查是哪個單號出問題
+          console.warn(
+            `⚠️ [費率缺失] 包裹單號: ${pkg.trackingNumber}, 找不到費率 Key: '${type}'`
+          );
+
+          rateInfo = {
+            name: `未知費率(${type})`,
+            weightRate: 0,
+            volumeRate: 0,
+          };
+        }
+
         const isOversized =
-          l >= CONSTANTS.OVERSIZED_LIMIT ||
-          w >= CONSTANTS.OVERSIZED_LIMIT ||
-          h >= CONSTANTS.OVERSIZED_LIMIT;
-        const isOverweight = weight >= CONSTANTS.OVERWEIGHT_LIMIT;
+          l >= SAFE_CONSTANTS.OVERSIZED_LIMIT ||
+          w >= SAFE_CONSTANTS.OVERSIZED_LIMIT ||
+          h >= SAFE_CONSTANTS.OVERSIZED_LIMIT;
+        const isOverweight = weight >= SAFE_CONSTANTS.OVERWEIGHT_LIMIT;
 
         if (isOversized) pkgIsOversized = true;
         if (isOverweight) pkgIsOverweight = true;
@@ -391,7 +424,7 @@ const getMyPackages = async (req, res) => {
           isVolWin = false;
 
         if (l > 0 && w > 0 && h > 0) {
-          cai = Math.ceil((l * w * h) / CONSTANTS.VOLUME_DIVISOR);
+          cai = Math.ceil((l * w * h) / SAFE_CONSTANTS.VOLUME_DIVISOR);
           volFee = cai * (rateInfo.volumeRate || 0);
           wtFee = (Math.ceil(weight * 10) / 10) * (rateInfo.weightRate || 0);
           finalFee = Math.max(volFee, wtFee);
@@ -408,12 +441,11 @@ const getMyPackages = async (req, res) => {
           isVolWin,
           isOversized,
           isOverweight,
-          // [API Update] 回傳前端需要的顯示資訊
           rateType: type,
           rateName: rateInfo.name || "一般家具",
           rateDetails: {
-            weightRate: rateInfo.weightRate,
-            volumeRate: rateInfo.volumeRate,
+            weightRate: rateInfo.weightRate || 0,
+            volumeRate: rateInfo.volumeRate || 0,
           },
         };
       });
@@ -423,6 +455,10 @@ const getMyPackages = async (req, res) => {
           ? pkg.totalCalculatedFee
           : calculatedTotalFee;
 
+      // 4. [Feature] 提取顯示用的類別 (用於前端顯示標籤)
+      const mainDisplayType =
+        enrichedBoxes.length > 0 ? enrichedBoxes[0].rateName : "一般家具";
+
       return {
         ...pkg,
         arrivedBoxes: enrichedBoxes,
@@ -430,7 +466,7 @@ const getMyPackages = async (req, res) => {
         isOversized: pkgIsOversized,
         isOverweight: pkgIsOverweight,
         totalCalculatedFee: finalTotalFee,
-        displayType: mainDisplayType,
+        displayType: mainDisplayType, // 確保這個欄位存在，前端需要它來顯示標籤
       };
     });
 
@@ -440,7 +476,7 @@ const getMyPackages = async (req, res) => {
       packages: packagesWithParsedJson,
     });
   } catch (error) {
-    console.error("查詢包裹錯誤:", error);
+    console.error("查詢包裹錯誤 (getMyPackages):", error);
     res.status(500).json({ success: false, message: "伺服器發生錯誤" });
   }
 };
