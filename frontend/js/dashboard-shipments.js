@@ -1,5 +1,5 @@
 // frontend/js/dashboard-shipments.js
-// V2025.Final.Transparent.UI - 前端費用透明化顯示邏輯適配 (含傢俱類型顯示修復)
+// V2025.Final.Transparent.UI - 前端費用透明化顯示邏輯適配 (含傢俱類型顯示修復 & 地區切換即時連動修復)
 
 // --- 1. 更新底部結帳條 ---
 window.updateCheckoutBar = function () {
@@ -722,4 +722,12 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
   });
+
+  // [Fix] 增加配送地區變更監聽，即時更新運費試算
+  const locationSelect = document.getElementById("ship-delivery-location");
+  if (locationSelect) {
+    locationSelect.addEventListener("change", () => {
+      window.recalculateShipmentTotal();
+    });
+  }
 });
