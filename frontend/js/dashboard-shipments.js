@@ -695,7 +695,7 @@ window.renderDeliveryLocations = function () {
     sortedFees.forEach((fee) => {
       if (fee == "0") return;
       const areas = window.REMOTE_AREAS[fee];
-      html += `<optgroup label="加收 $${fee}">`;
+      html += `<optgroup label="加收/方 $${fee}">`;
       areas.forEach((area) => {
         html += `<option value="${fee}">${area}</option>`;
       });
