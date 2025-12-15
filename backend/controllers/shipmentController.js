@@ -1,5 +1,6 @@
 // backend/controllers/shipmentController.js
 // V2025.Final.Transparency - 透明化費用試算 (含派送費合併計算)
+// [Update] 新增：建立訂單前強制檢查包裹是否已完善 (有連結或照片)
 
 const prisma = require("../config/db.js");
 const {
@@ -288,6 +289,25 @@ const createShipment = async (req, res) => {
 
     if (packagesToShip.length !== packageIds.length)
       return res.status(400).json({ success: false, message: "包含無效包裹" });
+
+    // [New] 驗證包裹資料完整性 (必須有購買連結或照片)
+    const incompletePackages = packagesToShip.filter((pkg) => {
+      const hasUrl = pkg.productUrl && pkg.productUrl.trim() !== "";
+      // Prisma JSON 欄位若為空陣列，在 JS 中為 []
+      const hasImages =
+        Array.isArray(pkg.productImages) && pkg.productImages.length > 0;
+      return !hasUrl && !hasImages;
+    });
+
+    if (incompletePackages.length > 0) {
+      const pkgNumbers = incompletePackages
+        .map((p) => p.trackingNumber)
+        .join(", ");
+      return res.status(400).json({
+        success: false,
+        message: `以下包裹資料待完善 (缺購買連結或照片)，無法打包：${pkgNumbers}`,
+      });
+    }
 
     const systemRates = await ratesManager.getRates();
     const calcResult = calculateShipmentDetails(

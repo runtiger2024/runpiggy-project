@@ -1,5 +1,6 @@
 // frontend/js/dashboard-packages.js
 // V2025.Final.UltimateFix - 包含智慧文字比對、強制前端重算、Excel與預報功能完整保留
+// [Update] 新增：打包前強制檢查購買連結/圖片 (待完善狀態)
 
 let currentEditPackageImages = [];
 
@@ -206,18 +207,33 @@ function renderPackagesTable() {
   window.allPackagesData.forEach((pkg) => {
     const statusText = statusMap[pkg.status] || pkg.status;
     const statusClass = statusClasses[pkg.status] || "";
-    // 只有已入庫 (ARRIVED) 且無異常的包裹才能打包
-    const isReady = pkg.status === "ARRIVED" && !pkg.exceptionStatus;
+
+    // [New] 檢查是否擁有「購買連結」或「商品圖片」
+    const hasProductUrl = pkg.productUrl && pkg.productUrl.trim() !== "";
+    const hasProductImages =
+      Array.isArray(pkg.productImages) && pkg.productImages.length > 0;
+    const isInfoComplete = hasProductUrl || hasProductImages;
+
+    // 只有已入庫 (ARRIVED)、無異常 且 資料完整(isInfoComplete) 的包裹才能打包
+    const isReady =
+      pkg.status === "ARRIVED" && !pkg.exceptionStatus && isInfoComplete;
 
     let infoHtml = "<span>-</span>";
     let badgesHtml = "";
 
     const boxes = Array.isArray(pkg.arrivedBoxes) ? pkg.arrivedBoxes : [];
 
-    // --- 異常狀態處理 ---
+    // --- 異常與待完善狀態處理 ---
     if (pkg.exceptionStatus) {
       const exText = pkg.exceptionStatus === "DAMAGED" ? "破損" : "違禁品/異常";
       badgesHtml += `<span class="badge-alert" style="background:#ffebee; color:#d32f2f; border:1px solid red; cursor:pointer;" onclick="resolveException('${pkg.id}')">⚠️ ${exText} (點擊處理)</span> `;
+    }
+
+    // [New] 資料待完善提示
+    if (!isInfoComplete) {
+      badgesHtml += `<span class="badge-alert" style="background:#fff3e0; color:#d32f2f; border:1px solid #ff9800; cursor:pointer;" onclick='openEditPackageModal(${JSON.stringify(
+        pkg
+      )})'>⚠️ 待完善 (缺購買證明)</span> `;
     }
 
     if (boxes.length > 0) {
@@ -244,7 +260,7 @@ function renderPackagesTable() {
         <div class="pkg-badges" style="margin-top:4px;">${badgesHtml}</div>
       `;
     } else {
-      // 如果有異常但沒箱子數據
+      // 如果有異常/待完善但沒箱子數據
       if (badgesHtml) infoHtml = `<div class="pkg-badges">${badgesHtml}</div>`;
     }
 
@@ -280,8 +296,14 @@ function renderPackagesTable() {
       <td>
         <button class="btn btn-sm btn-primary" onclick='window.openPackageDetails("${pkgStr}")'>詳情</button>
         ${
+          // 允許 PENDING 或 ARRIVED 狀態下修改資料 (為了補全連結/照片)
+          pkg.status === "PENDING" || pkg.status === "ARRIVED"
+            ? `<button class="btn btn-sm btn-secondary btn-edit" style="margin-left:5px;">修改</button>`
+            : ""
+        }
+        ${
           pkg.status === "PENDING"
-            ? `<button class="btn btn-sm btn-secondary btn-edit" style="margin-left:5px;">修改</button><button class="btn btn-sm btn-danger btn-delete" style="margin-left:5px;">刪除</button>`
+            ? `<button class="btn btn-sm btn-danger btn-delete" style="margin-left:5px;">刪除</button>`
             : ""
         }
       </td>
@@ -291,9 +313,11 @@ function renderPackagesTable() {
       if (typeof window.updateCheckoutBar === "function")
         window.updateCheckoutBar();
     });
-    tr.querySelector(".btn-edit")?.addEventListener("click", () =>
-      openEditPackageModal(pkg)
-    );
+    // [Fix] 傳遞正確的 pkg 物件給 openEditPackageModal
+    tr.querySelector(".btn-edit")?.addEventListener("click", () => {
+      // 因為 closure 的關係，這裡直接用 pkg 變數是安全的
+      openEditPackageModal(pkg);
+    });
     tr.querySelector(".btn-delete")?.addEventListener("click", () =>
       handleDeletePackage(pkg)
     );
@@ -687,6 +711,7 @@ async function handleDeletePackage(pkg) {
   }
 }
 
+// [Updated] 確保修改視窗能正常填入舊資料，包括 productUrl
 window.openEditPackageModal = function (pkg) {
   document.getElementById("edit-package-id").value = pkg.id;
   document.getElementById("edit-trackingNumber").value = pkg.trackingNumber;
