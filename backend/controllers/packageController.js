@@ -1,5 +1,5 @@
 // backend/controllers/packageController.js
-// V2025.Stable.Fix500 - 修復 500 錯誤 (費率讀取容錯) & 支援前端顯示家具類型
+// V2025.Stable.Cloudinary - 支援雲端圖片儲存 & 修復 500 錯誤
 
 const prisma = require("../config/db.js");
 const fs = require("fs");
@@ -7,26 +7,12 @@ const path = require("path");
 const ratesManager = require("../utils/ratesManager.js");
 const createLog = require("../utils/createLog.js");
 
-// --- 輔助函式：安全刪除多個檔案 ---
+// --- 輔助函式：安全刪除多個檔案 (Cloudinary 版) ---
 const deleteFiles = (filePaths) => {
-  if (!Array.isArray(filePaths) || filePaths.length === 0) return;
-
-  const uploadDir = path.join(__dirname, "../public/uploads");
-
-  filePaths.forEach((filePath) => {
-    try {
-      const fileName = path.basename(filePath);
-      if (!fileName) return;
-
-      const absolutePath = path.join(uploadDir, fileName);
-
-      if (fs.existsSync(absolutePath)) {
-        fs.unlinkSync(absolutePath);
-      }
-    } catch (err) {
-      console.warn(`[File Warning] 刪除檔案失敗 (${filePath}):`, err.message);
-    }
-  });
+  // [Cloudinary Mode]
+  // 因為圖片已託管於雲端，不需要刪除本機檔案 (Render 暫存區)。
+  // 若未來需要實作「刪除雲端圖片」功能，需使用 cloudinary.uploader.destroy
+  return;
 };
 
 /**
@@ -104,9 +90,9 @@ const createPackageForecast = async (req, res) => {
     const hasImages = req.files && req.files.length > 0;
 
     if (!hasUrl && !hasImages) {
+      // 雖然 Cloudinary 不需要刪檔，但邏輯保留 (反正 deleteFiles 是空的)
       if (req.files) {
-        const tempPaths = req.files.map((f) => `/uploads/${f.filename}`);
-        deleteFiles(tempPaths);
+        deleteFiles(req.files);
       }
       return res.status(400).json({
         success: false,
@@ -121,8 +107,7 @@ const createPackageForecast = async (req, res) => {
 
     if (existingPackage) {
       if (req.files) {
-        const tempPaths = req.files.map((f) => `/uploads/${f.filename}`);
-        deleteFiles(tempPaths);
+        deleteFiles(req.files);
       }
       return res.status(400).json({
         success: false,
@@ -132,7 +117,8 @@ const createPackageForecast = async (req, res) => {
 
     let imagePaths = [];
     if (req.files && req.files.length > 0) {
-      imagePaths = req.files.map((file) => `/uploads/${file.filename}`);
+      // [Modified for Cloudinary] 直接使用 file.path (雲端網址)
+      imagePaths = req.files.map((file) => file.path);
     }
 
     const newPackage = await prisma.package.create({
@@ -281,7 +267,8 @@ const claimPackage = async (req, res) => {
     };
 
     if (proofFile) {
-      updateData.claimProof = `/uploads/${proofFile.filename}`;
+      // [Modified for Cloudinary] 使用 file.path
+      updateData.claimProof = proofFile.path;
     }
 
     await prisma.package.update({
@@ -518,13 +505,15 @@ const updateMyPackage = async (req, res) => {
       keepImagesList = [];
     }
 
-    const imagesToDelete = originalImagesList.filter(
-      (img) => !keepImagesList.includes(img)
-    );
-    deleteFiles(imagesToDelete);
+    // [Cloudinary Note] 我們只過濾出要保留的 URL，不需要刪除檔案
+    // const imagesToDelete = originalImagesList.filter(
+    //   (img) => !keepImagesList.includes(img)
+    // );
+    // deleteFiles(imagesToDelete);
 
     if (req.files && req.files.length > 0) {
-      const newPaths = req.files.map((f) => `/uploads/${f.filename}`);
+      // [Modified for Cloudinary] 使用 f.path
+      const newPaths = req.files.map((f) => f.path);
       keepImagesList = [...keepImagesList, ...newPaths];
     }
 
@@ -563,6 +552,7 @@ const deleteMyPackage = async (req, res) => {
     if (pkg.status !== "PENDING")
       return res.status(400).json({ message: "包裹已處理，無法刪除" });
 
+    // [Cloudinary] 無需刪除檔案，deleteFiles 為空函式
     deleteFiles([...(pkg.productImages || []), ...(pkg.warehouseImages || [])]);
 
     await prisma.package.delete({ where: { id } });
