@@ -1,5 +1,6 @@
 // frontend/js/admin-shipments.js
 // V2025.Features.Enhanced - Impersonate & Notifications & Status Counts & Manual Price Adjustment
+// [Update] Fix Broken Image Links (Cloudinary vs Local)
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -419,7 +420,12 @@ document.addEventListener("DOMContentLoaded", () => {
         <i class="fas fa-wallet"></i> 使用錢包餘額扣款
       </span>`;
     } else if (s.paymentProof) {
-      proofDiv.innerHTML = `<a href="${API_BASE_URL}${s.paymentProof}" target="_blank"><img src="${API_BASE_URL}${s.paymentProof}" style="height:100px; border:1px solid #ccc;"></a>`;
+      // [Fix] 這裡也需要修正圖片路徑
+      const isUrl =
+        s.paymentProof.startsWith("http") || s.paymentProof.startsWith("https");
+      const link = isUrl ? s.paymentProof : `${API_BASE_URL}${s.paymentProof}`;
+
+      proofDiv.innerHTML = `<a href="${link}" target="_blank"><img src="${link}" style="height:100px; border:1px solid #ccc;"></a>`;
     } else {
       proofDiv.innerHTML = "尚未上傳";
     }

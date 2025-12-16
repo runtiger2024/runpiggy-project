@@ -1,6 +1,6 @@
 // backend/controllers/shipmentController.js
 // V2025.Final.Transparency - 透明化費用試算 (含派送費合併計算)
-// [Update] 新增：建立訂單前強制檢查包裹是否已完善 (有連結或照片)
+// [Update] Fix Cloudinary Path Issue (防止圖片路徑錯誤導致破圖)
 
 const prisma = require("../config/db.js");
 const {
@@ -267,9 +267,22 @@ const createShipment = async (req, res) => {
 
     const isWalletPay = paymentMethod === "WALLET";
 
+    // [Fix] 圖片路徑處理邏輯修正
     let shipmentImagePaths = [];
-    if (files.length > 0)
-      shipmentImagePaths = files.map((file) => `/uploads/${file.filename}`);
+    if (files.length > 0) {
+      shipmentImagePaths = files.map((file) => {
+        // 如果是 Cloudinary 上傳，會有 path 且開頭為 http/https
+        if (
+          file.path &&
+          (file.path.startsWith("http") || file.path.startsWith("https"))
+        ) {
+          // 強制轉 HTTPS
+          return file.path.replace(/^http:\/\//i, "https://");
+        }
+        // 本地 fallback
+        return `/uploads/${file.filename}`;
+      });
+    }
 
     try {
       if (typeof packageIds === "string") packageIds = JSON.parse(packageIds);
@@ -461,13 +474,28 @@ const uploadPaymentProof = async (req, res) => {
     if (!req.file)
       return res.status(400).json({ success: false, message: "請選擇圖片" });
 
+    // [Fix] 決定圖片路徑 (Cloudinary 優先)
+    let finalPath;
+    if (
+      req.file.path &&
+      (req.file.path.startsWith("http") || req.file.path.startsWith("https"))
+    ) {
+      finalPath = req.file.path.replace(/^http:\/\//i, "https://");
+    } else {
+      finalPath = `/uploads/${req.file.filename}`;
+    }
+
     const taxId = req.body.taxId ? req.body.taxId.trim() : "";
     const invoiceTitle = req.body.invoiceTitle
       ? req.body.invoiceTitle.trim()
       : "";
 
+    // 驗證失敗時的刪除邏輯
     if (taxId && !invoiceTitle) {
-      fs.unlink(req.file.path, () => {});
+      // 只有在是本地檔案時才執行 unlink，避免對 Cloudinary URL 報錯
+      if (!finalPath.startsWith("http")) {
+        fs.unlink(req.file.path, () => {});
+      }
       return res.status(400).json({
         success: false,
         message: "填寫統一編號時，公司抬頭為必填項目",
@@ -478,12 +506,14 @@ const uploadPaymentProof = async (req, res) => {
       where: { id: id, userId: userId },
     });
     if (!shipment) {
-      fs.unlink(req.file.path, () => {});
+      if (!finalPath.startsWith("http")) {
+        fs.unlink(req.file.path, () => {});
+      }
       return res.status(404).json({ success: false, message: "找不到集運單" });
     }
 
     const updateData = {
-      paymentProof: `/uploads/${req.file.filename}`,
+      paymentProof: finalPath, // 存入正確的路徑
     };
 
     if (taxId) updateData.taxId = taxId;
@@ -505,7 +535,10 @@ const uploadPaymentProof = async (req, res) => {
       .json({ success: true, message: "上傳成功", shipment: updatedShipment });
   } catch (error) {
     console.error(error);
-    if (req.file) fs.unlink(req.file.path, () => {});
+    // 錯誤發生時的清理
+    if (req.file && req.file.path && !req.file.path.startsWith("http")) {
+      fs.unlink(req.file.path, () => {});
+    }
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };

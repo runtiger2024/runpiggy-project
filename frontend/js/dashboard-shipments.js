@@ -1,5 +1,5 @@
 // frontend/js/dashboard-shipments.js
-// V2025.Final.Transparent.UI - 前端費用透明化顯示邏輯適配 (含傢俱類型顯示修復 & 地區切換即時連動修復)
+// V2025.Final.Transparent.UI - 前端費用透明化顯示邏輯適配 (含傢俱類型顯示修復 & 圖片路徑修復)
 
 // --- 1. 更新底部結帳條 ---
 window.updateCheckoutBar = function () {
@@ -587,6 +587,7 @@ window.openShipmentDetails = async function (id) {
         }
     `;
 
+    // [Fix] 圖片路徑修復邏輯
     const gallery = document.getElementById("sd-proof-images");
     gallery.innerHTML = "";
 
@@ -596,7 +597,18 @@ window.openShipmentDetails = async function (id) {
                 <i class="fas fa-wallet"></i> 使用錢包餘額支付
             </div>`;
       } else {
-        gallery.innerHTML += `<div style="text-align:center;"><p>付款憑證</p><img src="${API_BASE_URL}${s.paymentProof}" onclick="window.open(this.src)" style="max-width:100px; cursor:pointer;"></div>`;
+        // [Key Fix] 判斷是否為 URL
+        const isUrl =
+          s.paymentProof.startsWith("http") ||
+          s.paymentProof.startsWith("https");
+        const imgSrc = isUrl
+          ? s.paymentProof
+          : `${API_BASE_URL}${s.paymentProof}`;
+
+        gallery.innerHTML += `<div style="text-align:center;">
+          <p>付款憑證</p>
+          <img src="${imgSrc}" onclick="window.open(this.src)" style="max-width:100px; cursor:pointer; border:1px solid #ccc;">
+        </div>`;
       }
     }
 
