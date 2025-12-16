@@ -1,224 +1,125 @@
-// backend/controllers/admin/packageController.js
-// V2025.Features.Fixed - Added Unclaimed Filter, Status Counts, Email Notifications & Rates Fix (Case Sensitivity Fixed)
+// backend/controllers/packageController.js
+// V2025.Stable.Cloudinary - 支援雲端圖片儲存 & 修復 500 錯誤 & 支援已入庫補圖
 
-const prisma = require("../../config/db.js");
-const createLog = require("../../utils/createLog.js");
-const createNotification = require("../../utils/createNotification.js");
-// 引入新的 Email 通知函數
-const { sendPackageArrivedNotification } = require("../../utils/sendEmail.js");
-const ratesManager = require("../../utils/ratesManager.js"); // [Fix] 引入費率管理器
-const {
-  deleteFiles,
-  buildPackageWhereClause,
-} = require("../../utils/adminHelpers.js");
+const prisma = require("../config/db.js");
+const fs = require("fs");
+const path = require("path");
+const ratesManager = require("../utils/ratesManager.js");
+const createLog = require("../utils/createLog.js");
 
-const getAllPackages = async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
-    const { status, search, filter } = req.query;
-
-    let where = buildPackageWhereClause(status, search);
-
-    if (filter === "UNCLAIMED") {
-      where.user = {
-        email: { in: ["unclaimed@runpiggy.com", "admin@runpiggy.com"] },
-      };
-    } else if (filter === "CLAIM_REVIEW") {
-      where.claimProof = { not: null };
-    }
-
-    let statsWhere = buildPackageWhereClause(undefined, search);
-    if (filter === "UNCLAIMED") {
-      statsWhere.user = {
-        email: { in: ["unclaimed@runpiggy.com", "admin@runpiggy.com"] },
-      };
-    } else if (filter === "CLAIM_REVIEW") {
-      statsWhere.claimProof = { not: null };
-    }
-
-    const [total, packages, statusGroups] = await prisma.$transaction([
-      prisma.package.count({ where }),
-      prisma.package.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        include: { user: { select: { name: true, email: true } } },
-      }),
-      prisma.package.groupBy({
-        by: ["status"],
-        where: statsWhere,
-        _count: { status: true },
-      }),
-    ]);
-
-    const statusCounts = {};
-    let totalInSearch = 0;
-    statusGroups.forEach((g) => {
-      statusCounts[g.status] = g._count.status;
-      totalInSearch += g._count.status;
-    });
-    statusCounts["ALL"] = totalInSearch;
-
-    const processedPackages = packages.map((pkg) => ({
-      ...pkg,
-      productImages: pkg.productImages || [],
-      warehouseImages: pkg.warehouseImages || [],
-      arrivedBoxesJson: pkg.arrivedBoxesJson || [],
-    }));
-
-    res.status(200).json({
-      success: true,
-      packages: processedPackages,
-      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
-      statusCounts,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "伺服器錯誤" });
-  }
+// --- 輔助函式：安全刪除多個檔案 (Cloudinary 版) ---
+const deleteFiles = (filePaths) => {
+  // [Cloudinary Mode]
+  // 因為圖片已託管於雲端，不需要刪除本機檔案 (Render 暫存區)。
+  // 若未來需要實作「刪除雲端圖片」功能，需使用 cloudinary.uploader.destroy
+  return;
 };
 
-const exportPackages = async (req, res) => {
+/**
+ * @description [New] 取得無主包裹列表 (公開給會員查看，單號遮罩)
+ * @route GET /api/packages/unclaimed
+ */
+const getUnclaimedPackages = async (req, res) => {
   try {
-    const { status, search, filter } = req.query;
-    let where = buildPackageWhereClause(status, search);
-
-    if (filter === "UNCLAIMED") {
-      where.user = {
-        email: { in: ["unclaimed@runpiggy.com", "admin@runpiggy.com"] },
-      };
-    } else if (filter === "CLAIM_REVIEW") {
-      where.claimProof = { not: null };
-    }
-
     const packages = await prisma.package.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      include: { user: { select: { email: true, name: true } } },
-    });
-    const exportData = packages.map((p) => ({
-      單號: p.trackingNumber,
-      商品: p.productName,
-      會員: `${p.user.name || ""} (${p.user.email})`,
-      狀態: p.status,
-      數量: p.quantity,
-      預報時間: new Date(p.createdAt).toLocaleDateString(),
-      備註: p.note || "",
-      總運費: p.totalCalculatedFee || 0,
-      認領憑證: p.claimProof ? "有" : "無",
-    }));
-    res.status(200).json({ success: true, data: exportData });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "匯出失敗" });
-  }
-};
-
-const bulkUpdatePackageStatus = async (req, res) => {
-  try {
-    const { ids, status } = req.body;
-    if (!Array.isArray(ids) || ids.length === 0 || !status)
-      return res.status(400).json({ success: false, message: "參數錯誤" });
-
-    await prisma.package.updateMany({
-      where: { id: { in: ids } },
-      data: { status },
-    });
-
-    // 若狀態變更為 ARRIVED，發送通知
-    if (status === "ARRIVED") {
-      const packages = await prisma.package.findMany({
-        where: { id: { in: ids } },
-        select: {
-          userId: true,
-          trackingNumber: true,
-          productName: true,
-          arrivedBoxesJson: true,
+      where: {
+        user: {
+          email: { in: ["unclaimed@runpiggy.com", "admin@runpiggy.com"] },
         },
-        include: { user: true }, // 需要 User email
-      });
+      },
+      select: {
+        id: true,
+        trackingNumber: true,
+        productName: true,
+        createdAt: true,
+        arrivedBoxesJson: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
-      // 並行處理通知
-      await Promise.all(
-        packages.map(async (p) => {
-          // 1. 站內通知
-          await createNotification(
-            p.userId,
-            "包裹已入庫",
-            `您的包裹 ${p.trackingNumber} 已送達倉庫並入庫。`,
-            "PACKAGE",
-            "tab-packages"
-          );
-          // 2. [New] Email 通知
-          await sendPackageArrivedNotification(p, p.user);
-        })
-      );
+    const maskedPackages = packages.map((pkg) => {
+      const full = pkg.trackingNumber || "";
+      const masked =
+        full.length > 5 ? "*".repeat(full.length - 5) + full.slice(-5) : full;
+
+      let weightInfo = "待入庫測量";
+      if (
+        Array.isArray(pkg.arrivedBoxesJson) &&
+        pkg.arrivedBoxesJson.length > 0
+      ) {
+        const totalW = pkg.arrivedBoxesJson.reduce(
+          (sum, box) => sum + (parseFloat(box.weight) || 0),
+          0
+        );
+        weightInfo = `${totalW.toFixed(1)} kg`;
+      }
+
+      return {
+        id: pkg.id,
+        maskedTrackingNumber: masked,
+        productName: pkg.productName,
+        createdAt: pkg.createdAt,
+        weightInfo: weightInfo,
+      };
+    });
+
+    res.json({ success: true, packages: maskedPackages });
+  } catch (error) {
+    console.error("取得無主列表失敗:", error);
+    res.status(500).json({ success: false, message: "伺服器錯誤" });
+  }
+};
+
+/**
+ * @description 包裹預報 (單筆)
+ * @route POST /api/packages/forecast/images
+ */
+const createPackageForecast = async (req, res) => {
+  try {
+    const { trackingNumber, productName, quantity, note, productUrl } =
+      req.body;
+    const userId = req.user.id;
+
+    if (!trackingNumber || !productName) {
+      return res
+        .status(400)
+        .json({ success: false, message: "請提供物流單號和商品名稱" });
     }
 
-    await createLog(
-      req.user.id,
-      "BULK_UPDATE_PACKAGE",
-      "BATCH",
-      `批量更新 ${ids.length} 筆包裹為 ${status}`
-    );
-    res.status(200).json({ success: true, message: "批量更新成功" });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "伺服器錯誤" });
-  }
-};
+    const hasUrl = productUrl && productUrl.trim() !== "";
+    const hasImages = req.files && req.files.length > 0;
 
-const bulkDeletePackages = async (req, res) => {
-  try {
-    const { ids } = req.body;
-    if (!Array.isArray(ids) || ids.length === 0)
-      return res.status(400).json({ success: false, message: "未選擇包裹" });
-    const packages = await prisma.package.findMany({
-      where: { id: { in: ids } },
-      select: { productImages: true, warehouseImages: true },
-    });
-    const allFiles = [];
-    packages.forEach((pkg) => {
-      if (Array.isArray(pkg.productImages)) allFiles.push(...pkg.productImages);
-      if (Array.isArray(pkg.warehouseImages))
-        allFiles.push(...pkg.warehouseImages);
-    });
-    deleteFiles(allFiles);
-    await prisma.package.deleteMany({ where: { id: { in: ids } } });
-    await createLog(
-      req.user.id,
-      "BULK_DELETE_PACKAGE",
-      "BATCH",
-      `批量刪除 ${ids.length} 筆包裹`
-    );
-    res.status(200).json({ success: true, message: "批量刪除成功" });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "伺服器錯誤" });
-  }
-};
-
-const adminCreatePackage = async (req, res) => {
-  try {
-    const adminUserId = req.user.id;
-    const { userId, trackingNumber, productName, quantity, note } = req.body;
-    if (!userId || !trackingNumber || !productName)
-      return res.status(400).json({ success: false, message: "資料不完整" });
-
-    const existingPkg = await prisma.package.findFirst({
-      where: { trackingNumber: trackingNumber.trim() },
-    });
-    if (existingPkg) {
+    if (!hasUrl && !hasImages) {
+      // 雖然 Cloudinary 不需要刪檔，但邏輯保留
+      if (req.files) {
+        deleteFiles(req.files);
+      }
       return res.status(400).json({
         success: false,
-        message: "此物流單號已存在系統中，請勿重複建立",
+        message:
+          "資料不全：請務必提供「商品購買連結」或「上傳商品圖片」(擇一)。",
+      });
+    }
+
+    const existingPackage = await prisma.package.findUnique({
+      where: { trackingNumber: trackingNumber.trim() },
+    });
+
+    if (existingPackage) {
+      if (req.files) {
+        deleteFiles(req.files);
+      }
+      return res.status(400).json({
+        success: false,
+        message: "此物流單號已存在系統中，請勿重複預報。",
       });
     }
 
     let imagePaths = [];
-    if (req.files && req.files.length > 0)
+    if (req.files && req.files.length > 0) {
+      // [Cloudinary Mode] 直接使用 file.path
       imagePaths = req.files.map((file) => file.path);
+    }
 
     const newPackage = await prisma.package.create({
       data: {
@@ -226,234 +127,467 @@ const adminCreatePackage = async (req, res) => {
         productName,
         quantity: quantity ? parseInt(quantity) : 1,
         note,
+        productUrl: productUrl || null,
         productImages: imagePaths,
         warehouseImages: [],
-        userId,
+        userId: userId,
+        status: "PENDING",
       },
     });
 
-    await createNotification(
+    await createLog(
       userId,
-      "管理員已代為預報",
-      `您的包裹 ${trackingNumber} 已由客服建立。`,
-      "PACKAGE"
+      "CREATE_PACKAGE",
+      newPackage.id,
+      `預報包裹 ${trackingNumber}`
     );
 
-    await createLog(
-      adminUserId,
-      "ADMIN_CREATE_PACKAGE",
-      newPackage.id,
-      `代客預報 (單號: ${trackingNumber})`
-    );
-    res
-      .status(201)
-      .json({ success: true, message: "新增成功", package: newPackage });
+    res.status(201).json({
+      success: true,
+      message: "包裹預報成功！",
+      package: newPackage,
+    });
   } catch (error) {
+    console.error("包裹預報錯誤:", error);
+    res.status(500).json({ success: false, message: "伺服器發生錯誤" });
+  }
+};
+
+/**
+ * @description 批量預報
+ * @route POST /api/packages/bulk-forecast
+ */
+const bulkForecast = async (req, res) => {
+  try {
+    const { packages } = req.body;
+    const userId = req.user.id;
+
+    if (!Array.isArray(packages) || packages.length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "無效的資料格式" });
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+    const errors = [];
+
+    for (const pkg of packages) {
+      if (!pkg.trackingNumber || !pkg.productName) {
+        failCount++;
+        errors.push(`單號 ${pkg.trackingNumber || "未知"}: 資料不全`);
+        continue;
+      }
+
+      const exists = await prisma.package.findUnique({
+        where: { trackingNumber: pkg.trackingNumber.trim() },
+      });
+
+      if (exists) {
+        failCount++;
+        errors.push(`單號 ${pkg.trackingNumber}: 已存在`);
+        continue;
+      }
+
+      await prisma.package.create({
+        data: {
+          trackingNumber: pkg.trackingNumber.trim(),
+          productName: pkg.productName,
+          quantity: pkg.quantity ? parseInt(pkg.quantity) : 1,
+          note: pkg.note || "批量匯入",
+          userId: userId,
+          status: "PENDING",
+        },
+      });
+      successCount++;
+    }
+
+    await createLog(
+      userId,
+      "BULK_FORECAST",
+      "BATCH",
+      `批量匯入成功 ${successCount} 筆`
+    );
+
+    res.json({
+      success: true,
+      message: `匯入完成：成功 ${successCount} 筆，失敗 ${failCount} 筆`,
+      errors,
+    });
+  } catch (error) {
+    console.error("批量預報錯誤:", error);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };
 
-const adminDeletePackage = async (req, res) => {
+/**
+ * @description 認領無主包裹
+ * @route POST /api/packages/claim
+ */
+const claimPackage = async (req, res) => {
   try {
-    const { id } = req.params;
-    const pkg = await prisma.package.findUnique({ where: { id } });
-    if (!pkg)
-      return res.status(404).json({ success: false, message: "找不到包裹" });
+    const { trackingNumber } = req.body;
+    const userId = req.user.id;
+    const proofFile = req.file;
 
-    let filesToDelete = [
-      ...(pkg.productImages || []),
-      ...(pkg.warehouseImages || []),
-    ];
-    deleteFiles(filesToDelete);
-    await prisma.package.delete({ where: { id } });
-    await createLog(
-      req.user.id,
-      "ADMIN_DELETE_PACKAGE",
-      id,
-      `刪除包裹 ${pkg.trackingNumber}`
-    );
-    res.status(200).json({ success: true, message: "包裹已刪除" });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "刪除失敗" });
-  }
-};
-
-const updatePackageStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-    if (!status)
-      return res.status(400).json({ success: false, message: "無狀態" });
-
-    const pkg = await prisma.package.findUnique({
-      where: { id },
-      include: { user: true }, // 包含 User 資訊以便發信
-    });
-    if (!pkg) return res.status(404).json({ message: "包裹不存在" });
-
-    if (pkg.status === "PENDING" && status === "COMPLETED") {
-      return res.status(400).json({
-        success: false,
-        message: "操作禁止：包裹必須先進行「入庫 (ARRIVED)」才能完成。",
-      });
+    if (!trackingNumber) {
+      return res
+        .status(400)
+        .json({ success: false, message: "請輸入物流單號" });
     }
 
-    const updatedPkg = await prisma.package.update({
-      where: { id },
-      data: { status },
-    });
-
-    if (status === "ARRIVED" && pkg.status !== "ARRIVED") {
-      // 1. 站內通知
-      await createNotification(
-        pkg.userId,
-        "包裹已入庫",
-        `您的包裹 ${pkg.trackingNumber} 已測量完畢並入庫，請前往打包。`,
-        "PACKAGE",
-        "tab-packages"
-      );
-      // 2. [New] Email 通知
-      await sendPackageArrivedNotification(updatedPkg, pkg.user);
-    }
-
-    await createLog(
-      req.user.id,
-      "UPDATE_PACKAGE_STATUS",
-      id,
-      `狀態更新為 ${status}`
-    );
-    res.status(200).json({ success: true, package: updatedPkg });
-  } catch (e) {
-    res.status(500).json({ success: false, message: "更新失敗" });
-  }
-};
-
-// [Critical Fix] 更新包裹詳情與運費計算 (修復 0 元運費問題 & 類型大小寫問題)
-const updatePackageDetails = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, boxesData, existingImages } = req.body;
     const pkg = await prisma.package.findUnique({
-      where: { id },
+      where: { trackingNumber: trackingNumber.trim() },
       include: { user: true },
     });
+
+    if (!pkg) {
+      return res
+        .status(404)
+        .json({ success: false, message: "找不到此單號的包裹" });
+    }
+
+    if (pkg.userId !== userId) {
+      if (
+        pkg.user.email !== "unclaimed@runpiggy.com" &&
+        pkg.user.email !== "admin@runpiggy.com"
+      ) {
+        return res
+          .status(400)
+          .json({ success: false, message: "此包裹已被其他會員預報或綁定。" });
+      }
+    } else {
+      return res
+        .status(200)
+        .json({ success: true, message: "此包裹已在您的清單中。" });
+    }
+
+    const updateData = {
+      userId: userId,
+    };
+
+    if (proofFile) {
+      // [Cloudinary Mode] 使用 file.path
+      updateData.claimProof = proofFile.path;
+    }
+
+    await prisma.package.update({
+      where: { id: pkg.id },
+      data: updateData,
+    });
+
+    await createLog(
+      userId,
+      "CLAIM_PACKAGE",
+      pkg.id,
+      `認領包裹 ${trackingNumber} ${proofFile ? "(含憑證)" : "(無憑證)"}`
+    );
+
+    res.json({ success: true, message: "認領成功！包裹已歸入您的帳戶。" });
+  } catch (error) {
+    console.error("認領包裹錯誤:", error);
+    res.status(500).json({ success: false, message: "伺服器錯誤" });
+  }
+};
+
+/**
+ * @description 處理/回覆 異常包裹
+ * @route PUT /api/packages/:id/exception
+ */
+const resolveException = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, note } = req.body;
+    const userId = req.user.id;
+
+    const pkg = await prisma.package.findFirst({
+      where: { id, userId },
+    });
+
     if (!pkg) return res.status(404).json({ message: "找不到包裹" });
 
-    // [Fix] 使用 ratesManager 獲取費率，確保安全性與 fallback 機制
+    const newNote = pkg.exceptionNote
+      ? `${pkg.exceptionNote}\n[客戶決定]: ${action} - ${note || ""}`
+      : `[客戶決定]: ${action} - ${note || ""}`;
+
+    await prisma.package.update({
+      where: { id },
+      data: {
+        exceptionNote: newNote,
+      },
+    });
+
+    await createLog(userId, "RESOLVE_EXCEPTION", id, `回覆異常處理: ${action}`);
+
+    res.json({ success: true, message: "已送出處理指示，請等待管理員作業。" });
+  } catch (error) {
+    console.error("異常處理錯誤:", error);
+    res.status(500).json({ message: "伺服器錯誤" });
+  }
+};
+
+/**
+ * @description [Fixed] 取得 "我" 的所有包裹
+ * @summary 修復 500 錯誤，增加費率讀取容錯，並回傳前端需要的 displayType
+ * @route GET /api/packages/my
+ */
+const getMyPackages = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const myPackages = await prisma.package.findMany({
+      where: { userId: userId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // 1. 取得費率設定 (增加安全性檢查)
     const systemRates = await ratesManager.getRates();
-    const CONSTANTS = systemRates.constants || { VOLUME_DIVISOR: 28317 };
+    const CONSTANTS = systemRates.constants || {};
+    const RATES = systemRates.categories || {};
 
-    const updateData = {};
-    if (status) updateData.status = status;
+    // 定義安全常數預設值
+    const SAFE_CONSTANTS = {
+      VOLUME_DIVISOR: CONSTANTS.VOLUME_DIVISOR || 28317,
+      OVERSIZED_LIMIT: CONSTANTS.OVERSIZED_LIMIT || 300,
+      OVERWEIGHT_LIMIT: CONSTANTS.OVERWEIGHT_LIMIT || 100,
+      CBM_TO_CAI_FACTOR: CONSTANTS.CBM_TO_CAI_FACTOR || 35.3,
+    };
 
-    if (boxesData) {
-      try {
-        const boxes = JSON.parse(boxesData);
-        let totalFee = 0;
-
-        const processedBoxes = boxes.map((box) => {
-          const weight = parseFloat(box.weight) || 0;
-          const l = parseFloat(box.length) || 0;
-          const w_dim = parseFloat(box.width) || 0;
-          const h = parseFloat(box.height) || 0;
-
-          // [Fix] 標準化 type 並使用安全查找，避免找不到費率導致運費為 0
-          const rateInfo = ratesManager.getCategoryRate(systemRates, box.type);
-
-          let fee = 0;
-          let cai = 0;
-
-          if (weight > 0 && l > 0 && w_dim > 0 && h > 0) {
-            cai = Math.ceil((l * w_dim * h) / CONSTANTS.VOLUME_DIVISOR);
-            const volCost = cai * rateInfo.volumeRate;
-            const wtCost = (Math.ceil(weight * 10) / 10) * rateInfo.weightRate;
-            fee = Math.max(volCost, wtCost);
-          }
-
-          totalFee += fee;
-          return {
-            ...box,
-            // [Critical Fix] 移除 .toLowerCase()！
-            // 必須保留原始大小寫 (例如 "Special Furniture A")，否則 ratesManager
-            // 在比對區分大小寫的費率 Key 時會失敗，導致降級為一般費率。
-            type: (box.type || "general").trim(),
-            weight,
-            length: l,
-            width: w_dim,
-            height: h,
-            cai,
-            fee,
-          };
-        });
-
-        updateData.arrivedBoxesJson = processedBoxes;
-        updateData.totalCalculatedFee = totalFee;
-      } catch (e) {
-        console.warn("Parse boxesData failed", e);
+    const packagesWithParsedJson = myPackages.map((pkg) => {
+      // 2. 確保 arrivedBoxesJson 是陣列
+      let arrivedBoxes = [];
+      if (Array.isArray(pkg.arrivedBoxesJson)) {
+        arrivedBoxes = pkg.arrivedBoxesJson;
+      } else if (typeof pkg.arrivedBoxesJson === "string") {
+        try {
+          arrivedBoxes = JSON.parse(pkg.arrivedBoxesJson);
+        } catch (e) {}
       }
+
+      let pkgIsOversized = false;
+      let pkgIsOverweight = false;
+      let calculatedTotalFee = 0;
+
+      const enrichedBoxes = arrivedBoxes.map((box) => {
+        const l = parseFloat(box.length) || 0;
+        const w = parseFloat(box.width) || 0;
+        const h = parseFloat(box.height) || 0;
+        const weight = parseFloat(box.weight) || 0;
+
+        // 3. 安全取得費率
+        const type = (box.type || "general").trim().toLowerCase();
+
+        let rateInfo = RATES[type];
+        if (!rateInfo && RATES[box.type]) rateInfo = RATES[box.type];
+        if (!rateInfo) rateInfo = RATES["general"];
+
+        if (!rateInfo) {
+          console.warn(
+            `⚠️ [費率缺失] 包裹單號: ${pkg.trackingNumber}, 找不到費率 Key: '${type}'`
+          );
+          rateInfo = {
+            name: `未知費率(${type})`,
+            weightRate: 0,
+            volumeRate: 0,
+          };
+        }
+
+        const isOversized =
+          l >= SAFE_CONSTANTS.OVERSIZED_LIMIT ||
+          w >= SAFE_CONSTANTS.OVERSIZED_LIMIT ||
+          h >= SAFE_CONSTANTS.OVERSIZED_LIMIT;
+        const isOverweight = weight >= SAFE_CONSTANTS.OVERWEIGHT_LIMIT;
+
+        if (isOversized) pkgIsOversized = true;
+        if (isOverweight) pkgIsOverweight = true;
+
+        let cai = 0,
+          volFee = 0,
+          wtFee = 0,
+          finalFee = 0,
+          isVolWin = false;
+
+        if (l > 0 && w > 0 && h > 0) {
+          cai = Math.ceil((l * w * h) / SAFE_CONSTANTS.VOLUME_DIVISOR);
+          volFee = cai * (rateInfo.volumeRate || 0);
+          wtFee = (Math.ceil(weight * 10) / 10) * (rateInfo.weightRate || 0);
+          finalFee = Math.max(volFee, wtFee);
+          isVolWin = volFee >= wtFee;
+        }
+        calculatedTotalFee += finalFee;
+
+        return {
+          ...box,
+          cai,
+          volFee,
+          wtFee,
+          calculatedFee: finalFee,
+          isVolWin,
+          isOversized,
+          isOverweight,
+          rateType: type,
+          rateName: rateInfo.name || "一般家具",
+          rateDetails: {
+            weightRate: rateInfo.weightRate || 0,
+            volumeRate: rateInfo.volumeRate || 0,
+          },
+        };
+      });
+
+      const finalTotalFee =
+        pkg.totalCalculatedFee > 0
+          ? pkg.totalCalculatedFee
+          : calculatedTotalFee;
+
+      const mainDisplayType =
+        enrichedBoxes.length > 0 ? enrichedBoxes[0].rateName : "一般家具";
+
+      return {
+        ...pkg,
+        arrivedBoxes: enrichedBoxes,
+        arrivedBoxesJson: undefined,
+        isOversized: pkgIsOversized,
+        isOverweight: pkgIsOverweight,
+        totalCalculatedFee: finalTotalFee,
+        displayType: mainDisplayType,
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      count: packagesWithParsedJson.length,
+      packages: packagesWithParsedJson,
+    });
+  } catch (error) {
+    console.error("查詢包裹錯誤 (getMyPackages):", error);
+    res.status(500).json({ success: false, message: "伺服器發生錯誤" });
+  }
+};
+
+/**
+ * @description 會員修改自己的包裹
+ * @summary 修正：允許 PENDING 與 ARRIVED 狀態修改。若為 ARRIVED，只允許「補圖」。
+ * @route PUT /api/packages/:id
+ */
+const updateMyPackage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      trackingNumber,
+      productName,
+      quantity,
+      note,
+      existingImages,
+      productUrl,
+    } = req.body;
+    const userId = req.user.id;
+
+    const pkg = await prisma.package.findFirst({ where: { id, userId } });
+    if (!pkg) return res.status(404).json({ message: "找不到包裹" });
+
+    // [Fix 1] 放寬狀態檢查：允許 PENDING (待入庫) 或 ARRIVED (已入庫)
+    const allowedStatuses = ["PENDING", "ARRIVED"];
+    if (!allowedStatuses.includes(pkg.status)) {
+      return res
+        .status(400)
+        .json({ message: "包裹已出貨或完成，無法再修改資料" });
     }
 
-    let currentImgs = pkg.warehouseImages || [];
-    let keepImgs = [];
+    // 準備更新資料的物件
+    let updateData = {};
+
+    // [Fix 2] 根據狀態決定可修改的欄位 (權限分流)
+    if (pkg.status === "PENDING") {
+      // --- 待入庫：允許修改所有資訊 ---
+
+      // 檢查單號重複 (若有變更)
+      if (trackingNumber && trackingNumber.trim() !== pkg.trackingNumber) {
+        const dup = await prisma.package.findUnique({
+          where: { trackingNumber: trackingNumber.trim() },
+        });
+        if (dup) return res.status(400).json({ message: "該物流單號已存在" });
+        updateData.trackingNumber = trackingNumber.trim();
+      }
+
+      if (productName) updateData.productName = productName;
+      if (quantity) updateData.quantity = parseInt(quantity);
+      if (productUrl !== undefined) updateData.productUrl = productUrl;
+      if (note !== undefined) updateData.note = note;
+    } else if (pkg.status === "ARRIVED") {
+      // --- 已入庫：只允許「補圖」與「備註」 ---
+      // (禁止修改 trackingNumber, productName, quantity, productUrl)
+
+      // 如果前端傳送了關鍵欄位的變更，後端選擇忽略 (或可回傳錯誤，這裡選擇忽略以保持 UX 滑順)
+      // 僅允許更新 note，因為補圖通常會搭配說明
+      if (note !== undefined) updateData.note = note;
+    }
+
+    // --- 圖片處理 (兩個狀態皆通用) ---
+    // 無論是 PENDING 還是 ARRIVED，都允許處理圖片
+    let originalImagesList = pkg.productImages || [];
+    let keepImagesList = [];
     try {
-      keepImgs = JSON.parse(existingImages || "[]");
-    } catch (e) {}
-
-    const toDelete = currentImgs.filter((i) => !keepImgs.includes(i));
-    deleteFiles(toDelete);
-
-    let finalImgs = [...keepImgs];
-    if (req.files && req.files.length > 0) {
-      const newPaths = req.files.map((f) => f.path);
-      finalImgs = [...finalImgs, ...newPaths];
+      keepImagesList = existingImages ? JSON.parse(existingImages) : [];
+    } catch (e) {
+      keepImagesList = [];
     }
-    updateData.warehouseImages = finalImgs.slice(0, 5);
 
-    const updated = await prisma.package.update({
+    // [Cloudinary Note] 不需刪除檔案
+    if (req.files && req.files.length > 0) {
+      // [Cloudinary Mode] 使用 f.path
+      const newPaths = req.files.map((f) => f.path);
+      keepImagesList = [...keepImagesList, ...newPaths];
+    }
+
+    // 將處理好的圖片清單加入更新物件
+    updateData.productImages = keepImagesList.slice(0, 5); // 最多保留 5 張
+
+    // 執行更新
+    const updatedPackage = await prisma.package.update({
       where: { id },
       data: updateData,
     });
 
-    if (status === "ARRIVED" && pkg.status !== "ARRIVED") {
-      // 1. 站內通知
-      await createNotification(
-        pkg.userId,
-        "包裹已入庫",
-        `您的包裹 ${pkg.trackingNumber} 已更新測量數據。`,
-        "PACKAGE",
-        "tab-packages"
-      );
-      // 2. [New] Email 通知
-      await sendPackageArrivedNotification(updated, pkg.user);
-    }
+    res
+      .status(200)
+      .json({ success: true, message: "更新成功", package: updatedPackage });
+  } catch (error) {
+    console.error("更新包裹錯誤:", error);
+    res.status(500).json({ success: false, message: "伺服器錯誤" });
+  }
+};
 
-    await createLog(
-      req.user.id,
-      "UPDATE_PACKAGE_DETAILS",
-      id,
-      "更新詳情(含運費計算 - Fix)"
-    );
-    res.status(200).json({
-      success: true,
-      package: {
-        ...updated,
-        arrivedBoxesJson: updated.arrivedBoxesJson || [],
-        warehouseImages: updated.warehouseImages || [],
-      },
-    });
-  } catch (e) {
-    console.error("Update Package Details Error:", e);
-    res.status(500).json({ success: false, message: e.message });
+/**
+ * @description 會員刪除自己的包裹
+ * @route DELETE /api/packages/:id
+ */
+const deleteMyPackage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const pkg = await prisma.package.findFirst({ where: { id, userId } });
+    if (!pkg) return res.status(404).json({ message: "找不到包裹" });
+    if (pkg.status !== "PENDING")
+      return res.status(400).json({ message: "包裹已處理，無法刪除" });
+
+    // [Cloudinary] 無需刪除檔案，deleteFiles 為空函式
+    deleteFiles([...(pkg.productImages || []), ...(pkg.warehouseImages || [])]);
+
+    await prisma.package.delete({ where: { id } });
+    res.status(200).json({ success: true, message: "刪除成功" });
+  } catch (error) {
+    console.error("刪除包裹錯誤:", error);
+    res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
 };
 
 module.exports = {
-  getAllPackages,
-  exportPackages,
-  bulkUpdatePackageStatus,
-  bulkDeletePackages,
-  adminCreatePackage,
-  adminDeletePackage,
-  updatePackageStatus,
-  updatePackageDetails,
+  createPackageForecast,
+  bulkForecast,
+  claimPackage,
+  getUnclaimedPackages,
+  resolveException,
+  getMyPackages,
+  updateMyPackage,
+  deleteMyPackage,
 };
