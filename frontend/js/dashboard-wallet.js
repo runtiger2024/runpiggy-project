@@ -1,7 +1,18 @@
 // frontend/js/dashboard-wallet.js
-// V29.0 - Auto-fill Tax Info from User Profile
+// V30.0 - Fix Cloudinary Image Path & Optimize UI
 
-// --- 函式定義 ---
+// --- 輔助函式：處理圖片路徑 (Fix Broken Images) ---
+function getImageUrl(path) {
+  if (!path) return null;
+  // 如果是 Cloudinary 或外部連結 (http/https 開頭)，直接回傳
+  if (path.startsWith("http") || path.startsWith("https")) {
+    return path;
+  }
+  // 否則視為本地路徑，補上 API_BASE_URL
+  // 確保路徑以 / 開頭
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE_URL}${cleanPath}`;
+}
 
 // [NEW] 獨立更新全域餘額顯示 (Header / Profile)
 window.updateGlobalWalletDisplay = async function () {
@@ -61,7 +72,7 @@ window.loadWalletData = async function () {
   }
 };
 
-// [UI 優化] 交易列表渲染 (新增顏色與圖示)
+// [UI 優化] 交易列表渲染 (新增顏色、圖示與憑證查看)
 function renderTransactions(txs) {
   const listEl = document.getElementById("transaction-list");
   if (!listEl) return;
@@ -124,6 +135,20 @@ function renderTransactions(txs) {
       taxHtml = `<span style="font-size:11px; color:#666; display:block;">統編: ${tx.taxId}</span>`;
     }
 
+    // [Fix] 憑證按鈕顯示 (使用 getImageUrl 處理路徑)
+    let proofBtnHtml = "";
+    if (tx.proofImage) {
+      const safeUrl = getImageUrl(tx.proofImage);
+      if (safeUrl) {
+        proofBtnHtml = `
+          <div style="margin-top:4px;">
+            <a href="${safeUrl}" target="_blank" class="btn btn-sm btn-outline-secondary" style="font-size:11px; padding:2px 6px; text-decoration:none;">
+              <i class="fas fa-image"></i> 查看憑證
+            </a>
+          </div>`;
+      }
+    }
+
     html += `
             <tr style="border-left: 3px solid ${typeInfo.color};">
                 <td>
@@ -143,6 +168,7 @@ function renderTransactions(txs) {
                     ${tx.description || "-"}
                     ${taxHtml}
                     ${invHtml}
+                    ${proofBtnHtml} 
                 </td>
                 <td class="${amountClass}" style="font-weight:bold; font-family:monospace; font-size:1.1em; text-align:right;">
                     ${amountSign}${tx.amount.toLocaleString()}
@@ -222,7 +248,8 @@ async function handleDepositSubmit(e) {
   // 先取得欄位值進行驗證
   const amount = document.getElementById("dep-amount").value;
   const desc = document.getElementById("dep-note").value;
-  const file = document.getElementById("dep-proof").files[0];
+  const fileInput = document.getElementById("dep-proof");
+  const file = fileInput.files[0];
 
   // [NEW] 取得統編欄位
   const taxId = document.getElementById("dep-taxId")
@@ -268,6 +295,7 @@ async function handleDepositSubmit(e) {
     }
   } catch (e) {
     alert("網路錯誤");
+    console.error(e);
   } finally {
     btn.disabled = false;
     btn.textContent = "提交申請";

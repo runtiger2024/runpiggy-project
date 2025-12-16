@@ -1,4 +1,5 @@
 // frontend/js/admin-finance.js
+// V1.3 - Fix Image Path for Cloudinary & Optimize UI
 
 document.addEventListener("DOMContentLoaded", () => {
   const token = localStorage.getItem("admin_token");
@@ -16,74 +17,85 @@ document.addEventListener("DOMContentLoaded", () => {
     loadTransactions();
 
     // 綁定篩選器
-    document.getElementById("btn-search").addEventListener("click", () => {
-      currentPage = 1;
-      loadTransactions();
-    });
+    const btnSearch = document.getElementById("btn-search");
+    if (btnSearch) {
+      btnSearch.addEventListener("click", () => {
+        currentPage = 1;
+        loadTransactions();
+      });
+    }
 
     // 綁定 Modal 關閉
     document.querySelectorAll(".modal-close-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
-        document.getElementById("proof-modal").style.display = "none";
-        document.getElementById("adjust-modal").style.display = "none";
+        const proofModal = document.getElementById("proof-modal");
+        const adjustModal = document.getElementById("adjust-modal");
+        if (proofModal) proofModal.style.display = "none";
+        if (adjustModal) adjustModal.style.display = "none";
       });
     });
 
     // 綁定審核按鈕
-    document
-      .getElementById("btn-approve")
-      .addEventListener("click", () => submitReview("APPROVE"));
-    document
-      .getElementById("btn-reject")
-      .addEventListener("click", () => submitReview("REJECT"));
+    const btnApprove = document.getElementById("btn-approve");
+    const btnReject = document.getElementById("btn-reject");
+    if (btnApprove)
+      btnApprove.addEventListener("click", () => submitReview("APPROVE"));
+    if (btnReject)
+      btnReject.addEventListener("click", () => submitReview("REJECT"));
 
     // 綁定手動調整按鈕
-    document
-      .getElementById("btn-manual-adjust")
-      .addEventListener("click", () => {
+    const btnManualAdjust = document.getElementById("btn-manual-adjust");
+    if (btnManualAdjust) {
+      btnManualAdjust.addEventListener("click", () => {
         document.getElementById("adjust-form").reset();
         document.getElementById("adjust-user-id").value = "";
         document.getElementById("adjust-modal").style.display = "flex";
       });
+    }
 
     // 綁定會員搜尋 (手動調整用)
     const searchInput = document.getElementById("adjust-search-user");
     const resultsDiv = document.getElementById("user-search-results");
 
-    searchInput.addEventListener("input", async (e) => {
-      const val = e.target.value.trim();
-      if (val.length < 2) {
-        resultsDiv.style.display = "none";
-        return;
-      }
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/api/admin/users/list?search=${val}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-        const data = await res.json();
-        if (data.users && data.users.length > 0) {
-          resultsDiv.innerHTML = data.users
-            .map(
-              (u) =>
-                `<div class="p-2 border-bottom" style="cursor:pointer; hover:background:#f0f0f0;" onclick="selectUser('${u.id}', '${u.email}', '${u.name}')">
+    if (searchInput) {
+      searchInput.addEventListener("input", async (e) => {
+        const val = e.target.value.trim();
+        if (val.length < 2) {
+          resultsDiv.style.display = "none";
+          return;
+        }
+        try {
+          const res = await fetch(
+            `${API_BASE_URL}/api/admin/users/list?search=${val}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+          const data = await res.json();
+          if (data.users && data.users.length > 0) {
+            resultsDiv.innerHTML = data.users
+              .map(
+                (u) =>
+                  `<div class="p-2 border-bottom" style="cursor:pointer; hover:background:#f0f0f0;" onclick="selectUser('${u.id}', '${u.email}', '${u.name}')">
                             ${u.name} (${u.email})
                         </div>`
-            )
-            .join("");
-          resultsDiv.style.display = "block";
-        } else {
-          resultsDiv.style.display = "none";
+              )
+              .join("");
+            resultsDiv.style.display = "block";
+          } else {
+            resultsDiv.style.display = "none";
+          }
+        } catch (e) {
+          console.error("Search users error:", e);
         }
-      } catch (e) {}
-    });
+      });
+    }
 
     // 綁定手動調整送出
-    document
-      .getElementById("adjust-form")
-      .addEventListener("submit", handleManualAdjust);
+    const adjustForm = document.getElementById("adjust-form");
+    if (adjustForm) {
+      adjustForm.addEventListener("submit", handleManualAdjust);
+    }
   }
 
   // 全域函式：選擇會員
@@ -95,12 +107,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadTransactions() {
     const tbody = document.getElementById("transaction-list");
+    if (!tbody) return;
+
     tbody.innerHTML =
       '<tr><td colspan="8" class="text-center p-3">載入中...</td></tr>';
 
-    const status = document.getElementById("status-filter").value;
-    const type = document.getElementById("type-filter").value;
-    const search = document.getElementById("search-input").value;
+    const statusEl = document.getElementById("status-filter");
+    const typeEl = document.getElementById("type-filter");
+    const searchEl = document.getElementById("search-input");
+
+    const status = statusEl ? statusEl.value : "";
+    const type = typeEl ? typeEl.value : "";
+    const search = searchEl ? searchEl.value : "";
 
     try {
       let url = `${API_BASE_URL}/api/admin/finance/transactions?page=${currentPage}&limit=${limit}`;
@@ -120,6 +138,7 @@ document.addEventListener("DOMContentLoaded", () => {
         tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">錯誤: ${data.message}</td></tr>`;
       }
     } catch (e) {
+      console.error(e);
       tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">連線錯誤</td></tr>`;
     }
   }
@@ -150,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (tx.status === "REJECTED")
         statusBadge = `<span class="badge bg-danger text-white">已駁回</span>`;
 
-      // [新增] 發票狀態顯示邏輯
+      // 發票狀態顯示邏輯
       let invoiceHtml = '<span style="color:#ccc;">-</span>';
       if (tx.type === "DEPOSIT" && tx.status === "COMPLETED") {
         if (tx.invoiceStatus === "ISSUED" && tx.invoiceNumber) {
@@ -168,18 +187,21 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
 
-      // 憑證按鈕
+      // 憑證按鈕 (安全處理)
       let proofHtml = tx.description || "-";
       if (tx.proofImage) {
-        proofHtml += `<br><button class="btn btn-sm btn-outline-info mt-1" onclick="viewProof('${tx.id}', '${tx.proofImage}', '${tx.status}')"><i class="fas fa-image"></i> 查看憑證</button>`;
+        // 簡單處理可能的單引號問題
+        const safeProofImg = tx.proofImage.replace(/'/g, "\\'");
+        proofHtml += `<br><button class="btn btn-sm btn-outline-info mt-1" onclick="viewProof('${tx.id}', '${safeProofImg}', '${tx.status}')"><i class="fas fa-image"></i> 查看憑證</button>`;
       }
 
       // 操作按鈕
       let actionHtml = "-";
       if (tx.status === "PENDING") {
-        actionHtml = `<button class="btn btn-sm btn-primary" onclick="viewProof('${
-          tx.id
-        }', '${tx.proofImage || ""}', '${tx.status}')">審核</button>`;
+        const safeProofImg = tx.proofImage
+          ? tx.proofImage.replace(/'/g, "\\'")
+          : "";
+        actionHtml = `<button class="btn btn-sm btn-primary" onclick="viewProof('${tx.id}', '${safeProofImg}', '${tx.status}')">審核</button>`;
       }
 
       tr.innerHTML = `
@@ -203,7 +225,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 檢視憑證與審核
+  // 檢視憑證與審核 (修復版：支援 Cloudinary 完整網址)
   window.viewProof = function (id, imgUrl, status) {
     currentProofTxId = id;
     const modal = document.getElementById("proof-modal");
@@ -211,10 +233,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const actions = document.getElementById("review-actions");
 
     if (imgUrl) {
-      img.src = `${API_BASE_URL}${imgUrl}`;
+      // 判斷是否為完整網址 (Cloudinary) 或 本地路徑
+      if (imgUrl.startsWith("http://") || imgUrl.startsWith("https://")) {
+        img.src = imgUrl;
+      } else {
+        // 確保沒有雙重斜線 (可選)
+        const cleanPath = imgUrl.startsWith("/") ? imgUrl : `/${imgUrl}`;
+        img.src = `${API_BASE_URL}${cleanPath}`;
+      }
       img.style.display = "block";
     } else {
       img.style.display = "none";
+      img.src = ""; // 清空避免顯示上一張圖
     }
 
     // 只有 PENDING 狀態才顯示審核按鈕
@@ -262,20 +292,22 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (e) {
       alert("錯誤");
+      console.error(e);
     }
   }
 
-  // [新增] 手動補開功能
+  // 手動補開功能
   window.issueInvoice = async function (id) {
     if (
       !confirm("確定要手動補開這筆儲值的電子發票嗎？\n(系統將發送資料至 AMEGO)")
     )
       return;
 
+    const btn = event.currentTarget; // 抓取當前按鈕
+    const originalContent = btn.innerHTML;
+
     try {
       // 顯示 Loading
-      const btn = event.target; // 簡單抓取當前按鈕
-      const originalText = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
@@ -284,7 +316,7 @@ document.addEventListener("DOMContentLoaded", () => {
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("admin_token")}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
@@ -293,16 +325,17 @@ document.addEventListener("DOMContentLoaded", () => {
       if (res.ok) {
         alert(`成功！發票號碼：${data.invoiceNumber}`);
         // 重新載入列表
-        const searchBtn = document.getElementById("btn-search");
-        if (searchBtn) searchBtn.click();
+        loadTransactions();
       } else {
         alert(`失敗：${data.message}`);
         btn.disabled = false;
-        btn.innerHTML = originalText;
+        btn.innerHTML = originalContent;
       }
     } catch (e) {
       alert("連線錯誤");
       console.error(e);
+      btn.disabled = false;
+      btn.innerHTML = originalContent;
     }
   };
 
@@ -346,12 +379,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderPagination(pg) {
     const div = document.getElementById("pagination");
+    if (!div) return;
+
     div.innerHTML = "";
     if (pg.totalPages <= 1) return;
 
     const prev = document.createElement("button");
     prev.className = "btn btn-sm btn-light";
     prev.innerText = "上一頁";
+    prev.disabled = currentPage <= 1;
     prev.onclick = () => {
       if (currentPage > 1) {
         currentPage--;
@@ -362,6 +398,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const next = document.createElement("button");
     next.className = "btn btn-sm btn-light";
     next.innerText = "下一頁";
+    next.disabled = currentPage >= pg.totalPages;
     next.onclick = () => {
       if (currentPage < pg.totalPages) {
         currentPage++;
@@ -371,6 +408,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const info = document.createElement("span");
     info.className = "btn btn-sm disabled";
+    info.style.border = "none";
     info.innerText = `${currentPage} / ${pg.totalPages}`;
 
     div.appendChild(prev);

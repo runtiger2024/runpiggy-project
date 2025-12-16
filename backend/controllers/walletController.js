@@ -1,10 +1,10 @@
 // backend/controllers/walletController.js
-// V1.6 - Strict Validation for Deposit & Email Notification
+// V1.7 - Fix Cloudinary Path & Validate Deposit
 
 const prisma = require("../config/db.js");
 const createLog = require("../utils/createLog.js");
-const fs = require("fs"); // 引入 fs
-// 引入 Email 通知 (新增：通知客戶儲值申請)
+const fs = require("fs");
+// 引入 Email 通知
 const { sendDepositRequestNotification } = require("../utils/sendEmail.js");
 
 const getMyWallet = async (req, res) => {
@@ -50,16 +50,32 @@ const requestDeposit = async (req, res) => {
         .json({ success: false, message: "請上傳轉帳憑證" });
     }
 
+    // [Fix] 判斷是否為 Cloudinary 上傳
+    // Cloudinary 的 path 會是 http 開頭的網址；本地上傳則是檔案路徑
+    let proofImagePath;
+    if (
+      proofFile.path &&
+      (proofFile.path.startsWith("http") || proofFile.path.startsWith("https"))
+    ) {
+      // Cloudinary 模式：直接存完整網址
+      proofImagePath = proofFile.path;
+    } else {
+      // 本地模式：補上 uploads 路徑
+      proofImagePath = `/uploads/${proofFile.filename}`;
+    }
+
     // [Backend Validation] 統編與抬頭的一致性檢查
     if (
       taxId &&
       taxId.trim() !== "" &&
       (!invoiceTitle || invoiceTitle.trim() === "")
     ) {
-      // 驗證失敗：刪除上傳的檔案
-      fs.unlink(proofFile.path, (err) => {
-        if (err) console.warn("刪除暫存檔案失敗:", err.message);
-      });
+      // 驗證失敗：只有在本地檔案時才執行刪除，避免對 Cloudinary URL 報錯
+      if (!proofImagePath.startsWith("http")) {
+        fs.unlink(proofFile.path, (err) => {
+          if (err) console.warn("刪除暫存檔案失敗:", err.message);
+        });
+      }
       return res.status(400).json({
         success: false,
         message: "填寫統一編號時，公司抬頭為必填項目",
@@ -72,7 +88,7 @@ const requestDeposit = async (req, res) => {
       create: { userId, balance: 0 },
     });
 
-    // [Data Sync] 建立交易紀錄時寫入 taxId / invoiceTitle
+    // [Data Sync] 建立交易紀錄
     const transaction = await prisma.transaction.create({
       data: {
         wallet: { connect: { userId } },
@@ -80,7 +96,7 @@ const requestDeposit = async (req, res) => {
         type: "DEPOSIT",
         status: "PENDING",
         description: description || "會員申請儲值",
-        proofImage: `/uploads/${proofFile.filename}`,
+        proofImage: proofImagePath, // 使用修正後的路徑
         taxId: taxId || null,
         invoiceTitle: invoiceTitle || null,
       },
@@ -93,7 +109,7 @@ const requestDeposit = async (req, res) => {
       `申請儲值 $${amount} ${taxId ? "(含統編)" : ""}`
     );
 
-    // 觸發 Email 通知 (新增)
+    // 觸發 Email 通知
     try {
       await sendDepositRequestNotification(transaction, req.user);
     } catch (e) {
@@ -106,7 +122,10 @@ const requestDeposit = async (req, res) => {
       transaction,
     });
   } catch (error) {
-    if (req.file) fs.unlink(req.file.path, () => {});
+    // 發生錯誤時的清理邏輯
+    if (req.file && req.file.path && !req.file.path.startsWith("http")) {
+      fs.unlink(req.file.path, () => {});
+    }
     console.error("儲值申請失敗:", error);
     res.status(500).json({ success: false, message: "伺服器錯誤" });
   }
