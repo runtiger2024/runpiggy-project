@@ -1,5 +1,6 @@
 // frontend/js/admin-parcels.js
 // V2025.AutoArrive - 自動切換入庫狀態 & [Feature] 快速設為無主件 & Status Counts & [View] Client Images/Url
+// [Patch] Cloudinary URL Fix: Added checks for absolute URLs to prevent broken images
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -438,7 +439,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (pkg.productImages && pkg.productImages.length > 0) {
       clientSection.style.display = "block";
       pkg.productImages.forEach((img) => {
-        const fullUrl = `${API_BASE_URL}${img}`;
+        // [Fixed] 如果是完整 URL (http 開頭) 則不加 API_BASE_URL
+        const fullUrl = img.startsWith("http") ? img : `${API_BASE_URL}${img}`;
         clientImgDiv.innerHTML += `
             <a href="${fullUrl}" target="_blank" title="點擊放大">
                 <img src="${fullUrl}" style="width:80px; height:80px; object-fit:cover; border:1px solid #ddd; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
@@ -698,9 +700,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const container = document.getElementById("modal-warehouse-images-preview");
     container.innerHTML = "";
     images.forEach((url, idx) => {
+      // [Fixed] 如果是完整 URL (http 開頭) 則不加 API_BASE_URL
+      const src = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
       container.innerHTML += `
             <div style="position:relative;">
-                <img src="${API_BASE_URL}${url}" style="width:60px; height:60px; object-fit:cover; border-radius:4px; border:1px solid #ddd;">
+                <img src="${src}" style="width:60px; height:60px; object-fit:cover; border-radius:4px; border:1px solid #ddd;">
                 <div onclick="deleteImage(${idx})" style="position:absolute; top:-5px; right:-5px; background:red; color:white; border-radius:50%; width:18px; height:18px; text-align:center; line-height:18px; cursor:pointer; font-size:12px;">&times;</div>
             </div>
           `;

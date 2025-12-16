@@ -1,6 +1,6 @@
 // frontend/js/dashboard-packages.js
 // V2025.Final.UltimateFix - 包含智慧文字比對、強制前端重算、Excel與預報功能完整保留
-// [Update] 新增：打包前強制檢查購買連結/圖片 (待完善狀態)
+// [Patch] Cloudinary URL Fix: Added checks for absolute URLs to prevent broken images
 
 let currentEditPackageImages = [];
 
@@ -487,7 +487,7 @@ window.resolveException = function (pkgId) {
     .catch(() => alert("操作失敗"));
 };
 
-// --- 5. 包裹詳情與透明化運費展示 (Updated: 智慧比對 + 強制前端重算) ---
+// --- 5. 包裹詳情與透明化運費展示 (Updated: 智慧比對 + 強制前端重算 + Cloudinary Fix) ---
 window.openPackageDetails = function (pkgDataStr) {
   try {
     const pkg = JSON.parse(decodeURIComponent(pkgDataStr));
@@ -671,7 +671,10 @@ window.openPackageDetails = function (pkgDataStr) {
     if (warehouseImages.length > 0) {
       warehouseImages.forEach((imgUrl) => {
         const img = document.createElement("img");
-        img.src = `${API_BASE_URL}${imgUrl}`;
+        // [Fixed] 如果是完整 URL (http 開頭) 則不加 API_BASE_URL
+        img.src = imgUrl.startsWith("http")
+          ? imgUrl
+          : `${API_BASE_URL}${imgUrl}`;
         img.className = "warehouse-thumb";
         img.style.cssText =
           "width:100%; height:80px; object-fit:cover; border-radius:4px; cursor:zoom-in; border:1px solid #ddd;";
@@ -684,9 +687,13 @@ window.openPackageDetails = function (pkgDataStr) {
     }
 
     if (pkg.claimProof) {
+      // [Fixed] Cloudinary URL 處理
+      const proofSrc = pkg.claimProof.startsWith("http")
+        ? pkg.claimProof
+        : `${API_BASE_URL}${pkg.claimProof}`;
       imagesGallery.innerHTML += `<div style="grid-column:1/-1; margin-top:10px; border-top:1px dashed #ccc; padding-top:10px;">
             <p style="font-size:12px; color:#666;">認領憑證：</p>
-            <img src="${API_BASE_URL}${pkg.claimProof}" style="max-height:100px; cursor:pointer;" onclick="window.open(this.src)">
+            <img src="${proofSrc}" style="max-height:100px; cursor:pointer;" onclick="window.open(this.src)">
         </div>`;
     }
 
@@ -730,7 +737,9 @@ function renderEditImages() {
   if (!container) return;
   container.innerHTML = "";
   currentEditPackageImages.forEach((url, idx) => {
-    container.innerHTML += `<div style="position:relative; display:inline-block; margin:5px;"><img src="${API_BASE_URL}${url}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;"><span onclick="removeEditImg(${idx})" style="position:absolute;top:-5px;right:-5px;background:red;color:white;border-radius:50%;width:20px;height:20px;text-align:center;cursor:pointer;">&times;</span></div>`;
+    // [Fixed] 如果是完整 URL (http 開頭) 則不加 API_BASE_URL
+    const src = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+    container.innerHTML += `<div style="position:relative; display:inline-block; margin:5px;"><img src="${src}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;"><span onclick="removeEditImg(${idx})" style="position:absolute;top:-5px;right:-5px;background:red;color:white;border-radius:50%;width:20px;height:20px;text-align:center;cursor:pointer;">&times;</span></div>`;
   });
 }
 

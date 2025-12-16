@@ -1,5 +1,6 @@
 // frontend/js/admin-unclaimed.js
 // V2025 - 無主包裹與認領審核邏輯
+// [Patch] Cloudinary URL Fix: Added checks for absolute URLs
 
 document.addEventListener("DOMContentLoaded", () => {
   const token = localStorage.getItem("admin_token");
@@ -95,7 +96,11 @@ document.addEventListener("DOMContentLoaded", () => {
       // 憑證顯示
       let proofHtml = "-";
       if (pkg.claimProof) {
-        proofHtml = `<img src="${API_BASE_URL}${pkg.claimProof}" class="proof-img" onclick="showImage('${API_BASE_URL}${pkg.claimProof}')" title="點擊放大">`;
+        // [Fixed] 如果是完整 URL (http 開頭) 則不加 API_BASE_URL
+        const src = pkg.claimProof.startsWith("http")
+          ? pkg.claimProof
+          : `${API_BASE_URL}${pkg.claimProof}`;
+        proofHtml = `<img src="${src}" class="proof-img" onclick="showImage('${src}')" title="點擊放大">`;
       }
 
       // 會員資訊與標示
