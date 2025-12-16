@@ -182,7 +182,7 @@ const createInvoice = async (shipment, user) => {
 
   const productItems = [
     {
-      Description: "國際運費",
+      Description: "理貨費",
       Quantity: 1,
       Unit: "式",
       UnitPrice: unitPrice,
@@ -220,7 +220,7 @@ const createInvoice = async (shipment, user) => {
     TotalAmount: total,
     FreeTaxSalesAmount: 0,
     ZeroTaxSalesAmount: 0,
-    ItemName: "國際運費",
+    ItemName: "理貨費",
     ItemCount: "1",
     ItemUnit: "式",
     ItemPrice: unitPrice,
@@ -368,7 +368,7 @@ const createDepositInvoice = async (transaction, user) => {
 
   const productItems = [
     {
-      Description: "運費儲值金",
+      Description: "理貨費",
       Quantity: 1,
       Unit: "式",
       UnitPrice: unitPrice,
@@ -392,7 +392,7 @@ const createDepositInvoice = async (transaction, user) => {
     TotalAmount: total,
     FreeTaxSalesAmount: 0,
     ZeroTaxSalesAmount: 0,
-    ItemName: "運費儲值金",
+    ItemName: "理貨費",
     ItemCount: "1",
     ItemUnit: "式",
     ItemPrice: unitPrice,
