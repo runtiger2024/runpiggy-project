@@ -1,34 +1,31 @@
-// backend/utils/upload.js (Cloudinary Version)
+// backend/utils/upload.js (Cloudinary Version - Optimized)
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const path = require("path");
 
 // 1. 設定 Cloudinary 連線資訊
-// 這些變數會從環境變數 (.env) 讀取，確保您的密鑰安全
+// 加入 secure: true 以強制回傳 HTTPS 網址，解決混合內容 (Mixed Content) 造成的破圖問題
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
 });
 
 // 2. 設定儲存引擎 (CloudinaryStorage)
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: async (req, file) => {
-    // (A) 處理中文檔名 (雖然雲端會自動編碼，但保留原意是好習慣)
-    let originalName = "unknown";
-    if (file.originalname) {
-      originalName = Buffer.from(file.originalname, "latin1").toString("utf8");
-    }
-    // 去除副檔名，Cloudinary 會自動處理
-    const publicId = path.parse(originalName).name;
+    // (A) 優化檔名處理：
+    // 不使用原始檔名 (file.originalname) 作為 public_id，避免中文編碼導致 URL 錯誤或亂碼
+    // 改用 "時間戳-隨機碼" 確保全域唯一性與 URL 安全性
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
 
     return {
       folder: "runpiggy-uploads", // 您在 Cloudinary 上的資料夾名稱
       allowed_formats: ["jpg", "jpeg", "png", "gif", "webp"],
-      // 使用 "時間戳-檔名" 確保唯一性
-      public_id: `${Date.now()}-${publicId}`,
+      public_id: uniqueSuffix, // 例如: 1734318000000-123456789
     };
   },
 });

@@ -1,5 +1,5 @@
 // backend/controllers/walletController.js
-// V1.7 - Fix Cloudinary Path & Validate Deposit
+// V1.8 - Fix Cloudinary Broken Images (HTTPS) & Optimize Path Logic
 
 const prisma = require("../config/db.js");
 const createLog = require("../utils/createLog.js");
@@ -50,18 +50,22 @@ const requestDeposit = async (req, res) => {
         .json({ success: false, message: "請上傳轉帳憑證" });
     }
 
-    // [Fix] 判斷是否為 Cloudinary 上傳
-    // Cloudinary 的 path 會是 http 開頭的網址；本地上傳則是檔案路徑
+    // [Fix] 優化路徑處理邏輯，確保圖片不破圖
     let proofImagePath;
+
+    // 檢查是否為 Cloudinary 網址 (http 或 https 開頭)
     if (
       proofFile.path &&
       (proofFile.path.startsWith("http") || proofFile.path.startsWith("https"))
     ) {
-      // Cloudinary 模式：直接存完整網址
-      proofImagePath = proofFile.path;
-    } else {
-      // 本地模式：補上 uploads 路徑
+      // 強制將 http 取代為 https，避免 Mixed Content 導致圖片無法顯示
+      proofImagePath = proofFile.path.replace(/^http:\/\//i, "https://");
+    } else if (proofFile.filename) {
+      // 本地模式 (fallback)：若 Cloudinary 上傳失敗或未設定，回退到本地 uploads
       proofImagePath = `/uploads/${proofFile.filename}`;
+    } else {
+      // 極端情況防呆
+      proofImagePath = "";
     }
 
     // [Backend Validation] 統編與抬頭的一致性檢查
@@ -70,8 +74,8 @@ const requestDeposit = async (req, res) => {
       taxId.trim() !== "" &&
       (!invoiceTitle || invoiceTitle.trim() === "")
     ) {
-      // 驗證失敗：只有在本地檔案時才執行刪除，避免對 Cloudinary URL 報錯
-      if (!proofImagePath.startsWith("http")) {
+      // 驗證失敗：若為本地檔案則刪除，Cloudinary 檔案雖已上傳但不寫入 DB (日後可透過腳本清理)
+      if (proofFile.path && !proofFile.path.startsWith("http")) {
         fs.unlink(proofFile.path, (err) => {
           if (err) console.warn("刪除暫存檔案失敗:", err.message);
         });
@@ -82,6 +86,7 @@ const requestDeposit = async (req, res) => {
       });
     }
 
+    // 確保錢包存在
     const wallet = await prisma.wallet.upsert({
       where: { userId },
       update: {},
@@ -96,7 +101,7 @@ const requestDeposit = async (req, res) => {
         type: "DEPOSIT",
         status: "PENDING",
         description: description || "會員申請儲值",
-        proofImage: proofImagePath, // 使用修正後的路徑
+        proofImage: proofImagePath, // 使用修正後的 HTTPS 路徑
         taxId: taxId || null,
         invoiceTitle: invoiceTitle || null,
       },
@@ -122,7 +127,7 @@ const requestDeposit = async (req, res) => {
       transaction,
     });
   } catch (error) {
-    // 發生錯誤時的清理邏輯
+    // 發生錯誤時的清理邏輯 (僅限本地檔案)
     if (req.file && req.file.path && !req.file.path.startsWith("http")) {
       fs.unlink(req.file.path, () => {});
     }
