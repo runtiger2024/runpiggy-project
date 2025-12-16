@@ -218,7 +218,7 @@ const adminCreatePackage = async (req, res) => {
 
     let imagePaths = [];
     if (req.files && req.files.length > 0)
-      imagePaths = req.files.map((file) => `/uploads/${file.filename}`);
+      imagePaths = req.files.map((file) => file.path);
 
     const newPackage = await prisma.package.create({
       data: {
@@ -404,7 +404,7 @@ const updatePackageDetails = async (req, res) => {
 
     let finalImgs = [...keepImgs];
     if (req.files && req.files.length > 0) {
-      const newPaths = req.files.map((f) => `/uploads/${f.filename}`);
+      const newPaths = req.files.map((f) => f.path);
       finalImgs = [...finalImgs, ...newPaths];
     }
     updateData.warehouseImages = finalImgs.slice(0, 5);
@@ -457,4 +457,3 @@ module.exports = {
   updatePackageStatus,
   updatePackageDetails,
 };
- 
