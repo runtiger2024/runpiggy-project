@@ -1,5 +1,5 @@
 // frontend/js/dashboard-main.js
-// V29.5 - Fix Event Listener Issue for Dynamic Modals
+// V29.6 - Fix Image Broken Links for Cloudinary
 
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.dashboardToken) {
@@ -116,9 +116,6 @@ function bindForms() {
       "submit",
       window.handleCreateShipmentSubmit
     );
-
-  // [修改] 移除這裡的 upload-proof-form 綁定，改用上方的 document.body 事件委派
-  // 因為 bindForms 執行時，upload-proof-modal 可能還沒被載入到 DOM 中
 
   const profileForm = document.getElementById("edit-profile-form");
   if (profileForm) {
@@ -755,7 +752,14 @@ window.openShipmentDetails = async function (id) {
                 <i class="fas fa-wallet"></i> 使用錢包餘額支付
             </div>`;
       } else {
-        gallery.innerHTML += `<div style="text-align:center;"><p>付款憑證</p><img src="${API_BASE_URL}${s.paymentProof}" onclick="window.open(this.src)" style="max-width:100px; cursor:pointer; border:1px solid #ccc; padding:2px;"></div>`;
+        // [FIX] 檢查是否為完整網址
+        const proofSrc =
+          s.paymentProof.startsWith("http") ||
+          s.paymentProof.startsWith("https")
+            ? s.paymentProof
+            : `${API_BASE_URL}${s.paymentProof}`;
+
+        gallery.innerHTML += `<div style="text-align:center;"><p>付款憑證</p><img src="${proofSrc}" onclick="window.open(this.src)" style="max-width:100px; cursor:pointer; border:1px solid #ccc; padding:2px;"></div>`;
       }
     } else {
       gallery.innerHTML = `<span style="color:#999; font-size:13px;">尚未上傳</span>`;

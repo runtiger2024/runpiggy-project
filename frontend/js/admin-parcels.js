@@ -1,6 +1,5 @@
 // frontend/js/admin-parcels.js
-// V2025.AutoArrive - 自動切換入庫狀態 & [Feature] 快速設為無主件 & Status Counts & [View] Client Images/Url
-// [Patch] Cloudinary URL Fix: Added checks for absolute URLs to prevent broken images
+// V2025.Fixed - Solved Broken Claim Proof Image & Cloudinary Path Issues
 
 document.addEventListener("DOMContentLoaded", () => {
   const adminToken = localStorage.getItem("admin_token");
@@ -77,7 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     form.addEventListener("submit", handleFormSubmit);
 
-    // [New] 綁定「設為無主件」按鈕
+    // 綁定「設為無主件」按鈕
     const btnSetUnclaimed = document.getElementById("btn-set-unclaimed");
     if (btnSetUnclaimed) {
       btnSetUnclaimed.addEventListener("click", setAsUnclaimedUser);
@@ -86,7 +85,7 @@ document.addEventListener("DOMContentLoaded", () => {
     loadParcels();
   }
 
-  // --- [New] 更新下拉選單數字 ---
+  // --- 更新下拉選單數字 ---
   function updateStatusCounts(counts) {
     if (!counts) return;
     const options = statusFilterSelect.options;
@@ -96,14 +95,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const opt = options[i];
       const statusKey = opt.value;
 
-      // 保存原始文字以便重複更新
       if (!opt.hasAttribute("data-original-text")) {
         opt.setAttribute("data-original-text", opt.innerText);
       }
       const originalText = opt.getAttribute("data-original-text");
 
       if (statusKey === "") {
-        // "所有狀態"
         opt.innerText = `${originalText} (${total})`;
       } else {
         const count = counts[statusKey] || 0;
@@ -112,19 +109,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- [New] 快速設定為無主件 ---
+  // --- 快速設定為無主件 ---
   async function setAsUnclaimedUser() {
     const searchInput = document.getElementById("admin-customer-search");
     const resultDiv = document.getElementById("admin-customer-search-results");
 
-    // 鎖定按鈕避免重複點擊
     const btn = document.getElementById("btn-set-unclaimed");
     const originalText = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 搜尋中...';
 
     try {
-      // 搜尋官方無主帳號 (由 Seed 建立)
       const keyword = "unclaimed@runpiggy.com";
       const res = await fetch(
         `${API_BASE_URL}/api/admin/users/list?search=${encodeURIComponent(
@@ -135,11 +130,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
 
       if (data.users && data.users.length > 0) {
-        // 找到帳號，直接選取
         const user = data.users[0];
         selectUser(user.id, user.email, user.name);
-        // 額外提示
-        searchInput.style.backgroundColor = "#fff3cd"; // 黃色底色提示
+        searchInput.style.backgroundColor = "#fff3cd";
         setTimeout(() => (searchInput.style.backgroundColor = ""), 1000);
       } else {
         alert(
@@ -176,7 +169,6 @@ document.addEventListener("DOMContentLoaded", () => {
       renderTable(data.packages || []);
       renderPagination(data.pagination);
 
-      // [New] 更新狀態數量
       if (data.statusCounts) {
         updateStatusCounts(data.statusCounts);
       }
@@ -250,13 +242,12 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // [Update] V2025.Color-Optimized: 更新為高對比色 Class
     const statusClasses = {
-      PENDING: "status-PENDING", // 灰色
-      ARRIVED: "status-ARRIVED", // 綠色
-      IN_SHIPMENT: "status-IN_SHIPMENT", // 藍綠色 (區分運送中)
-      COMPLETED: "status-COMPLETED", // 墨綠色
-      CANCELLED: "status-CANCELLED", // 紅色
+      PENDING: "status-PENDING",
+      ARRIVED: "status-ARRIVED",
+      IN_SHIPMENT: "status-IN_SHIPMENT",
+      COMPLETED: "status-COMPLETED",
+      CANCELLED: "status-CANCELLED",
     };
     const statusTextMap = window.PACKAGE_STATUS_MAP || {};
 
@@ -267,19 +258,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     packages.forEach((pkg) => {
       const tr = document.createElement("tr");
-      // 若狀態沒有對應，預設為灰色
       const statusClass = statusClasses[pkg.status] || "status-PENDING";
       const statusText = statusTextMap[pkg.status] || pkg.status;
 
       let weightInfo = "-";
       let alertBadges = "";
 
-      // [Fix] 若有 claimProof，顯示已認領標籤
       if (pkg.claimProof) {
         alertBadges += `<span class="badge" style="background-color:#6610f2; color:white; font-size:11px; padding:2px 6px; margin-right:2px; border-radius:4px;">🙋‍♂️ 已認領</span> `;
       }
 
-      // [New] 若是無主件，標示特殊標籤
       if (
         pkg.user &&
         (pkg.user.email === "unclaimed@runpiggy.com" ||
@@ -397,10 +385,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let claimHtml = "";
     if (pkg.claimProof) {
+      // [FIX] 判斷認領圖片是否為完整 URL (Cloudinary)
+      const proofUrl =
+        pkg.claimProof.startsWith("http") || pkg.claimProof.startsWith("https")
+          ? pkg.claimProof
+          : `${API_BASE_URL}${pkg.claimProof}`;
+
       claimHtml = `
             <div style="margin-top:5px; padding:5px; background:#e6f7ff; border:1px solid #1890ff; border-radius:4px;">
                 <strong style="color:#1890ff;">🙋‍♂️ 此包裹已被認領</strong><br>
-                <a href="${API_BASE_URL}${pkg.claimProof}" target="_blank" style="font-size:12px; text-decoration:underline; display:flex; align-items:center; gap:5px;">
+                <a href="${proofUrl}" target="_blank" style="font-size:12px; text-decoration:underline; display:flex; align-items:center; gap:5px;">
                     <i class="fas fa-image"></i> 查看購物證明截圖
                 </a>
             </div>
@@ -418,7 +412,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-note").value = pkg.note || "";
     document.getElementById("modal-status").value = pkg.status;
 
-    // --- [New] 顯示商品購買連結 ---
+    // 顯示商品購買連結
     const urlDisplay = document.getElementById("modal-productUrl-display");
     if (pkg.productUrl) {
       urlDisplay.innerHTML = `<a href="${
@@ -432,15 +426,18 @@ document.addEventListener("DOMContentLoaded", () => {
       urlDisplay.innerHTML = `<span class="text-muted"><i class="fas fa-ban"></i> 客戶未提供連結</span>`;
     }
 
-    // --- [New] 顯示客戶上傳照片 ---
+    // 顯示客戶上傳照片
     const clientImgDiv = document.getElementById("modal-client-images-preview");
     const clientSection = document.getElementById("client-images-section");
     clientImgDiv.innerHTML = "";
     if (pkg.productImages && pkg.productImages.length > 0) {
       clientSection.style.display = "block";
       pkg.productImages.forEach((img) => {
-        // [Fixed] 如果是完整 URL (http 開頭) 則不加 API_BASE_URL
-        const fullUrl = img.startsWith("http") ? img : `${API_BASE_URL}${img}`;
+        // [Fixed] 判斷是否為完整 URL
+        const fullUrl =
+          img.startsWith("http") || img.startsWith("https")
+            ? img
+            : `${API_BASE_URL}${img}`;
         clientImgDiv.innerHTML += `
             <a href="${fullUrl}" target="_blank" title="點擊放大">
                 <img src="${fullUrl}" style="width:80px; height:80px; object-fit:cover; border:1px solid #ddd; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
@@ -448,7 +445,6 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
       });
     } else {
-      // 若無照片，也可以隱藏整個區塊，或顯示無照片
       clientImgDiv.innerHTML = `<span class="text-muted small">客戶未上傳照片</span>`;
     }
 
@@ -485,7 +481,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modal-user-display").innerHTML = "";
     document.getElementById("create-user-search").style.display = "block";
     document.getElementById("admin-create-userId").value = "";
-    // 清空搜尋欄位
     document.getElementById("admin-customer-search").value = "";
     document.getElementById("admin-customer-search-results").style.display =
       "none";
@@ -493,7 +488,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("boxes-section").style.display = "none";
     document.getElementById("modal-status").value = "PENDING";
 
-    // 清空連結與客戶圖片顯示
     document.getElementById("modal-productUrl-display").innerHTML = "";
     document.getElementById("modal-client-images-preview").innerHTML = "";
     document.getElementById("client-images-section").style.display = "none";
@@ -502,7 +496,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   window.openCreateModal = openCreateModal;
 
-  // ... (renderSubPackages, updateFeesOnInput, renderImages, deleteImage 保持不變) ...
   function renderSubPackages() {
     const list = document.getElementById("sub-package-list");
     list.innerHTML = "";
@@ -671,7 +664,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // [Auto] 自動切換狀態
     const statusSelect = document.getElementById("modal-status");
     if (hasValidBox && statusSelect && statusSelect.value === "PENDING") {
       statusSelect.value = "ARRIVED";
@@ -700,8 +692,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const container = document.getElementById("modal-warehouse-images-preview");
     container.innerHTML = "";
     images.forEach((url, idx) => {
-      // [Fixed] 如果是完整 URL (http 開頭) 則不加 API_BASE_URL
-      const src = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+      // [Fixed] 判斷是否為完整 URL
+      const src =
+        url.startsWith("http") || url.startsWith("https")
+          ? url
+          : `${API_BASE_URL}${url}`;
       container.innerHTML += `
             <div style="position:relative;">
                 <img src="${src}" style="width:60px; height:60px; object-fit:cover; border-radius:4px; border:1px solid #ddd;">
@@ -815,7 +810,6 @@ document.addEventListener("DOMContentLoaded", () => {
     resultDiv.style.display = "none";
   };
 
-  // ... (toggleSelection, updateBulkUI, performBulkDelete 保持不變) ...
   function toggleSelection(id, checked) {
     if (checked) selectedIds.add(id);
     else selectedIds.delete(id);
