@@ -46,6 +46,26 @@ app.get("/", (req, res) => {
   res.json({ message: "小跑豬後端伺服器 (System V13 - Full Feature Ready)!" });
 });
 
+// --- 優化新增：處理所有未命中的路由 (404 Fallback) ---
+// 這能解決 Unexpected token '<' 的問題，因為它保證回傳 JSON 而非預設的 HTML 頁面
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `找不到路徑: ${req.originalUrl}，請檢查前端 API_BASE_URL 配置`,
+  });
+});
+
+// --- 優化新增：全域錯誤處理器 (Error Handling Middleware) ---
+// 確保當後端程式碼發生錯誤（崩潰）時，回傳 JSON 格式的錯誤訊息，避免瀏覽器收到 HTML
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    message: "伺服器內部發生錯誤",
+    error: err.message,
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`伺服器正在 http://localhost:${PORT} 上運行...`);
 });

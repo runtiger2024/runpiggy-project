@@ -1,4 +1,4 @@
-// 這是 frontend/js/auth.js (已修復 API_BASE_URL)
+// frontend/js/auth.js
 
 document.addEventListener("DOMContentLoaded", () => {
   // --- 1. 獲取元素 ---
@@ -8,14 +8,57 @@ document.addEventListener("DOMContentLoaded", () => {
   const registerTab = document.getElementById("tab-register");
   const messageBox = document.getElementById("message-box");
 
+  /**
+   * 統一的 API 請求處理器
+   * 解決 "Unexpected token <" 的核心方案：先檢查 Content-Type 再解析 JSON
+   */
+  async function apiRequest(url, options) {
+    const response = await fetch(url, options);
+    const contentType = response.headers.get("content-type");
+
+    // 檢查回應是否為 JSON 格式
+    if (contentType && contentType.includes("application/json")) {
+      const data = await response.json();
+      if (!response.ok) {
+        // 處理後端回傳的邏輯錯誤 (如：密碼錯誤、Email 已存在)
+        throw new Error(data.message || "請求失敗");
+      }
+      return data;
+    } else {
+      // 若回傳非 JSON (如 HTML 404/500 頁面)，讀取文本以供偵錯，但不執行 JSON 解析
+      const errorText = await response.text();
+      console.error("伺服器回傳了非預期的內容 (HTML):", errorText);
+      throw new Error("伺服器路徑錯誤或連線異常 (收到非 JSON 回應)");
+    }
+  }
+
+  /**
+   * 統一處理驗證成功後的邏輯 (儲存 Token 並跳轉)
+   */
+  function handleAuthSuccess(data) {
+    // 顯示成功訊息
+    showMessage(data.message || "操作成功！正在跳轉...", "success");
+
+    // (關鍵) 將 Token 與使用者名稱存入 localStorage
+    localStorage.setItem("token", data.token);
+
+    // 優先使用後端回傳的名稱，若無則使用 Email
+    const savedName = data.user.name || data.user.email;
+    localStorage.setItem("userName", savedName);
+
+    // 2 秒後跳轉到會員中心
+    setTimeout(() => {
+      window.location.href = "dashboard.html";
+    }, 2000);
+  }
+
   // --- 2. 頁籤切換邏輯 ---
-  // (參考 public/customer.html)
   loginTab.addEventListener("click", () => {
     loginTab.classList.add("active");
     registerTab.classList.remove("active");
     loginForm.style.display = "block";
     registerForm.style.display = "none";
-    showMessage("", "clear"); // 清除訊息
+    showMessage("", "clear");
   });
 
   registerTab.addEventListener("click", () => {
@@ -23,42 +66,25 @@ document.addEventListener("DOMContentLoaded", () => {
     registerTab.classList.add("active");
     loginForm.style.display = "none";
     registerForm.style.display = "block";
-    showMessage("", "clear"); // 清除訊息
+    showMessage("", "clear");
   });
 
   // --- 3. 登入表單提交 (呼叫 /api/auth/login) ---
   loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault(); // 防止頁面跳轉
-    showMessage("", "clear");
+    e.preventDefault();
+    showMessage("正在登入...", "success");
 
     const email = document.getElementById("login-email").value;
     const password = document.getElementById("login-password").value;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const data = await apiRequest(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        // 登入失敗 (例如 401 密碼錯誤)
-        throw new Error(data.message || "登入失敗");
-      }
-
-      // 登入成功！
-      showMessage("登入成功！正在跳轉至會員中心...", "success");
-
-      // (關鍵) 將 Token 存入瀏覽器的 localStorage
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("userName", data.user.name || data.user.email); // 儲存使用者名稱
-
-      // 2 秒後跳轉到 dashboard.html
-      setTimeout(() => {
-        window.location.href = "dashboard.html";
-      }, 2000);
+      handleAuthSuccess(data);
     } catch (error) {
       console.error("登入錯誤:", error);
       showMessage(error.message, "error");
@@ -68,42 +94,26 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- 4. 註冊表單提交 (呼叫 /api/auth/register) ---
   registerForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    showMessage("", "clear");
+    showMessage("正在註冊...", "success");
 
     const name = document.getElementById("reg-name").value;
     const email = document.getElementById("reg-email").value;
     const password = document.getElementById("reg-password").value;
 
+    // 前端基本驗證
     if (password.length < 6) {
       showMessage("密碼長度至少需要 6 個字元", "error");
       return;
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      const data = await apiRequest(`${API_BASE_URL}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        // 註冊失敗 (例如 400 Email 已存在)
-        throw new Error(data.message || "註冊失敗");
-      }
-
-      // 註冊成功！
-      showMessage("註冊成功！正在自動登入並跳轉...", "success");
-
-      // (關鍵) 將 Token 存入瀏覽器的 localStorage
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("userName", data.user.name || data.user.email);
-
-      // 2 秒後跳轉到 dashboard.html
-      setTimeout(() => {
-        window.location.href = "dashboard.html";
-      }, 2000);
+      handleAuthSuccess(data);
     } catch (error) {
       console.error("註冊錯誤:", error);
       showMessage(error.message, "error");
